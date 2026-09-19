@@ -82,19 +82,28 @@ module glimmer_ncdf
      integer id
      !> id of netCDF file
 
-     !> size of vertical and stag vertical coordinate
+     !> Include the remaining dimension lengths.
+     !> Note: These are given nonzero values elsewhere.
+
+     !> vertical and stag vertical coordinate
      integer :: nlevel = 0
      integer :: nstaglevel = 0
      integer :: nstagwbndlevel = 0
 
-     !WHL - added to handle ocean vertical coordinate
+     ! ocean vertical coordinate
      integer :: nzocn = 0
 
-     !WHL - added to handle atmosphere vertical coordinate
+     ! atmosphere vertical coordinate
      integer :: nzatm = 0
 
-     !WHL - added to handle glacier coordinate
+     ! glacier number coordinate
      integer :: nglacier = 0
+
+     ! basin number coordinate
+     integer :: nbasin = 0
+
+     ! axis number coordinate
+     integer :: naxis = 0
 
      integer timedim
      !> id of time dimension

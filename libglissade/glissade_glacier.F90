@@ -364,7 +364,7 @@ contains
              i = glacier_list(nc)%indxi
              j = glacier_list(nc)%indxj
              cism_glacier_id_global(i,j) = ng
-             if (ng == nglacier/2) then   ! random glacier
+             if (verbose_glacier .and. ng == nglacier/2) then   ! random glacier
                 write(iulog,*) nc, i, j, cism_glacier_id_global(i,j), glacier%cism_to_rgi_glacier_id(ng)
              endif
              if (ng > nglacier) then

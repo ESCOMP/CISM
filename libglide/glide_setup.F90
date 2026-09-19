@@ -486,12 +486,10 @@ contains
           call write_log('')
        endif
 
-       if (model%ocean_data%nbasin >= 1) then
+       if (model%ocean_data%nbasin > 1) then
           call write_log('')
           write(message,*) 'number of ocean basins: ', model%ocean_data%nbasin
           call write_log(trim(message))
-       else
-          call write_log('No ocean basins')
        endif
 
     else    ! no 'grid_ocn' section
@@ -564,7 +562,7 @@ contains
        ! TODO: Is it possible to get the levels from the netCDF file instead?
        ! Note: By convention, zatm increases with increasing k.
        !       If the input zatm levels do not satisfy this criterion, the code aborts.
-       call write_log (' Reading zocn levels from config file')
+       call write_log (' Reading zatm levels from config file')
        call GetValue(section, 'zatm', model%climate%zatm, model%climate%nzatm)
        do k = 2, model%climate%nzatm
           if (model%climate%zatm(k) - model%climate%zatm(k-1) < 1.0d0) then

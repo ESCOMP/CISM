@@ -1676,9 +1676,9 @@ module glide_types
      ! The following are for calvingMIP diagnostics along 8 axes
      ! Could be generalized for other problems with idealized geometry
 
-     integer :: naxis = 8                        !> number of axes for calvingMIP diagnostics
-     !WHL - is this array needed?
-     integer, dimension(:), pointer :: axis => null()   !> array holding axis numbers
+     integer :: naxis = 1                                    !> number of axes for calvingMIP diagnostics
+                                                             !> set to 8 below if running on a calvingMIP domain
+     integer, dimension(:), pointer :: axis => null()        !> axis dimension variable, used for I/O
 
      real(dp), dimension(:), pointer :: cf_locx => null()    !> CF location, x coordinate (m) along each axis
      real(dp), dimension(:), pointer :: cf_locy => null()    !> CF location, y coordinate (m) along each axis
@@ -1969,9 +1969,13 @@ module glide_types
      integer  :: nbasin = 1                         !> number of basins (= 16 for IMBIE2)
      integer  :: nzocn = 1                          !> number of ocean levels
      real(dp) :: dzocn = 0.d0                       !> thickness of ocean levels; nonzero value set in config file
+
      real(dp), dimension(:), pointer :: &
           zocn => null()                            !> ocean levels (m) where forcing is provided, negative below sea level
- 
+
+     integer, dimension(:), pointer :: &
+          basin => null()                           !> basin dimension variable, used for I/O
+
      real(dp) :: gamma0 = 0.d0                      !> coefficient relating sub-shelf melt rates to thermal forcing (m/yr)
      real(dp) :: thermal_forcing_basin_min = 0.0d0  !> min value of thermal_forcing_basin (deg K) for nonlocal and nonlocal-slope schemes
      real(dp) :: thermal_forcing_basin_max = 0.0d0  !> max value of thermal_forcing_basin (deg K) for nonlocal and nonlocal-slope schemes
@@ -2128,7 +2132,6 @@ module glide_types
 
      ! 1D arrays with size nglacier
 
-     !WHL - Is this array needed?
      integer, dimension(:), pointer :: &
           glacierid => null()                 !> glacier ID dimension variable, used for I/O
 
@@ -2995,6 +2998,7 @@ contains
 
     integer :: ewn,nsn,upn               !> local array dimensions
     integer :: global_ewn, global_nsn    !> global array dimensions
+    integer :: n
 
     ! for simplicity, copy these values...
     ewn = model%general%ewn
@@ -3297,10 +3301,6 @@ contains
           ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
           !TODO - Also do this if which_lateral_melt = LATERAL_MELT_COUPLED?
           !       Not sure if we would use this option with other values of whichbmlt_float
-          !TODO - This logic probably not needed if nzocn = 1 is the default value
-          if (model%ocean_data%nzocn < 1) then
-             call write_log('Must set nzocn >= 1 for this bmlt_float option', GM_FATAL)
-          endif
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
@@ -3386,7 +3386,13 @@ contains
     endif
 
     ! basin diagnostic arrays
+    ! Note: These are allocated even if there is just one basin,
+    !       but they are intended for use with multiple basins.
     if (model%ocean_data%nbasin >= 1) then
+       allocate(model%ocean_data%basin(model%ocean_data%nbasin))
+       do n = 1, model%ocean_data%nbasin
+          model%ocean_data%basin(n) = n
+       enddo
        allocate(model%scalars%iarea_basin(model%ocean_data%nbasin))
        allocate(model%scalars%iareag_basin(model%ocean_data%nbasin))
        allocate(model%scalars%iareaf_basin(model%ocean_data%nbasin))
@@ -3476,6 +3482,11 @@ contains
        allocate(model%calving%damage(1,1,1))
     endif
     if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
+       model%calving%naxis = 8
+       allocate(model%calving%axis(model%calving%naxis))
+       do n = 1, model%calving%naxis
+          model%calving%axis(n) = n
+       enddo
        allocate(model%calving%cf_locx(model%calving%naxis))
        allocate(model%calving%cf_locy(model%calving%naxis))
        allocate(model%calving%cf_radius(model%calving%naxis))

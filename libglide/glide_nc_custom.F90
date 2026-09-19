@@ -179,29 +179,41 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
-    !TODO - Uncomment to add an ocean level dimension
-    ! ocean level dimension
-!    status = parallel_inq_varid(NCO%id,'zocn',varid)
-!    status= parallel_put_var(NCO%id,varid,model%ocean_data%zocn)
-!    call nc_errorhandle(__FILE__,__LINE__,status)
+    ! ocean level dimension (used for ocean data input)
 
-    !TODO - Uncomment to add an atm level dimension
-    ! atm level dimension
-!    status = parallel_inq_varid(NCO%id,'zatm',varid)
-!    status= parallel_put_var(NCO%id,varid,model%climate%zatm)
-!    call nc_errorhandle(__FILE__,__LINE__,status)
+    if (model%ocean_data%nzocn > 1) then
+       status = parallel_inq_varid(NCO%id,'zocn',varid)
+       status= parallel_put_var(NCO%id,varid,model%ocean_data%zocn)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    endif
 
-    ! glacier dimension
+    ! atm level dimension (used for atmosphere data input)
 
-    if (model%options%enable_glaciers) then
+    if (model%climate%nzatm > 1) then
+       status = parallel_inq_varid(NCO%id,'zatm',varid)
+       status= parallel_put_var(NCO%id,varid,model%climate%zatm)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    endif
+
+    ! glacier dimension (used for glacier-specific output)
+
+    if (model%glacier%nglacier > 1) then   ! enable_glaciers = T
        status = parallel_inq_varid(NCO%id,'glacierid',varid)
        status= parallel_put_var(NCO%id,varid,model%glacier%glacierid)
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
+    ! basin dimension (used for ocean basin-specific output)
+
+    if (model%ocean_data%nbasin > 1) then
+       status = parallel_inq_varid(NCO%id,'basin',varid)
+       status= parallel_put_var(NCO%id,varid,model%ocean_data%basin)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    endif
+
     ! axis dimension (used for CalvingMIP output)
 
-    if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
+    if (model%calving%naxis > 1) then   ! which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE
        status = parallel_inq_varid(NCO%id,'axis',varid)
        status= parallel_put_var(NCO%id,varid,model%calving%axis)
        call nc_errorhandle(__FILE__,__LINE__,status)

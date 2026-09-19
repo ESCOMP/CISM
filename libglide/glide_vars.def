@@ -98,29 +98,32 @@ data:          data%climate%zatm
 positive:      up
 dimlen:        model%climate%nzatm
 
-[basin]
-dimensions:    basin
-units:         1
-long_name:     ocean basin coordinate
-dimlen:        model%ocean_data%nbasin
-
-[glacierid]
-dimensions:    glacierid
-units:         1
-long_name:     glacier_id_coordinate
-dimlen:        model%glacier%nglacier
-
 [lithoz]
 dimensions:    lithoz
 units:         meter
 long_name:     vertical coordinate of lithosphere layer
 dimlen:        model%lithot%nlayer
 
+[glacierid]
+dimensions:    glacierid
+units:         1
+long_name:     glacier_id_coordinate
+data:          data%glacier%glacierid
+dimlen:        model%glacier%nglacier
+
 [axis]
 dimensions:    axis
 units:         1
 long_name:     axis coordinate for calvingMIP output
+data:          data%calving%axis
 dimlen:        model%calving%naxis
+
+[basin]
+dimensions:    basin
+units:         1
+long_name:     basin coordinate for basin-specific output
+data:          data%ocean_data%basin
+dimlen:        model%ocean_data%nbasin
 
 [lat]
 dimensions:    time, y1, x1

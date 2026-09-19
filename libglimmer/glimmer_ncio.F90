@@ -207,14 +207,23 @@ contains
     NCO%nstaglevel = model%general%upn-1
     NCO%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
 
-    ! WHL - adding a vertical coordinate for ocean data
+    ! Note: The following dimension lengths are set to 1 by default,
+    !       but can be increased depending on the config options.
+
+    ! vertical coordinate for ocean data
     NCO%nzocn = model%ocean_data%nzocn
 
-    ! WHL - adding a vertical coordinate for atmosphere data
+    ! vertical coordinate for atmosphere data
     NCO%nzatm = model%climate%nzatm
 
-    ! WHL - adding a glacier ID coordinate for glacier data
+    ! glacier ID coordinate for glacier data
     NCO%nglacier = model%glacier%nglacier
+
+    ! basin coordinate for basin data
+    NCO%nbasin = model%ocean_data%nbasin
+
+    ! coordinate for calvingMIP axis data
+    NCO%naxis = model%calving%naxis
 
   end subroutine glimmer_nc_openappend
 
@@ -348,14 +357,23 @@ contains
     NCO%nstaglevel = model%general%upn-1
     NCO%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
 
-    ! WHL - adding a vertical coordinate for ocean data
+    ! Note: The following dimension lengths are set to 1 by default,
+    !       but can be increased depending on the config options.
+
+    ! vertical coordinate for ocean data
     NCO%nzocn = model%ocean_data%nzocn
 
-    ! WHL - adding a vertical coordinate for ocean data
+    ! vertical coordinate for atmosphere data
     NCO%nzatm = model%climate%nzatm
 
-    ! WHL - adding a glacier ID coordinate for glacier data
+    ! glacier ID coordinate for glacier data
     NCO%nglacier = model%glacier%nglacier
+
+    ! basin coordinate for basin data
+    NCO%nbasin = model%ocean_data%nbasin
+
+    ! coordinate for calvingMIP axis data
+    NCO%naxis = model%calving%naxis
 
   end subroutine glimmer_nc_createfile
 
@@ -591,14 +609,23 @@ contains
     NCI%nstaglevel = model%general%upn-1
     NCI%nstagwbndlevel = model%general%upn !MJH This is the max index, not size
 
-    ! WHL - adding a vertical coordinate for ocean data
+    ! Note: The following dimension lengths are set to 1 by default,
+    !       but can be increased depending on the config options.
+
+    ! vertical coordinate for ocean data
     NCI%nzocn = model%ocean_data%nzocn
 
-    ! WHL - adding a vertical coordinate for ocean data
+    ! vertical coordinate for atmosphere data
     NCI%nzatm = model%climate%nzatm
 
-    ! WHL - adding a glacier ID coordinate for glacier data
+    ! glacier ID coordinate for glacier data
     NCI%nglacier = model%glacier%nglacier
+
+    ! basin coordinate for basin data
+    NCI%nbasin = model%ocean_data%nbasin
+
+    ! coordinate for calvingMIP axis data
+    NCI%naxis = model%calving%naxis
 
     ! checking if dimensions and grid spacing are the same as in the configuration file
     ! x1
@@ -694,7 +721,7 @@ contains
   ! to check whether the spacing is the same (don't want to put that burden on setup,
   ! plus f.p. compare has been known to cause problems here)
   status = parallel_inq_dimid(NCI%id,'level',dimid)
-  ! If we couldn't find the 'level' dimension fail with a warning.
+  ! If we couldn't find the 'level' dimension, write a warning.
   ! We don't want to throw an error, as input files are only required to have it if they
   ! include 3D data fields.
   if (status == NF90_NOERR) then
