@@ -456,6 +456,12 @@ module glide_types
     integer :: nx_block = 0      ! user-specified block sizes
     integer :: ny_block = 0      ! one task per block; optionally, tasks not assigned to inactive blocks
 
+    ! time bounds variables
+!    real(dp), dimension(:), pointer :: &
+!         time_bounds             ! start and end points in time for tavg output
+!    integer, dimension(:), pointer :: &
+!         tbnd => null()          ! time bounds dimension variable, used for I/O
+
   end type glide_general
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -3037,6 +3043,11 @@ contains
     ! latitude and longitude
     call coordsystem_allocate(model%general%ice_grid, model%general%lat)
     call coordsystem_allocate(model%general%ice_grid, model%general%lon)
+
+    ! boundary dimension (= 2 for start and end points in time)
+!    allocate(model%general%time_bounds(2))
+!    allocate(model%general%tbnd(2))
+!    model%general%tbnd = (/1,2/)
 
     ! ice domain mask (to identify active blocks)
     call coordsystem_allocate(model%general%ice_grid, model%general%ice_domain_mask)

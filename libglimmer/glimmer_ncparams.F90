@@ -121,7 +121,7 @@ contains
        end if
 
        ! Check the variable list for the string '_tavg', which indicates a time-average field.
-       ! If any variables have this string, then all variables must have it, else the code aborts.
+       ! If any variables contain '_tavg', then all variables in the file must have it, else the code aborts.
        ! In other words, instantaneous and time-average fields cannot be mixed in a single file.
 
        abort = .false.
@@ -130,9 +130,9 @@ contains
 
           ! The variables in output%nc%vars are separated by spaces. First remove any extra spaces.
           call remove_extra_spaces(output%nc%vars, vars)
-          n = len(vars)
 
           ! Check that each space is preceded by the string '_tavg'.
+          n = len(vars)
           do i = 1, n
              if (vars(i:i) == ' ') then
                 if (vars(i-5:i-1) /= '_tavg') then  ! the preceding variable is not a tavg variable
