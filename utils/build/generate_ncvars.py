@@ -361,8 +361,8 @@ class PrintNC_template(PrintVars):
             self.stream.write("%s    end if\n"%(spaces*' '))
 
             self.stream.write("%s  else\n"%(spaces*' ')) # MJH 10/21/13
-            self.stream.write("%s  call write_log('Variable "%(spaces*' ') + var['name'] + " was specified for output but it is &\n")
-            self.stream.write("%s       &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)\n"%(spaces*' ')) # MJH 10/21/13
+            self.stream.write("%s  call write_log('Variable "%(spaces*' ') + var['name'] + " was specified for output but is &\n")
+            self.stream.write("%s       &inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)\n"%(spaces*' '))
             self.stream.write("%s  end if\n"%(spaces*' '))   # MJH 10/21/13
 
             self.stream.write("%s  end if\n"%(spaces*' '))

@@ -364,6 +364,13 @@ long_name:     basal melt rate for floating ice
 data:          data%basal_melt%bmlt_float
 factor:        scyr
 
+[bmlt_float_target]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     basal melt rate target for floating ice
+data:          data%basal_melt%bmlt_float_target
+factor:        scyr
+
 [bmlt_float_external]
 dimensions:    time, y1, x1
 units:         meter/year
@@ -535,7 +542,7 @@ long_name:     observed surface elevation
 data:          data%geometry%usrf_obs
 load:          1
 
-[dthk_dt_obs]
+[dthck_dt_obs]
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     observed rate of ice thickness change
@@ -543,7 +550,7 @@ data:          data%geometry%dthck_dt_obs
 factor:        scyr
 load:          1
 
-[dthk_dt_obs_basin]
+[dthck_dt_obs_basin]
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     observed rate of ice thickness change, basin average
@@ -809,7 +816,6 @@ dimensions:    time, axis
 long_name:     calving-front x location
 units:         km
 data:          data%calving%cf_locx
-type:          real
 factor:        0.001
 
 [cf_locy]
@@ -817,7 +823,6 @@ dimensions:    time, axis
 long_name:     calving-front x location
 units:         km
 data:          data%calving%cf_locy
-type:          real
 factor:        0.001
 
 [cf_radius]
@@ -825,7 +830,6 @@ dimensions:    time, axis
 long_name:     calving-front radius
 units:         km
 data:          data%calving%cf_radius
-type:          real
 factor:        0.001
 
 [cf_thck]
@@ -833,14 +837,12 @@ dimensions:    time, axis
 long_name:     calving-front thickness
 units:         m
 data:          data%calving%cf_thck
-type:          real
 
 [cf_uvel]
 dimensions:    time, axis
 long_name:     calving-front velocity, u component
 units:         m/year
 data:          data%calving%cf_uvel
-type:          real
 factor:        scyr
 
 [cf_vvel]
@@ -848,7 +850,6 @@ dimensions:    time, axis
 long_name:     calving-front velocity, v component
 units:         m/year
 data:          data%calving%cf_vvel
-type:          real
 factor:        scyr
 
 [thkmask]

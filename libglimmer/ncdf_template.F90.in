@@ -143,8 +143,9 @@ contains
   
   subroutine NAME_io_create(outfile,model,data)
 
-    use cism_parallel, only: parallel_type, &
+    use cism_parallel, only: main_task, parallel_type, &
          parallel_def_dim, parallel_inq_dimid, parallel_def_var, parallel_inq_varid, parallel_put_att
+    use glimmer_global, only: msg_length
     use glimmer_ncio
     use glimmer_map_types
     use glimmer_log
@@ -154,27 +155,19 @@ contains
     type(DATATYPE) :: data    ! MJH 10/21/13: Making 'data' mandatory.  See note below
 
     integer status,varid,pos,model_id
-
-    ! MJH 10/21/13: Local variables needed for checking if a variable is enabled.
+    character(len=msg_length) :: message
     real(dp) :: tavgf
     integer :: up
 
     !GENVAR_DIMS!
 
-    ! Expanding restart variables: if 'restart' or 'hot' is present, we remove that
+    ! Expanding restart variables: if 'restart' is present, we remove that
     ! word from the variable list, and flip the restartfile flag.  
-    ! In CISM 2.0, 'restart' is the preferred name to represent restart variables, 
-    ! but 'hot' is supported for backward compatibility.  Thus, we check for both.
     NCO%vars = ' '//trim(adjustl(NCO%vars))//' '  ! Need to maintain a space at beginning and end of list
     ! expanding restart variables
     pos = index(NCO%vars,' restart ') 
     if (pos.ne.0) then
        NCO%vars = NCO%vars(:pos)//NCO%vars(pos+8:)
-       NCO%restartfile = .true.
-    end if
-    pos = index(NCO%vars,' hot ') 
-    if (pos.ne.0) then
-       NCO%vars = NCO%vars(:pos)//NCO%vars(pos+4:)
        NCO%restartfile = .true.
     end if
     ! Now apply necessary changes if the file is a restart file.
@@ -196,7 +189,7 @@ contains
     end if
 
     ! Convert temp and flwa to versions on stag grid, if needed
-    ! Note: this check must occur after restart variables are expanded which happens in glimmer_nc_readparams
+    ! Note: this check must occur after restart variables are expanded in glimmer_nc_readparams
     call check_for_tempstag(model%options%whichdycore,NCO)
 
     ! checking if we need to handle time averages
@@ -207,7 +200,8 @@ contains
 
     ! Now that the output variable list is finalized, make sure we aren't truncating what the user intends to be output.
     ! Note: this only checks that the text in the variable list does not extend to within one character of the end of the variable.
-    ! It does not handle the case where the user exactly fills the allowable length with variables or has a too-long list with more than one space between variable names.
+    ! It does not handle the case where the user exactly fills the allowable length with variables or has a too-long list
+    ! with more than one space between variable names.
     if ((len_trim(NCO%vars) + 1 ) >= len(NCO%vars)) then 
        call write_log('The list of output variables is too long for file ' // NCO%filename, GM_FATAL)
     endif
@@ -231,6 +225,19 @@ contains
     up = 0
 
     !GENVAR_VARDEF!
+
+    ! Each variable substring is removed from NCO%vars as it is processed above.
+    ! The 'vars' string should now consist only of blank spaces. If not, then write a warning.
+    if (main_task) then
+        if (len_trim(NCO%vars) /= 0) then
+           write(message,*) 'Warning: glide_io_create may have not have created all the requested&
+                & output variables in file ', trim(NCO%filename)
+           call write_log(message)
+           write(message,*) 'variables in the list but not created: ', trim(adjustl(NCO%vars))
+           call write_log(message, GM_WARNING)
+	endif
+     endif
+
   end subroutine NAME_io_create
 
   subroutine NAME_io_write(outfile,data)
@@ -845,11 +852,11 @@ contains
 
     get_xtype = xtype
     
-    if (xtype.eq.NF90_REAL .and. outfile%default_xtype.eq.NF90_DOUBLE) then
+    if (xtype.eq.NF90_FLOAT .and. outfile%default_xtype.eq.NF90_DOUBLE) then
        get_xtype = NF90_DOUBLE
     end if
-    if (xtype.eq.NF90_DOUBLE .and. outfile%default_xtype.eq.NF90_REAL) then
-       get_xtype = NF90_REAL
+    if (xtype.eq.NF90_DOUBLE .and. outfile%default_xtype.eq.NF90_FLOAT) then
+       get_xtype = NF90_FLOAT
     end if
   end function get_xtype
 
