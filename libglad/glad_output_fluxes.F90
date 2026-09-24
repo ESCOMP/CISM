@@ -87,19 +87,25 @@ contains
     output_fluxes%av_count_output = output_fluxes%av_count_output + 1
 
     !--------------------------------------------------------------------
-    ! Accumulate solid runoff (calving)
+    ! Accumulate solid runoff (calving and other ice removal)
+    ! Note: Icebergs and isthmuses removed by glissade_handle_ice_caps, ice removed by
+    !       forced retreat, and tiny thicknesses cleaned up by glissade_cleanup_tiny_thickness
+    !       are all tracked separately from calving_thck as removal_thck (not explicitly
+    !       calved), but the ice is still lost to the ocean as solid ice, so it is included
+    !       here in the solid ice runoff along with calving_thck.
     !--------------------------------------------------------------------
-                       
-    ! Note on units: model%calving%calving_thck has dimensions of m of ice
+
+    ! Note on units: model%calving%calving_thck and model%geometry%removal_thck
+    !                have dimensions of m of ice.
     !                Multiply by rhoi to convert to kg/m^2 water equiv.
     !                Divide by dt to convert to kg/m^2/s
 
     ! Convert to kg/m^2/s
     output_fluxes%rofi_sum(:,:) = output_fluxes%rofi_sum(:,:)  &
-         + model%calving%calving_thck(:,:) * rhoi / model%numerics%dt
+         + (model%calving%calving_thck(:,:) + model%geometry%removal_thck(:,:)) * rhoi / model%numerics%dt
 
     !--------------------------------------------------------------------
-    ! Accumulate liquid runoff (basal melting)
+    ! Accumulate liquid runoff (basal melting and lateral/submarine melting)
     ! Note: There can be basal melting beneath either grounded ice or floating ice.
     !       Basal melt beneath floating ice will typically be an input from the coupler
     !        (computed based on sub-ice-shelf ocean temperature and salinity).
@@ -108,13 +114,19 @@ contains
     !       (1) floating ice melts entirely before using up the potential melt, or
     !       (2) some floating ice melts internally.
     !       In these cases, we will need to be careful that heat and water are conserved.
+    !       Lateral melt (glissade_lateral_melt) represents submarine melting at marine
+    !       ice fronts, which converts ice directly to liquid water, so it is added here
+    !       to the liquid runoff rather than to the solid ice runoff.
     !--------------------------------------------------------------------
-                       
+
     ! Note on units: model%temper%bmlt has dimensionless units of m/s ice
     !                Multiply by rhoi to convert to kg/m^2/s water equiv.
+    !                model%lateral_melt%melt_thck has dimensions of m of ice;
+    !                multiply by rhoi and divide by dt to convert to kg/m^2/s.
 
     ! Convert to kg/m^2/s
-    output_fluxes%rofl_sum(:,:) = output_fluxes%rofl_sum(:,:) + model%basal_melt%bmlt(:,:) * rhoi
+    output_fluxes%rofl_sum(:,:) = output_fluxes%rofl_sum(:,:) + model%basal_melt%bmlt(:,:) * rhoi &
+         + model%lateral_melt%melt_thck(:,:) * rhoi / model%numerics%dt
 
     !--------------------------------------------------------------------
     ! Accumulate basal heat flux
