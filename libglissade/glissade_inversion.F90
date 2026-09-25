@@ -1,5 +1,5 @@
-!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-!                                                             
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++!
+!
 !   glissade_inversion.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -27,11 +27,10 @@
 module glissade_inversion
 
   use glimmer_physcon, only: scyr, grav
-  use glimmer_paramets, only: iulog, eps08
+  use glimmer_paramets, only: iulog, eps08, eps11
   use glimmer_log
   use glimmer_utils, only: point_diag
   use glide_types
-  use glide_thck, only: glide_calclsrf
   use cism_parallel, only: this_rank, main_task, nhalo, &
        parallel_type, parallel_halo, staggered_parallel_halo, &
        parallel_reduce_min, parallel_reduce_max, parallel_is_zero
@@ -47,7 +46,7 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-  logical, parameter :: verbose_inversion = .false.
+  logical :: verbose_inversion = .false.
 
 !***********************************************************************
 
@@ -244,73 +243,38 @@ contains
 
     !----------------------------------------------------------------------
     ! computations specific to powerlaw_c (Cp) and coulomb_c (Cc) inversion
-    ! Note: Most sliding laws have inversion for Cp or Cc, but not both.
-    !       The modified Schoof law, however, supports inversion for both.
-    !       (This could be extended to the School and Tsai laws.)
+    ! Note: Some sliding laws support local inversion for either Cp or Cc, but not both independently.
+    !       The Schoof law supports inverting for Cc while assuming a fixed relationship to Cp:
+    !        Cp = gamma*Cc^p
     !----------------------------------------------------------------------
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
         model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
 
        if (parallel_is_zero(model%basal_physics%powerlaw_c)) then
-          ! initialize powerlaw_c
           model%basal_physics%powerlaw_c(:,:) = model%basal_physics%powerlaw_c_const
        endif
 
        if (verbose_inversion) then
-          call point_diag(model%basal_physics%powerlaw_c, 'init_inversion for powerlaw_c', itest, jtest, rtest, 7, 7)
+          call point_diag(model%basal_physics%powerlaw_c, &
+               'init_inversion for powerlaw_c', itest, jtest, rtest, 7, 7, '(f10.2)')
        endif
 
     endif   ! invert for powerlaw_c
 
-    !TODO - Add distinct logic for powerlaw_c_inversion_basin?
-
-    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION .or.  &
+        model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
 
        if (parallel_is_zero(model%basal_physics%coulomb_c)) then
-          ! initialize coulomb_c (for which we will invert)
           model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
        endif
 
        if (verbose_inversion) then
           call point_diag(model%basal_physics%coulomb_c, &
-               'init_inversion for coulomb_c', itest, jtest, rtest, 7, 7)
+               'init_inversion for coulomb_c', itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
 
     endif   ! invert for coulomb_c
-
-    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
-
-       !TODO - Should this calculation be done in glissade_initialise?
-       if (parallel_is_zero(model%basal_physics%coulomb_c_lo)) then
-          ! initialize coulomb_c_lo (for which we will invert)
-          model%basal_physics%coulomb_c_lo = model%basal_physics%coulomb_c_const_lo
-       endif
-
-       if (parallel_is_zero(model%basal_physics%coulomb_c_hi)) then
-          ! initialize coulomb_c_lo (for which we will invert)
-          model%basal_physics%coulomb_c_hi = model%basal_physics%coulomb_c_const_hi
-       endif
-
-       call glissade_elevation_based_coulomb_c(&
-            ewn,             nsn,                 &
-            itest,  jtest,   rtest,               &
-            model%geometry%topg,                  &
-            model%climate%eus,                    &
-            model%basal_physics%coulomb_c_lo,     &
-            model%basal_physics%coulomb_c_hi,     &
-            model%basal_physics%coulomb_c_bed_lo, &
-            model%basal_physics%coulomb_c_bed_hi, &
-            model%basal_physics%coulomb_c)
-
-       call parallel_halo(model%basal_physics%coulomb_c, parallel)
-
-       if (verbose_inversion) then
-          call point_diag(model%basal_physics%coulomb_c, &
-               'init_inversion for basin-scale coulomb_c', itest, jtest, rtest, 7, 7)
-       endif
-
-    endif   ! invert for coulomb_c_basin
 
     !----------------------------------------------------------------------
     ! computations specific to flow_enhancement_factor inversion
@@ -341,63 +305,41 @@ contains
 
     !----------------------------------------------------------------------
     ! computations specific to basin-scale coulomb_c or powerlaw_c inversion
-    ! Note: For Cp inversion, the thickness target includes all grounded ice in the basin.
-    !       For Cc inversion, there are separate targets for land-grounded and marine-grounded ice.
     !----------------------------------------------------------------------
 
-    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or. &
+        model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
 
        if (model%options%is_restart == NO_RESTART) then
 
-          ! Set land_thck_target and marine_thck_target for grounded ice.
-          ! The inversion will nudge the basin-mean ice thickness toward these targets.
+          ! Set thickness targets for grounded ice.
+          ! The inversion will nudge the basin-mean ice thickness toward the target mean.
 
-          model%inversion%land_thck_target = 0.0d0
-          model%inversion%marine_thck_target = 0.0d0
-
-          where (ice_mask == 1 .and. floating_mask == 0)   ! grounded ice
-             where (land_mask == 1)   ! land-grounded
-                model%inversion%land_thck_target = model%geometry%thck
-             elsewhere (land_mask == 0)   ! marine_grounded
-                model%inversion%marine_thck_target = model%geometry%thck
-             endwhere
-          endwhere
-
-          if (verbose_inversion) then
-             call point_diag(model%inversion%land_thck_target, &
-                  'After init_inversion, land_thck_target', itest, jtest, rtest, 7, 7)
-             call point_diag(model%inversion%marine_thck_target, &
-                  'marine_thck_target', itest, jtest, rtest, 7, 7)
-          endif   ! verbose
-
-       endif   ! not a restart
-
-       call parallel_halo(model%inversion%land_thck_target, parallel)
-       call parallel_halo(model%inversion%marine_thck_target, parallel)
-
-    elseif (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
-
-       if (model%options%is_restart == NO_RESTART) then
-
-          ! Set grounded_thck_target for grounded ice.
-          ! The inversion will nudge the basin-mean grounded ice thickness toward this target.
+          model%inversion%grounded_thck_target = 0.0d0
 
           where (ice_mask == 1 .and. floating_mask == 0)   ! grounded ice
              model%inversion%grounded_thck_target = model%geometry%thck
-          elsewhere
-             model%inversion%grounded_thck_target = 0.0d0
           endwhere
 
           if (verbose_inversion) then
              call point_diag(model%inversion%grounded_thck_target, &
                   'After init_inversion, grounded_thck_target', itest, jtest, rtest, 7, 7)
-          endif   ! verbose
+          endif
 
        endif   ! not a restart
 
        call parallel_halo(model%inversion%grounded_thck_target, parallel)
 
-    endif  ! basin-scale Cc or Cp inversion
+    endif   ! basin-scale inversion
+
+    ! If Cp is a prescribed function of Cc, then set it now
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_FUNCTION_COULOMB_C) then
+       model%basal_physics%powerlaw_c = model%basal_physics%schoof_gamma * &
+            model%basal_physics%coulomb_c**model%basal_physics%schoof_p
+       if (verbose_inversion) then
+          call point_diag(model%basal_physics%powerlaw_c, 'init powerlaw_c', itest, jtest, rtest, 7, 7, '(f10.2)')
+       endif
+    endif
 
     !----------------------------------------------------------------------
     ! computations specific to basin-scale ocean temperature inversion
@@ -455,7 +397,6 @@ contains
     ! (beneath grounded ice), deltaT_ocn (beneath floating ice), and flow_enhancement_factor.
 
     use glissade_masks, only: glissade_get_masks
-    use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_utils, only: glissade_usrf_to_thck, glissade_basin_average
     use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask, glissade_unstagger
@@ -481,8 +422,7 @@ contains
          stag_topg,          & ! bed topography on staggered grid (m)
          stag_dthck_dt,      & ! dthck_dt on staggered grid (m/s)
          stag_thck_obs,      & ! thck_obs on staggered grid (m)
-         stag_thck_target,   & ! target thickness on staggered grid (m)
-         cap_min, cap_max      ! min and max values for coulomb_c and powerlaw_c
+         stag_thck_target      ! target thickness on staggered grid (m)
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          coulomb_c_cell,     & ! coulomb_c averaged to cell centers
@@ -498,7 +438,7 @@ contains
          stag_rmask            ! = 1.0 where Cp or Cc is physically meaningful, else = 0
 
     type(parallel_type) :: parallel  ! info for parallel communication
-    real(dp) :: bed_lo, bed_hi, logC_lo, logC_hi, logC
+    real(dp) :: bed_lo, bed_hi, logC
     integer :: ewn, nsn
     integer :: itest, jtest, rtest   ! local diagnostic point
     integer :: i, j, nb
@@ -577,6 +517,7 @@ contains
                model%inversion%babc_timescale,           &  ! s
                model%inversion%babc_length_scale,        &  ! m
                model%inversion%babc_relax_factor,        &
+               model%inversion%damping_factor,           &
                model%basal_physics%powerlaw_c_max,       &
                model%basal_physics%powerlaw_c_min,       &
                model%geometry%f_ground,                  &
@@ -590,7 +531,7 @@ contains
           call staggered_parallel_halo(model%basal_physics%powerlaw_c, parallel)
 
           if (verbose_inversion) then
-             call point_diag(model%basal_physics%powerlaw_c, 'New powerlaw_c', itest, jtest, rtest, 7, 7)
+             call point_diag(model%basal_physics%powerlaw_c, 'New powerlaw_c', itest, jtest, rtest, 7, 7, '(f10.2)')
           endif
 
        endif   ! invert for powerlaw_c
@@ -612,6 +553,7 @@ contains
                model%inversion%babc_timescale,           &  ! s
                model%inversion%babc_length_scale,        &  ! m
                model%inversion%babc_relax_factor,        &
+               model%inversion%damping_factor,           &
                model%basal_physics%coulomb_c_max,        &
                model%basal_physics%coulomb_c_min,        &
                model%geometry%f_ground,                  &
@@ -627,25 +569,29 @@ contains
           if (verbose_inversion) then
              call point_diag(model%basal_physics%effecpress_stag, 'effecpress_stag', itest, jtest, rtest, 7, 7, '(f10.1)')
              call point_diag(model%basal_physics%coulomb_c, 'New coulomb_c', itest, jtest, rtest, 7, 7, '(f10.5)')
-          endif   ! verbose_inversion
+          endif
 
-       endif   ! invert for coulomb_c
+       endif  ! invert for coulomb_c
 
-    elseif (verbose_inversion) then   ! not inverting, but print some diagnostic values
-
-       call point_diag(model%geometry%f_ground, 'f_ground at vertices', itest, jtest, rtest, 7, 7, '(f10.4)')
-       call point_diag(model%basal_physics%powerlaw_c, 'powerlaw_c', itest, jtest, rtest, 7, 7, '(f10.2)')
-       call point_diag(model%basal_physics%coulomb_c, 'coulomb_c', itest, jtest, rtest, 7, 7, '(f10.4)')
-
-    endif
+    endif   ! invert for powerlaw_c or coulomb_c
 
     ! If inverting for powerlaw_c or coulomb_c at the basin scale, then update it here
 
-    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or. &
+        model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
 
-       ! Interpolate some fields to the staggered grid
-       ! For the interpolation, mask out cells where grounded_thck_target = 0
-       ! (Note: grounded_thck_target is defined at cell centers)
+       ! Invert for powerlaw_c or coulomb_c in each basin.
+       ! The inversion aims to minimize the thickness error for grounded ice.
+
+       ! Compute the topography on the staggered grid
+       call glissade_stagger_real_mask(&
+            ewn,                     nsn,             &
+            model%geometry%topg - model%climate%eus,  &
+            stag_topg)
+
+       call staggered_parallel_halo(stag_topg, parallel)
+
+       ! Interpolate some other fields to the staggered grid
 
        where (model%inversion%grounded_thck_target > 0.0d0)
           rmask = 1.0d0
@@ -673,204 +619,98 @@ contains
        call staggered_parallel_halo(stag_dthck_dt, parallel)
        call staggered_parallel_halo(stag_thck_target, parallel)
 
-       ! Compute a mask of grounded vertices
-       where (model%geometry%f_ground > 0.0d0)
-          stag_rmask = 1.0d0
-       elsewhere
-          stag_rmask = 0.0d0
-       endwhere
-
-       ! Set the min and max values for powerlaw_c
-       cap_min(:,:) = model%basal_physics%powerlaw_c_min
-       cap_max(:,:) = model%basal_physics%powerlaw_c_max
-
-       ! Do the inversion
-
-       if (verbose_inversion .and. this_rank == rtest) then
-          write(iulog,*) ' '
-          write(iulog,*) 'Invert for basin-scale powerlaw_c'
-       endif
-
-       call invert_basal_friction_basin(&
-            model%numerics%dt,                         &  ! s
-            ewn, nsn,                                  &
-            model%numerics%dew,                        &  ! m
-            model%numerics%dns,                        &  ! m
-            parallel,                                  &
-            itest, jtest, rtest,                       &
-            model%ocean_data%nbasin,                   &
-            model%ocean_data%basin_number,             &
-            stag_thck,                                 &  ! m
-            stag_dthck_dt,                             &  ! m/s
-            stag_thck_target,                          &  ! m
-            stag_rmask,                                &
-            model%inversion%babc_thck_scale,           &  ! m
-            model%inversion%babc_timescale,            &  ! s
-            model%inversion%babc_relax_factor,         &
-            cap_max,                                   &
-            cap_min,                                   &
-            model%basal_physics%powerlaw_c_const,      &  ! relax to this value
-            model%basal_physics%powerlaw_c)
-
-       call parallel_halo(model%basal_physics%powerlaw_c, parallel)
-
-    elseif (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
-
-       ! Compute the topography on the staggered grid
-       call glissade_stagger_real_mask(&
-            ewn,                     nsn,             &
-            model%geometry%topg - model%climate%eus,  &
-            stag_topg)
-
-       call staggered_parallel_halo(stag_topg, parallel)
-
-       ! Invert for coulomb_c_lo in each basin.
-       ! This inversion aims to minimize the thickness error for marine-grounded ice.
-
-       ! Interpolate some fields to the staggered grid
-
-       where (model%inversion%marine_thck_target > 0.0d0)
-          rmask = 1.0d0
-       elsewhere
-          rmask = 0.0d0
-       endwhere
-
-       call glissade_stagger_real_mask(&
-            ewn,                     nsn,             &
-            model%geometry%thck,     stag_thck,       &
-            rmask)
-
-       call glissade_stagger_real_mask(&
-            ewn,                     nsn,             &
-            model%geometry%dthck_dt, stag_dthck_dt,   &
-            rmask)
-
-       call glissade_stagger_real_mask(&
-            ewn,                     nsn,             &
-            model%inversion%marine_thck_target,       &
-            stag_thck_target,                         &
-            rmask)
-
-       call staggered_parallel_halo(stag_thck, parallel)
-       call staggered_parallel_halo(stag_dthck_dt, parallel)
-       call staggered_parallel_halo(stag_thck_target, parallel)
-
-       ! Compute a mask of marine-grounded vertices
-       where (model%geometry%f_ground > 0.0d0 .and. stag_topg < 0.0d0)
-          stag_rmask = 1.0d0
-       elsewhere
-          stag_rmask = 0.0d0
-       endwhere
-
-       ! Set the min and max values for coulomb_c_lo
-       cap_min(:,:) = model%basal_physics%coulomb_c_min
-       cap_max(:,:) = model%basal_physics%coulomb_c_const
-
-       ! Do the inversion
-
-       if (verbose_inversion .and. this_rank == rtest) then
-          write(iulog,*) ' '
-          write(iulog,*) 'Invert for basin-scale coulomb_c_lo'
-       endif
-
-       call invert_basal_friction_basin(&
-            model%numerics%dt,                         &  ! s
-            ewn, nsn,                                  &
-            model%numerics%dew,                        &  ! m
-            model%numerics%dns,                        &  ! m
-            parallel,                                  &
-            itest, jtest, rtest,                       &
-            model%ocean_data%nbasin,                   &
-            model%ocean_data%basin_number,             &
-            stag_thck,                                 &  ! m
-            stag_dthck_dt,                             &  ! m/s
-            stag_thck_target,                          &  ! m
-            stag_rmask,                                &
-            model%inversion%babc_thck_scale,           &  ! m
-            model%inversion%babc_timescale,            &  ! s
-            model%inversion%babc_relax_factor,         &
-            cap_max,                                   &  ! max value for coulomb_c_lo
-            cap_min,                                   &  ! min value for coulomb_c_lo
-            model%basal_physics%coulomb_c_const_lo,    &  ! relax to this value
-            model%basal_physics%coulomb_c_lo)
-
-       call parallel_halo(model%basal_physics%coulomb_c_lo, parallel)
-
-       ! Invert for coulomb_c_hi in each basin.
-       ! This inversion aims to minimize the thickness error for land-grounded ice.
-
-       ! Interpolate some fields to the staggered grid
-       ! For the interpolation, mask out cells where land_thck_target = 0
-
-       where (model%inversion%land_thck_target > 0.0d0)
-          rmask = 1.0d0
-       elsewhere
-          rmask = 0.0d0
-       endwhere
-
-       call glissade_stagger_real_mask(&
-            ewn,                     nsn,             &
-            model%geometry%thck,     stag_thck,       &
-            rmask)
-
-       call glissade_stagger_real_mask(&
-            ewn,                     nsn,             &
-            model%geometry%dthck_dt, stag_dthck_dt,   &
-            rmask)
-
-       call glissade_stagger_real_mask(&
-            ewn,                     nsn,             &
-            model%inversion%land_thck_target,         &
-            stag_thck_target,                         &
-            rmask)
-
-       call staggered_parallel_halo(stag_thck, parallel)
-       call staggered_parallel_halo(stag_dthck_dt, parallel)
-       call staggered_parallel_halo(stag_thck_target, parallel)
-
        ! Compute a mask of land-grounded vertices
-       where (model%geometry%f_ground > 0.0d0 .and. stag_topg >= 0.0d0)
+       !TODO - Exclude ice-free vertices?
+       where (stag_topg > 0.0d0)
           stag_rmask = 1.0d0
        elsewhere
           stag_rmask = 0.0d0
        endwhere
 
-       ! Set the min and max values for coulomb_c_hi
-       ! Note: coulomb_c_hi can go below coulomb_c_const, but not below coulomb_c_lo
-       cap_min(:,:) = model%basal_physics%coulomb_c_lo
-       cap_max(:,:) = model%basal_physics%coulomb_c_max
-
        ! Do the inversion
 
-       if (verbose_inversion .and. this_rank == rtest) then
-          write(iulog,*) ' '
-          write(iulog,*) 'Invert for basin-scale coulomb_c_hi'
+       if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
+
+          if (verbose_inversion .and. this_rank == rtest) then
+             write(iulog,*) ' '
+             write(iulog,*) 'Invert for basin-scale powerlaw_c'
+          endif
+
+          call invert_basal_friction_basin(&
+               model%numerics%dt,                         &  ! s
+               ewn, nsn,                                  &
+               model%numerics%dew,                        &  ! m
+               model%numerics%dns,                        &  ! m
+               parallel,                                  &
+               itest, jtest, rtest,                       &
+               model%ocean_data%nbasin,                   &
+               model%ocean_data%basin_number,             &
+               stag_thck,                                 &  ! m
+               stag_dthck_dt,                             &  ! m/s
+               stag_thck_target,                          &  ! m
+               stag_rmask,                                &
+               model%inversion%babc_thck_scale,           &  ! m
+               model%inversion%babc_timescale,            &  ! s
+               model%inversion%babc_relax_factor,         &
+               model%inversion%damping_factor,            &
+               model%basal_physics%powerlaw_c_max,        &
+               model%basal_physics%powerlaw_c_min,        &
+               model%basal_physics%powerlaw_c_const,      &  ! relax to this value
+               model%basal_physics%powerlaw_c)
+
+          call parallel_halo(model%basal_physics%powerlaw_c, parallel)
+
+          if (verbose_inversion) then
+             call point_diag(model%basal_physics%powerlaw_c, 'New powerlaw_c', itest, jtest, rtest, 7, 7, '(f10.2)')
+          endif   ! verbose_inversion
+
+       else ! invert for basin-scale coulomb_c
+
+          if (verbose_inversion .and. this_rank == rtest) then
+             write(iulog,*) ' '
+             write(iulog,*) 'Invert for basin-scale coulomb_c'
+          endif
+
+          call invert_basal_friction_basin(&
+               model%numerics%dt,                         &  ! s
+               ewn, nsn,                                  &
+               model%numerics%dew,                        &  ! m
+               model%numerics%dns,                        &  ! m
+               parallel,                                  &
+               itest, jtest, rtest,                       &
+               model%ocean_data%nbasin,                   &
+               model%ocean_data%basin_number,             &
+               stag_thck,                                 &  ! m
+               stag_dthck_dt,                             &  ! m/s
+               stag_thck_target,                          &  ! m
+               stag_rmask,                                &
+               model%inversion%babc_thck_scale,           &  ! m
+               model%inversion%babc_timescale,            &  ! s
+               model%inversion%babc_relax_factor,         &
+               model%inversion%damping_factor,            &
+               model%basal_physics%coulomb_c_max,         &
+               model%basal_physics%coulomb_c_min,         &
+               model%basal_physics%coulomb_c_const,       &  ! relax to this value
+               model%basal_physics%coulomb_c)
+
+          call parallel_halo(model%basal_physics%coulomb_c, parallel)
+
+          if (verbose_inversion) then
+             call point_diag(model%basal_physics%coulomb_c, 'New coulomb_c', itest, jtest, rtest, 7, 7, '(f10.5)')
+          endif   ! verbose_inversion
+
+       endif   ! basin-scale powerlaw_c
+
+    endif   ! invert for basin-scale powerlaw_c or coulomb_c
+
+    ! If Cp is a prescribed function of Cc, then set it now
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_FUNCTION_COULOMB_C) then
+       model%basal_physics%powerlaw_c = model%basal_physics%schoof_gamma * &
+            model%basal_physics%coulomb_c**model%basal_physics%schoof_p
+       if (verbose_inversion) then
+          call point_diag(model%basal_physics%powerlaw_c, 'New powerlaw_c', itest, jtest, rtest, 7, 7, '(f10.2)')
        endif
-
-       call invert_basal_friction_basin(&
-            model%numerics%dt,                         &  ! s
-            ewn, nsn,                                  &
-            model%numerics%dew,                        &  ! m
-            model%numerics%dns,                        &  ! m
-            parallel,                                  &
-            itest, jtest, rtest,                       &
-            model%ocean_data%nbasin,                   &
-            model%ocean_data%basin_number,             &
-            stag_thck,                                 &  ! m
-            stag_dthck_dt,                             &  ! m/s
-            stag_thck_target,                          &  ! m
-            stag_rmask,                               &
-            model%inversion%babc_thck_scale,           &  ! m
-            model%inversion%babc_timescale,            &  ! s
-            model%inversion%babc_relax_factor,         &
-            cap_max,                                   &  ! max value for coulomb_c_hi
-            cap_min,                                   &  ! min value for coulomb_c_hi
-            model%basal_physics%coulomb_c_const_hi,    &  ! relax to this value
-            model%basal_physics%coulomb_c_hi)
-
-       call parallel_halo(model%basal_physics%coulomb_c_hi, parallel)
-
-    endif  ! invert for basin-scale powerlaw_c or coulomb_c
+    endif
 
     ! Replace zeroes (if any) with small nonzero values to avoid divzeroes.
     ! Note: The current algorithm initializes Cc to a nonzero value everywhere and never sets Cp = 0.
@@ -886,11 +726,7 @@ contains
        where (model%basal_physics%coulomb_c == 0.0d0)
           model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_min
        endwhere
-       where (model%basal_physics%coulomb_c_lo == 0.0d0)
-          model%basal_physics%coulomb_c_lo = model%basal_physics%coulomb_c_min
-       endwhere
     endif
-
 
     ! If inverting for deltaT_ocn at the basin scale, then update it here
 
@@ -917,6 +753,7 @@ contains
             model%inversion%deltaT_ocn_timescale,      &  ! s
             model%inversion%deltaT_ocn_temp_scale,     &  ! degC
             model%inversion%deltaT_basin_relax,        &  ! degC
+            model%inversion%damping_factor,            &
             model%inversion%basin_mass_correction,     &
             model%inversion%basin_number_mass_correction, &
             model%ocean_data%deltaT_ocn)
@@ -955,7 +792,7 @@ contains
        do j = nhalo+1, nsn-nhalo
           do i = nhalo+1, ewn-nhalo
              nb = model%ocean_data%basin_number(i,j)
-             if (nb > 0) deltaT_ocn_relax(i,j) = deltaT_ocn_basin_avg(nb)
+             if (nb >= 1 .and. nb <= model%ocean_data%nbasin) deltaT_ocn_relax(i,j) = deltaT_ocn_basin_avg(nb)
           enddo
        enddo
 
@@ -969,64 +806,45 @@ contains
        call invert_deltaT_ocn(&
             model%numerics%dt,                     &  ! s
             ewn,           nsn,                    &
-            model%numerics%dew,                    &   ! m
-            model%numerics%dns,                    &   ! m
+            model%numerics%dew,                    &  ! m
+            model%numerics%dns,                    &  ! m
             itest, jtest,  rtest,                  &
             model%inversion%deltaT_ocn_thck_scale, &  ! m
             model%inversion%deltaT_ocn_timescale,  &  ! s
             model%inversion%deltaT_ocn_temp_scale, &  ! degC
             model%inversion%deltaT_ocn_length_scale,& ! m
             deltaT_ocn_relax,                      &  ! degC
+            model%inversion%damping_factor,        &
             model%geometry%f_ground_cell,          &
             model%geometry%thck,                   &  ! m
             thck_obs,                              &  ! m
             model%geometry%dthck_dt,               &  ! m/s
             model%ocean_data%deltaT_ocn)              ! degC
 
+       ! When applying certain calving schemes, we do not want to invert locally for deltaT_ocn
+       !  beyond the observed calving front, because then the ocean will warm to melt ice that
+       !  advances beyond the original CF, overriding the effects of the calving scheme.
+       ! Instead, we compute a calving mask at initialization and set deltaT_ocn = 0 in masked cells.
+       !TODO - Apply the basin average TF in this region?
+       if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+          if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+             if (.not.parallel_is_zero(model%calving%calving_mask)) then
+                where (model%calving%calving_mask == 1) model%ocean_data%deltaT_ocn = 0.0d0
+             endif
+          else  ! subgrid CF scheme
+             if (.not.parallel_is_zero(model%calving%subgrid_calving_mask)) then
+                where (model%calving%subgrid_calving_mask > eps11) model%ocean_data%deltaT_ocn = 0.0d0
+             endif
+          endif
+          if (verbose_inversion) then
+             call point_diag(model%ocean_data%deltaT_ocn, 'deltaT_ocn after calving mask adjustment', &
+                  itest, jtest, rtest, 7, 7)
+          endif
+       endif
+
        call parallel_halo(model%ocean_data%deltaT_ocn, parallel)
 
     endif   ! which_ho_deltaT_ocn
-
-    ! If setting deltaT_ocn based on observed dthck_dt, then do so here.
-    if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT) then
-
-       ! Set deltaT_ocn based on dthck_dt_obs.
-       ! This is done within the subroutine used to compute bmlt_float from thermal forcing.
-       ! But instead of computing bmlt_float from TF, we find the value of deltaT_ocn
-       !  that will increase TF as needed to match negative values of dthck_dt_obs.
-       ! Note: This subroutine would usually be called during the initial diagnostic solve
-       !       of the restart following a spin-up, without taking any prognostic timesteps.
-
-       call glissade_bmlt_float_thermal_forcing(&
-            model%options%bmlt_float_thermal_forcing_param, &
-            model%options%ocean_data_extrapolate,     &
-            parallel,                                 &
-            ewn,       nsn,                           &
-            model%numerics%dew,                       &   ! m
-            model%numerics%dns,                       &   ! m
-            itest,     jtest,   rtest,                &
-            ice_mask,                                 &
-            ocean_mask,                               &
-            model%geometry%marine_connection_mask,    &
-            model%geometry%f_ground_cell,             &
-            model%geometry%thck,                      &   ! m
-            model%geometry%lsrf,                      &   ! m
-            model%geometry%topg,                      &   ! m
-            model%ocean_data,                         &
-            model%basal_melt%bmlt_float,              &
-            which_ho_deltaT_ocn = model%options%which_ho_deltaT_ocn,  &
-            dthck_dt_obs = model%geometry%dthck_dt_obs)   ! m/yr
-
-    endif   ! which_ho_deltaT_ocn
-
-    !WHL - debug
-    ! For testing subgrid CF schemes: Do not invert for deltaT_ocn where calving_mask = 1,
-    ! because then the ocean will warm to prevent CF advance (which would be cheating).
-    ! In these cells, set deltaT_ocn = 0.
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and. &
-        model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
-       where (model%calving%calving_mask == 1) model%ocean_data%deltaT_ocn = 0.0d0
-    endif
 
     ! If inverting for flow_enhancement_factor, then update it here
 
@@ -1109,6 +927,7 @@ contains
        babc_timescale,            &
        babc_length_scale,         &
        babc_relax_factor,         &
+       damping_factor,            &
        friction_c_max,            &
        friction_c_min,            &
        f_ground,                  &
@@ -1148,6 +967,7 @@ contains
          babc_timescale,       & ! inversion timescale (s); must be > 0
          babc_length_scale,    & ! diffusive length scale (m) for inversion
          babc_relax_factor,    & ! controls strength of relaxation to default values
+         damping_factor,       & ! damping factor to reduce overshoots
          friction_c_max,       & ! upper bound for friction_c (units correspond to powerlaw_c or coulomb_c)
          friction_c_min,       & ! lower bound for friction_c
          friction_c_relax        ! friction_c value to which we (optionally) relax
@@ -1239,11 +1059,10 @@ contains
     !     m * d2x/dt2 = -k*x - c*dx/dt
     ! where m is the mass, k is a spring constant, and c is a damping term.
     ! A harmonic oscillator is critically damped when c = 2*sqrt(m*k).
-    !  In this case the system reaches equilibrium as quickly as possible without oscillating.
-    ! Assuming unit mass (m = 1) and critical damping with k = 1/(tau^2), we obtain
-    !   d2x/dt2 = -1/tau * (x/tau - 2*dx/dt)
-    ! If we identify (H - H_obs)/(H0*tau) with x/tau; (2/H0)*dH/dt with 2*dx/dt; and (1/C)*dC/dt with d2x/dt2,
-    !  we obtain an equation similiar to the one solved here.
+    ! In this case the system reaches equilibrium as quickly as possible without oscillating.
+    ! Here we replace c with a user-prescribed damping factor. In practice, a value of 1.0 or 2.0 works well.
+    ! Note: There is no reason to compute term_thck and term_dHdt for floating cells,
+    !        where the ice thickness is unrelated to friction.
     
     do j = 1, ny-1
        do i = 1, nx-1
@@ -1260,21 +1079,12 @@ contains
              !TODO: Try putting max(babc_thck_scale, stag_dthck_obs) in the denominator
              !      Alex Robinson says this might improve convergence
              term_thck = -stag_dthck(i,j) / (babc_thck_scale*babc_timescale)
-             term_dHdt = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
-
-             ! Note: There is no Laplacian smoothing term for grounded cells.
-             !       I found that including this term in AIS spin-ups can impair nonlinear convergence
-             !       and significantly slow the code.
-
-          else
-
-             ! Note: There is no reason to compute term_thck and term_dHdt for floating cells,
-             !        since the ice thickness is unrelated to friction.
-             !       Adding a Laplacian term, however, gives a smoother transition at grounding lines.
-
-             term_laplacian = del2_logC(i,j) * babc_length_scale**2 / babc_timescale
+             term_dHdt = -damping_factor * stag_dthck_dt(i,j) / babc_thck_scale
 
           endif  ! f_ground > 0
+
+          ! At all locations, add a Laplacian smoothing term to avoid large spatial gradients
+          term_laplacian = del2_logC(i,j) * babc_length_scale**2 / babc_timescale
 
           ! At all locations, add a term to relax C toward a target value, friction_c_relax
           if (logC(i,j) > logmin) then
@@ -1311,7 +1121,8 @@ contains
           if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
              write(iulog,*) ' '
              write(iulog,*) 'Increment friction_c: rank, i, j =', rtest, itest, jtest
-             write(iulog,*) 'dx, dy, length_scale (m)=', dx, dy, babc_length_scale
+             write(iulog,*) 'dx, dy, length_scale (m), damping_factor=', &
+                  dx, dy, babc_length_scale, damping_factor
              write(iulog,*) 'thck (m), thck_obs, dthck, dthck_dt (m/yr):', &
                   stag_thck(i,j), stag_thck_obs(i,j), stag_dthck(i,j), stag_dthck_dt(i,j)*scyr
              write(iulog,*) 'dH term, dH/dt term, laplacian term, relax term, sum =', &
@@ -1350,6 +1161,7 @@ contains
        babc_thck_scale,             &
        babc_timescale,              &
        babc_relax_factor,           &
+       damping_factor,              &
        friction_c_max,              &
        friction_c_min,              &
        friction_c_relax,            &
@@ -1362,9 +1174,6 @@ contains
     ! In basins where grounded ice is too thick, friction_c decreases across the basin.
     !  and where grounded ice is too thin, friction_c increases.
     ! The resulting friction_c is constrained to lie within a prescribed range, [friction_c_min, friction_c_max].
-    ! As of Oct. 2025, there are two Cc-related fields: coulomb_c_hi and coulomb_c_lo.
-    !  Thus the subroutine is called twice: first to nudge coulomb_c_hi based on a land-grounded target,
-    !  and again to nudge coulomb_c_lo based on a marine-grounded target.
 
     real(dp), intent(in) ::  dt  ! time step (s)
 
@@ -1390,14 +1199,15 @@ contains
          stag_thck,            & ! ice thickness (m) on staggered grid
          stag_dthck_dt,        & ! dH/dt (m/s) on staggered grid
          stag_thck_target,     & ! target thickness for grounded ice (m)
-         stag_rmask,           & ! real-valued mask, = 1.0 where friction_c values are physically significant
-         friction_c_max,       & ! max value of friction_c
-         friction_c_min          ! min value of friction_c
+         stag_rmask              ! real-valued mask, = 1.0 where friction_c values are physically significant
 
     real(dp), intent(in) :: &
+         friction_c_max,       & ! max value of friction_c
+         friction_c_min,       & ! min value of friction_c
          babc_thck_scale,      & ! inversion thickness scale (m); must be > 0
          babc_timescale,       & ! inversion timescale (s); must be > 0
          babc_relax_factor,    & ! factor controlling strength of relaxation
+         damping_factor,       & ! damping factor to reduce overshoots
          friction_c_relax        ! value toward which friction_c is relaxed
 
     real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
@@ -1460,7 +1270,7 @@ contains
        ! Compute and add the tendency terms
        dthck = thck_basin(nb) - thck_target_basin(nb)
        term_thck = -dthck / (babc_thck_scale * babc_timescale)
-       term_dHdt = -dthck_dt_basin(nb) * 2.0d0 / babc_thck_scale
+       term_dHdt = -damping_factor * dthck_dt_basin(nb) / babc_thck_scale
        term_relax = -babc_relax_factor * (logC - logC_relax) / babc_timescale
 
        dlogC = (term_thck + term_dHdt + term_relax) * dt
@@ -1513,6 +1323,7 @@ contains
        deltaT_ocn_timescale,        &
        deltaT_ocn_temp_scale,       &
        deltaT_basin_relax,          &
+       damping_factor,              &
        basin_mass_correction,       &
        basin_number_mass_correction,&
        deltaT_ocn)
@@ -1526,13 +1337,8 @@ contains
     !  and compare to a target thickness (usually based on observations).
     ! In basins where this ice is too thick, we increase deltaT_ocn uniformly across the basin.
     !  and where this ice is too thin, we decrease deltaT_ocn.
-    ! Note: Other possible targets include the total floating area or grounded area.
-    !       One reason not to use the total floating area is that the deltaT_ocn
-    !        correction can become entangled with the calving scheme.
-    !       One reason not to use the total grounded area is that the relative change
-    !        in grounded area associated with GL advance or retreat will be very small
-    !        in some basins compared to the total grounded area; also, we don't want
-    !        growth of ice on beds above sea level to influence the correction.
+    ! Note: Another possible target is the total floating area, but this could cause
+    !       the deltaT_ocn correction to become entangled with the calving scheme.
 
     real(dp), intent(in) ::  dt  ! time step (s)
 
@@ -1564,6 +1370,7 @@ contains
          deltaT_ocn_timescale, & ! inversion timescale (s); must be > 0
          deltaT_ocn_temp_scale,& ! inversion temperature scale (degC)
          deltaT_basin_relax,   & ! value toward which we relax each basin (degC)
+         damping_factor,       & ! damping factor for the dH/dt term
          basin_mass_correction   ! optional mass correction (Gt) for a selected basin
 
     integer, intent(in) :: &
@@ -1619,7 +1426,7 @@ contains
     !  it suffices to compute the average value of deltaT_ocn.
 
     mask = 1.0d0  ! do not mask out any points
-
+                  ! This assumes that deltaT_ocn is uniform in the basin, including ice-free ocean cells
     call glissade_basin_average(&
          nx,          ny,                   &
          parallel,                          &
@@ -1630,7 +1437,7 @@ contains
     ! header for optional diagnostics
     if (verbose_inversion .and. this_rank == rtest) then
        write(iulog,*) ' '
-       write(iulog,*) 'basin, term_thck*dt, term_dHdt*dt, term_relx*dt, new deltaT_basin:'
+       write(iulog,*) 'basin, term_thck*dt, term_dHdt*dt, term_relx*dt, sum, new deltaT_basin:'
     endif
 
     ! Warm the basin where the ice is too thick, and cool where the ice is too thin.
@@ -1642,7 +1449,7 @@ contains
        ! Compute d/dt(T_basin)
        dthck = floating_thck_basin(nb) - floating_thck_target_basin(nb)
        term_thck = (dthck/deltaT_ocn_thck_scale) * (deltaT_ocn_temp_scale/deltaT_ocn_timescale)
-       term_dHdt = deltaT_ocn_temp_scale * floating_dthck_dt_basin(nb) * 2.0d0 / deltaT_ocn_thck_scale
+       term_dHdt = damping_factor * deltaT_ocn_temp_scale * floating_dthck_dt_basin(nb) / deltaT_ocn_thck_scale
        term_relax = -(deltaT_basin(nb) - deltaT_basin_relax) / deltaT_ocn_timescale
        dT_basin_dt(nb) = term_thck + term_dHdt + term_relax
 
@@ -1652,13 +1459,14 @@ contains
        dT_basin_dt(nb) = max(dT_basin_dt(nb), -dT_basin_dt_maxval)
 
        ! Update deltaT_basin and limit to a prescribed range
-       deltaT_basin(nb) = deltaT_basin(nb) + dT_basin_dt(nb) * dt
+       deltaT_basin(nb) = deltaT_basin(nb) + dT_basin_dt(nb)*dt
        deltaT_basin(nb) = min(deltaT_basin(nb),  deltaT_basin_maxval)
        deltaT_basin(nb) = max(deltaT_basin(nb), -deltaT_basin_maxval)
 
        ! deltaT_basin diagnostics
        if (verbose_inversion .and. this_rank == rtest) then
-          write(iulog,'(i6,4f14.7)') nb, term_thck*dt, term_dHdt*dt, term_relax*dt, deltaT_basin(nb)
+          write(iulog,'(i6,5f14.7)') nb, term_thck*dt, term_dHdt*dt, term_relax*dt, &
+               (term_thck + term_dHdt + term_relax)*dt, deltaT_basin(nb)
        endif
 
     enddo
@@ -1688,6 +1496,7 @@ contains
        deltaT_ocn_temp_scale,    &
        deltaT_ocn_length_scale,  &
        deltaT_ocn_relax,         &
+       damping_factor,           &
        f_ground_cell,            &
        thck,                     &
        thck_obs,                 &
@@ -1717,7 +1526,8 @@ contains
          deltaT_ocn_thck_scale,&   ! inversion thickness scale (m); must be > 0
          deltaT_ocn_timescale, &   ! inversion timescale (s); must be > 0
          deltaT_ocn_temp_scale,&   ! inversion temperature scale (degC)
-         deltaT_ocn_length_scale   ! diffusive length scale (m) for inversion
+         deltaT_ocn_length_scale,& ! diffusive length scale (m) for inversion
+         damping_factor            ! damping factor for the dH/dt term
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          deltaT_ocn_relax,     &   ! deltaT_ocn field toward which we relax     !TODO - Make this a scalar?
@@ -1807,7 +1617,7 @@ contains
           if (thck(i,j) > 0.0d0 .and. f_ground_cell(i,j) < 1.0d0) then  ! ice is present and at least partly floating
 
              term_thck = (dthck(i,j)/deltaT_ocn_thck_scale) * (deltaT_ocn_temp_scale/deltaT_ocn_timescale)
-             term_dHdt = deltaT_ocn_temp_scale * dthck_dt(i,j) * 2.0d0 / deltaT_ocn_thck_scale
+             term_dHdt = damping_factor * deltaT_ocn_temp_scale * dthck_dt(i,j) / deltaT_ocn_thck_scale
 
           endif
           
@@ -1835,8 +1645,8 @@ contains
           if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
              write(iulog,*) ' '
              write(iulog,*) 'Increment deltaT_ocn: rank, i, j =', rtest, itest, jtest
-             write(iulog,*) 'thck scale (m), temp scale (degC), timescale (yr):', &
-                  deltaT_ocn_thck_scale, deltaT_ocn_temp_scale, deltaT_ocn_timescale/scyr
+             write(iulog,*) 'thck scale (m), temp scale (degC), timescale (yr), damping_factor:', &
+                  deltaT_ocn_thck_scale, deltaT_ocn_temp_scale, deltaT_ocn_timescale/scyr, damping_factor
              write(iulog,*) 'thck, thck_obs, err thck (m), dthck_dt (m/yr):', &
                   thck(i,j), thck_obs(i,j), dthck(i,j), dthck_dt(i,j)*scyr
              write(iulog,*) 'term_thck, term_dHdt, term_laplacian, term_relax:', &

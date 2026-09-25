@@ -225,8 +225,8 @@
 !    logical :: verbose_bfric = .true.
     logical :: verbose_trilinos = .false.
 !    logical :: verbose_trilinos = .true.
-!    logical :: verbose_beta = .false.
-    logical :: verbose_beta = .true.
+    logical :: verbose_beta = .false.
+!    logical :: verbose_beta = .true.
     logical :: verbose_efvs = .false.
 !    logical :: verbose_efvs = .true.
     logical :: verbose_tau = .false.
@@ -678,8 +678,8 @@
 
     use glissade_basal_traction, only: glissade_calcbeta
     use glissade_therm, only: glissade_pressure_melting_point
-    use glide_thck, only: glide_calclsrf
     use profile, only: t_startf, t_stopf
+    use glimmer_utils, only: calc_lsrf_usrf
     use glissade_utils, only: write_array_to_file
 
     !----------------------------------------------------------------
@@ -1139,10 +1139,10 @@
      !      Instead of pointing to model%geometry%usrf, compute a local value of usrf
      !       that is consistent with the local value of thck.
 
-     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-        thck  => model%calving%thck_effective(:,:)
-     else
+     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
         thck  => model%geometry%thck(:,:)
+     else
+        thck  => model%calving%thck_effective(:,:)
      endif
      topg     => model%geometry%topg(:,:)
      sigma    => model%numerics%sigma(:)
@@ -1223,29 +1223,17 @@
     !  and beta are years instead of seconds)
     !--------------------------------------------------------
 
-    !TODO: Do not scale topg and eus, since we would like these fields
-    !       to remain unchanged (BFB) throughout the simulation,
-    !       unless isostasy is turned on.
-    !      In the long run, remove the scale factors.
+     call glissade_velo_higher_scale_input(&
+          flwa,    efvs,          &
+          uvel,    vvel,          &
+          uvel_2d, vvel_2d)
 
-!pw call t_startf('glissade_velo_higher_scale_input')
-    call glissade_velo_higher_scale_input(dx,      dy,            &
-                                          whichcalving_front,     &
-                                          thck,                   &
-                                          topg,    eus,           &
-                                          thklim,                 &
-                                          thck_gradient_ramp,     &
-                                          flwa,    efvs,          &
-                                          btractx, btracty,       &
-                                          uvel,    vvel,          &
-                                          uvel_2d, vvel_2d)
-!pw call t_stopf('glissade_velo_higher_scale_input')
-
-    ! Now that thck and topg have the desired scaling (m), compute lsrf and usrf.
+    ! Compute lsrf and usrf.
     ! Note: If using a subgrid calving scheme, these will be based on effective thickness.
     !       Will be recomputed based on the true thickness later in the diagnostic solve.
-    call glide_calclsrf(thck, topg, eus, lsrf)
-    usrf = max(0.d0, thck + lsrf)
+     call calc_lsrf_usrf(&
+          thck, topg, eus, &
+          lsrf, usrf)
 
     ! Set volume scale
     ! This is not strictly necessary, but dividing by this scale gives matrix coefficients 
@@ -1588,9 +1576,12 @@
     call staggered_parallel_halo(dusrf_dy, parallel)
 
 !pw call t_stopf('glissade_gradient')
+    if (verbose_beta) then
+       call point_diag(model%basal_physics%effecpress_stag, 'N_stag', itest, jtest, rtest, 7, 7, '(f10.0)')
+    endif
 
     if (verbose_glp) then
-       call point_diag(model%basal_physics%effecpress_stag, 'N_stag', itest, jtest, rtest, 7, 7, 'f10.0')
+       call point_diag(model%basal_physics%effecpress_stag, 'N_stag', itest, jtest, rtest, 7, 7, '(f10.0)')
        call point_diag(usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
        call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
        call point_diag(f_flotation, 'f_flotation (m)', itest, jtest, rtest, 7, 7)
@@ -2309,8 +2300,6 @@
 !             call point_diag(bpmp, 'bpmp', itest, jtest, rtest, 7, 7)
 !             call point_diag(btemp, 'btemp', itest, jtest, rtest, 7, 7)
 !             call point_diag(bpmp - btemp, 'bpmp - btemp', itest, jtest, rtest, 7, 7)
-!             call point_diag(model%basal_physics%effecpress, 'effecpress (Pa)', itest, jtest, rtest, 7, 7, 'f10.0')
-!             call point_diag(model%basal_physics%effecpress_stag, 'effecpress_stag (Pa)', itest, jtest, rtest, 7, 7, 'f10.0')
           endif  ! verbose_beta
 
           call glissade_calcbeta(&
@@ -2559,7 +2548,8 @@
                       i = itest
                       j = jtest
                       write(iulog,*) ' '
-                      write(iulog,*) 'uvel, beta_eff_x, btractx:', uvel_2d(i,j), beta_eff_x(i,j), btractx(i,j)
+                      write(iulog,*) 'iter, uvel, beta_eff_x, btractx:', &
+                           counter, uvel_2d(i,j), beta_eff_x(i,j), btractx(i,j)
                    endif
                    call point_diag(omega, 'omega', itest, jtest, rtest, 7, 7, '(e10.3)')
                    call point_diag(stag_omega, 'stag_omega', itest, jtest, rtest, 7, 7, '(e10.3)')
@@ -3010,21 +3000,11 @@
              uvel(:,:,:) = 0.d0
              vvel(:,:,:) = 0.d0
 
-             call t_startf('glissade_velo_higher_scale_output')
-             call glissade_velo_higher_scale_output(whichcalving_front,     &
-                                                    thck,    topg,          &
-                                                    flwa,    efvs,          &
-                                                    beta_internal,          &
-                                                    resid_u, resid_v,       &
-                                                    bu,      bv,            &
-                                                    uvel,    vvel,          &
-                                                    uvel_2d, vvel_2d,       &
-                                                    btractx, btracty,       &
-                                                    taudx,   taudy,         &
-                                                    tau_xz,  tau_yz,        &
-                                                    tau_xx,  tau_yy,        &
-                                                    tau_xy,  tau_eff)
-             call t_stopf('glissade_velo_higher_scale_output')
+             call glissade_velo_higher_scale_output(&
+                  flwa,    efvs,          &
+                  beta_internal,          &
+                  uvel,    vvel,          &
+                  uvel_2d, vvel_2d)
           
              if (main_task) write(iulog,*) 'No nonzeros in matrix; exit glissade_velo_higher_solve'
              return
@@ -3177,7 +3157,7 @@
 
        ! Optional diagnostics
 
-       if (verbose_beta .and. counter > 1 .and. mod(counter-1,12)==0) then
+       if (verbose_beta .and. counter > 1 .and. mod(counter-1,10)==0) then
 
           if (this_rank == rtest) write(iulog,*) 'Counter =', counter
           call point_diag(log10(max(beta_internal,1.d-99)), 'log_beta', itest, jtest, rtest, 7, 7)
@@ -3598,7 +3578,7 @@
           call staggered_parallel_halo(uvel, parallel)
           call staggered_parallel_halo(vvel, parallel)
           call t_stopf('glissade_halo_xvel')
-          
+
           if ((verbose_velo .or. verbose_residual) .and. this_rank==rtest) then
              i = itest
              j = jtest
@@ -3894,74 +3874,42 @@
     endif
 
     !------------------------------------------------------------------------------
-    ! Convert output variables to appropriate CISM units (generally dimensionless).
-    ! Note: bfricflx already has the desired units (W/m^2).
+    ! Convert output variables to appropriate CISM units.
+    ! These are time unit conversions between s and yr.
     !------------------------------------------------------------------------------
 
-!pw call t_startf('glissade_velo_higher_scale_output')
-    call glissade_velo_higher_scale_output(whichcalving_front,     &
-                                           thck,    topg,          &
-                                           flwa,    efvs,          &
-                                           beta_internal,          &
-                                           resid_u, resid_v,       &
-                                           bu,      bv,            &
-                                           uvel,    vvel,          &
-                                           uvel_2d, vvel_2d,       &
-                                           btractx, btracty,       &
-                                           taudx,   taudy,         &
-                                           tau_xz,  tau_yz,        &
-                                           tau_xx,  tau_yy,        &
-                                           tau_xy,  tau_eff)
-!pw call t_stopf('glissade_velo_higher_scale_output')
+    call glissade_velo_higher_scale_output(&
+         flwa,    efvs,          &
+         beta_internal,          &
+         uvel,    vvel,          &
+         uvel_2d, vvel_2d)
+
     call t_stopf('glissade_vhs_cleanup')
 
   end subroutine glissade_velo_higher_solve
 
 !****************************************************************************
 
-  subroutine glissade_velo_higher_scale_input(dx,      dy,            &
-                                              whichcalving_front,     &
-                                              thck,                   &
-                                              topg,    eus,           &
-                                              thklim,                 &
-                                              thck_gradient_ramp,     &
-                                              flwa,    efvs,          &
-                                              btractx, btracty,       &
-                                              uvel,    vvel,          &
-                                              uvel_2d, vvel_2d)
+  subroutine glissade_velo_higher_scale_input(&
+       flwa,    efvs,          &
+       uvel,    vvel,          &
+       uvel_2d, vvel_2d)
 
     !--------------------------------------------------------
-    ! Convert input variables (generally dimensionless)
-    ! to appropriate units for the Glissade solver.
+    ! Convert input variables to appropriate units for the solver.
+    !TODO - Remove this rescaling; use SI units (s instead of yr) in the solver.
     !--------------------------------------------------------
-
-    real(dp), intent(inout) ::   &
-       dx, dy                  ! grid cell length and width 
-
-    integer, intent(in) :: &
-         whichcalving_front    ! = 1 for subgrid CF, else = 0
-
-    real(dp), dimension(:,:), intent(inout) ::   &
-       thck,                &  ! ice thickness
-       topg                    ! elevation of topography
-
-    real(dp), intent(inout) ::   &
-       eus,                 &  ! eustatic sea level (= 0 by default)
-       thklim,              &  ! minimum ice thickness for active grounded cells
-       thck_gradient_ramp      ! thickness scale over which gradients are ramped up from zero to full value
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        flwa,   &               ! flow factor in units of Pa^(-n) yr^(-1)
        efvs                    ! effective viscosity (Pa yr)
 
     real(dp), dimension(:,:), intent(inout)  ::  &
-       btractx, btracty,  &    ! components of basal traction (Pa)
        uvel_2d, vvel_2d        ! components of 2D velocity (m/yr)
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        uvel, vvel              ! components of 3D velocity (m/yr)
 
-    !TODO - Remove this rescaling; use SI units (s instead of yr) in the code.
 
     ! rate factor: rescale from Pa^(-n) s^(-1) to Pa^(-n) yr^(-1)
     flwa = flwa * scyr
@@ -3979,31 +3927,16 @@
 
 !****************************************************************************
 
-  subroutine glissade_velo_higher_scale_output(whichcalving_front,      &
-                                               thck,    topg,           &
+  subroutine glissade_velo_higher_scale_output(&
                                                flwa,    efvs,           &                                       
                                                beta_internal,           &
-                                               resid_u, resid_v,        &
-                                               bu,      bv,             &
                                                uvel,    vvel,           &
-                                               uvel_2d, vvel_2d,        &
-                                               btractx, btracty,        &
-                                               taudx,   taudy,          &
-                                               tau_xz,  tau_yz,         &
-                                               tau_xx,  tau_yy,         &
-                                               tau_xy,  tau_eff)
+                                               uvel_2d, vvel_2d)
 
     !--------------------------------------------------------
-    ! Convert output variables to appropriate CISM units
-    ! (generally dimensionless)
+    ! Convert output variables to appropriate CISM units.
+    !TODO - Remove this rescaling; use SI units (s instead of yr) in the solver.
     !--------------------------------------------------------
-
-    integer, intent(in) :: &
-         whichcalving_front    ! = 1 for subgrid CF, else = 0
-
-    real(dp), dimension(:,:), intent(inout) ::  &
-       thck,                 &  ! ice thickness
-       topg                     ! elevation of topography
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        flwa,   &                ! flow factor in units of Pa^(-n) yr^(-1)
@@ -4013,22 +3946,10 @@
        beta_internal            ! basal traction parameter (Pa/(m/yr))
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
-       uvel, vvel,    &         ! components of 3D velocity (m/yr)
-       resid_u, resid_v,  &     ! components of residual Ax - b (Pa/m)
-       bu, bv                   ! components of b in Ax = b (Pa/m)
+       uvel, vvel               ! components of 3D velocity (m/yr)
 
     real(dp), dimension(:,:), intent(inout) ::  &
-       uvel_2d, vvel_2d,       &! components of 2D velocity (m/yr)
-       btractx, btracty,       &! components of basal traction (Pa)
-       taudx,   taudy           ! components of driving stress (Pa)
-
-    real(dp), dimension(:,:,:), intent(inout) ::  &
-       tau_xz, tau_yz,         &! vertical components of stress tensor (Pa)
-       tau_xx, tau_yy, tau_xy, &! horizontal components of stress tensor (Pa)
-       tau_eff                  ! effective stress (Pa)
-
-    !TODO - Remove the rescaling of input and output fields, using SI units
-    !       (s instead of yr) in the code
+       uvel_2d, vvel_2d         ! components of 2D velocity (m/yr)
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to Pa^(-n) s^(-1)
     flwa = flwa / scyr
@@ -6383,7 +6304,7 @@
 
     Jac(:,:) = 0.d0
 
-    if ((verbose_Jac .or. verbose_diva) .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+    if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
        write(iulog,*) ' '
        write(iulog,*) 'In get_basis_function_derivatives_2d: i, j, p =', i, j, p
        call parallel_globalindex(i, j, ig, jg, parallel)
@@ -9628,16 +9549,6 @@
 
     if (verbose_residual) then
 
-       if (this_rank==rtest) then
-          i = itest
-          j = jtest
-          call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-          write(iulog,*) ' '
-          write(iulog,*) 'In compute_residual_vector_2d: test ig, jg =', i, j
-          write(iulog, '(a15, 2f12.5, 2e13.5)') &
-               '  u, v, ru, rv:', uvel(i,j), vvel(i,j), resid_u(i,j), resid_v(i,j)
-       endif
-
        ! Compute max value of (squared) residual on this task.
        ! If this task owns the vertex with the global max residual, then print a diagnostic message.
        resid_sq(:,:) = worku(:,:) + workv(:,:)
@@ -9649,9 +9560,8 @@
              do i = staggered_ilo, staggered_ihi
                 if (abs((resid_sq(i,j) - global_max_resid)/global_max_resid) < 1.0d-6) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   write(iulog, '(a24, 2i6, 2e13.5, e16.8)') 'ig, jg, ru, rv, global rmax:', &
+                   write(iulog, '(a27, 2i6, 2e13.5, e16.8)') 'ig, jg, ru, rv, global rmax:', &
                         iglobal, jglobal, resid_u(i,j), resid_v(i,j), sqrt(global_max_resid)
-                   write(iulog,*) ' '
                 endif
              enddo
           enddo

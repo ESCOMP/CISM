@@ -41,7 +41,7 @@ module glissade_glacier
     private
     public :: verbose_glacier, glissade_glacier_init, glissade_glacier_update
 
-    logical, parameter :: verbose_glacier = .true.
+    logical :: verbose_glacier = .false.
 
     ! derived type that holds info for each glaciated grid cell
     type glacier_info
@@ -364,7 +364,7 @@ contains
              i = glacier_list(nc)%indxi
              j = glacier_list(nc)%indxj
              cism_glacier_id_global(i,j) = ng
-             if (ng == nglacier/2) then   ! random glacier
+             if (verbose_glacier .and. ng == nglacier/2) then   ! random glacier
                 write(iulog,*) nc, i, j, cism_glacier_id_global(i,j), glacier%cism_to_rgi_glacier_id(ng)
              endif
              if (ng > nglacier) then

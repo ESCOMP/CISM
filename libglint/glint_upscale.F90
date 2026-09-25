@@ -500,27 +500,39 @@ contains
     av_count_output = av_count_output + 1
 
     !--------------------------------------------------------------------
-    ! Accumulate solid runoff (calving)
+    ! Accumulate solid runoff (calving and other ice removal)
+    ! Note: Ice removed as icebergs/isthmuses, by forced retreat, or by tiny-thickness
+    !       cleanup is tracked separately from calving_thck as removal_thck (not explicitly
+    !       calved), but the ice is still lost to the ocean as solid ice, so it is included
+    !       here in the solid ice runoff along with calving_thck.
     !--------------------------------------------------------------------
-                       
-    ! Note on units: model%calving%calving_thck has units of m of ice
+
+    ! Note on units: model%calving%calving_thck and model%geometry%removal_thck
+    !                have units of m of ice.
     !                Multiply by rhoi to convert to kg/m^2 water equiv.
     !                Divide by dt to convert to kg/m^2/s
 
     ! Convert to kg/m^2/s
     rofi_tavg(:,:) = rofi_tavg(:,:)  &
-                   + model%calving%calving_thck(:,:) * rhoi / model%numerics%dt
+                   + (model%calving%calving_thck(:,:) + model%geometry%removal_thck(:,:)) &
+                   * rhoi / model%numerics%dt
 
     !--------------------------------------------------------------------
-    ! Accumulate liquid runoff (basal melting)
+    ! Accumulate liquid runoff (basal melting and lateral/submarine melting)
+    ! Note: Lateral melt (glissade_lateral_melt) represents submarine melting at marine
+    !       ice fronts, which converts ice directly to liquid water, so it is added here
+    !       to the liquid runoff rather than to the solid ice runoff.
     !--------------------------------------------------------------------
     !TODO - Add internal melting for enthalpy case
-                       
+
     ! Note on units: model%basal_melt%bmlt has units of m/s ice
     !                Multiply by rhoi to convert to kg/m^2/s water equiv.
+    !                model%lateral_melt%melt_thck has units of m of ice;
+    !                multiply by rhoi and divide by dt to convert to kg/m^2/s.
 
     ! Convert to kg/m^2/s
-    rofl_tavg(:,:) = rofl_tavg(:,:)  + model%basal_melt%bmlt(:,:) * rhoi
+    rofl_tavg(:,:) = rofl_tavg(:,:)  + model%basal_melt%bmlt(:,:) * rhoi &
+                   + model%lateral_melt%melt_thck(:,:) * rhoi / model%numerics%dt
 
     !--------------------------------------------------------------------
     ! Accumulate basal heat flux

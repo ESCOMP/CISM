@@ -98,17 +98,32 @@ data:          data%climate%zatm
 positive:      up
 dimlen:        model%climate%nzatm
 
-[glacierid]
-dimensions:    glacierid
-units:         1
-long_name:     glacier_id_coordinate
-dimlen:        model%glacier%nglacier
-
 [lithoz]
 dimensions:    lithoz
 units:         meter
 long_name:     vertical coordinate of lithosphere layer
 dimlen:        model%lithot%nlayer
+
+[glacierid]
+dimensions:    glacierid
+units:         1
+long_name:     glacier_id_coordinate
+data:          data%glacier%glacierid
+dimlen:        model%glacier%nglacier
+
+[axis]
+dimensions:    axis
+units:         1
+long_name:     axis coordinate for calvingMIP output
+data:          data%calving%axis
+dimlen:        model%calving%naxis
+
+[basin]
+dimensions:    basin
+units:         1
+long_name:     basin coordinate for basin-specific output
+data:          data%ocean_data%basin
+dimlen:        model%ocean_data%nbasin
 
 [lat]
 dimensions:    time, y1, x1
@@ -145,6 +160,14 @@ dimensions:    time, y1, x1
 units:         meter
 long_name:     bedrock deflection from applied load
 data:          data%isostasy%load
+load:          1
+
+[tau_relax]
+dimensions:    time, y1, x1
+units:         yr
+long_name:     mantle relaxation timescale (yr)
+data:          data%isostasy%tau_relax
+factor:        1.0/scyr
 load:          1
 
 [eus]
@@ -340,8 +363,6 @@ units:         meter/year
 long_name:     basal melt rate for floating ice
 data:          data%basal_melt%bmlt_float
 factor:        scyr
-standard_name: floating_ice_basal_melt_rate
-load:          0
 
 [bmlt_float_external]
 dimensions:    time, y1, x1
@@ -349,7 +370,6 @@ units:         meter/year
 long_name:     external basal melt rate for floating ice
 data:          data%basal_melt%bmlt_float_external
 factor:        scyr
-standard_name: floating_ice_basal_melt_rate_external
 load:          1
 
 [bmlt_float_anomaly]
@@ -360,6 +380,13 @@ data:          data%basal_melt%bmlt_float_anomaly
 factor:        scyr
 standard_name: floating_ice_basal_melt_rate_anomaly
 load:          1
+
+[thermal_forcing_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     thermal forcing mask
+data:          data%basal_melt%thermal_forcing_mask
+type:          int
 
 [warm_ocean_mask]
 dimensions:    time, y1, x1
@@ -382,9 +409,15 @@ type:          int
 [deltaT_ocn]
 dimensions:    time, y1, x1
 units:         degrees K
-long_name:     deltaT_ocn
+long_name:     ocean temperature correction
 data:          data%ocean_data%deltaT_ocn
 load:          1
+
+[deltaT_ocn_basin]
+dimensions:    time, basin
+units:         degrees K
+long_name:     ocean temperature correction per basin
+data:          data%ocean_data%deltaT_ocn_basin
 
 [thermal_forcing]
 dimensions:    time, zocn, y1, x1
@@ -393,11 +426,26 @@ long_name:     thermal_forcing
 data:          data%ocean_data%thermal_forcing(up,:,:)
 load:          1
 
+[thermal_forcing_2d]
+dimensions:    time, y1, x1
+units:         degrees K
+long_name:     applied thermal forcing in 2D
+data:          data%ocean_data%thermal_forcing_2d
+load:          1
+
 [thermal_forcing_lsrf]
 dimensions:    time, y1, x1
 units:         degrees K
 long_name:     thermal_forcing at lower ice surface
 data:          data%ocean_data%thermal_forcing_lsrf(:,:)
+
+#Note: bmb_float has the same units as smb: kg/m2/yr = mm/yr w.e.
+[bmb_float]
+dimensions:    time, y1, x1
+units:         kg/m2/yr
+long_name:     basal mass balance for floating ice, positive for melt
+data:          data%ocean_data%bmb_float
+load:          1
 
 [flow_enhancement_factor]
 dimensions:    time, y1, x1
@@ -524,20 +572,6 @@ long_name:     target thickness for grounded ice
 data:          data%inversion%grounded_thck_target
 load:          1
 
-[land_thck_target]
-dimensions:    time, y1, x1
-units:         meter
-long_name:     target thickness for land-grounded ice
-data:          data%inversion%land_thck_target
-load:          1
-
-[marine_thck_target]
-dimensions:    time, y1, x1
-units:         meter
-long_name:     target thickness for marine-grounded ice
-data:          data%inversion%marine_thck_target
-load:          1
-
 [calving_thck]
 dimensions:    time, y1, x1
 units:         meter
@@ -559,12 +593,51 @@ data:          data%calving%calving_mask
 load:          1
 type:          int
 
+[subgrid_calving_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     subgrid calving mask
+data:          data%calving%subgrid_calving_mask
+load:          1
+
+[calving_front_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     calving front mask
+data:          data%calving%calving_front_mask
+type:          int
+
 [calving_lateral]
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     lateral calving rate
 data:          data%calving%lateral_rate
 factor:        scyr
+
+[latmelt_thck]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     thickness of ice melting laterally
+data:          data%lateral_melt%melt_thck
+
+[latmelt_rate]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     rate of ice loss by lateral melt
+data:          data%lateral_melt%melt_rate
+
+[removal_rate]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     rate of ice removal
+data:          data%geometry%removal_rate
+
+[subglacial_discharge]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     subglacial liquid discharge
+data:          data%lateral_melt%subglacial_discharge
+load:          1
 
 [effective_areafrac]
 dimensions:    time, y1, x1
@@ -589,58 +662,194 @@ data:          data%projection%stere%area_factor
 dimensions:    time
 units:         m2
 long_name:     area covered by ice 
-data:          data%geometry%iarea
+data:          data%scalars%iarea
 
 [iareag]
 dimensions:    time
 units:         m2
 long_name:     area covered by grounded ice 
-data:          data%geometry%iareag
+data:          data%scalars%iareag
 
 [iareaf]
 dimensions:    time
 units:         m2
 long_name:     area covered by floating ice 
-data:          data%geometry%iareaf
+data:          data%scalars%iareaf
 
 [ivol]
 dimensions:    time
 units:         m3
 long_name:     ice volume
-data:          data%geometry%ivol
+data:          data%scalars%ivol
+
+[ivol_above_flotation]
+dimensions:    time
+units:         m3
+long_name:     ice volume above flotation
+data:          data%scalars%ivol_above_flotation
 
 [imass]
 dimensions:    time
 units:         kg
 long_name:     ice mass
-data:          data%geometry%imass
+data:          data%scalars%imass
 
 [imass_above_flotation]
 dimensions:    time
 units:         kg
 long_name:     ice mass above flotation
-data:          data%geometry%imass_above_flotation
+data:          data%scalars%imass_above_flotation
+
+[total_bmlt_float]
+dimensions:    time
+units:         kg/s
+long_name:     basal melt rate for floating ice
+data:          data%scalars%total_bmlt_float
+
+[total_bmlt_float_target]
+dimensions:    time
+units:         kg/yr
+long_name:     target basal melt rate for floating ice
+scale_factor:  scyr
+data:          data%scalars%total_bmlt_float_target
+
+[iarea_basin]
+dimensions:    time, basin
+units:         m2
+long_name:     area covered by ice per basin
+data:          data%scalars%iarea_basin
+
+[iareag_basin]
+dimensions:    time, basin
+units:         m2
+long_name:     area covered by grounded ice per basin
+data:          data%scalars%iareag_basin
+
+[iareaf_basin]
+dimensions:    time, basin
+units:         m2
+long_name:     area covered by floating ice per basin
+data:          data%scalars%iareaf_basin
+
+[ivol_basin]
+dimensions:    time, basin
+units:         m3
+long_name:     ice volume per basin
+data:          data%scalars%ivol_basin
+
+[ivol_above_flotation_basin]
+dimensions:    time, basin
+units:         m3
+long_name:     ice volume above flotation per basin
+data:          data%scalars%ivol_above_flotation_basin
+
+[imass_basin]
+dimensions:    time, basin
+units:         kg
+long_name:     ice mass per basin
+data:          data%scalars%imass_basin
+
+[imass_above_flotation_basin]
+dimensions:    time, basin
+units:         kg
+long_name:     ice mass above flotation per basin
+data:          data%scalars%imass_above_flotation_basin
+
+[bmlt_float_basin]
+dimensions:    time, basin
+units:         kg/s
+long_name:     basal melt rate for floating ice per basin
+data:          data%scalars%bmlt_float_basin
+
+[bmlt_float_target_basin]
+dimensions:    time, basin
+units:         kg/s
+long_name:     target basal melt rate for floating ice per basin
+data:          data%scalars%bmlt_float_target_basin
 
 [total_smb_flux]
 dimensions:    time
 units:         kg/s
 long_name:     total surface mass balance flux
-data:          data%geometry%total_smb_flux
+data:          data%mass_flux%total_smb_flux
 average:       1
 
 [total_bmb_flux]
 dimensions:    time
 units:         kg/s
 long_name:     total basal mass balance flux
-data:          data%geometry%total_bmb_flux
+data:          data%mass_flux%total_bmb_flux
 average:       1
 
 [total_calving_flux]
 dimensions:    time
 units:         kg/s
-long_name:     total calving mass balance flux
-data:          data%geometry%total_calving_flux
+long_name:     total calving mass flux
+data:          data%mass_flux%total_calving_flux
 average:       1
+
+[total_latmelt_flux]
+dimensions:    time
+units:         kg/s
+long_name:     total lateral melt mass flux
+data:          data%mass_flux%total_latmelt_flux
+average:       1
+
+[total_removal_flux]
+dimensions:    time
+units:         kg/s
+long_name:     total ice removal mass flux
+data:          data%mass_flux%total_removal_flux
+average:       1
+
+#calvingMIP output
+
+[cf_locx]
+dimensions:    time, axis
+long_name:     calving-front x location
+units:         km
+data:          data%calving%cf_locx
+type:          real
+factor:        0.001
+
+[cf_locy]
+dimensions:    time, axis
+long_name:     calving-front x location
+units:         km
+data:          data%calving%cf_locy
+type:          real
+factor:        0.001
+
+[cf_radius]
+dimensions:    time, axis
+long_name:     calving-front radius
+units:         km
+data:          data%calving%cf_radius
+type:          real
+factor:        0.001
+
+[cf_thck]
+dimensions:    time, axis
+long_name:     calving-front thickness
+units:         m
+data:          data%calving%cf_thck
+type:          real
+
+[cf_uvel]
+dimensions:    time, axis
+long_name:     calving-front velocity, u component
+units:         m/year
+data:          data%calving%cf_uvel
+type:          real
+factor:        scyr
+
+[cf_vvel]
+dimensions:    time, axis
+long_name:     calving-front velocity, v component
+units:         m/year
+data:          data%calving%cf_vvel
+type:          real
+factor:        scyr
 
 [thkmask]
 dimensions:    time, y1, x1
@@ -671,14 +880,6 @@ long_name:     bedrock topography
 data:          data%geometry%topg
 load:          1
 standard_name: bedrock_altitude
-
-[topg_raised]
-dimensions:    time, y1, x1
-units:         meter
-long_name:     raised version of bedrock topography
-data:          data%geometry%topg_raised
-load:          1
-standard_name: bedrock_altitude_raised
 
 [ice_domain_mask]
 dimensions:    time, y1, x1
@@ -725,14 +926,14 @@ type:          int
 [ice_sheet_mask]
 dimensions:    time, y1, x1
 units:         1
-long_name:     mask for ice sheet
+long_name:     mask for connected ice sheet
 data:          data%geometry%ice_sheet_mask
 type:          int
 
 [ice_cap_mask]
 dimensions:    time, y1, x1
 units:         1
-long_name:     mask for ice caps
+long_name:     mask for disconnected ice caps
 data:          data%geometry%ice_cap_mask
 type:          int
 
@@ -1006,13 +1207,6 @@ units:         Pa
 long_name:     effective pressure
 data:          data%basal_physics%effecpress
 
-[f_effecpress_ocean_p]
-dimensions:    time, y1, x1
-units:         1
-long_name:     effective pressure factor from ocean_p
-data:          data%basal_physics%f_effecpress_ocean_p
-load:          1
-
 [c_space_factor]
 dimensions:    time, y1, x1
 units:         1
@@ -1032,20 +1226,6 @@ dimensions:    time, y0, x0
 units:         1
 long_name:     spatially varying C for Coulomb sliding, staggered grid
 data:          data%basal_physics%coulomb_c
-load:          1
-
-[coulomb_c_hi]
-dimensions:    time, y0, x0
-units:         1
-long_name:     Coulomb_c value for high bed elevation
-data:          data%basal_physics%coulomb_c_hi
-load:          1
-
-[coulomb_c_lo]
-dimensions:    time, y0, x0
-units:         1
-long_name:     Coulomb_c value for low bed elevation
-data:          data%basal_physics%coulomb_c_lo
 load:          1
 
 [artm]
@@ -1475,7 +1655,7 @@ load:          0
 dimensions:    time, y1, x1
 units:         kg/m2/s
 long_name:     surface mass balance flux
-data:          data%geometry%sfc_mbal_flux
+data:          data%mass_flux%sfc_mbal_flux
 standard_name: land_ice_surface_specific_mass_balance_flux
 average:       1
 
@@ -1483,7 +1663,7 @@ average:       1
 dimensions:    time, y1, x1
 units:         kg/m2/s
 long_name:     basal mass balance flux
-data:          data%geometry%basal_mbal_flux
+data:          data%mass_flux%basal_mbal_flux
 standard_name: land_ice_basal_specific_mass_balance_flux
 average:       1
 
@@ -1491,15 +1671,31 @@ average:       1
 dimensions:    time, y1, x1
 units:         kg/m2/s
 long_name:     calving flux
-data:          data%geometry%calving_flux
+data:          data%mass_flux%calving_flux
 standard_name: land_ice_specific_mass_flux_due_to_calving
+average:       1
+
+[latmelt_flux]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     lateral melt flux
+data:          data%mass_flux%latmelt_flux
+standard_name: land_ice_specific_mass_flux_due_to_lateral_melt
+average:       1
+
+[removal_flux]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     ice removal flux
+data:          data%mass_flux%removal_flux
+standard_name: land_ice_specific_mass_flux_due_to_removal
 average:       1
 
 [gl_flux]
 dimensions:    time, y1, x1
 units:         kg/m/s
 long_name:     grounding line flux
-data:          data%geometry%gl_flux
+data:          data%mass_flux%gl_flux
 standard_name: land_ice_mass_flux_at_grounding_line
 coordinate:    lon lat
 average:       1
@@ -1508,7 +1704,7 @@ average:       1
 dimensions:    time, y1, x1
 units:         kg/m/s
 long_name:     grounding line flux eastward
-data:          data%geometry%gl_flux_east
+data:          data%mass_flux%gl_flux_east
 standard_name: land_ice_mass_flux_at_grounding_line_eastward
 coordinate:    lon lat
 
@@ -1516,7 +1712,7 @@ coordinate:    lon lat
 dimensions:    time, y1, x1
 units:         kg/m/s
 long_name:     grounding line flux northward
-data:          data%geometry%gl_flux_north
+data:          data%mass_flux%gl_flux_north
 standard_name: land_ice_mass_flux_at_grounding_line_northward
 coordinate:    lon lat
 
@@ -1524,7 +1720,7 @@ coordinate:    lon lat
 dimensions:    time
 units:         kg/s
 long_name:     total grounding line flux
-data:          data%geometry%total_gl_flux
+data:          data%mass_flux%total_gl_flux
 average:       1
 
 [rho_ice]

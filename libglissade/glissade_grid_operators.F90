@@ -60,7 +60,7 @@ module glissade_grid_operators
               glissade_vertical_interpolate,        &
               glissade_scalar_extrapolate
 
-    logical, parameter :: verbose_gradient = .false.
+    logical :: verbose_gradient = .false.
 
 contains
 
@@ -1846,7 +1846,7 @@ contains
                        + 6.d0 * (rmask(i-2,j)   + rmask(i,j-2)   + rmask(i+2,j)   + rmask(i,j+2))   &
                        + 16.d0 * (rmask(i-1,j-1) + rmask(i-1,j+1) + rmask(i+1,j-1) + rmask(i+1,j+1)) &
                        + 24.d0 * (rmask(i,j-1)   + rmask(i-1,j)   + rmask(i,j+1)   + rmask(i+1,j))   &
-                       + 26.d0 *  rmask(i,j)
+                       + 36.d0 *  rmask(i,j)
 
              if (sum_mask > 0.0d0) then
                 var_smooth(i,j) = (1.d0/sum_mask) * &
@@ -2112,8 +2112,7 @@ contains
 
     character(len=200) :: message
 
-!    logical, parameter :: verbose_extrapolate = .false.
-    logical, parameter :: verbose_extrapolate = .true.
+    logical :: verbose_extrapolate = .false.
 
     ! Initialize
     if (present(npoints_stencil)) then

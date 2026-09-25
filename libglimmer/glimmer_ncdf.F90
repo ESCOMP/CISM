@@ -72,24 +72,38 @@ module glimmer_ncdf
      !> set to .TRUE. when we are in define mode
      logical :: just_processed = .FALSE.
      !> set to .TRUE. if the file was used during the last time step
-     real(dp) :: processsed_time = 0.d0
+
      !> the time when the file was last processed
-     character(len=fname_length) :: filename = " "
+     real(dp) :: processsed_time = 0.d0
+
      !> name of netCDF file
+     character(len=fname_length) :: filename = " "
+
      integer id
      !> id of netCDF file
 
+     !> Include the remaining dimension lengths.
+     !> Note: These are given nonzero values elsewhere.
+
+     !> vertical and stag vertical coordinate
      integer :: nlevel = 0
      integer :: nstaglevel = 0
      integer :: nstagwbndlevel = 0
-     !WHL - added to handle ocean vertical coordinate
+
+     ! ocean vertical coordinate
      integer :: nzocn = 0
-     !WHL - added to handle atmosphere vertical coordinate
+
+     ! atmosphere vertical coordinate
      integer :: nzatm = 0
-     !WHL - added to handle glacier coordinate
+
+     ! glacier number coordinate
      integer :: nglacier = 0
 
-     !> size of vertical and stag vertical coordinate
+     ! basin number coordinate
+     integer :: nbasin = 0
+
+     ! axis number coordinate
+     integer :: naxis = 0
 
      integer timedim
      !> id of time dimension
