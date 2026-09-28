@@ -82,7 +82,11 @@ contains
 
     do while(associated(oc))
 
-       if (oc%append) then   ! assume the file exists, and reopen it
+       if (oc%one_file_per_write) then
+
+          ! No file at initialization; a new file is created at each write
+
+       elseif (oc%append) then   ! assume the file exists, and reopen it
 
           call glimmer_nc_openappend(oc,model)
 
@@ -179,6 +183,7 @@ contains
        status = parallel_open(process_path(NCO%filename),NF90_WRITE,NCO%id)
        call nc_errorhandle(__FILE__,__LINE__,status)
     endif
+    NCO%file_open = .true.
 
     call write_log_div
     write(message,*) 'Reopening file ',trim(process_path(NCO%filename)),' for output; '
@@ -298,6 +303,7 @@ contains
 !!    status = parallel_create(process_path(NCO%filename),NF90_CLOBBER,NCO%id)
     status = parallel_create(process_path(NCO%filename), ior(NF90_CLOBBER,NF90_64BIT_OFFSET), NCO%id)
     call nc_errorhandle(__FILE__,__LINE__,status)
+    NCO%file_open = .true.
     call write_log_div
     write(message,*) 'Opening file ', trim(process_path(NCO%filename)), ' for output; '
     call write_log(trim(message))
@@ -452,6 +458,120 @@ contains
 
   !------------------------------------------------------------------------------
 
+  subroutine glimmer_nc_newfile(outfile, filename)
+
+    !> Prepare an output object for writing to a new file, as for one_file_per_write.
+    !> Call before glimmer_nc_createfile and NAME_io_create.
+    !> Note: NAME_io_create consumes NCO%vars (and expands 'restart'), so the variable list
+    !>       must be restored from NCO%vars_copy for each new file.
+    !> Averaging state (processed_time, total_time, accum_tstep_count) is not changed,
+    !>  so averages and time bounds carry over from one file to the next.
+
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+    character(len=*), intent(in) :: filename   !> name of the new file
+
+    NCO%filename = filename
+    NCO%vars = NCO%vars_copy
+    outfile%timecounter = 1
+
+  end subroutine glimmer_nc_newfile
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_closefile(outfile)
+
+    !> Close the netCDF file for this output object, keeping the object itself.
+    !> Used for one_file_per_write, where each write goes to a new file.
+
+    use glimmer_log
+    use glimmer_filenames
+    use cism_parallel, only: parallel_close
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+
+    integer :: status
+
+    if (NCO%file_open) then
+       status = parallel_close(NCO%id)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       NCO%file_open = .false.
+       NCO%define_mode = .false.
+       call write_log('Closing output file '//trim(process_path(NCO%filename)))
+    end if
+
+  end subroutine glimmer_nc_closefile
+
+  !------------------------------------------------------------------------------
+
+  function glimmer_nc_slice_filename(outfile, time) result(filename)
+
+    !> Build the name of a single-slice file for one_file_per_write in standalone runs,
+    !>  by inserting the time (yr) before the '.nc' suffix of outfile%base_filename.
+    !> For example, 'out.tavg.nc' at time 6 becomes 'out.tavg.0006.nc'.
+    !> Integer years are written with at least 4 digits (e.g., 0006, 1861, -21000);
+    !>  other times are written with 3 decimal places (e.g., 0.500).
+    !> Note: External drivers (e.g., the CESM wrapper) supply their own file names.
+
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+    real(dp), intent(in) :: time          ! model time (yr)
+    character(len=fname_length) :: filename
+
+    real(dp), parameter :: eps = 1.d-6    ! tolerance (yr) for treating time as an integer year
+    character(len=fname_length) :: base
+    character(len=32) :: time_str
+    integer :: n
+
+    base = outfile%base_filename
+    if (len_trim(base) == 0) base = NCO%filename
+
+    if (abs(time - real(nint(time),dp)) < eps) then
+       write(time_str,'(i0.4)') nint(time)
+    else
+       write(time_str,'(f20.3)') time
+       time_str = adjustl(time_str)
+    end if
+
+    n = len_trim(base)
+    if (n > 3) then
+       if (base(n-2:n) == '.nc') then
+          filename = base(1:n-3) // '.' // trim(time_str) // '.nc'
+          return
+       end if
+    end if
+    filename = trim(base) // '.' // trim(time_str) // '.nc'
+
+  end function glimmer_nc_slice_filename
+
+  !------------------------------------------------------------------------------
+
+  function glimmer_nc_output_has_var(outfile, varname) result(has_var)
+
+    !> Return true if the variable varname belongs to this output object.
+    !> If the file is open, check whether the file contains the variable.
+    !> If no file is open (as for one_file_per_write, between writes), check the variable list.
+    !> Note: The variable-list check does not expand the 'restart' keyword.
+    !>       This is not a problem, since one_file_per_write is not allowed for restart files.
+
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+    character(len=*), intent(in) :: varname
+    logical :: has_var
+
+    integer :: status, varid
+
+    if (NCO%file_open) then
+       status = parallel_inq_varid(NCO%id, varname, varid)
+       has_var = (status == NF90_NOERR)
+    else
+       has_var = (index(' '//trim(adjustl(NCO%vars_copy))//' ', ' '//trim(varname)//' ') /= 0)
+    end if
+
+  end function glimmer_nc_output_has_var
+
+  !------------------------------------------------------------------------------
+
   subroutine glimmer_nc_checkwrite_init(outfile, time, external_time, tstep_count)
 
     !> Set the start of the first averaging interval for this output file.
@@ -557,7 +677,8 @@ contains
     !        are initialized to 0.0, and NCO%just_processed is initialized to FALSE.
 
     ! check if we are still in define mode and if so leave it
-    if (NCO%define_mode) then
+    ! Note: With one_file_per_write, there may be no open file.
+    if (NCO%define_mode .and. NCO%file_open) then
        status = parallel_enddef(NCO%id)
        call nc_errorhandle(__FILE__,__LINE__,status)
        NCO%define_mode = .FALSE.
@@ -565,11 +686,14 @@ contains
 
     if (time > NCO%processed_time) then
        if (NCO%just_processed) then
-          ! finished writing during last time step, need to increase counter
-          outfile%timecounter = outfile%timecounter + 1
-
-          status = parallel_sync(NCO%id)
-          call nc_errorhandle(__FILE__,__LINE__,status)
+          ! Finished writing during an earlier time step.
+          ! For a file with multiple time slices, increase the counter so the next write goes to a new slice.
+          ! With one_file_per_write, the file is already closed, and the next file will start at timecounter = 1.
+          if (.not. outfile%one_file_per_write) then
+             outfile%timecounter = outfile%timecounter + 1
+             status = parallel_sync(NCO%id)
+             call nc_errorhandle(__FILE__,__LINE__,status)
+          end if
           NCO%just_processed = .FALSE.
        end if
     end if

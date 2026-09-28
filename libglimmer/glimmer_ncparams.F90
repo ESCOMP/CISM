@@ -180,6 +180,12 @@ contains
        if (pos == 0) then
           call write_log ('Error, filename in CF restart section should include "restart"', GM_FATAL)
        endif
+
+       ! A standard restart reads the file named in the config file,
+       !  so restart files cannot (yet) be written one file per write.
+       if (output%one_file_per_write) then
+          call write_log ('Error, one_file_per_write is not supported for CF restart files', GM_FATAL)
+       endif
     endif
 
     ! set up inputs
@@ -330,6 +336,8 @@ contains
     call GetValue(section, 'frequency', handle_output%freq)
     call GetValue(section, 'variables', handle_output%nc%vars)
     call GetValue(section, 'write_init', handle_output%write_init)
+    call GetValue(section, 'external_control', handle_output%external_control)
+    call GetValue(section, 'one_file_per_write', handle_output%one_file_per_write)
     call GetValue(section, 'mode', mode_str)
     call GetValue(section, 'xtype', xtype_str)
 
@@ -359,6 +367,14 @@ contains
     call handle_metadata(section, handle_output%metadata, .false.)
     if (handle_output%nc%filename(1:1) == ' ') then
        call write_log('Error, no file name specified [netCDF output]',GM_FATAL)
+    end if
+
+    if (handle_output%external_control) then
+       call write_log('External output control: '//trim(handle_output%nc%filename))
+    end if
+    if (handle_output%one_file_per_write) then
+       handle_output%base_filename = handle_output%nc%filename
+       call write_log('One file per write: '//trim(handle_output%nc%filename))
     end if
 
   end function handle_output

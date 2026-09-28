@@ -81,6 +81,8 @@ module glimmer_ncdf
      !> set to .TRUE. when we are in define mode
      logical :: just_processed = .FALSE.
      !> set to .TRUE. if the file was used during the last time step
+     logical :: file_open = .FALSE.
+     !> set to .TRUE. while the netCDF file is open (i.e., between create/reopen and close)
 
      !> the time when the file was last processed
      real(dp) :: processed_time = 0.d0              ! internal model time
@@ -195,6 +197,15 @@ module glimmer_ncdf
      integer :: default_xtype = NF90_FLOAT                !< the default external type for storing floating point values
      logical :: do_averages = .false.                     !< set to .true. if we need to handle averages
 
+     !Note: The following two flags are independent.
+     !      external_control determines WHEN output is written; one_file_per_write determines WHERE.
+     logical :: external_control = .false.                !< if true, an external driver (e.g., the CESM wrapper)
+                                                          !<  decides when to write; NAME_io_writeall only accumulates averages
+     logical :: one_file_per_write = .false.              !< if true, each write creates a new file containing one time slice;
+                                                          !<  no file is created at initialization
+     character(len=fname_length) :: base_filename = ' '   !< for one_file_per_write: file name from the config file,
+                                                          !<  used to build the name of each new file
+
      type(glimmer_nc_meta) :: metadata
      !> structure holding metadata
 
@@ -296,8 +307,11 @@ contains
        else
           delete_output => NULL()
        end if
-       if (closefile) then
+       ! Close the file only if it is open (e.g., files written with one_file_per_write
+       !  are closed after each write)
+       if (closefile .and. oc%nc%file_open) then
           status = nf90_close(oc%nc%id)
+          oc%nc%file_open = .false.
           call write_log_div
           call write_log('Closing output file '//trim(oc%nc%filename))
        end if

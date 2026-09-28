@@ -92,7 +92,14 @@ contains
     end if
 
     do while(associated(oc))
-       call NAME_io_create(oc,model,data)
+       if (oc%one_file_per_write) then
+          ! No file exists yet; variables are defined each time a file is created (NAME_io_write_slice).
+          ! Set do_averages now, since it is normally set in NAME_io_create
+          !  and averages must be accumulated before the first file is written.
+          if (index(oc%nc%vars_copy,AVG_SUFF) /= 0) oc%do_averages = .true.
+       else
+          call NAME_io_create(oc,model,data)
+       end if
        oc=>oc%next
     end do
   end subroutine NAME_io_createall
@@ -112,6 +119,7 @@ contains
 
     logical :: forcewrite
     logical :: wrote_timeslice   ! true if checkwrite wrote a time slice during this call
+    real(dp) :: sub_time         ! local version of time
     forcewrite = .false.
 
     if (present(outfiles)) then
@@ -124,12 +132,31 @@ contains
        forcewrite = atend
     end if
 
+    if (present(time)) then
+       sub_time = time
+    else
+       sub_time = model%numerics%time
+    end if
+
     do while(associated(oc))
 #ifdef HAVE_AVG
        if (oc%do_averages) then
           call NAME_avg_accumulate(oc,data,model)
        end if
 #endif
+       if (oc%one_file_per_write) then
+          ! Write a new file containing one time slice, if output is due.
+          ! Note: This assumes that all the variables in the file are handled by this module (NAME_io).
+          !       For files that also include variables from other modules (e.g., glad_io), the driver
+          !       must create and write the file itself, using external_control.
+          call glimmer_nc_advance_timeslice(oc, sub_time)
+          if (glimmer_nc_write_due(oc, model, forcewrite, sub_time)) then
+             call NAME_io_write_slice(oc, data, model, glimmer_nc_slice_filename(oc, sub_time), sub_time)
+          end if
+          oc=>oc%next
+          cycle
+       end if
+
        call glimmer_nc_checkwrite(oc,model,forcewrite,time,wrote_timeslice=wrote_timeslice)
        ! Note: Write the fields only if a new time slice was written during this call.
        !       NCO%just_processed is not a reliable test, since it stays true for later calls at the same time
@@ -146,6 +173,51 @@ contains
        oc=>oc%next
     end do
   end subroutine NAME_io_writeall
+
+  subroutine NAME_io_write_slice(outfile, data, model, filename, time, external_time, &
+                                 external_baseline_year, external_time_units)
+
+    ! Create a new file containing one time slice, write the output, and close the file.
+    ! Used for one_file_per_write. The output object persists, so averages and time bounds
+    !  carry over from one file to the next.
+    ! Note: This assumes that all the variables in the file are handled by this module.
+    !       A driver that needs variables from more than one module (e.g., glide_io and glad_io)
+    !       can call the same sequence of routines, adding the other modules' create and write calls.
+
+    use glimmer_ncio
+    use glide_nc_custom, only: glide_nc_filldvars
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+    type(DATATYPE) :: data
+    type(glide_global_type) :: model
+    character(len=*), intent(in) :: filename          ! name of the new file
+    real(dp), intent(in) :: time                      ! internal time (yr)
+    real(dp), intent(in), optional :: external_time   ! external time; if not present, defaults to time
+    integer, intent(in), optional :: external_baseline_year
+    character(len=*), intent(in), optional :: external_time_units
+
+    real(dp) :: sub_external_time
+
+    if (present(external_time)) then
+       sub_external_time = external_time
+    else
+       sub_external_time = time
+    end if
+
+    call glimmer_nc_newfile(outfile, filename)
+    call glimmer_nc_createfile(outfile, model, external_baseline_year, external_time_units)
+    call NAME_io_create(outfile, model, data)
+    call glide_nc_filldvars(outfile, model)   ! also leaves define mode
+    call glimmer_nc_write_timeslice(outfile, model, time, sub_external_time)
+    call NAME_io_write(outfile, data)
+#ifdef HAVE_AVG
+    if (outfile%do_averages) then
+       call NAME_avg_reset(outfile, data)
+    end if
+#endif
+    call glimmer_nc_closefile(outfile)
+
+  end subroutine NAME_io_write_slice
   
   subroutine NAME_io_create(outfile,model,data)
 
@@ -814,6 +886,7 @@ contains
     ! TODO: Write code to check for doubly listed tavg variables and throw a fatal error.
 
     use cism_parallel, only: parallel_inq_varid
+    use glimmer_ncio, only: glimmer_nc_output_has_var
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
@@ -840,6 +913,7 @@ contains
   subroutine NAME_avg_reset(outfile,data)
 
     use cism_parallel, only: parallel_inq_varid
+    use glimmer_ncio, only: glimmer_nc_output_has_var
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor

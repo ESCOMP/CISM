@@ -702,8 +702,7 @@ class PrintNC_template(PrintVars):
             avgname = '%s_%s'%(var['name'],AVERAGE_SUFFIX)
             avgdata = '%s_%s'%(var['data'],AVERAGE_SUFFIX)
             self.stream.write("    ! accumulate %s\n"%var['name'])
-            self.stream.write("    status = parallel_inq_varid(NCO%%id,'%s',varid)\n"%avgname)
-            self.stream.write("    if (status .eq. nf90_noerr) then\n")
+            self.stream.write("    if (glimmer_nc_output_has_var(outfile,'%s')) then\n"%avgname)
             self.stream.write("       %s = %s + factor * %s\n"%(avgdata,avgdata,var['data']))
             self.stream.write("    end if\n\n")
 
@@ -714,8 +713,7 @@ class PrintNC_template(PrintVars):
             avgname = '%s_%s'%(var['name'],AVERAGE_SUFFIX)
             avgdata = '%s_%s'%(var['data'],AVERAGE_SUFFIX)
             self.stream.write("    ! reset %s\n"%var['name'])
-            self.stream.write("    status = parallel_inq_varid(NCO%%id,'%s',varid)\n"%avgname)
-            self.stream.write("    if (status .eq. nf90_noerr) then\n")
+            self.stream.write("    if (glimmer_nc_output_has_var(outfile,'%s')) then\n"%avgname)
             self.stream.write("       %s = 0.\n"%avgdata)
             self.stream.write("    end if\n\n")
 
