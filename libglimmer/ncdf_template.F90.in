@@ -109,7 +109,10 @@ contains
 
     ! local variables
     type(glimmer_nc_output), pointer :: oc
-    logical :: forcewrite=.false.
+
+    logical :: forcewrite
+    logical :: wrote_timeslice   ! true if checkwrite wrote a time slice during this call
+    forcewrite = .false.
 
     if (present(outfiles)) then
        oc => outfiles
@@ -127,8 +130,11 @@ contains
           call NAME_avg_accumulate(oc,data,model)
        end if
 #endif
-       call glimmer_nc_checkwrite(oc,model,forcewrite,time)
-       if (oc%nc%just_processed) then
+       call glimmer_nc_checkwrite(oc,model,forcewrite,time,wrote_timeslice=wrote_timeslice)
+       ! Note: Write the fields only if a new time slice was written during this call.
+       !       NCO%just_processed is not a reliable test, since it stays true for later calls at the same time
+       !        (e.g., in glide_finalise), which would rewrite the fields and (for tavg files) overwrite the averages.
+       if (wrote_timeslice) then
           ! write standard variables
           call NAME_io_write(oc,data)
 #ifdef HAVE_AVG
@@ -160,6 +166,9 @@ contains
     integer :: up
 
     !GENVAR_DIMS!
+
+    !TODO - WHL - This subroutine consumes NCO%vars each time it is read.
+    !             New files must start with NCO%vars = NCO%vars_copy
 
     ! Expanding restart variables: if 'restart' is present, we remove that
     ! word from the variable list, and flip the restartfile flag.  
@@ -814,6 +823,12 @@ contains
     ! local variables
     real(dp) :: factor
     integer status, varid
+
+    ! Accumulate only if the model has advanced since the last accumulation.
+    ! This prevents double counting when NAME_io_writeall is called more than once
+    !  at the same time (e.g., at initialization and in glide_finalise).
+    if (model%numerics%tstep_count <= outfile%accum_tstep_count) return
+    outfile%accum_tstep_count = model%numerics%tstep_count
 
     ! increase total time
     outfile%total_time = outfile%total_time + model%numerics%tinc

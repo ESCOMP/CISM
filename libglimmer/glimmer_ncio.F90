@@ -108,6 +108,10 @@ contains
 
        end if
 
+       ! Set the start of the first averaging interval (used for tavg time bounds)
+       call glimmer_nc_checkwrite_init(oc, model%numerics%tstart, &
+                                       tstep_count = model%numerics%tstep_count)
+
        oc => oc%next
 
     end do
@@ -199,6 +203,15 @@ contains
     call nc_errorhandle(__FILE__,__LINE__,status)
     status = parallel_inq_varid(NCO%id,glimmer_nc_tstep_count_varname,NCO%tstep_count_var)
     call nc_errorhandle(__FILE__,__LINE__,status)
+
+    ! For time-average files, get the time bounds varids
+    ! Note: This test for '_tavg' matches the test in glimmer_nc_createfile.
+    if (index(NCO%vars,'_tavg') /= 0) then
+       status = parallel_inq_varid(NCO%id,glimmer_nc_internal_timebounds_varname,NCO%internal_timebounds_var)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_inq_varid(NCO%id,glimmer_nc_timebounds_varname,NCO%timebounds_var)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
 
     ! Put dataset into define mode
     status = parallel_redef(NCO%id)
@@ -346,9 +359,6 @@ contains
     ! days) and the calendar attribute.
     status = parallel_put_att(NCO%id, NCO%internal_timevar, 'calendar', 'noleap')
 
-    status = parallel_put_att(NCO%id, NCO%internal_timevar, 'bounds', &
-         glimmer_nc_internal_timebounds_varname)
-
     ! define the time variable
     ! By default, 'time' has the same properties as internal_time,
     ! but these can be overwritten by passing in an external time (e.g., from CESM)
@@ -362,7 +372,6 @@ contains
     time_units_str = sub_external_time_units // ' since ' // year_str // '-01-01 0:0:0'
     status = parallel_put_att(NCO%id, NCO%timevar, 'units', time_units_str)
     status = parallel_put_att(NCO%id, NCO%timevar, 'calendar', 'noleap')
-    status = parallel_put_att(NCO%id, NCO%timevar, 'bounds', glimmer_nc_timebounds_varname)
 
     ! define the tstep_count variable
 
@@ -390,6 +399,7 @@ contains
        status = parallel_def_var(NCO%id,glimmer_nc_internal_timebounds_varname,&
             outfile%time_xtype,(/NCO%tbnd_dim,NCO%timedim/),NCO%internal_timebounds_var)
        call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, NCO%internal_timevar, 'bounds', glimmer_nc_internal_timebounds_varname)
        status = parallel_put_att(NCO%id, NCO%internal_timebounds_var, 'long_name', &
             'internal time interval endpoints')
        status = parallel_put_att(NCO%id, NCO%internal_timebounds_var, 'units', &
@@ -400,6 +410,7 @@ contains
        status = parallel_def_var(NCO%id,glimmer_nc_timebounds_varname,&
          outfile%time_xtype,(/NCO%tbnd_dim,NCO%timedim/),NCO%timebounds_var)
        call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, NCO%timevar, 'bounds', glimmer_nc_timebounds_varname)
        status = parallel_put_att(NCO%id, NCO%timebounds_var, 'long_name', &
             'time interval endpoints')
        status = parallel_put_att(NCO%id, NCO%timebounds_var, 'units', time_units_str)
@@ -441,17 +452,49 @@ contains
 
   !------------------------------------------------------------------------------
 
-!!  subroutine glimmer_nc_checkwrite_init(outfile,model,forcewrite,time,external_time)
+  subroutine glimmer_nc_checkwrite_init(outfile, time, external_time, tstep_count)
 
-    ! Initialize NCO%processed_time and NCO%processed_external_time
-    ! This is necessary to get the correct initial time bounds for tavg files
-    !  if this is a restart or a run not starting at t = 0.
+    !> Set the start of the first averaging interval for this output file.
+    !> This is necessary to get the correct initial time bounds for tavg files
+    !>  if this is a restart or a run not starting at t = 0.
+    !> If tstep_count is present, then averages are not accumulated again until the model
+    !>  takes a step beyond tstep_count.
+    !> Called from openall_out when the file is created or reopened.
+    !> Note: An external driver (e.g., the CESM wrapper) that passes an external time
+    !>       to glimmer_nc_checkwrite should also call this subroutine with the external start time.
 
-!!  end subroutine glimmer_nc_checkwrite_init
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+    real(dp), intent(in) :: time                     ! internal start time (yr)
+    real(dp), intent(in), optional :: external_time  ! external start time; if not present, defaults to time
+    integer, intent(in), optional :: tstep_count     ! timestep count at the start of the averaging interval
 
-  subroutine glimmer_nc_checkwrite(outfile,model,forcewrite,time,external_time)
+    NCO%processed_time = time
+    if (present(external_time)) then
+       NCO%processed_external_time = external_time
+    else
+       NCO%processed_external_time = time
+    end if
 
-    !> check if we should write to file
+    if (present(tstep_count)) then
+       outfile%accum_tstep_count = tstep_count
+    end if
+
+  end subroutine glimmer_nc_checkwrite_init
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_checkwrite(outfile,model,forcewrite,time,external_time,wrote_timeslice)
+
+    !> Check whether output is due for this file, and if so, write the time-slice variables.
+    !> The caller (e.g., NAME_io_writeall) writes the model fields if wrote_timeslice = T.
+    !>
+    !> This subroutine is a driver for three steps, which can also be called separately
+    !>  (e.g., by an external driver that controls when output is written):
+    !> (1) glimmer_nc_advance_timeslice: leave define mode; advance the time counter after a write
+    !> (2) glimmer_nc_write_due: decide whether a write is due
+    !> (3) glimmer_nc_write_timeslice: write the time-slice variables
+
     use glimmer_log
     use glide_types
     use glimmer_filenames
@@ -462,15 +505,10 @@ contains
     real(dp),optional :: time  ! time in years (written to 'internal_time')
     real(dp),optional :: external_time  ! external time (written to 'time'); if not present, defaults to internal_time
                                         ! units of external time are not necessarily years; e.g., CESM uses days
-    character(len=msglen) :: message
-    integer status
+    logical, intent(out), optional :: wrote_timeslice  ! true if a time slice was written during this call
     real(dp) :: sub_time  ! local version of time (years)
     real(dp) :: sub_external_time  ! local version of external_time
-    integer :: nfreq      ! freq/tinc; write output every nfreq timesteps
-    integer :: pos
-    real(dp), dimension(2) :: &
-         internal_time_bounds,        & ! start and end times for averaging (internal)
-         external_time_bounds           ! start and end times for averaging (external)
+    logical :: write_now  ! true if a time slice is written during this call
 
     ! Check for optional time argument
     if (present(time)) then
@@ -488,6 +526,33 @@ contains
     if (verbose_ncio .and. main_task) &
          write(iulog,*) 'In glimmer_nc_checkwrite, time, file =', sub_time, trim(process_path(NCO%filename))
 
+    call glimmer_nc_advance_timeslice(outfile, sub_time)
+
+    write_now = glimmer_nc_write_due(outfile, model, forcewrite, sub_time)
+
+    if (write_now) then
+       call glimmer_nc_write_timeslice(outfile, model, sub_time, sub_external_time)
+    end if
+
+    if (present(wrote_timeslice)) wrote_timeslice = write_now
+
+  end subroutine glimmer_nc_checkwrite
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_advance_timeslice(outfile, time)
+
+    !> Leave define mode if needed.
+    !> If the file was written at an earlier time, then increment the time counter,
+    !>  so that the next write goes to a new time slice.
+    !> Note: This subroutine is needed for files with multiple time slices.
+
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+    real(dp), intent(in) :: time  ! current model time (yr)
+
+    integer :: status
+
     ! Note: In glimmer_ncdf.F90, NCO%processed_time and NCO%processed_external_time
     !        are initialized to 0.0, and NCO%just_processed is initialized to FALSE.
 
@@ -498,7 +563,7 @@ contains
        NCO%define_mode = .FALSE.
     end if
 
-    if (sub_time > NCO%processed_time) then
+    if (time > NCO%processed_time) then
        if (NCO%just_processed) then
           ! finished writing during last time step, need to increase counter
           outfile%timecounter = outfile%timecounter + 1
@@ -508,6 +573,30 @@ contains
           NCO%just_processed = .FALSE.
        end if
     end if
+
+  end subroutine glimmer_nc_advance_timeslice
+
+  !------------------------------------------------------------------------------
+
+  function glimmer_nc_write_due(outfile, model, forcewrite, time) result(write_due)
+
+    !> Return true if output should be written to this file at the current time.
+    !> This function sets no flags and writes nothing to the file, but it can write a warning to the log.
+
+    use glimmer_log
+    use glide_types
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+    type(glide_global_type) :: model
+    logical, intent(in) :: forcewrite  ! if true, write regardless of the output frequency
+    real(dp), intent(in) :: time       ! current model time (yr)
+    logical :: write_due
+
+    character(len=msglen) :: message
+    integer :: nfreq      ! freq/tinc; write output every nfreq timesteps
+    real(dp) :: eps       ! tolerance for comparing time to end_write, to allow for roundoff
+
+    write_due = .false.
 
     ! Compute the desired integer frequency for writing output (every nfreq timesteps), rounding if needed.
     ! Note: Both outfile%freq and model%general%tinc have units of years.
@@ -528,61 +617,104 @@ contains
     ! (2) tstep_count = 0 & write_init = T
     ! (3) tstep_count > 0 & mod(tstep_count,nfreq) = 0
     ! Note: write_init = T by default, but can be turned off in the config file (e.g., for restart files)
+    ! In each case, the time must not be later than end_write, and the file must not already
+    !  have been written at this time.
+    ! Note: Model time is accumulated each timestep and can be slightly larger than end_write
+    !       (e.g., 8.00000000000001 when end_write = 8), so allow a small tolerance.
+    !       This follows the convention used for forcing times in NAME_read_forcing.
+
+    eps = model%numerics%tinc * 1.0d-3
 
     if ( forcewrite .or.  &
         (model%numerics%tstep_count == 0 .and. outfile%write_init) .or.  &
         (model%numerics%tstep_count > 0 .and. mod(model%numerics%tstep_count, nfreq) == 0) ) then
 
-       if (sub_time <= outfile%end_write .and. .not.NCO%just_processed) then
-          call write_log_div
-          write(message,*) 'Writing to file ', trim(process_path(NCO%filename)), ' at time ', sub_time
-          call write_log(trim(message))
-
-          if (verbose_ncio .and. main_task) &
-               write(iulog,*) 'Writing to file ', trim(process_path(NCO%filename)), ' at time ', sub_time
-
-!!          NCO%processed_time = sub_time  ! moved below
-
-          ! write time and tstep_count
-          status = parallel_put_var(NCO%id, NCO%internal_timevar, sub_time, (/outfile%timecounter/))
-          call nc_errorhandle(__FILE__,__LINE__,status)
-          status = parallel_put_var(NCO%id, NCO%timevar, sub_external_time, (/outfile%timecounter/))
-          call nc_errorhandle(__FILE__,__LINE__,status)
-          status = parallel_put_var(NCO%id, NCO%tstep_count_var, model%numerics%tstep_count, &
-               (/outfile%timecounter/))
-
-          if (outfile%do_averages) then
-
-             internal_time_bounds(1) = NCO%processed_time
-             internal_time_bounds(2) = sub_time
-             external_time_bounds(1) = NCO%processed_external_time
-             external_time_bounds(2) = sub_external_time
-
-             if (verbose_ncio .and. main_task) &
-                  write(iulog,*) 'put internal_time_bounds:', internal_time_bounds(:)
-             status = parallel_put_var(NCO%id, NCO%internal_timebounds_var, internal_time_bounds, &
-                  (/1,outfile%timecounter/))
-             call nc_errorhandle(__FILE__,__LINE__,status)
-
-             if (verbose_ncio .and. main_task) &
-                  write(iulog,*) 'put external_time_bounds:', external_time_bounds(:)
-             status = parallel_put_var(NCO%id, NCO%timebounds_var, external_time_bounds, &
-                  (/1,outfile%timecounter/))
-             call nc_errorhandle(__FILE__,__LINE__,status)
-
-          endif   ! 'tavg' string present
-
-          NCO%just_processed = .TRUE.
-
-          ! reset the processed time for the next averaging period
-          NCO%processed_time = sub_time
-          NCO%processed_external_time = sub_external_time
-
+       if (time <= outfile%end_write + eps .and. .not.NCO%just_processed) then
+          write_due = .true.
        end if
 
     end if
 
-  end subroutine glimmer_nc_checkwrite
+  end function glimmer_nc_write_due
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_write_timeslice(outfile, model, time, external_time)
+
+    !> Write internal_time, time, tstep_count, and (for tavg files) the time bounds
+    !>  to the current time slice (outfile%timecounter).
+    !> Then set NCO%just_processed = T, and set the start of the next averaging period.
+
+    use glimmer_log
+    use glide_types
+    use glimmer_filenames
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+    type(glide_global_type) :: model
+    real(dp), intent(in) :: time           ! time in years (written to 'internal_time')
+    real(dp), intent(in) :: external_time  ! external time (written to 'time')
+
+    character(len=msglen) :: message
+    integer :: status
+    real(dp), dimension(2) :: &
+         internal_time_bounds,        & ! start and end times for averaging (internal)
+         external_time_bounds           ! start and end times for averaging (external)
+
+    ! Make sure the file is in data mode.
+    ! Note: Normally this is done already in glimmer_nc_advance_timeslice.
+    if (NCO%define_mode) then
+       status = parallel_enddef(NCO%id)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       NCO%define_mode = .FALSE.
+    end if
+
+    call write_log_div
+    write(message,*) 'Writing to file ', trim(process_path(NCO%filename)), ' at time ', time
+    call write_log(trim(message))
+
+    if (verbose_ncio .and. main_task) &
+         write(iulog,*) 'Writing to file ', trim(process_path(NCO%filename)), ' at time ', time
+
+    ! write time and tstep_count
+    status = parallel_put_var(NCO%id, NCO%internal_timevar, time, (/outfile%timecounter/))
+    call nc_errorhandle(__FILE__,__LINE__,status)
+    status = parallel_put_var(NCO%id, NCO%timevar, external_time, (/outfile%timecounter/))
+    call nc_errorhandle(__FILE__,__LINE__,status)
+    status = parallel_put_var(NCO%id, NCO%tstep_count_var, model%numerics%tstep_count, &
+         (/outfile%timecounter/))
+    call nc_errorhandle(__FILE__,__LINE__,status)
+
+    if (outfile%do_averages) then
+
+       write(message,*) '  Averaging interval (yr):', NCO%processed_time, time, ', total_time =', outfile%total_time
+       call write_log(trim(message))
+
+       internal_time_bounds(1) = NCO%processed_time
+       internal_time_bounds(2) = time
+       external_time_bounds(1) = NCO%processed_external_time
+       external_time_bounds(2) = external_time
+
+       if (verbose_ncio .and. main_task) &
+            write(iulog,*) 'put internal_time_bounds:', internal_time_bounds(:)
+       status = parallel_put_var(NCO%id, NCO%internal_timebounds_var, internal_time_bounds, &
+            (/1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+
+       if (verbose_ncio .and. main_task) &
+            write(iulog,*) 'put external_time_bounds:', external_time_bounds(:)
+       status = parallel_put_var(NCO%id, NCO%timebounds_var, external_time_bounds, &
+            (/1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+
+    endif   ! do_averages
+
+    NCO%just_processed = .TRUE.
+
+    ! reset the processed time for the next averaging period
+    NCO%processed_time = time
+    NCO%processed_external_time = external_time
+
+  end subroutine glimmer_nc_write_timeslice
 
   !*****************************************************************************
   ! netCDF input

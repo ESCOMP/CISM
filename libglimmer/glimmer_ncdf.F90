@@ -187,6 +187,7 @@ module glimmer_ncdf
      real(dp) :: end_write = glimmer_nc_max_time          !< stop writing after this year
      integer  :: timecounter = 1                          !< time counter
      real(dp) :: total_time = 0.d0                        !< total accumulated time for this averaging period
+     integer  :: accum_tstep_count = 0                    !< tstep_count at the most recent accumulation of averages
 
      !Note: time variables are double precision, following the CESM standard
      integer :: time_xtype = NF90_DOUBLE                  !< external type for storing time values

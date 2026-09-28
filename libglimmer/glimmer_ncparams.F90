@@ -122,7 +122,7 @@ contains
 
        ! Check the variable list for the string '_tavg', which indicates a time-average field.
        ! If any variables contain '_tavg', then all variables in the file must have it, else the code aborts.
-       ! In other words, instantaneous and time-average fields cannot be mixed in a single file.
+       ! In other words, instantaneous and time-average fields cannot be mixed in a single CF output file.
 
        abort = .false.
        pos = index(output%nc%vars,'_tavg')
@@ -161,7 +161,11 @@ contains
 
     ! set up restart output
     ! If there is a 'CF restart' section, the file listed there is added to the output list.
-    ! Note: There should be at most one 'CF restart' section.
+    ! Notes:
+    ! (1) There should be at most one 'CF restart' section.
+    ! (2) The no-variable-mixing rule applied to [CF output] files does not apply to [CF restart] files.
+    !     Restart files can contain a mix of instantaneous and tavg variables if desired.
+
     call GetSection(config,section,'CF restart')
     if (associated(section)) then
        output => handle_output(section,output,configstring)
