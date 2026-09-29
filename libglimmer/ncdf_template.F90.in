@@ -144,6 +144,24 @@ contains
           call NAME_avg_accumulate(oc,data,model)
        end if
 #endif
+       if (oc%external_control) then
+          ! An external driver (e.g., the CESM wrapper) decides when to write this file,
+          !  so only accumulate averages (above). The driver writes the output as follows:
+          ! (1) With one_file_per_write (no file is open between writes):
+          !     glimmer_nc_newfile, glimmer_nc_createfile, NAME_io_create (for each I/O module),
+          !     glide_nc_filldvars, glimmer_nc_write_timeslice, NAME_io_write (for each module),
+          !     NAME_avg_reset, glimmer_nc_closefile.
+          !     If all the variables belong to one module, NAME_io_write_slice does all of this.
+          ! (2) Without one_file_per_write (the file is created at initialization and holds
+          !     multiple time slices): glimmer_nc_checkwrite (e.g., with forcewrite = .true.)
+          !     with the optional wrote_timeslice argument; then, if wrote_timeslice = .true.,
+          !     NAME_io_write (for each module) and NAME_avg_reset.
+          ! In either case, the driver should call glimmer_nc_checkwrite_init at initialization
+          !  if it passes an external time, so the first time bounds are in external units.
+          oc=>oc%next
+          cycle
+       end if
+
        if (oc%one_file_per_write) then
           ! Write a new file containing one time slice, if output is due.
           ! Note: This assumes that all the variables in the file are handled by this module (NAME_io).
