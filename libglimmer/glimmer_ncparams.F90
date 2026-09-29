@@ -188,6 +188,9 @@ contains
        endif
     endif
 
+    ! Make sure that no time-average variable appears in more than one output file
+    call check_duplicate_tavg(model%funits%out_first)
+
     ! set up inputs
     call GetSection(config,section,'CF input')
     do while(associated(section))
@@ -264,6 +267,73 @@ contains
 
   !==================================================================================
   ! private procedures
+
+  !------------------------------------------------------------------------------
+
+  subroutine check_duplicate_tavg(first)
+
+    ! Abort if any time-average variable (i.e., a name ending in '_tavg') appears in more than
+    !  one output file, including restart files.
+    ! Each tavg variable is accumulated in a single model array. If the variable were listed
+    !  in two files, it would be accumulated twice per timestep, and the averages would be wrong.
+    ! Note: The check is based on the variable lists in the config file (vars_copy).
+    !       Variables added by expanding the 'restart' keyword are not checked,
+    !       but restart files normally contain only instantaneous variables.
+
+    use glimmer_ncdf
+    use glimmer_log
+    implicit none
+
+    type(glimmer_nc_output), pointer :: first   ! first element of the output list
+
+    type(glimmer_nc_output), pointer :: oc_a, oc_b
+    character(len=glimmer_nc_vars_len+2) :: list_a, list_b
+    integer :: i1, i2, n
+
+    oc_a => first
+    do while (associated(oc_a))
+
+       ! Pad the list with spaces, so each variable name is preceded and followed by a space
+       list_a = ' '//trim(adjustl(oc_a%nc%vars_copy))//' '
+       n = len_trim(list_a)
+
+       ! Loop over the variable names in list_a
+       i1 = 1
+       do
+          do while (i1 <= n)
+             if (list_a(i1:i1) /= ' ') exit
+             i1 = i1 + 1
+          end do
+          if (i1 > n) exit
+          i2 = i1 + index(list_a(i1:), ' ') - 2   ! last character of this name
+
+          if (i2 - i1 + 1 >= 5) then
+             if (list_a(i2-4:i2) == '_tavg') then
+
+                ! Look for the same name in the output files later in the list
+                oc_b => oc_a%next
+                do while (associated(oc_b))
+                   list_b = ' '//trim(adjustl(oc_b%nc%vars_copy))//' '
+                   if (index(list_b, ' '//list_a(i1:i2)//' ') /= 0) then
+                      call write_log('Error: time-average variable '//list_a(i1:i2)// &
+                           ' is listed in more than one output file:')
+                      call write_log('  '//trim(oc_a%nc%filename))
+                      call write_log('  '//trim(oc_b%nc%filename))
+                      call write_log('Each tavg variable may appear in only one output file', GM_FATAL)
+                   end if
+                   oc_b => oc_b%next
+                end do
+
+             end if
+          end if
+
+          i1 = i2 + 2
+       end do
+
+       oc_a => oc_a%next
+    end do
+
+  end subroutine check_duplicate_tavg
   !==================================================================================
 
   subroutine handle_metadata(section,metadata, default)
