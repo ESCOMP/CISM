@@ -356,7 +356,7 @@ contains
     ! Internal time units are hardcoded as common years (i.e., years of exactly 365 days).
     ! The baseline year is in YYYY format, with additional digits as needed for years > 9999.
     write(year_str,'(i0.4)') internal_baseline_year
-    internal_time_units_str = internal_time_units // ' since ' // year_str // '-01-01 0:0:0'
+    internal_time_units_str = internal_time_units // ' since ' // year_str // '-01-01 00:00:00'
     status = parallel_put_att(NCO%id, NCO%internal_timevar, 'units', internal_time_units_str)
 
     ! CISM currently assumes a noleap calendar - exactly 365 days. For now, we hard-code
@@ -375,7 +375,7 @@ contains
     call nc_errorhandle(__FILE__,__LINE__,status)
     status = parallel_put_att(NCO%id, NCO%timevar, 'long_name', 'time')
     write(year_str,'(i0.4)') sub_external_baseline_year
-    time_units_str = sub_external_time_units // ' since ' // year_str // '-01-01 0:0:0'
+    time_units_str = sub_external_time_units // ' since ' // year_str // '-01-01 00:00:00'
     status = parallel_put_att(NCO%id, NCO%timevar, 'units', time_units_str)
     status = parallel_put_att(NCO%id, NCO%timevar, 'calendar', 'noleap')
 
@@ -397,13 +397,13 @@ contains
        if (verbose_ncio .and. main_task) &
             write(iulog,*) 'Create time_bounds for file ', trim(NCO%filename)
 
-       ! define a timebounds dimension
-       status = parallel_def_dim(NCO%id,'tbnd',2,NCO%tbnd_dim)
+       ! define a time bounds dimension ('nbnd', following CESM convention)
+       status = parallel_def_dim(NCO%id,'nbnd',2,NCO%nbnd_dim)
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        ! internal time bounds
        status = parallel_def_var(NCO%id,glimmer_nc_internal_timebounds_varname,&
-            outfile%time_xtype,(/NCO%tbnd_dim,NCO%timedim/),NCO%internal_timebounds_var)
+            outfile%time_xtype,(/NCO%nbnd_dim,NCO%timedim/),NCO%internal_timebounds_var)
        call nc_errorhandle(__FILE__,__LINE__,status)
        status = parallel_put_att(NCO%id, NCO%internal_timevar, 'bounds', glimmer_nc_internal_timebounds_varname)
        status = parallel_put_att(NCO%id, NCO%internal_timebounds_var, 'long_name', &
@@ -414,7 +414,7 @@ contains
 
        ! external time bounds
        status = parallel_def_var(NCO%id,glimmer_nc_timebounds_varname,&
-         outfile%time_xtype,(/NCO%tbnd_dim,NCO%timedim/),NCO%timebounds_var)
+         outfile%time_xtype,(/NCO%nbnd_dim,NCO%timedim/),NCO%timebounds_var)
        call nc_errorhandle(__FILE__,__LINE__,status)
        status = parallel_put_att(NCO%id, NCO%timevar, 'bounds', glimmer_nc_timebounds_varname)
        status = parallel_put_att(NCO%id, NCO%timebounds_var, 'long_name', &

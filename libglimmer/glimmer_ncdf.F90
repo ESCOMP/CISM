@@ -149,7 +149,7 @@ module glimmer_ncdf
      integer :: tstep_count_var        !> ID of variable giving the integer time step count
 
      ! timebounds variables for time-average files
-     integer :: tbnd_dim                !> ID of timebounds dimension
+     integer :: nbnd_dim                !> ID of time bounds dimension ('nbnd', following CESM convention)
      integer :: internal_timebounds_var !> ID of internal timebounds variable
      integer :: timebounds_var          !> ID of timebounds variable for external purposes
 
