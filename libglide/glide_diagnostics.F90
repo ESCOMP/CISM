@@ -289,7 +289,7 @@ contains
          velo_ew_ubound, velo_ns_ubound          ! upper bounds for velocity variables
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-         volume_above_flotation,& ! ice volue above flotation (m^3)
+         volume_above_flotation,& ! ice volume above flotation (m^3)
          thck_obs                 ! observed ice thickness (m), derived from usrf_obs and topg
 
     real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::  &
@@ -431,8 +431,13 @@ contains
     tot_vol_ice_caps = parallel_global_sum(model%geometry%thck*cell_area, parallel, ice_cap_mask)
 
     ! basal melting for floating ice (kg/s)
+    ! Note: To compute the total sub-shelf melt rate, multiple bmlt_float by ice_mask.
+    !       This is because bmlt_float can be nonzero for ice-free ocean cells (just in case
+    !        ice is transported into such a cell) but usually is not applied there.
+    !       This is not an exact diagnostic, but should be close to the actual applied melt.
+    !       bmlt target is independent of whether floating ice is present.
     tot_bmlt_float = &
-         parallel_global_sum(model%basal_melt%bmlt_float*rhoi*cell_area, parallel)
+         parallel_global_sum(ice_mask*model%basal_melt%bmlt_float*rhoi*cell_area, parallel)
     tot_bmlt_float_target = &
          parallel_global_sum(model%basal_melt%bmlt_float_target*rhoi*cell_area, parallel)
 
