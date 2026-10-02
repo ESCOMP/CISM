@@ -329,8 +329,11 @@ contains
     ! The 'vars' string should now consist only of blank spaces. If not, then write a warning.
     if (main_task) then
         if (len_trim(NCO%vars) /= 0) then
-           write(message,*) 'Warning: glide_io_create may have not have created all the requested&
-                & output variables in file ', trim(NCO%filename)
+           ! Note: Do not continue a character string onto the next line here. With the gnu compiler,
+           !       the preprocessor then treats the rest of the next line as a string, so the NCO macro
+           !       is not expanded.
+           write(message,*) 'Warning: NAME_io_create may not have created all the requested output variables in file ', &
+                trim(NCO%filename)
            call write_log(message)
            write(message,*) 'variables in the list but not created: ', trim(adjustl(NCO%vars))
            call write_log(message, GM_WARNING)
