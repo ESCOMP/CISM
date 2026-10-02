@@ -284,7 +284,9 @@ contains
     !       With a baseline year of 0, t = 1950.0 corresponds to Jan. 1, 1950, which is more intuitive.
 
     integer, parameter :: internal_baseline_year = 0
-    character(len=*), parameter :: internal_time_units = 'common years'  ! common year = year of exactly 365 days
+    ! Note: 'common_years' (with an underscore) is the UDUNITS name for years of exactly 365 days.
+    !       With a space ('common years'), cftime and xarray cannot decode the time variables.
+    character(len=*), parameter :: internal_time_units = 'common_years'  ! common year = year of exactly 365 days
 
     if (present(external_baseline_year)) then
        sub_external_baseline_year = external_baseline_year
