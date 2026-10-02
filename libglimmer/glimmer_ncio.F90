@@ -211,11 +211,13 @@ contains
 
     ! For time-average files, get the time bounds varids
     ! Note: This test for '_tavg' matches the test in glimmer_nc_createfile.
+    NCO%time_bounds = .false.
     if (index(NCO%vars,'_tavg') /= 0) then
        status = parallel_inq_varid(NCO%id,glimmer_nc_internal_timebounds_varname,NCO%internal_timebounds_var)
        call nc_errorhandle(__FILE__,__LINE__,status)
        status = parallel_inq_varid(NCO%id,glimmer_nc_timebounds_varname,NCO%timebounds_var)
        call nc_errorhandle(__FILE__,__LINE__,status)
+       NCO%time_bounds = .true.
     end if
 
     ! Put dataset into define mode
@@ -393,8 +395,15 @@ contains
     ! If this is a time-average file, then add metadata for time bounds
     ! time_bounds has dimension (time,2) since there are two values (start and end) per time slice.
 
+    ! Note: This test is done before NAME_io_create expands the 'restart' keyword.
+    !       Restart files do not get time bounds, even if the expanded restart variable list
+    !       includes variables with the '_tavg' suffix (e.g., the GLAD coupling fluxes rofi_tavg).
+
+    NCO%time_bounds = .false.
     pos = index(NCO%vars,"_tavg")
     if (pos.ne.0) then  ! this is a time-average file
+
+       NCO%time_bounds = .true.
 
        if (verbose_ncio .and. main_task) &
             write(iulog,*) 'Create time_bounds for file ', trim(NCO%filename)
@@ -810,7 +819,11 @@ contains
          (/outfile%timecounter/))
     call nc_errorhandle(__FILE__,__LINE__,status)
 
-    if (outfile%do_averages) then
+    ! Write the time bounds if the file has them (i.e., a time-average file).
+    ! Note: Test NCO%time_bounds rather than outfile%do_averages. A restart file can have
+    !       do_averages = T (if its expanded variable list includes names with '_tavg'),
+    !       but it has no time bounds variables.
+    if (NCO%time_bounds) then
 
        write(message,*) '  Averaging interval (yr):', NCO%processed_time, time, ', total_time =', outfile%total_time
        call write_log(trim(message))
@@ -832,7 +845,7 @@ contains
             (/1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
 
-    endif   ! do_averages
+    endif   ! time_bounds
 
     NCO%just_processed = .TRUE.
 

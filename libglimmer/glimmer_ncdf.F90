@@ -83,6 +83,8 @@ module glimmer_ncdf
      !> set to .TRUE. if the file was used during the last time step
      logical :: file_open = .FALSE.
      !> set to .TRUE. while the netCDF file is open (i.e., between create/reopen and close)
+     logical :: time_bounds = .FALSE.
+     !> set to .TRUE. if the file contains the time bounds variables (i.e., a time-average file)
 
      !> the time when the file was last processed
      real(dp) :: processed_time = 0.d0              ! internal model time
