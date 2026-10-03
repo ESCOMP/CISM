@@ -779,6 +779,11 @@ contains
     !> Write internal_time, time, tstep_count, and (for tavg files) the time bounds
     !>  to the current time slice (outfile%timecounter).
     !> Then set NCO%just_processed = T, and set the start of the next averaging period.
+    !>
+    !> For instantaneous files, internal_time and time are the times passed in (the end of the
+    !>  timestep). For time-average files (with time bounds), internal_time and time are the
+    !>  midpoints of the averaging interval, following CESM and CF conventions; the bounds
+    !>  give the start and end of the interval.
 
     use glimmer_log
     use glide_types
@@ -791,6 +796,9 @@ contains
 
     character(len=msglen) :: message
     integer :: status
+    real(dp) :: &
+         internal_time_out,           & ! value written to internal_time
+         external_time_out              ! value written to time
     real(dp), dimension(2) :: &
          internal_time_bounds,        & ! start and end times for averaging (internal)
          external_time_bounds           ! start and end times for averaging (external)
@@ -810,10 +818,20 @@ contains
     if (verbose_ncio .and. main_task) &
          write(iulog,*) 'Writing to file ', trim(process_path(NCO%filename)), ' at time ', time
 
+    ! Set the time values to write: the end of the timestep for instantaneous files,
+    !  and the midpoint of the averaging interval for time-average files
+    if (NCO%time_bounds) then
+       internal_time_out = 0.5d0 * (NCO%processed_time + time)
+       external_time_out = 0.5d0 * (NCO%processed_external_time + external_time)
+    else
+       internal_time_out = time
+       external_time_out = external_time
+    endif
+
     ! write time and tstep_count
-    status = parallel_put_var(NCO%id, NCO%internal_timevar, time, (/outfile%timecounter/))
+    status = parallel_put_var(NCO%id, NCO%internal_timevar, internal_time_out, (/outfile%timecounter/))
     call nc_errorhandle(__FILE__,__LINE__,status)
-    status = parallel_put_var(NCO%id, NCO%timevar, external_time, (/outfile%timecounter/))
+    status = parallel_put_var(NCO%id, NCO%timevar, external_time_out, (/outfile%timecounter/))
     call nc_errorhandle(__FILE__,__LINE__,status)
     status = parallel_put_var(NCO%id, NCO%tstep_count_var, model%numerics%tstep_count, &
          (/outfile%timecounter/))
