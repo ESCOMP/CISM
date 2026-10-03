@@ -1262,6 +1262,15 @@ contains
       ! convenience to allow the variable "temp" to be specified in the config
       ! file in all cases and have it converted to "tempstag" when appropriate.
       ! MJH
+      !
+      ! The same substitutions are applied to nc%vars and to nc%vars_copy.
+      ! Note: Previously, this subroutine ended with nc%vars_copy = nc%vars. But NAME_io_create
+      !       removes each variable from nc%vars as it is created, and this subroutine is called
+      !       from NAME_io_create for each I/O module that writes to the file (e.g., glide_io and
+      !       glad_io in CESM history files). For the second module, nc%vars had already been
+      !       mostly consumed, so vars_copy lost most of the variable list. This matters when
+      !       an output object writes more than one file (one_file_per_write), since each new file
+      !       starts from vars_copy.
 
       use glimmer_log
       use glide_types
@@ -1270,73 +1279,72 @@ contains
       integer, intent(in) :: whichdycore
       type(glimmer_nc_stat) :: nc
 
-      ! Locals
-      integer :: i
-
-      ! Check if tempstag should be output
-
       ! If both temp and tempstag are specified, temp will get converted to tempstag
       ! and then there will be two tempstags in the list, but that is ok because
-      ! the parser ignores duplicate entries in the varlist.  
+      ! the parser ignores duplicate entries in the varlist.
       ! (The check for the existence of variables looks like:    pos = index(NCO%vars,' acab ')  )
 
-      !write(iulog,*) "Original varstring:", varstring
+      ! Make sure vars_copy has a space at the beginning and end, as nc%vars does,
+      ! so that the first and last variable names can be matched
+      nc%vars_copy = ' '//trim(adjustl(nc%vars_copy))//' '
 
-      if (whichdycore/=DYCORE_GLIDE) then 
-          ! We want temp to become tempstag
-          i = index(nc%vars, " temp ")
-          if (i > 0) then
-            ! temp was specified - change it to tempstag
-            ! If temp is listed more than once, this just changes the first instance
-            nc%vars = nc%vars(1:i-1) // " tempstag " // nc%vars(i+6:len(nc%vars))
-            call write_log('Temperature remapping option uses temperature on a staggered vertical grid.' // &
-              '  The netCDF output variable "temp" has been changed to "tempstag".' )
-          endif 
-          ! Now check if flwa needs to be changed to flwastag
-          i = index(nc%vars, " flwa ") ! Look for flwa
-          if (i > 0) then
-            ! flwa was specified - change to flwastag
-            nc%vars = nc%vars(1:i-1) // " flwastag " // nc%vars(i+6:len(nc%vars))
-            call write_log('Temperature remapping option uses flwa on a staggered vertical grid.' // &
-            '  The netCDF output variable "flwa" has been changed to "flwastag".' )
-          endif
-          ! Now check if dissip needs to be changed to dissipstag
-          i = index(nc%vars, " dissip ") ! Look for dissip
-          if (i > 0) then
-            ! dissip was specified - change to dissipstag
-            nc%vars = nc%vars(1:i-1) // " dissipstag " // nc%vars(i+8:len(nc%vars))
-            call write_log('Temperature remapping option uses dissip on a staggered vertical grid.' // &
-            '  The netCDF output variable "dissip" has been changed to "dissipstag".' )
-          endif
+      if (whichdycore/=DYCORE_GLIDE) then
+         ! We want temp, flwa and dissip to become tempstag, flwastag and dissipstag
+         call replace_varname('temp', 'tempstag', &
+              'Temperature remapping option uses temperature on a staggered vertical grid.' // &
+              '  The netCDF output variable "temp" has been changed to "tempstag".')
+         call replace_varname('flwa', 'flwastag', &
+              'Temperature remapping option uses flwa on a staggered vertical grid.' // &
+              '  The netCDF output variable "flwa" has been changed to "flwastag".')
+         call replace_varname('dissip', 'dissipstag', &
+              'Temperature remapping option uses dissip on a staggered vertical grid.' // &
+              '  The netCDF output variable "dissip" has been changed to "dissipstag".')
       else  ! glide dycore
-          ! We want tempstag to become temp
-          i = index(nc%vars, " tempstag ")
-          if (i > 0) then
-            !Change tempstag to temp
-            nc%vars = nc%vars(1:i-1) // " temp " // nc%vars(i+10:len(nc%vars))
-            call write_log('The netCDF output variable "tempstag" should not be used with the Glide dycore.' // &
-              '  The netCDF output variable "tempstag" has been changed to "temp".' )
-          endif
-          ! We want flwastag to become flwa
-          i = index(nc%vars, " flwastag ")
-          if (i > 0) then
-            !Change flwastag to flwa
-            nc%vars = nc%vars(1:i-1) // " flwa " // nc%vars(i+10:len(nc%vars))
-            call write_log('The netCDF output variable "flwastag" should not be used with the Glide dycore.' // &
-              '  The netCDF output variable "flwastag" has been changed to "flwa".' )
-          endif
-          ! We want dissipstag to become dissip
-          i = index(nc%vars, " dissipstag ")
-          if (i > 0) then
-            !Change dissipstag to dissip
-            nc%vars = nc%vars(1:i-1) // " dissip " // nc%vars(i+12:len(nc%vars))
-            call write_log('The netCDF output variable "dissipstag" should not be used with the Glide dycore.' // &
-              '  The netCDF output variable "dissipstag" has been changed to "dissip".' )
-          endif
+         ! We want tempstag, flwastag and dissipstag to become temp, flwa and dissip
+         call replace_varname('tempstag', 'temp', &
+              'The netCDF output variable "tempstag" should not be used with the Glide dycore.' // &
+              '  The netCDF output variable "tempstag" has been changed to "temp".')
+         call replace_varname('flwastag', 'flwa', &
+              'The netCDF output variable "flwastag" should not be used with the Glide dycore.' // &
+              '  The netCDF output variable "flwastag" has been changed to "flwa".')
+         call replace_varname('dissipstag', 'dissip', &
+              'The netCDF output variable "dissipstag" should not be used with the Glide dycore.' // &
+              '  The netCDF output variable "dissipstag" has been changed to "dissip".')
       endif  ! whichdycore
 
-      ! Copy any changes to vars_copy
-      nc%vars_copy = nc%vars
+    contains
+
+      subroutine replace_varname(oldname, newname, message)
+
+        ! Replace the first instance of variable oldname with newname, in both nc%vars and
+        ! nc%vars_copy. If oldname is listed more than once, only the first instance is changed.
+        ! Write the message to the log if nc%vars was changed.
+
+        character(len=*), intent(in) :: oldname, newname, message
+        logical :: changed
+
+        call replace_word(nc%vars, oldname, newname, changed)
+        if (changed) call write_log(message)
+        call replace_word(nc%vars_copy, oldname, newname, changed)
+
+      end subroutine replace_varname
+
+      subroutine replace_word(str, oldname, newname, changed)
+
+        ! Replace the first instance of ' oldname ' in str with ' newname '
+
+        character(len=*), intent(inout) :: str
+        character(len=*), intent(in) :: oldname, newname
+        logical, intent(out) :: changed
+        integer :: i
+
+        i = index(str, ' '//oldname//' ')
+        changed = (i > 0)
+        if (changed) then
+           str = str(1:i-1) // ' '//newname//' ' // str(i+len(oldname)+2:len(str))
+        endif
+
+      end subroutine replace_word
 
   end subroutine check_for_tempstag
 
