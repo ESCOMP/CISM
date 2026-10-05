@@ -432,6 +432,7 @@ contains
     ! If present, convert these values to zero or another suitable value.
     ! Note: Optionally, can pass a user-specified fill value and replacement value,
     !        and return a mask of grid cells where values are replaced.
+    !TODO - Replace these specific calls with a general check for fill values in input files.
 
     if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
        if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
@@ -439,6 +440,7 @@ contains
           call check_fill_values(model%climate%artm_3d)
        else
           call check_fill_values(model%climate%smb)
+          call check_fill_values(model%climate%smb_anomaly)
        endif
     else
        call check_fill_values(model%climate%acab)

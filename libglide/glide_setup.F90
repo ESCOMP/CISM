@@ -874,7 +874,11 @@ contains
     implicit none
     type(ConfigSection), pointer :: section
     type(glide_global_type) :: model
-    
+
+    !TODO - Several variables in this and other sections have a capital letter mixed with lower-case
+    !        (e.g., which_ho_deltaT_ocn, inversion_deltaT_ocn_timescale).
+    !       This can cause them to be missed if the config file is all lower-case.
+    !       Either make these variables all lower-case, or modify GetValue to be case-indifferent.
     call GetValue(section, 'compute_blocks',              model%options%compute_blocks)
     call GetValue(section, 'which_ho_efvs',               model%options%which_ho_efvs)
     call GetValue(section, 'which_ho_disp',               model%options%which_ho_disp)
@@ -1929,7 +1933,6 @@ contains
        endif
 
        if (model%options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
-
           write(message,*) 'ho_deltaT_ocn           : ',model%options%which_ho_deltaT_ocn,  &
                             ho_deltaT_ocn(model%options%which_ho_deltaT_ocn)
           call write_log(message)
