@@ -121,6 +121,9 @@ contains
     !  zero the running sums (including any read from the input file) and the total time.
     !  The interval starts at the initial model time (or at the external time set by the driver).
     ! Note: Restart files are not time-average streams, even though they hold '_tavg_sum' variables.
+    ! Note: oc%tavg_restored records whether the state was restored. An external driver can override
+    !       the restored state; e.g., the CESM wrapper uses restart = 1 for branch and hybrid runs too,
+    !       but starts a new averaging interval in those runs.
     oc => oc_first
     do while(associated(oc))
        if (oc%do_averages .and. glimmer_nc_is_tavg_stream(oc)) then
@@ -132,6 +135,7 @@ contains
                      trim(glimmer_nc_stream_name(oc)), GM_WARNING)
              end if
           end if
+          oc%tavg_restored = restored
           if (.not. restored) call NAME_avg_reset(oc,data)
        end if
        oc=>oc%next

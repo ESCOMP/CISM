@@ -200,6 +200,10 @@ module glimmer_ncdf
      integer  :: timecounter = 1                          !< time counter
      real(dp) :: total_time = 0.d0                        !< total accumulated time for this averaging period
      integer  :: accum_tstep_count = 0                    !< tstep_count at the most recent accumulation of averages
+     logical  :: tavg_restored = .false.                  !< true if the averaging state was restored from a restart file
+                                                          !<  (standard restart only; see NAME_io_createall).
+                                                          !<  An external driver can use this to decide whether to
+                                                          !<  start a new averaging interval.
 
      !Note: time variables are double precision, following the CESM standard
      integer :: time_xtype = NF90_DOUBLE                  !< external type for storing time values
