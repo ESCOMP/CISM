@@ -38,13 +38,14 @@ module glimmer_ncio
   use glimmer_ncdf
   use cism_parallel, only: parallel_type, parallel_create, parallel_open, parallel_put_var, parallel_get_var, &
        parallel_put_att, parallel_def_var, parallel_def_dim, parallel_inq_varid, parallel_inq_dimid,  &
-       parallel_inquire_dimension, parallel_redef, parallel_enddef, parallel_sync
+       parallel_inquire_dimension, parallel_redef, parallel_enddef, parallel_sync, parallel_get_att
 
   implicit none
 
   ! All routines in this module are public
 
   integer,parameter,private :: msglen=512
+  integer,parameter,private :: tavg_list_len=4096   ! length of the list of time-average stream names
   
   interface glimmer_nc_get_var
      module procedure glimmer_nc_get_var_integer_2d
@@ -169,6 +170,8 @@ contains
 
     ! local variables
     integer :: status, timedimid, ntime
+    integer :: nstreams                     ! number of time-average output streams
+    character(len=tavg_list_len) :: stream_list, file_stream_list
     character(len=msglen) :: message
     logical :: already_open   ! if true, the file is already open
 
@@ -218,6 +221,32 @@ contains
        status = parallel_inq_varid(NCO%id,glimmer_nc_timebounds_varname,NCO%timebounds_var)
        call nc_errorhandle(__FILE__,__LINE__,status)
        NCO%time_bounds = .true.
+    end if
+
+    ! For a restart file, find the variables that hold the averaging state of the time-average
+    ! output streams (see glimmer_nc_createfile). The averaging state is written to this file only
+    ! if the file lists the same streams as the current run.
+    NCO%tavg_state = .false.
+    status = parallel_inq_dimid(NCO%id, 'tavgstream', NCO%tavgstream_dim)
+    if (status == NF90_NOERR) then
+       call glimmer_nc_tavg_streams(model, nstreams, stream_list)
+       file_stream_list = ''
+       status = parallel_get_att(NCO%id, NF90_GLOBAL, 'tavg_streams', file_stream_list)
+       if (status == NF90_NOERR .and. trim(file_stream_list) == trim(stream_list)) then
+          status = parallel_inq_varid(NCO%id, 'tavg_total_time', NCO%tavg_total_time_var)
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_inq_varid(NCO%id, 'tavg_start_time', NCO%tavg_start_time_var)
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_inq_varid(NCO%id, 'tavg_start_external_time', NCO%tavg_start_external_time_var)
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_inq_varid(NCO%id, 'tavg_accum_tstep_count', NCO%tavg_accum_tstep_count_var)
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          NCO%tavg_state = .true.
+       else
+          call write_log('The time-average output streams listed in '//trim(process_path(NCO%filename))// &
+               ' ('//trim(file_stream_list)//') differ from those of this run ('//trim(stream_list)// &
+               '); the averaging state will not be written to this file', GM_WARNING)
+       end if
     end if
 
     ! Put dataset into define mode
@@ -278,6 +307,8 @@ contains
     character(len=4) :: year_str
     character(len=time_units_len) :: internal_time_units_str
     character(len=time_units_len) :: time_units_str
+    integer :: nstreams                     ! number of time-average output streams
+    character(len=tavg_list_len) :: stream_list
     character(len=msglen) message
 
     ! Note: The internal baseline year and units are hardcoded.
@@ -435,6 +466,49 @@ contains
 
     end if
 
+    ! If this is a restart file, define variables to hold the averaging state of each time-average
+    ! output stream, so that the averages continue exactly across a standard restart (restart = 1).
+    ! (The running sums themselves are written as '_tavg_sum' variables; see NAME_io_createall.)
+    ! The streams are identified by name, in order, in the global attribute 'tavg_streams'.
+    ! Note: As for the time bounds above, this test is done before the 'restart' keyword is expanded.
+    NCO%tavg_state = .false.
+    if (glimmer_nc_is_restart(outfile)) then
+       call glimmer_nc_tavg_streams(model, nstreams, stream_list)
+       if (nstreams > 0) then
+          NCO%tavg_state = .true.
+          status = parallel_def_dim(NCO%id, 'tavgstream', nstreams, NCO%tavgstream_dim)
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_put_att(NCO%id, NF90_GLOBAL, 'tavg_streams', trim(stream_list))
+          call nc_errorhandle(__FILE__,__LINE__,status)
+
+          status = parallel_def_var(NCO%id, 'tavg_total_time', NF90_DOUBLE, &
+               (/NCO%tavgstream_dim, NCO%timedim/), NCO%tavg_total_time_var)
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_put_att(NCO%id, NCO%tavg_total_time_var, 'long_name', &
+               'time accumulated in the current averaging interval, for each time-average stream')
+          status = parallel_put_att(NCO%id, NCO%tavg_total_time_var, 'units', trim(internal_time_units))
+
+          status = parallel_def_var(NCO%id, 'tavg_start_time', NF90_DOUBLE, &
+               (/NCO%tavgstream_dim, NCO%timedim/), NCO%tavg_start_time_var)
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_put_att(NCO%id, NCO%tavg_start_time_var, 'long_name', &
+               'start of the current averaging interval (internal time), for each time-average stream')
+          status = parallel_put_att(NCO%id, NCO%tavg_start_time_var, 'units', trim(internal_time_units_str))
+
+          status = parallel_def_var(NCO%id, 'tavg_start_external_time', NF90_DOUBLE, &
+               (/NCO%tavgstream_dim, NCO%timedim/), NCO%tavg_start_external_time_var)
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_put_att(NCO%id, NCO%tavg_start_external_time_var, 'long_name', &
+               'start of the current averaging interval (external time), for each time-average stream')
+
+          status = parallel_def_var(NCO%id, 'tavg_accum_tstep_count', NF90_INT, &
+               (/NCO%tavgstream_dim, NCO%timedim/), NCO%tavg_accum_tstep_count_var)
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_put_att(NCO%id, NCO%tavg_accum_tstep_count_var, 'long_name', &
+               'timestep count at the most recent accumulation, for each time-average stream')
+       end if
+    end if
+
     ! adding projection info
     if (glimmap_allocated(model%projection)) then
        status = parallel_def_var(NCO%id,glimmer_nc_mapvarname,NF90_CHAR,mapid)
@@ -580,6 +654,222 @@ contains
     end if
 
   end function glimmer_nc_output_has_var
+
+  !------------------------------------------------------------------------------
+
+  function glimmer_nc_is_tavg_stream(outfile) result(is_tavg)
+
+    !> Return true if this output object is a time-average stream, i.e., its variable list
+    !>  (from the config file) includes time-average fields (names ending in '_tavg').
+    !> The averaging state of these streams is saved in restart files.
+    !> Note: Like the test for time bounds in glimmer_nc_createfile, this test uses the list from the
+    !>       config file, so restart files (with the 'restart' keyword) are not time-average streams.
+
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+    logical :: is_tavg
+
+    ! Note: Match whole words ending in '_tavg', so that '_tavg_sum' (restart files only) does not count.
+    is_tavg = (index(trim(NCO%vars_copy)//' ', '_tavg ') /= 0)
+
+  end function glimmer_nc_is_tavg_stream
+
+  !------------------------------------------------------------------------------
+
+  function glimmer_nc_is_restart(outfile) result(is_restart)
+
+    !> Return true if this output object is a restart file, i.e., its variable list
+    !>  (from the config file) includes the keyword 'restart'.
+
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+    logical :: is_restart
+
+    is_restart = (index(' '//trim(adjustl(NCO%vars_copy))//' ', ' restart ') /= 0)
+
+  end function glimmer_nc_is_restart
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_write_tavg_state(outfile, model)
+
+    !> Write the averaging state of each time-average output stream (total time, start of the
+    !>  averaging interval, timestep of the most recent accumulation) to a restart file,
+    !>  at the current time slice.
+
+    use glide_types
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+    type(glide_global_type) :: model
+
+    type(glimmer_nc_output), pointer :: p
+    integer :: istream, status
+
+    ! The streams are in the same order as in the global attribute 'tavg_streams' (see glimmer_nc_createfile).
+    istream = 0
+    p => model%funits%out_first
+    do while (associated(p))
+       if (glimmer_nc_is_tavg_stream(p)) then
+          istream = istream + 1
+          status = parallel_put_var(NCO%id, NCO%tavg_total_time_var, p%total_time, &
+               (/istream, outfile%timecounter/))
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_put_var(NCO%id, NCO%tavg_start_time_var, p%nc%processed_time, &
+               (/istream, outfile%timecounter/))
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_put_var(NCO%id, NCO%tavg_start_external_time_var, p%nc%processed_external_time, &
+               (/istream, outfile%timecounter/))
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_put_var(NCO%id, NCO%tavg_accum_tstep_count_var, p%accum_tstep_count, &
+               (/istream, outfile%timecounter/))
+          call nc_errorhandle(__FILE__,__LINE__,status)
+       end if
+       p => p%next
+    end do
+
+  end subroutine glimmer_nc_write_tavg_state
+
+  !------------------------------------------------------------------------------
+
+  function glimmer_nc_stream_name(outfile) result(name)
+
+    !> Return the name of an output stream, used to identify its averaging state in restart files:
+    !>  base_filename (the name in the config file) for one_file_per_write streams
+    !>  (e.g., 'h0a' in CESM), else the file name.
+
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+    character(len=fname_length) :: name
+
+    if (len_trim(outfile%base_filename) > 0) then
+       name = outfile%base_filename
+    else
+       name = NCO%filename
+    end if
+
+  end function glimmer_nc_stream_name
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_tavg_streams(model, nstreams, stream_list)
+
+    !> Return the number of time-average output streams, and their names (space-separated, in the
+    !>  order of the output list). This order is used for the averaging state in restart files.
+
+    use glide_types
+    implicit none
+    type(glide_global_type) :: model
+    integer, intent(out) :: nstreams
+    character(len=*), intent(out) :: stream_list
+
+    type(glimmer_nc_output), pointer :: p
+
+    nstreams = 0
+    stream_list = ''
+    p => model%funits%out_first
+    do while (associated(p))
+       if (glimmer_nc_is_tavg_stream(p)) then
+          nstreams = nstreams + 1
+          stream_list = trim(stream_list)//' '//trim(glimmer_nc_stream_name(p))
+       end if
+       p => p%next
+    end do
+    stream_list = adjustl(stream_list)
+
+  end subroutine glimmer_nc_tavg_streams
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_restore_tavg_state(outfile, model, restored)
+
+    !> On a standard restart (restart = 1), restore the averaging state of a time-average output stream
+    !>  (total_time, the start of the averaging interval in internal and external time, and
+    !>  accum_tstep_count) from the restart file, so that the average continues exactly.
+    !> The running sums (the '_tavg' arrays) are read separately, as '_tavg_sum' variables.
+    !> The restart file is the first input file. If it holds no averaging state (e.g., it was written
+    !>  by an older version of CISM), restored = .false. on return.
+    !> The stream is found by name in the global attribute 'tavg_streams'. If the restart file has an
+    !>  averaging state but not for this stream, the model aborts: the time-average output streams
+    !>  should not change across a standard restart.
+
+    use glimmer_log
+    use glide_types
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+    type(glide_global_type) :: model
+    logical, intent(out) :: restored
+
+    type(glimmer_nc_input), pointer :: infile
+    character(len=tavg_list_len) :: stream_list, word
+    character(len=fname_length) :: name
+    character(len=msglen) :: message
+    integer :: status, varid, istream, nstreams, i1, i2, n
+    integer, dimension(2) :: start
+
+    restored = .false.
+    infile => model%funits%in_first
+    if (.not. associated(infile)) return
+
+    stream_list = ''
+    status = parallel_get_att(NCI%id, NF90_GLOBAL, 'tavg_streams', stream_list)
+    if (status /= NF90_NOERR) return   ! no averaging state in this file
+
+    ! Find this stream in the list
+    name = glimmer_nc_stream_name(outfile)
+    istream = 0
+    nstreams = 0
+    n = len_trim(stream_list)
+    i1 = 1
+    do while (i1 <= n)
+       if (stream_list(i1:i1) == ' ') then
+          i1 = i1 + 1
+          cycle
+       end if
+       i2 = i1 + index(stream_list(i1:)//' ', ' ') - 2   ! last character of this name
+       nstreams = nstreams + 1
+       word = stream_list(i1:i2)
+       if (trim(word) == trim(name)) istream = nstreams
+       i1 = i2 + 2
+    end do
+
+    if (istream == 0) then
+       call write_log('Time-average output stream '//trim(name)//' has no averaging state in the restart file '// &
+            trim(NCI%filename)//', which has averaging state for streams: '//trim(stream_list))
+       call write_log('The time-average output streams should not change across a standard restart '// &
+            '(restart = 1); to change them, use a hybrid restart (restart = 2)', GM_FATAL)
+    end if
+
+    ! Read the values for this stream at the time slice read from the restart file
+    ! (dimensions: tavgstream, time)
+    start = (/istream, infile%current_time/)
+
+    status = parallel_inq_varid(NCI%id, 'tavg_total_time', varid)
+    call nc_errorhandle(__FILE__,__LINE__,status)
+    status = parallel_get_var(NCI%id, varid, outfile%total_time, start)
+    call nc_errorhandle(__FILE__,__LINE__,status)
+
+    status = parallel_inq_varid(NCI%id, 'tavg_start_time', varid)
+    call nc_errorhandle(__FILE__,__LINE__,status)
+    status = parallel_get_var(NCI%id, varid, NCO%processed_time, start)
+    call nc_errorhandle(__FILE__,__LINE__,status)
+
+    status = parallel_inq_varid(NCI%id, 'tavg_start_external_time', varid)
+    call nc_errorhandle(__FILE__,__LINE__,status)
+    status = parallel_get_var(NCI%id, varid, NCO%processed_external_time, start)
+    call nc_errorhandle(__FILE__,__LINE__,status)
+
+    status = parallel_inq_varid(NCI%id, 'tavg_accum_tstep_count', varid)
+    call nc_errorhandle(__FILE__,__LINE__,status)
+    status = parallel_get_var(NCI%id, varid, outfile%accum_tstep_count, start)
+    call nc_errorhandle(__FILE__,__LINE__,status)
+
+    restored = .true.
+
+    write(message,*) 'Restored averaging state for time-average output ', trim(name), &
+         ': interval start =', NCO%processed_time, ', total_time =', outfile%total_time
+    call write_log(trim(message))
+
+  end subroutine glimmer_nc_restore_tavg_state
 
   !------------------------------------------------------------------------------
 
@@ -864,6 +1154,9 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
 
     endif   ! time_bounds
+
+    ! For restart files, write the averaging state of each time-average output stream
+    if (NCO%tavg_state) call glimmer_nc_write_tavg_state(outfile, model)
 
     NCO%just_processed = .TRUE.
 

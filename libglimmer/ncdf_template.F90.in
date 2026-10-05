@@ -77,32 +77,128 @@ contains
   subroutine NAME_io_createall(model,data,outfiles)
     ! open all netCDF files for output
     use glimmer_ncio
+    use glimmer_log
+    use glide_types, only: STANDARD_RESTART
     implicit none
     type(glide_global_type) :: model
     type(DATATYPE) :: data ! MJH 10/21/13: Making 'data' mandatory.  See notes below in NAME_io_create
     type(glimmer_nc_output),optional,pointer :: outfiles
     
     ! local variables
-    type(glimmer_nc_output), pointer :: oc
+    type(glimmer_nc_output), pointer :: oc, oc_first
+    logical :: restored
 
     if (present(outfiles)) then
-       oc => outfiles
+       oc_first => outfiles
     else
-       oc=>model%funits%out_first
+       oc_first => model%funits%out_first
     end if
 
+    ! Add the running sums of time-average fields to the restart variable list,
+    !  before any restart file is created
+    call NAME_add_tavg_sums_to_restart(oc_first, model%model_id)
+
+    oc => oc_first
     do while(associated(oc))
        if (oc%one_file_per_write) then
           ! No file exists yet; variables are defined each time a file is created (NAME_io_write_slice).
           ! Set do_averages now, since it is normally set in NAME_io_create
           !  and averages must be accumulated before the first file is written.
-          if (index(oc%nc%vars_copy,AVG_SUFF) /= 0) oc%do_averages = .true.
+          if (glimmer_nc_is_tavg_stream(oc)) oc%do_averages = .true.
        else
           call NAME_io_create(oc,model,data)
        end if
        oc=>oc%next
     end do
+
+#ifdef HAVE_AVG
+    ! Set the averaging state of each time-average output stream.
+    ! On a standard restart (restart = 1), restore the state saved in the restart file, so that
+    !  the averages continue exactly: the total time, the start of the averaging interval, and
+    !  the timestep of the most recent accumulation. The running sums (the '_tavg' arrays) have
+    !  already been read from the restart file, as '_tavg_sum' variables (in NAME_io_readall).
+    ! Otherwise (startup, or hybrid restart with restart = 2), start a new averaging interval:
+    !  zero the running sums (including any read from the input file) and the total time.
+    !  The interval starts at the initial model time (or at the external time set by the driver).
+    ! Note: Restart files are not time-average streams, even though they hold '_tavg_sum' variables.
+    oc => oc_first
+    do while(associated(oc))
+       if (oc%do_averages .and. glimmer_nc_is_tavg_stream(oc)) then
+          restored = .false.
+          if (model%options%is_restart == STANDARD_RESTART) then
+             call glimmer_nc_restore_tavg_state(oc, model, restored)
+             if (.not. restored) then
+                call write_log('No averaging state in the restart file; starting a new averaging interval for '// &
+                     trim(glimmer_nc_stream_name(oc)), GM_WARNING)
+             end if
+          end if
+          if (.not. restored) call NAME_avg_reset(oc,data)
+       end if
+       oc=>oc%next
+    end do
+#endif
+
   end subroutine NAME_io_createall
+
+  subroutine NAME_add_tavg_sums_to_restart(oc_first, model_id)
+
+    ! For each time-average field (name ending in '_tavg') handled by this module in a
+    !  time-average output stream, add the running sum ('<name>_tavg_sum') to the restart
+    !  variable list, so that the average can continue exactly after a standard restart.
+    ! Note: The '_tavg_sum' variables are written from the same arrays as the '_tavg' variables,
+    !       but without dividing by the total time. See the note on acab_tavg in glide_types.F90.
+
+    use glimmer_ncio
+    implicit none
+    type(glimmer_nc_output), pointer :: oc_first
+    integer, intent(in) :: model_id
+
+    type(glimmer_nc_output), pointer :: oc
+    character(len=glimmer_nc_vars_len) :: list
+    character(len=glimmer_nc_vars_len) :: word
+    integer :: i1, i2, n
+
+    if (.not. allocated(restart_variable_list)) then
+       call initialize_restart_variable_list()
+    end if
+
+    oc => oc_first
+    do while(associated(oc))
+       if (glimmer_nc_is_tavg_stream(oc)) then
+          list = oc%nc%vars_copy
+          n = len_trim(list)
+          i1 = 1
+          do while (i1 <= n)
+             if (list(i1:i1) == ' ') then
+                i1 = i1 + 1
+                cycle
+             end if
+             i2 = i1 + index(list(i1:)//' ', ' ') - 2   ! last character of this name
+             word = list(i1:i2)
+             if (NAME_is_avg_var(word)) then
+                if (index(' '//trim(restart_variable_list(model_id))//' ', ' '//trim(word)//'_sum ') == 0) then
+                   call NAME_add_to_restart_variable_list(trim(word)//'_sum', model_id)
+                end if
+             end if
+             i1 = i2 + 2
+          end do
+       end if
+       oc=>oc%next
+    end do
+
+  end subroutine NAME_add_tavg_sums_to_restart
+
+  function NAME_is_avg_var(varname) result(is_avg)
+
+    ! Return true if varname is a time-average field handled by this module
+    implicit none
+    character(len=*), intent(in) :: varname
+    logical :: is_avg
+
+    is_avg = .false.
+!GENVAR_AVGLIST!
+
+  end function NAME_is_avg_var
 
   subroutine NAME_io_writeall(data,model,atend,outfiles,time)
     ! if necessary write to netCDF files
@@ -120,13 +216,10 @@ contains
     logical :: forcewrite
     logical :: wrote_timeslice   ! true if checkwrite wrote a time slice during this call
     real(dp) :: sub_time         ! local version of time
+    integer :: ipass
+    logical :: tavg_wrote        ! true if a time-average file wrote a time slice during this call
     forcewrite = .false.
-
-    if (present(outfiles)) then
-       oc => outfiles
-    else
-       oc=>model%funits%out_first
-    end if
+    tavg_wrote = .false.
 
     if (present(atend)) then
        forcewrite = atend
@@ -138,7 +231,23 @@ contains
        sub_time = model%numerics%time
     end if
 
+    ! Restart files are written in a second pass, after all other output at this time.
+    ! The averaging state of time-average output (running sums, total time, start of the interval)
+    !  is written to restart files, so it must be the state after the time-average files have
+    !  accumulated this timestep and, if they wrote a time slice, have been reset.
+    do ipass = 1, 2
+
+    if (present(outfiles)) then
+       oc => outfiles
+    else
+       oc=>model%funits%out_first
+    end if
+
     do while(associated(oc))
+       if (glimmer_nc_is_restart(oc) .neqv. (ipass == 2)) then
+          oc=>oc%next
+          cycle
+       end if
 #ifdef HAVE_AVG
        if (oc%do_averages) then
           call NAME_avg_accumulate(oc,data,model)
@@ -170,6 +279,7 @@ contains
           call glimmer_nc_advance_timeslice(oc, sub_time)
           if (glimmer_nc_write_due(oc, model, forcewrite, sub_time)) then
              call NAME_io_write_slice(oc, data, model, glimmer_nc_slice_filename(oc, sub_time), sub_time)
+             if (oc%do_averages) tavg_wrote = .true.
           end if
           oc=>oc%next
           cycle
@@ -185,11 +295,22 @@ contains
 #ifdef HAVE_AVG
           if (oc%do_averages) then
              call NAME_avg_reset(oc,data)
+             tavg_wrote = .true.
           end if
 #endif
+       elseif (ipass == 2 .and. tavg_wrote .and. oc%nc%just_processed .and. oc%nc%tavg_state) then
+          ! This restart file was written earlier at this time (e.g., in the last timestep, before a final
+          !  call with forcewrite = .true. from glide_finalise), but a time-average file has now written a
+          !  time slice and been reset. Rewrite the restart time slice, so that the averaging state and
+          !  the running sums are those after the reset. Otherwise, a standard restart would continue
+          !  an averaging interval that has already been written.
+          call glimmer_nc_write_tavg_state(oc, model)
+          call NAME_io_write(oc,data)
        end if
        oc=>oc%next
     end do
+
+    end do   ! ipass
   end subroutine NAME_io_writeall
 
   subroutine NAME_io_write_slice(outfile, data, model, filename, time, external_time, &
@@ -292,7 +413,9 @@ contains
     call check_for_tempstag(model%options%whichdycore,NCO)
 
     ! checking if we need to handle time averages
-    pos = index(NCO%vars,AVG_SUFF)
+    ! Note: Match whole words ending in '_tavg'. Restart files hold the running sums as '_tavg_sum' variables,
+    !       but do not accumulate averages themselves.
+    pos = index(trim(NCO%vars)//' ',AVG_SUFF//' ')
     if (pos.ne.0) then
        outfile%do_averages = .True.
     end if    

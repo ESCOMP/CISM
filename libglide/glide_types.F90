@@ -1519,6 +1519,16 @@ module glide_types
   !                    If 'average = 1' in the acab entry of glide_vars.def, then acab_tavg is automatically
   !                     accumulated and averaged during runtime, without any additional code needed.
   !                    Other variables with a '_tavg' suffix are handled similarly.
+  !                    Between writes, the array acab_tavg holds the running sum of acab*tinc, not the average.
+  !                    The sum is divided by the total time only when the output variable acab_tavg is written,
+  !                     and then the array is reset to zero (see NAME_avg_accumulate and NAME_avg_reset
+  !                     in ncdf_template.F90.in).
+  !                    For exact restart in the middle of an averaging interval, the same array is also written
+  !                     to restart files, without dividing by the total time, as the output variable acab_tavg_sum.
+  !                     On a standard restart, acab_tavg_sum is read back into the array acab_tavg.
+  !                    The '_tavg_sum' variables are generated automatically (generate_ncvars.py) and added
+  !                     automatically to the restart variable list for each '_tavg' field in an output file;
+  !                     there is no separate '_tavg_sum' array, and users should not list them in output files.
   !
   ! Note on smb_corrected: Optionally, smb can be supplemented with an anomaly.
   !                        The background field, smb, does not include the anomaly.

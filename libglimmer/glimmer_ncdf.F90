@@ -152,6 +152,14 @@ module glimmer_ncdf
 
      ! timebounds variables for time-average files
      integer :: nbnd_dim                !> ID of time bounds dimension ('nbnd', following CESM convention)
+
+     ! Averaging state of the time-average output streams, saved in restart files (see glimmer_ncio.F90)
+     logical :: tavg_state = .false.    !> true if this restart file holds the averaging state
+     integer :: tavgstream_dim          !> ID of the dimension over time-average streams
+     integer :: tavg_total_time_var     !> ID of variable tavg_total_time (accumulated time in averaging interval)
+     integer :: tavg_start_time_var     !> ID of variable tavg_start_time (internal start time of interval)
+     integer :: tavg_start_external_time_var  !> ID of variable tavg_start_external_time (external start time)
+     integer :: tavg_accum_tstep_count_var    !> ID of variable tavg_accum_tstep_count
      integer :: internal_timebounds_var !> ID of internal timebounds variable
      integer :: timebounds_var          !> ID of timebounds variable for external purposes
 

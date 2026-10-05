@@ -136,6 +136,34 @@ class Variables(dict):
                 # and add to dictionary
                 self.__setitem__('%s_%s'%(v,AVERAGE_SUFFIX),vardef_avg)
 
+                # Also define a '_tavg_sum' variable for restart files.
+                # The model array for '<name>_tavg' (e.g., model%climate%acab_applied_tavg) holds the running
+                # sum of the field times the timestep, not the average: the output variable '<name>_tavg' is
+                # written as the sum times tavgf = 1/total_time, and the array is then reset to zero.
+                # For exact restart in the middle of an averaging interval, '<name>_tavg_sum' writes the same
+                # array to restart files without the factor tavgf, and it can be read back (load = 1).
+                # It refers to the same model array as '<name>_tavg'; there is no separate array.
+                # These variables are added automatically to the restart variable list for each '_tavg'
+                # field in an output file (see NAME_io_createall); users should not list them in output files.
+                vardef_sum = vardef_avg.copy()
+                del vardef_sum['avg_factor']
+                del vardef_sum['cell_methods']
+                vardef_sum['load'] = '1'
+                vardef_sum['name'] = '%s_%s_sum'%(v,AVERAGE_SUFFIX)
+                vardef_sum['long_name'] = '%s (running sum of field times timestep, for restart)'%vardef['long_name'] \
+                                          if 'long_name' in vardef else 'running sum for time average, for restart'
+                for attrib in ['standard_name']:
+                    if attrib in vardef_sum:
+                        del vardef_sum[attrib]
+                # The sum has the units of the field times years (the units of the timestep).
+                # The scale_factor (if any) is the same as for the field: it converts the field from model units
+                #  to the output units, so the scaled sum has the output units of the field times years.
+                # For example, the scaled sum of acab_applied (meter/year) has units (meter/year)*year = meter.
+                # Note: The restart read divides out the same factor, so the sums are restored exactly.
+                if 'units' in vardef_sum:
+                    vardef_sum['units'] = '(%s)*year'%vardef_sum['units']
+                self.__setitem__('%s_%s_sum'%(v,AVERAGE_SUFFIX),vardef_sum)
+
     def keys(self):
         """Reorder standard keys alphabetically."""
         dk = []
@@ -247,6 +275,7 @@ class PrintNC_template(PrintVars):
         self.handletoken['!GENVAR_ACCESSORS!'] = self.print_var_accessor
         self.handletoken['!GENVAR_CALCAVG!'] = self.print_var_avg_accu
         self.handletoken['!GENVAR_RESETAVG!'] = self.print_var_avg_reset
+        self.handletoken['!GENVAR_AVGLIST!'] = self.print_var_avg_name
         #WHL - Added for read_once forcing capability
         self.handletoken['!GENVAR_READ_ONCE_ALLOCATE!'] = self.print_var_read_once_allocate
         self.handletoken['!GENVAR_READ_ONCE_COPY!'] = self.print_var_read_once_copy
@@ -716,6 +745,13 @@ class PrintNC_template(PrintVars):
             self.stream.write("    if (glimmer_nc_output_has_var(outfile,'%s')) then\n"%avgname)
             self.stream.write("       %s = 0.\n"%avgdata)
             self.stream.write("    end if\n\n")
+
+    def print_var_avg_name(self,var):
+        """Identify time-average variables (used to add their running sums to restart files)"""
+
+        if var['average']:
+            avgname = '%s_%s'%(var['name'],AVERAGE_SUFFIX)
+            self.stream.write("    if (trim(varname) == '%s') is_avg = .true.\n"%avgname)
 
     #WHL - Added print_var defs for read_once capability
     def print_var_read_once_allocate(self,var):

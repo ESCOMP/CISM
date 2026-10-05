@@ -433,6 +433,13 @@ contains
     ! Make copy of variables for future reference
     handle_output%nc%vars_copy = handle_output%nc%vars
 
+    ! Variables ending in '_tavg_sum' hold the running sums of time averages. They are for restart files only,
+    !  and are added automatically to the restart variable list for each '_tavg' field in an output file.
+    if (index(trim(handle_output%nc%vars)//' ', '_tavg_sum ') /= 0) then
+       call write_log('Variables ending in _tavg_sum should not be listed in [CF output]: '// &
+            'they are for restart files only, and are added automatically', GM_FATAL)
+    end if
+
     ! get metadata
     call handle_metadata(section, handle_output%metadata, .false.)
     if (handle_output%nc%filename(1:1) == ' ') then
