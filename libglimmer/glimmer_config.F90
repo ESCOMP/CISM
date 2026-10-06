@@ -59,7 +59,7 @@ module glimmer_config
 
   integer, parameter :: namelen=50                 !< the maximum length of key or section
   ! Note: valuelen was 400 until 2026. It was increased to allow long lists of output variables
-  !       (e.g., the CESM history variables). It matches len_history_vars in glad_type.F90.
+  !       (e.g., the CESM history variables in [CF output] sections).
   integer, parameter :: valuelen=4096              !< the maximum length of a value
   integer, parameter :: linelen=valuelen+namelen+1 !< the maximum length of a line
   
