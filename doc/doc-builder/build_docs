@@ -1,14 +1,61 @@
-#!/usr/bin/env python3
+#!/usr/bin/env bash
+set -e
 
-"""Main driver wrapper around the doc_builder/build_docs utility.
+# $scriptname will already be set if build_docs is getting called from build_docs_to_publish.
+# Otherwise, we need to set it to the basename of this script.
+if [[ -z "${scriptname}" ]]; then
+    scriptname="${0##*/}"
+fi
 
-This tool wraps the build command to build sphinx-based documentation.
+if [ ! -e doc-builder ]; then
+    # We're in the doc-builder directory itself
+    script="./tools/${scriptname}.py"
+    files_to_copy_to_source="conf.py substitutions.py _templates _static"
+    cp -a ${files_to_copy_to_source} source/
+else
+    # We're in a repo that *includes* doc-builder
+    script="./doc-builder/tools/${scriptname}.py"
 
-This should be run from the directory that contains the Makefile for
-building the documentation.
-"""
+    # Make sure the doc-builder submodule is checked out. If doc-builder isn't a submodule but is
+    # instead manually included, we will perform the `else`, which is safe because it's a no-op in
+    # that situation.
+    # (Assume that if the repo uses git-fleximod, doc-builder is handled with it.)
+    git_fleximod_path="$(git rev-parse --show-toplevel)/bin/git-fleximod"
+    if [[ -e "${git_fleximod_path}" ]]; then
+        "${git_fleximod_path}" update doc-builder
+    else
+        git submodule update --init -- doc-builder
+    fi
+fi
 
-from doc_builder import build_docs  # pylint: disable=import-error
+# Check if --verbose or -V was passed
+verbose=false
+for arg in "$@"; do
+    case "$arg" in
+        --verbose|-V) verbose=true; break ;;
+    esac
+done
 
-if __name__ == "__main__":
-    build_docs.main()
+if $verbose; then
+    echo "Running: make fetch-images"
+    make fetch-images
+else
+    make fetch-images > /dev/null 2>&1
+fi
+
+if $verbose; then
+    echo "Running: ${script} $@"
+fi
+set +e
+${script} "$@"
+exit_code=$?
+set -e
+
+if [ ! -e doc-builder ]; then
+    # Clean up these things we copied
+    for f in ${files_to_copy_to_source}; do
+        rm -r "source/$f"
+    done
+fi
+
+exit $exit_code
