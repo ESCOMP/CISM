@@ -58,7 +58,9 @@ module glimmer_config
   private :: handle_section, handle_value, InsertSection, InsertValue, dp
 
   integer, parameter :: namelen=50                 !< the maximum length of key or section
-  integer, parameter :: valuelen=400               !< the maximum length of a value
+  ! Note: valuelen was 400 until 2026. It was increased to allow long lists of output variables
+  !       (e.g., the CESM history variables in [CF output] sections).
+  integer, parameter :: valuelen=4096              !< the maximum length of a value
   integer, parameter :: linelen=valuelen+namelen+1 !< the maximum length of a line
   
   !> derived type defining a key-value pair
@@ -138,7 +140,9 @@ contains
     config=>NULL()
     this_section=>NULL()
     do while(ios == 0)
-       if (main_task) read(unit,fmt='(a450)',iostat=ios) line
+       ! Read the whole line, up to the length of the line buffer (linelen).
+       ! A value that is too long to fit is caught in InsertValue.
+       if (main_task) read(unit,fmt='(a)',iostat=ios) line
        call broadcast(line)
        call broadcast(ios)
        line = adjustl(line)

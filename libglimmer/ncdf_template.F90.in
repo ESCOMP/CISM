@@ -77,25 +77,132 @@ contains
   subroutine NAME_io_createall(model,data,outfiles)
     ! open all netCDF files for output
     use glimmer_ncio
+    use glimmer_log
+    use glide_types, only: STANDARD_RESTART
     implicit none
     type(glide_global_type) :: model
     type(DATATYPE) :: data ! MJH 10/21/13: Making 'data' mandatory.  See notes below in NAME_io_create
     type(glimmer_nc_output),optional,pointer :: outfiles
     
     ! local variables
-    type(glimmer_nc_output), pointer :: oc
+    type(glimmer_nc_output), pointer :: oc, oc_first
+    logical :: restored
 
     if (present(outfiles)) then
-       oc => outfiles
+       oc_first => outfiles
     else
-       oc=>model%funits%out_first
+       oc_first => model%funits%out_first
     end if
 
+    ! Add the running sums of time-average fields to the restart variable list,
+    !  before any restart file is created
+    call NAME_add_tavg_sums_to_restart(oc_first, model%model_id)
+
+    oc => oc_first
     do while(associated(oc))
-       call NAME_io_create(oc,model,data)
+       if (oc%one_file_per_write) then
+          ! No file exists yet; variables are defined each time a file is created (NAME_io_write_slice).
+          ! Set do_averages now, since it is normally set in NAME_io_create
+          !  and averages must be accumulated before the first file is written.
+          if (glimmer_nc_is_tavg_stream(oc)) oc%do_averages = .true.
+       else
+          call NAME_io_create(oc,model,data)
+       end if
        oc=>oc%next
     end do
+
+#ifdef HAVE_AVG
+    ! Set the averaging state of each time-average output stream.
+    ! On a standard restart (restart = 1), restore the state saved in the restart file, so that
+    !  the averages continue exactly: the total time, the start of the averaging interval, and
+    !  the timestep of the most recent accumulation. The running sums (the '_tavg' arrays) have
+    !  already been read from the restart file, as '_tavg_sum' variables (in NAME_io_readall).
+    ! Otherwise (startup, or hybrid restart with restart = 2), start a new averaging interval:
+    !  zero the running sums (including any read from the input file) and the total time.
+    !  The interval starts at the initial model time (or at the external time set by the driver).
+    ! Note: Restart files are not time-average streams, even though they hold '_tavg_sum' variables.
+    ! Note: oc%tavg_restored records whether the state was restored. An external driver can override
+    !       the restored state; e.g., the CESM wrapper uses restart = 1 for branch and hybrid runs too,
+    !       but starts a new averaging interval in those runs.
+    oc => oc_first
+    do while(associated(oc))
+       if (oc%do_averages .and. glimmer_nc_is_tavg_stream(oc)) then
+          restored = .false.
+          if (model%options%is_restart == STANDARD_RESTART) then
+             call glimmer_nc_restore_tavg_state(oc, model, restored)
+             if (.not. restored) then
+                call write_log('No averaging state in the restart file; starting a new averaging interval for '// &
+                     trim(glimmer_nc_stream_name(oc)), GM_WARNING)
+             end if
+          end if
+          oc%tavg_restored = restored
+          if (.not. restored) call NAME_avg_reset(oc,data)
+       end if
+       oc=>oc%next
+    end do
+#endif
+
   end subroutine NAME_io_createall
+
+  subroutine NAME_add_tavg_sums_to_restart(oc_first, model_id)
+
+    ! For each time-average field (name ending in '_tavg') handled by this module in a
+    !  time-average output stream, add the running sum ('<name>_tavg_sum') to the restart
+    !  variable list, so that the average can continue exactly after a standard restart.
+    ! Note: The '_tavg_sum' variables are written from the same arrays as the '_tavg' variables,
+    !       but without dividing by the total time. See the note on acab_tavg in glide_types.F90.
+
+    use glimmer_ncio
+    implicit none
+    type(glimmer_nc_output), pointer :: oc_first
+    integer, intent(in) :: model_id
+
+    type(glimmer_nc_output), pointer :: oc
+    character(len=glimmer_nc_vars_len) :: list
+    character(len=glimmer_nc_vars_len) :: word
+    integer :: i1, i2, n
+
+    if (.not. allocated(restart_variable_list)) then
+       call initialize_restart_variable_list()
+    end if
+
+    oc => oc_first
+    do while(associated(oc))
+       if (glimmer_nc_is_tavg_stream(oc)) then
+          list = oc%nc%vars_copy
+          n = len_trim(list)
+          i1 = 1
+          do while (i1 <= n)
+             if (list(i1:i1) == ' ') then
+                i1 = i1 + 1
+                cycle
+             end if
+             i2 = i1 + index(list(i1:)//' ', ' ') - 2   ! last character of this name
+             word = list(i1:i2)
+             if (NAME_is_avg_var(word)) then
+                if (index(' '//trim(restart_variable_list(model_id))//' ', ' '//trim(word)//'_sum ') == 0) then
+                   call NAME_add_to_restart_variable_list(trim(word)//'_sum', model_id)
+                end if
+             end if
+             i1 = i2 + 2
+          end do
+       end if
+       oc=>oc%next
+    end do
+
+  end subroutine NAME_add_tavg_sums_to_restart
+
+  function NAME_is_avg_var(varname) result(is_avg)
+
+    ! Return true if varname is a time-average field handled by this module
+    implicit none
+    character(len=*), intent(in) :: varname
+    logical :: is_avg
+
+    is_avg = .false.
+!GENVAR_AVGLIST!
+
+  end function NAME_is_avg_var
 
   subroutine NAME_io_writeall(data,model,atend,outfiles,time)
     ! if necessary write to netCDF files
@@ -109,7 +216,30 @@ contains
 
     ! local variables
     type(glimmer_nc_output), pointer :: oc
-    logical :: forcewrite=.false.
+
+    logical :: forcewrite
+    logical :: wrote_timeslice   ! true if checkwrite wrote a time slice during this call
+    real(dp) :: sub_time         ! local version of time
+    integer :: ipass
+    logical :: tavg_wrote        ! true if a time-average file wrote a time slice during this call
+    forcewrite = .false.
+    tavg_wrote = .false.
+
+    if (present(atend)) then
+       forcewrite = atend
+    end if
+
+    if (present(time)) then
+       sub_time = time
+    else
+       sub_time = model%numerics%time
+    end if
+
+    ! Restart files are written in a second pass, after all other output at this time.
+    ! The averaging state of time-average output (running sums, total time, start of the interval)
+    !  is written to restart files, so it must be the state after the time-average files have
+    !  accumulated this timestep and, if they wrote a time slice, have been reset.
+    do ipass = 1, 2
 
     if (present(outfiles)) then
        oc => outfiles
@@ -117,34 +247,126 @@ contains
        oc=>model%funits%out_first
     end if
 
-    if (present(atend)) then
-       forcewrite = atend
-    end if
-
     do while(associated(oc))
+       if (glimmer_nc_is_restart(oc) .neqv. (ipass == 2)) then
+          oc=>oc%next
+          cycle
+       end if
 #ifdef HAVE_AVG
        if (oc%do_averages) then
           call NAME_avg_accumulate(oc,data,model)
        end if
 #endif
-       call glimmer_nc_checkwrite(oc,model,forcewrite,time)
-       if (oc%nc%just_processed) then
+       if (oc%external_control) then
+          ! An external driver (e.g., the CESM wrapper) decides when to write this file,
+          !  so only accumulate averages (above). The driver writes the output as follows:
+          ! (1) With one_file_per_write (no file is open between writes):
+          !     glimmer_nc_newfile, glimmer_nc_createfile, NAME_io_create (for each I/O module),
+          !     glide_nc_filldvars, glimmer_nc_write_timeslice, NAME_io_write (for each module),
+          !     NAME_avg_reset, glimmer_nc_closefile.
+          !     If all the variables belong to one module, NAME_io_write_slice does all of this.
+          ! (2) Without one_file_per_write (the file is created at initialization and holds
+          !     multiple time slices): glimmer_nc_checkwrite (e.g., with forcewrite = .true.)
+          !     with the optional wrote_timeslice argument; then, if wrote_timeslice = .true.,
+          !     NAME_io_write (for each module) and NAME_avg_reset.
+          ! In either case, the driver should call glimmer_nc_checkwrite_init at initialization
+          !  if it passes an external time, so the first time bounds are in external units.
+          oc=>oc%next
+          cycle
+       end if
+
+       if (oc%one_file_per_write) then
+          ! Write a new file containing one time slice, if output is due.
+          ! Note: This assumes that all the variables in the file are handled by this module (NAME_io).
+          !       For files that also include variables from other modules (e.g., glad_io), the driver
+          !       must create and write the file itself, using external_control.
+          call glimmer_nc_advance_timeslice(oc, sub_time)
+          if (glimmer_nc_write_due(oc, model, forcewrite, sub_time)) then
+             call NAME_io_write_slice(oc, data, model, glimmer_nc_slice_filename(oc, sub_time), sub_time)
+             if (oc%do_averages) tavg_wrote = .true.
+          end if
+          oc=>oc%next
+          cycle
+       end if
+
+       call glimmer_nc_checkwrite(oc,model,forcewrite,time,wrote_timeslice=wrote_timeslice)
+       ! Note: Write the fields only if a new time slice was written during this call.
+       !       NCO%just_processed is not a reliable test, since it stays true for later calls at the same time
+       !        (e.g., in glide_finalise), which would rewrite the fields and (for tavg files) overwrite the averages.
+       if (wrote_timeslice) then
           ! write standard variables
           call NAME_io_write(oc,data)
 #ifdef HAVE_AVG
           if (oc%do_averages) then
              call NAME_avg_reset(oc,data)
+             tavg_wrote = .true.
           end if
 #endif
+       elseif (ipass == 2 .and. tavg_wrote .and. oc%nc%just_processed .and. oc%nc%tavg_state) then
+          ! This restart file was written earlier at this time (e.g., in the last timestep, before a final
+          !  call with forcewrite = .true. from glide_finalise), but a time-average file has now written a
+          !  time slice and been reset. Rewrite the restart time slice, so that the averaging state and
+          !  the running sums are those after the reset. Otherwise, a standard restart would continue
+          !  an averaging interval that has already been written.
+          call glimmer_nc_write_tavg_state(oc, model)
+          call NAME_io_write(oc,data)
        end if
        oc=>oc%next
     end do
+
+    end do   ! ipass
   end subroutine NAME_io_writeall
+
+  subroutine NAME_io_write_slice(outfile, data, model, filename, time, external_time, &
+                                 external_baseline_year, external_time_units)
+
+    ! Create a new file containing one time slice, write the output, and close the file.
+    ! Used for one_file_per_write. The output object persists, so averages and time bounds
+    !  carry over from one file to the next.
+    ! Note: This assumes that all the variables in the file are handled by this module.
+    !       A driver that needs variables from more than one module (e.g., glide_io and glad_io)
+    !       can call the same sequence of routines, adding the other modules' create and write calls.
+
+    use glimmer_ncio
+    use glide_nc_custom, only: glide_nc_filldvars
+    implicit none
+    type(glimmer_nc_output), pointer :: outfile
+    type(DATATYPE) :: data
+    type(glide_global_type) :: model
+    character(len=*), intent(in) :: filename          ! name of the new file
+    real(dp), intent(in) :: time                      ! internal time (yr)
+    real(dp), intent(in), optional :: external_time   ! external time; if not present, defaults to time
+    integer, intent(in), optional :: external_baseline_year
+    character(len=*), intent(in), optional :: external_time_units
+
+    real(dp) :: sub_external_time
+
+    if (present(external_time)) then
+       sub_external_time = external_time
+    else
+       sub_external_time = time
+    end if
+
+    call glimmer_nc_newfile(outfile, filename)
+    call glimmer_nc_createfile(outfile, model, external_baseline_year, external_time_units)
+    call NAME_io_create(outfile, model, data)
+    call glide_nc_filldvars(outfile, model)   ! also leaves define mode
+    call glimmer_nc_write_timeslice(outfile, model, time, sub_external_time)
+    call NAME_io_write(outfile, data)
+#ifdef HAVE_AVG
+    if (outfile%do_averages) then
+       call NAME_avg_reset(outfile, data)
+    end if
+#endif
+    call glimmer_nc_closefile(outfile)
+
+  end subroutine NAME_io_write_slice
   
   subroutine NAME_io_create(outfile,model,data)
 
-    use cism_parallel, only: parallel_type, &
+    use cism_parallel, only: main_task, parallel_type, &
          parallel_def_dim, parallel_inq_dimid, parallel_def_var, parallel_inq_varid, parallel_put_att
+    use glimmer_global, only: msg_length
     use glimmer_ncio
     use glimmer_map_types
     use glimmer_log
@@ -154,27 +376,22 @@ contains
     type(DATATYPE) :: data    ! MJH 10/21/13: Making 'data' mandatory.  See note below
 
     integer status,varid,pos,model_id
-
-    ! MJH 10/21/13: Local variables needed for checking if a variable is enabled.
+    character(len=msg_length) :: message
     real(dp) :: tavgf
     integer :: up
 
     !GENVAR_DIMS!
 
-    ! Expanding restart variables: if 'restart' or 'hot' is present, we remove that
+    !TODO - WHL - This subroutine consumes NCO%vars each time it is read.
+    !             New files must start with NCO%vars = NCO%vars_copy
+
+    ! Expanding restart variables: if 'restart' is present, we remove that
     ! word from the variable list, and flip the restartfile flag.  
-    ! In CISM 2.0, 'restart' is the preferred name to represent restart variables, 
-    ! but 'hot' is supported for backward compatibility.  Thus, we check for both.
     NCO%vars = ' '//trim(adjustl(NCO%vars))//' '  ! Need to maintain a space at beginning and end of list
     ! expanding restart variables
     pos = index(NCO%vars,' restart ') 
     if (pos.ne.0) then
        NCO%vars = NCO%vars(:pos)//NCO%vars(pos+8:)
-       NCO%restartfile = .true.
-    end if
-    pos = index(NCO%vars,' hot ') 
-    if (pos.ne.0) then
-       NCO%vars = NCO%vars(:pos)//NCO%vars(pos+4:)
        NCO%restartfile = .true.
     end if
     ! Now apply necessary changes if the file is a restart file.
@@ -196,18 +413,21 @@ contains
     end if
 
     ! Convert temp and flwa to versions on stag grid, if needed
-    ! Note: this check must occur after restart variables are expanded which happens in glimmer_nc_readparams
+    ! Note: this check must occur after restart variables are expanded in glimmer_nc_readparams
     call check_for_tempstag(model%options%whichdycore,NCO)
 
     ! checking if we need to handle time averages
-    pos = index(NCO%vars,AVG_SUFF)
+    ! Note: Match whole words ending in '_tavg'. Restart files hold the running sums as '_tavg_sum' variables,
+    !       but do not accumulate averages themselves.
+    pos = index(trim(NCO%vars)//' ',AVG_SUFF//' ')
     if (pos.ne.0) then
        outfile%do_averages = .True.
     end if    
 
     ! Now that the output variable list is finalized, make sure we aren't truncating what the user intends to be output.
     ! Note: this only checks that the text in the variable list does not extend to within one character of the end of the variable.
-    ! It does not handle the case where the user exactly fills the allowable length with variables or has a too-long list with more than one space between variable names.
+    ! It does not handle the case where the user exactly fills the allowable length with variables or has a too-long list
+    ! with more than one space between variable names.
     if ((len_trim(NCO%vars) + 1 ) >= len(NCO%vars)) then 
        call write_log('The list of output variables is too long for file ' // NCO%filename, GM_FATAL)
     endif
@@ -231,6 +451,22 @@ contains
     up = 0
 
     !GENVAR_VARDEF!
+
+    ! Each variable substring is removed from NCO%vars as it is processed above.
+    ! The 'vars' string should now consist only of blank spaces. If not, then write a warning.
+    if (main_task) then
+        if (len_trim(NCO%vars) /= 0) then
+           ! Note: Do not continue a character string onto the next line here. With the gnu compiler,
+           !       the preprocessor then treats the rest of the next line as a string, so the NCO macro
+           !       is not expanded.
+           write(message,*) 'Warning: NAME_io_create may not have created all the requested output variables in file ', &
+                trim(NCO%filename)
+           call write_log(message)
+           write(message,*) 'variables in the list but not created: ', trim(adjustl(NCO%vars))
+           call write_log(message, GM_WARNING)
+	endif
+     endif
+
   end subroutine NAME_io_create
 
   subroutine NAME_io_write(outfile,data)
@@ -798,6 +1034,7 @@ contains
     ! TODO: Write code to check for doubly listed tavg variables and throw a fatal error.
 
     use cism_parallel, only: parallel_inq_varid
+    use glimmer_ncio, only: glimmer_nc_output_has_var
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
@@ -807,6 +1044,12 @@ contains
     ! local variables
     real(dp) :: factor
     integer status, varid
+
+    ! Accumulate only if the model has advanced since the last accumulation.
+    ! This prevents double counting when NAME_io_writeall is called more than once
+    !  at the same time (e.g., at initialization and in glide_finalise).
+    if (model%numerics%tstep_count <= outfile%accum_tstep_count) return
+    outfile%accum_tstep_count = model%numerics%tstep_count
 
     ! increase total time
     outfile%total_time = outfile%total_time + model%numerics%tinc
@@ -818,6 +1061,7 @@ contains
   subroutine NAME_avg_reset(outfile,data)
 
     use cism_parallel, only: parallel_inq_varid
+    use glimmer_ncio, only: glimmer_nc_output_has_var
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
@@ -845,11 +1089,11 @@ contains
 
     get_xtype = xtype
     
-    if (xtype.eq.NF90_REAL .and. outfile%default_xtype.eq.NF90_DOUBLE) then
+    if (xtype.eq.NF90_FLOAT .and. outfile%default_xtype.eq.NF90_DOUBLE) then
        get_xtype = NF90_DOUBLE
     end if
-    if (xtype.eq.NF90_DOUBLE .and. outfile%default_xtype.eq.NF90_REAL) then
-       get_xtype = NF90_REAL
+    if (xtype.eq.NF90_DOUBLE .and. outfile%default_xtype.eq.NF90_FLOAT) then
+       get_xtype = NF90_FLOAT
     end if
   end function get_xtype
 
