@@ -1183,6 +1183,7 @@ contains
     use glissade_mass_balance, only: glissade_prepare_climate_forcing
     use glissade_bmlt_float, only: glissade_bmlt_float_solve
     use glissade_calving, only: glissade_calving_solve
+    use glissade_lateral_melt, only: glissade_lateral_melt_solve
     use glissade_isostasy, only: glissade_isostasy_solve
     use glissade_utils, only: glissade_handle_ice_caps, &
          glissade_cleanup_tiny_thickness, glissade_cleanup_icefree_cells
@@ -1322,18 +1323,26 @@ contains
        call point_diag(model%basal_melt%bmlt_float*scyr, 'bmlt_float (m/yr):', itest, jtest, rtest, 7, 7)
     endif
 
-    ! ------------------------------------------------------------------------ 
+    ! ------------------------------------------------------------------------
     ! Calculate ice thickness and tracer evolution under horizontal transport.
     ! The surface and basal mass balances are also applied here.
-    ! ------------------------------------------------------------------------ 
+    ! ------------------------------------------------------------------------
 
     call glissade_thickness_tracer_solve(model)
 
-    ! ------------------------------------------------------------------------ 
+    ! ------------------------------------------------------------------------
     ! Calculate iceberg calving
-    ! ------------------------------------------------------------------------ 
+    ! ------------------------------------------------------------------------
 
     call glissade_calving_solve(model, .false.)   ! init_calving = .false.
+
+    ! ------------------------------------------------------------------------
+    ! Calculate lateral melting
+    ! ------------------------------------------------------------------------
+
+    if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
+       call glissade_lateral_melt_solve(model, model%lateral_melt)
+    endif
 
     ! Initialize the ice removal flux
     ! This flux is computed in the next two subroutines.
@@ -1824,7 +1833,7 @@ contains
        !       from flowing beyond the CF in the first place. However, this will require
        !       some major changes in the incremental remapping transport scheme.
 
-       if (model%options%which_ho_calving_front /= HO_CALVING_FRONT_NO_SUBGRID) then
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
           !TODO - Move the following to a subroutine in the calving module?
           ! First assume all cells are beyond the CF, then identify exceptions.

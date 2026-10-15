@@ -200,8 +200,7 @@ module glide_types
   integer, parameter :: CALVING_DOMAIN_EVERYWHERE = 1
 
   integer, parameter :: HO_CALVING_FRONT_NO_SUBGRID = 0
-  integer, parameter :: HO_CALVING_FRONT_SUBGRID_FLOAT = 1
-  integer, parameter :: HO_CALVING_FRONT_SUBGRID_FLOAT_GROUND = 2
+  integer, parameter :: HO_CALVING_FRONT_SUBGRID = 1
 
   integer, parameter :: HO_CALVINGMIP_DOMAIN_NONE = 0
   integer, parameter :: HO_CALVINGMIP_DOMAIN_CIRCULAR = 1
@@ -1569,6 +1568,9 @@ module glide_types
      ! Ablation is computed independent of accumulation for SMB_INPUT_FUNCTION_PDD
      real(dp),dimension(:,:),pointer :: ablation => null()        !> surface ablation (mm/yr w.e.)
 
+     ! runoff can be used to compute subglacial_discharge
+     real(dp),dimension(:,:), pointer :: runoff  => null()        !> surface runoff (kg/m^2/s)
+
      ! The next several fields are used for the 'read_once' forcing option.
      ! E.g., if we want to read in all time slices of precip at once, we would set 'read_once' = .true. in the config file.
      ! All time slices are then stored in the precip_read_once array, where the third dimension is the number of time slices.
@@ -1604,6 +1606,7 @@ module glide_types
      real(dp) :: tmlt = -1.d0                       !> spatially uniform temperature threshold for melting (deg C)
      real(dp) :: snow_threshold_min = 0.0d0         !> air temperature (deg C) below which all precip falls as snow
      real(dp) :: snow_threshold_max = 2.0d0         !> air temperature (deg C) above which all precip falls as rain
+
      !TODO - Remove the equivalent glacier variables
 
   end type glide_climate
@@ -1709,10 +1712,10 @@ module glide_types
           subglacial_discharge => null()   !> subglacial meltwater discharge for lateral melting (kg/m2/s);
                                            !> basin-wide integrated discharge (m3/s) divided by submerged area (m2) of melt front, times rhow
 
-     logical :: subglacial_discharge_from_ablation = .false. !> if false, then read subroutine_discharge directly from file;
-                                                             !> if true, then compute submarine discharge from surface ablation
+     logical :: runoff_from_ablation = .false.   !> if false, then read surface runoff from an input file
+                                                 !> if true, then compute surface runoff from ablation
 
-     logical :: thermal_forcing_avg_3d_to_2d = .false. !> if false, then read 2d thermal forcing directly from file;
+     logical :: thermal_forcing_avg_3d_to_2d = .false. !> if false, then read 2d thermal forcing from an input gfile;
                                                        !> if true, then read 3d thermal forcing from file and average to 2d
 
      real(dp) :: ztop_tfavg = -200.d0                  !> top end of depth range (m) for average thermal forcing
@@ -3299,7 +3302,7 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
        elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
           ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
-          !TODO - Also do this if which_lateral_melt = LATERAL_MELT_COUPLED?
+          !TODO - Also do this if which_lateral_melt = LATERAL_MELT_ISMIP?
           !       Not sure if we would use this option with other values of whichbmlt_float
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing)
@@ -3425,6 +3428,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%precip_anomaly)
     call coordsystem_allocate(model%general%ice_grid, model%climate%precip_corrected)
     call coordsystem_allocate(model%general%ice_grid, model%climate%overwrite_acab_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%runoff)
 
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
        call coordsystem_allocate(model%general%ice_grid, model%climate%smb_ref)
@@ -4130,6 +4134,8 @@ contains
         deallocate(model%climate%precip_corrected)
     if (associated(model%climate%overwrite_acab_mask)) &
         deallocate(model%climate%overwrite_acab_mask)
+    if (associated(model%climate%runoff)) &
+        deallocate(model%climate%runoff)
     if (associated(model%climate%smb_ref)) &
         deallocate(model%climate%smb_ref)
     if (associated(model%climate%smb_gradz)) &

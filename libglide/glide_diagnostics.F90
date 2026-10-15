@@ -607,6 +607,7 @@ contains
 
        ! total lateral melt rate (m^3/yr ice)
        ! Note: lateral_melt%melt_rate has units of m/yr ice
+       !TODO - Is it actually in m/s ice?
        tot_latmelt = parallel_global_sum(model%lateral_melt%melt_rate*cell_area, parallel)
 
        ! total lateral melt mass balance flux (kg/s, negative for ice loss by melting)
