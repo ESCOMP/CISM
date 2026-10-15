@@ -632,6 +632,7 @@ dimensions:    time, y1, x1
 units:         meter/year
 long_name:     rate of ice loss by lateral melt
 data:          data%lateral_melt%melt_rate
+average:       1
 
 [removal_rate]
 dimensions:    time, y1, x1
@@ -639,12 +640,18 @@ units:         meter/year
 long_name:     rate of ice removal
 data:          data%geometry%removal_rate
 
+[runoff]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     surface runoff
+data:          data%climate%runoff
+load:          1
+
 [subglacial_discharge]
 dimensions:    time, y1, x1
 units:         kg/m2/s
 long_name:     subglacial liquid discharge
 data:          data%lateral_melt%subglacial_discharge
-load:          1
 
 [effective_areafrac]
 dimensions:    time, y1, x1
