@@ -1264,10 +1264,9 @@ contains
          'standard finite-element assembly (glissade dycore)         ', &
          'use local thck and usrf on each cell face (glissade dycore)'  /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichcalving_front = (/ &
-         'no subgrid calving front parameterization       ', &
-         'subgrid calving front, floating ice only        ', &
-         'subgrid calving front, floating and grounded ice'  /)
+    character(len=*), dimension(0:1), parameter :: ho_whichcalving_front = (/ &
+         'no subgrid calving front parameterization', &
+         'subgrid calving front                    ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_calvingmip_domain = (/ &
          'none       ', &

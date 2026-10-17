@@ -1568,9 +1568,6 @@ module glide_types
      ! Ablation is computed independent of accumulation for SMB_INPUT_FUNCTION_PDD
      real(dp),dimension(:,:),pointer :: ablation => null()        !> surface ablation (mm/yr w.e.)
 
-     ! runoff can be used to compute subglacial_discharge
-     real(dp),dimension(:,:), pointer :: runoff  => null()        !> surface runoff (kg/m^2/s)
-
      ! The next several fields are used for the 'read_once' forcing option.
      ! E.g., if we want to read in all time slices of precip at once, we would set 'read_once' = .true. in the config file.
      ! All time slices are then stored in the precip_read_once array, where the third dimension is the number of time slices.
@@ -1701,25 +1698,22 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: melt_thck => null()      !> thickness loss in grid cell due to lateral melt
      real(dp),dimension(:,:),  pointer :: melt_rate => null()      !> rate of ice loss due to lateral melt (m/yr ice)
      real(dp),dimension(:,:),  pointer :: melt_rate_tavg => null() !> rate of ice loss due to lateral melt (m/yr ice, time average)
-!!     integer, dimension(:,:),  pointer :: melt_front_mask => null()!> mask of cells where lateral melting can take place
-!!     integer, dimension(:,:),  pointer :: calving_front_mask => null()   !> mask of calving front cells
-!!     integer, dimension(:,:),  pointer :: marine_cliff_mask => null()    !> mask of marine calving cliff cells
 
      real(dp) :: melt_rate_const = 0.0d0   !> constant lateral retreat rate at melt front (m/yr)
      real(dp) :: melt_factor = 1.0d0       !> multiplier for Rignot frontal melt. A value of 1.6 was proposed for ISMIP7
 
-     real(dp),dimension(:,:),  pointer :: &
-          subglacial_discharge => null()   !> subglacial meltwater discharge for lateral melting (kg/m2/s);
-                                           !> basin-wide integrated discharge (m3/s) divided by submerged area (m2) of melt front, times rhow
+     ! Can either read runoff_applied from an input file or compute it from surface ablation
+     real(dp),dimension(:,:), pointer :: runoff_applied => null() !> runoff applied to subglacial discharge(kg/m^2/s)
+     logical :: runoff_from_ablation = .false.  !> if true, then compute runoff_applied from surface ablation;
+                                                !> if false, then read runoff_appied from an input file
 
-     logical :: runoff_from_ablation = .false.   !> if false, then read surface runoff from an input file
-                                                 !> if true, then compute surface runoff from ablation
-
-     logical :: thermal_forcing_avg_3d_to_2d = .false. !> if false, then read 2d thermal forcing from an input gfile;
-                                                       !> if true, then read 3d thermal forcing from file and average to 2d
-
-     real(dp) :: ztop_tfavg = -200.d0                  !> top end of depth range (m) for average thermal forcing
-     real(dp) :: zbot_tfavg = -500.d0                  !> bottom end of depth range (m) for average thermal forcing
+     ! Can either read thermal_forcing_applied from an input file or compute it from 3d thermal forcing
+     real(dp), dimension(:,:), pointer :: &
+          thermal_forcing_applied => null()             !> thermal forcing applied to lateral melt, averaged over a depth range (deg K)
+     logical :: thermal_forcing_avg_3d_to_2d = .false.  !> if true, then read 3d thermal forcing from file and average to 2d;
+                                                        !> if false, then read thermal_forcing_applied from an input file
+     real(dp) :: ztop_tfavg = -200.d0                  !> top end of depth range (m) for thermal_forcing_applied
+     real(dp) :: zbot_tfavg = -500.d0                  !> bottom end of depth range (m) for thermal_forcing_applied
 
   end type glide_lateral_melt
 
@@ -1988,9 +1982,6 @@ module glide_types
 
      real(dp), dimension(:,:,:), pointer :: &
           thermal_forcing => null()                 !> 3D thermal forcing (deg K) input to CISM
-
-     real(dp), dimension(:,:), pointer :: &
-          thermal_forcing_2d => null()              !> 2d thermal forcing, typically averaged over some depth range (deg K)
 
      real(dp), dimension(:,:), pointer :: &
           thermal_forcing_lsrf => null()            !> 2D thermal forcing (deg K) applied at lower ice surface
@@ -3297,27 +3288,16 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_target)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%thermal_forcing_mask)
+       ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
+       call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+                                 model%ocean_data%thermal_forcing)
+       call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
+       call coordsystem_allocate(model%general%ice_grid, model%ocean_data%bmb_float)
+       call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
+       allocate(model%ocean_data%deltaT_ocn_basin(model%ocean_data%nbasin))
        if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
           call coordsystem_allocate(model%general%ice_grid, model%plume%T_ambient)
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
-       elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
-          ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
-          !TODO - Also do this if which_lateral_melt = LATERAL_MELT_ISMIP?
-          !       Not sure if we would use this option with other values of whichbmlt_float
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
-                                    model%ocean_data%thermal_forcing)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%bmb_float)
-          if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or. &
-              model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
-              model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-             if (model%ocean_data%nbasin < 1) then
-                !TODO - This logic probably not needed if nbasin = 1 is the default value
-                call write_log ('Must set nbasin >= 1 for the ISMIP6 thermal forcing options', GM_FATAL)
-             endif
-             call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
-             allocate(model%ocean_data%deltaT_ocn_basin(model%ocean_data%nbasin))
-          endif
        endif
     endif  ! Glissade
 
@@ -3428,7 +3408,6 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%precip_anomaly)
     call coordsystem_allocate(model%general%ice_grid, model%climate%precip_corrected)
     call coordsystem_allocate(model%general%ice_grid, model%climate%overwrite_acab_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%runoff)
 
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
        call coordsystem_allocate(model%general%ice_grid, model%climate%smb_ref)
@@ -3501,12 +3480,12 @@ contains
 
     ! lateral melt arrays
     call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_thck)
-    call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate)
-    call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%subglacial_discharge)
-    ! Note: Could allocate thermal_forcing_2d with the other ocean_data arrays,
-    !       but currently is used only with lateral melting
-    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_2d)
+    if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate)
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate_tavg)
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%runoff_applied)
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%thermal_forcing_applied)
+    endif
 
     ! matrix solver arrays
     allocate (model%solver_data%rhsd(ewn*nsn))
@@ -4134,8 +4113,6 @@ contains
         deallocate(model%climate%precip_corrected)
     if (associated(model%climate%overwrite_acab_mask)) &
         deallocate(model%climate%overwrite_acab_mask)
-    if (associated(model%climate%runoff)) &
-        deallocate(model%climate%runoff)
     if (associated(model%climate%smb_ref)) &
         deallocate(model%climate%smb_ref)
     if (associated(model%climate%smb_gradz)) &
@@ -4208,10 +4185,10 @@ contains
         deallocate(model%lateral_melt%melt_rate)
     if (associated(model%lateral_melt%melt_rate_tavg)) &
         deallocate(model%lateral_melt%melt_rate_tavg)
-    if (associated(model%lateral_melt%subglacial_discharge)) &
-        deallocate(model%lateral_melt%subglacial_discharge)
-    if (associated(model%ocean_data%thermal_forcing_2d)) &
-        deallocate(model%ocean_data%thermal_forcing_2d)
+    if (associated(model%lateral_melt%runoff_applied)) &
+        deallocate(model%lateral_melt%runoff_applied)
+    if (associated(model%lateral_melt%thermal_forcing_applied)) &
+        deallocate(model%lateral_melt%thermal_forcing_applied)
 
     ! matrix solver arrays
 
