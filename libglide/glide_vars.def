@@ -433,13 +433,6 @@ long_name:     thermal_forcing
 data:          data%ocean_data%thermal_forcing(up,:,:)
 load:          1
 
-[thermal_forcing_2d]
-dimensions:    time, y1, x1
-units:         degrees K
-long_name:     applied thermal forcing in 2D
-data:          data%ocean_data%thermal_forcing_2d
-load:          1
-
 [thermal_forcing_lsrf]
 dimensions:    time, y1, x1
 units:         degrees K
@@ -634,24 +627,25 @@ long_name:     rate of ice loss by lateral melt
 data:          data%lateral_melt%melt_rate
 average:       1
 
+[runoff_applied]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     runoff applied to subglacial discharge
+data:          data%lateral_melt%runoff_applied
+load:          1
+
+[thermal_forcing_applied]
+dimensions:    time, y1, x1
+units:         degrees K
+long_name:     applied thermal forcing, vertical average
+data:          data%lateral_melt%thermal_forcing_applied
+load:          1
+
 [removal_rate]
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     rate of ice removal
 data:          data%geometry%removal_rate
-
-[runoff]
-dimensions:    time, y1, x1
-units:         kg/m2/s
-long_name:     surface runoff
-data:          data%climate%runoff
-load:          1
-
-[subglacial_discharge]
-dimensions:    time, y1, x1
-units:         kg/m2/s
-long_name:     subglacial liquid discharge
-data:          data%lateral_melt%subglacial_discharge
 
 [effective_areafrac]
 dimensions:    time, y1, x1

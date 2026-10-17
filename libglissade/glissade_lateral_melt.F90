@@ -176,26 +176,20 @@ contains
        if (lateral_melt%runoff_from_ablation) then
           ! compute from the negative portion of acab
           surface_runoff = max(-1.0d0*rhoi*model%climate%acab_applied, 0.0d0)   ! convert m/s ice to kg/m^2/s w.e.
-       else
-          ! make sure runoff was read in
-          if (parallel_is_zero(model%climate%runoff)) then
-             call write_log('Missing input runoff for lateral melting', GM_FATAL)
-          else
-             surface_runoff = model%climate%runoff
-          endif
-       endif
 
-       call glissade_subglacial_discharge(&
-            nx,                  ny,             &
-            dx,                  dy,             &  ! m
-            parallel,                            &
-            model%ocean_data%nbasin,             &
-            model%ocean_data%basin_number,       &
-            ice_mask,                            &
-            surface_runoff,                      &  ! kg/m^2/s
-            thck_submerged,                      &  ! m
-            mf_length,                           &  ! m
-            lateral_melt%subglacial_discharge)      ! kg/m^2/s
+          call glissade_subglacial_discharge(&
+               nx,                  ny,             &
+               dx,                  dy,             &  ! m
+               parallel,                            &
+               model%ocean_data%nbasin,             &
+               model%ocean_data%basin_number,       &
+               ice_mask,                            &
+               surface_runoff,                      &  ! kg/m^2/s
+               thck_submerged,                      &  ! m
+               mf_length,                           &  ! m
+               lateral_melt%runoff_applied)            ! kg/m^2/s
+
+       endif
 
        if (lateral_melt%thermal_forcing_avg_3d_to_2d) then
 
@@ -210,12 +204,12 @@ contains
                model%ocean_data%thermal_forcing,    &  ! K
                lateral_melt%ztop_tfavg,             &  ! m
                lateral_melt%zbot_tfavg,             &  ! m
-               model%ocean_data%thermal_forcing_2d)    ! K
+               lateral_melt%thermal_forcing_applied)   ! K
 
        else   ! should have received the 2D thermal forcing directly (from input file or coupler)
 
-          if (parallel_is_zero(model%ocean_data%thermal_forcing_2d)) then
-             call write_log('Missing 2D thermal forcing for lateral melt', GM_FATAL)
+          if (parallel_is_zero(model%lateral_melt%thermal_forcing_applied)) then
+             call write_log('Missing thermal_forcing_applied for lateral melt', GM_FATAL)
           endif
 
        endif
@@ -227,8 +221,8 @@ contains
             itest,   jtest,     rtest,             &
             melt_front_mask,                       &
             lateral_melt%melt_factor,              &
-            lateral_melt%subglacial_discharge,     &  ! kg/m2/s
-            model%ocean_data%thermal_forcing_2d,   &  ! K
+            lateral_melt%runoff_applied,           &  ! kg/m2/s
+            lateral_melt%thermal_forcing_applied,  &  ! K
             thck_submerged,                        &  ! m
             mf_length,                             &  ! m
             model%geometry%thck,                   &  ! m
