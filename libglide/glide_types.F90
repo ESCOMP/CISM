@@ -1705,9 +1705,11 @@ module glide_types
 
      ! holds parameters for lateral melting at floating or marine-grounded ice fronts
 
-     real(dp),dimension(:,:),  pointer :: melt_thck => null()      !> thickness loss in grid cell due to lateral melt
-     real(dp),dimension(:,:),  pointer :: melt_rate => null()      !> rate of ice loss due to lateral melt (m/yr ice)
-     real(dp),dimension(:,:),  pointer :: melt_rate_tavg => null() !> rate of ice loss due to lateral melt (m/yr ice, time average)
+     real(dp),dimension(:,:),  pointer :: melt_thck => null()         !> thickness loss in grid cell due to lateral melt
+     real(dp),dimension(:,:),  pointer :: melt_rate => null()         !> rate of ice loss due to lateral melt (m/yr ice)
+     real(dp),dimension(:,:),  pointer :: melt_rate_tavg => null()    !> rate of ice loss due to lateral melt (m/yr ice, time average)
+
+     integer ,dimension(:,:),  pointer :: melt_front_mask => null()   !> = 1 for cells on the lateral melt front, else = 0
 
      real(dp) :: melt_rate_const = 0.0d0   !> constant lateral retreat rate at melt front (m/yr)
      real(dp) :: melt_factor = 1.0d0       !> multiplier for Rignot frontal melt. A value of 1.6 was proposed for ISMIP7
@@ -3491,10 +3493,11 @@ contains
     ! lateral melt arrays
     call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_thck)
     if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
-       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate)
-       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate_tavg)
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%runoff_applied)
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%thermal_forcing_applied)
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate)
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate_tavg)
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_front_mask)
     endif
 
     ! matrix solver arrays
@@ -4189,16 +4192,18 @@ contains
         deallocate(model%calving%cf_vvel)
 
     ! lateral melt arrays
+    if (associated(model%lateral_melt%runoff_applied)) &
+        deallocate(model%lateral_melt%runoff_applied)
+    if (associated(model%lateral_melt%thermal_forcing_applied)) &
+        deallocate(model%lateral_melt%thermal_forcing_applied)
     if (associated(model%lateral_melt%melt_thck)) &
         deallocate(model%lateral_melt%melt_thck)
     if (associated(model%lateral_melt%melt_rate)) &
         deallocate(model%lateral_melt%melt_rate)
     if (associated(model%lateral_melt%melt_rate_tavg)) &
         deallocate(model%lateral_melt%melt_rate_tavg)
-    if (associated(model%lateral_melt%runoff_applied)) &
-        deallocate(model%lateral_melt%runoff_applied)
-    if (associated(model%lateral_melt%thermal_forcing_applied)) &
-        deallocate(model%lateral_melt%thermal_forcing_applied)
+    if (associated(model%lateral_melt%melt_front_mask)) &
+        deallocate(model%lateral_melt%melt_front_mask)
 
     ! matrix solver arrays
 

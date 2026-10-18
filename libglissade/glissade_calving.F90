@@ -43,7 +43,7 @@ module glissade_calving
 
   private
   public :: glissade_calving_mask_init, glissade_subgrid_calving_mask_init, &
-       glissade_calving_solve, compute_calving_front_length, &
+       glissade_calving_solve, calve_ice_basic, compute_calving_front_length, &
        verbose_calving, verbose_retreat
 
   logical :: verbose_calving = .true.
@@ -2001,8 +2001,8 @@ contains
                    cf_length(i,j) = count_ns*dx + count_ew*dy
                 endif
              elseif (count == 3) then
-                ! This is a bit arbitrary; assume the same length as a CF bordering two edges.
-                ! The goal is to speed up calving for 'teeth' but not remove them instantly.
+                ! This is a bit arbitrary;
+                ! the goal is to speed up calving for 'teeth' but not remove them instantly
                 cf_length(i,j) = dx + dy
              endif
 
