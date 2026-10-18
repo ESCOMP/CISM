@@ -620,6 +620,12 @@ long_name:     rate of ice loss by lateral melt
 data:          data%lateral_melt%melt_rate
 average:       1
 
+[melt_front_mask]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     lateral melt front mask
+data:          data%lateral_melt%melt_front_mask
+
 [runoff_applied]
 dimensions:    time, y1, x1
 units:         kg/m2/s

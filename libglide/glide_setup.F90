@@ -4135,6 +4135,20 @@ contains
            call glide_add_to_restart_variable_list('reference_thck', model_id)
         endif
 
+        ! lateral melt options
+        if (options%which_lateral_melt == LATERAL_MELT_ISMIP) then
+           if (model%lateral_melt%runoff_from_ablation) then
+              ! Need input SMB; this is already in the restart file
+           else   ! lateral melt parameterization needs runoff_applied (= subglacial discharge)
+              call glide_add_to_restart_variable_list('runoff_applied', model_id)
+           endif
+           if (model%lateral_melt%thermal_forcing_avg_3d_to_2d) then  ! need 3d thermal_forcing
+              call glide_add_to_restart_variable_list('thermal_forcing', model_id)
+           else   ! need vertical-average thermal forcing
+              call glide_add_to_restart_variable_list('thermal_forcing_applied', model_id)
+           endif
+        endif
+
         ! other Glissade options
 
         ! If overwriting acab in certain grid cells, than overwrite_acab_mask needs to be in the restart file.
@@ -4145,7 +4159,8 @@ contains
 
       end select ! which_dycore
 
-    ! ==== Other non-dycore specific options ====
+    ! ==== Other options ====
+    !TODO - Either separate Glissade from Glide options, or just assume the user is running Glissade.
 
     ! internal water option (for enthalpy scheme)
     select case (options%whichtemp)
@@ -4213,7 +4228,7 @@ contains
        call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif
 
-    ! fields needed for inversion optionS that try to match observed dthck_dt
+    ! fields needed for inversion options that try to match observed dthck_dt
     if (options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or. &
         options%enable_acab_dthck_dt_correction) then
        call glide_add_to_restart_variable_list('dthk_dt_obs', model_id)

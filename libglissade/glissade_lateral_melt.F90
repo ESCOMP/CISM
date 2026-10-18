@@ -48,15 +48,16 @@ contains
 
   subroutine glissade_lateral_melt_solve(model, lateral_melt)
 
-    ! Compute lateral melting at the melt front
-    ! The melt front is computed similarly to the calving front, except that
-    !  melt front cells can be either floating or marine_grounded.
-    !TODO - Support lateral melt for floating fronts and not just grounded fronts?
+    ! Compute lateral melting at the melt front, assuming either a constant melt rate
+    !  or the parameterization of Rignot et al. (2016, GRL, doi:10.1002/2016GL068784).
+    ! In principle, the melt front could include both grounded and floating ice,
+    !  but runs to date (as of Oct. 2026) assume grounded ice only, with floating ice
+    !  removed by the no-float calving scheme.
 
-    use glimmer_physcon, only: scyr
+    use glimmer_physcon, only: scyr, scday
     use cism_parallel, only: parallel_type, parallel_halo, parallel_is_zero
     use glissade_masks, only: glissade_get_masks, glissade_melt_front_mask
-    use glissade_calving, only: compute_calving_front_length
+    use glissade_calving, only: compute_calving_front_length, calve_ice_basic
 
     implicit none
 
@@ -64,7 +65,7 @@ contains
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
-    ! Passing in lateral melt in addition to model saves a bit of typing below
+    ! Passing in lateral melt in addition to model saves some typing below
     type(glide_lateral_melt), intent(inout) :: lateral_melt
 
     ! --- Local variables ---
@@ -73,8 +74,7 @@ contains
          ice_mask,                & ! = 1 if ice is present
          floating_mask,           & ! = 1 if ice is present and floating
          land_mask,               & ! = 1 if topg - eus >= 0
-         ocean_mask,              & ! = 1 if ice is absent and topg - eus < 0
-         melt_front_mask            ! = 1 for floating and marine-grounded cells with an ice-free ocean neighbor
+         ocean_mask                 ! = 1 if ice is absent and topg - eus < 0
 
     real(dp), dimension(model%general%ewn, model%general%nsn) :: &
          thck_submerged,          & ! thickness of submerged ice (m)
@@ -106,7 +106,7 @@ contains
 
     parallel = model%parallel
 
-!   call parallel_halo(thck, parallel)
+    call parallel_halo(model%geometry%thck, parallel)
 
     ! Compute some masks
 
@@ -126,49 +126,55 @@ contains
          nx,                ny,            &
          ice_mask,                         &
          land_mask,         ocean_mask,    &
-         melt_front_mask)
+         lateral_melt%melt_front_mask)
 
-    call parallel_halo(melt_front_mask, parallel)
+    call parallel_halo(lateral_melt%melt_front_mask, parallel)
 
     ! Compute the melt front length for each cell based on its number of ocean neighbors
     ! (i.e., enhanced lateral melting for cells with 2 or 3 ocean neighbors).
-    ! Call the subroutine used to compute the calving front length based on calving_front_mask
+    ! Call the subroutine used to compute the calving front length based on calving_front_mask.
 
     call compute_calving_front_length(&
          nx,                ny,            &
          dx,                dy,            &
          itest,   jtest,    rtest,         &
-         melt_front_mask,   ocean_mask,    &
+         lateral_melt%melt_front_mask,     &
+         ocean_mask,                       &
          mf_length)
 
-    ! Compute the submerged ice thickness
-    ! Set to the negative of the topography for marine-grounded ice.
-    ! Set to zero for land-grounded ice.
+    ! Compute the submerged ice thickness.
+    ! It is set to the negative of the topography for marine-grounded ice,
+    !  and zero for land-grounded ice.
 
     thck_submerged = model%calving%thck_effective*(rhoi/rhoo)
     thck_submerged = min(thck_submerged, max(model%climate%eus - model%geometry%topg, 0.0d0))
 
+    if (verbose_latmelt) then
+       call point_diag(model%geometry%thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%geometry%topg, 'topg (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(thck_submerged, 'thck_submerged (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(lateral_melt%melt_front_mask, 'melt_front_mask', itest, jtest, rtest, 7, 7)
+       call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7)
+       call point_diag(mf_length, 'mf_length (m)', itest, jtest, rtest, 7, 7)
+    endif
+
     if (model%options%which_lateral_melt == LATERAL_MELT_CONSTANT) then
 
-       call glissade_lateral_melt_constant(&
+       call constant_lateral_melt(&
             nx,                   ny,              &
             dx,                   dy,              &
             dt,                                    &  ! s
             itest,    jtest,      rtest,           &
-            melt_front_mask,                       &
+            lateral_melt%melt_front_mask,          &
             lateral_melt%melt_rate_const/scyr,     &  ! m/s
             thck_submerged,                        &  ! m
             mf_length,                             &  ! m
             model%geometry%thck,                   &  ! m
             lateral_melt%melt_thck)                   ! m
 
-       if (verbose_latmelt) then
-          if (main_task) write(iulog,*) 'Called glissade_lateral_melt_constant, melt_rate_const (m/yr) =', &
+       if (verbose_latmelt .and. main_task) then
+          write(iulog,*) 'Called constant_lateral_melt, melt_rate_const (m/yr) =', &
                lateral_melt%melt_rate_const
-          call point_diag(melt_front_mask, 'melt_front_mask', itest, jtest, rtest, 7, 7)
-          call point_diag(thck_submerged, 'thck_submerged (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(mf_length, 'mf_length (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(lateral_melt%melt_thck, 'melt_thck (m)', itest, jtest, rtest, 7, 7, '(e15.5)')
        endif
 
     elseif (model%options%which_lateral_melt == LATERAL_MELT_ISMIP) then
@@ -177,7 +183,7 @@ contains
           ! compute from the negative portion of acab
           surface_runoff = max(-1.0d0*rhoi*model%climate%acab_applied, 0.0d0)   ! convert m/s ice to kg/m^2/s w.e.
 
-          call glissade_subglacial_discharge(&
+          call surface_runoff_to_discharge(&
                nx,                  ny,             &
                dx,                  dy,             &  ! m
                parallel,                            &
@@ -197,7 +203,7 @@ contains
              call write_log('Missing 3D thermal forcing for lateral melt', GM_FATAL)
           endif
 
-          call glissade_thermal_forcing_avg_3d_to_2d(&
+          call thermal_forcing_avg_3d_to_2d(&
                nx,                  ny,             &
                model%ocean_data%nzocn,              &
                model%ocean_data%zocn,               &
@@ -214,12 +220,12 @@ contains
 
        endif
 
-       call glissade_lateral_melt_ismip(&
+       call ismip_lateral_melt(&
             nx,                 ny,                &
             dx,                 dy,                &
             dt,                                    &  ! s
             itest,   jtest,     rtest,             &
-            melt_front_mask,                       &
+            lateral_melt%melt_front_mask,          &
             lateral_melt%melt_factor,              &
             lateral_melt%runoff_applied,           &  ! kg/m2/s
             lateral_melt%thermal_forcing_applied,  &  ! K
@@ -229,25 +235,53 @@ contains
             lateral_melt%melt_thck)                   ! m
 
        if (verbose_latmelt) then
-          if (main_task) write(iulog,*) 'Called glissade_lateral_melt_ismip, melt_factor =', lateral_melt%melt_factor
-          call point_diag(melt_front_mask, 'melt_front_mask', itest, jtest, rtest, 7, 7)
-          call point_diag(thck_submerged, 'thck_submerged (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(mf_length, 'mf_length (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(lateral_melt%melt_thck, 'melt_thck (m)', itest, jtest, rtest, 7, 7, '(e15.5)')
+          if (main_task) write(iulog,*) 'Called ismip_lateral_melt, melt_factor =', lateral_melt%melt_factor
+          call point_diag(lateral_melt%runoff_applied*scday, 'runoff_applied (kg/m^2/day)', &
+               itest, jtest, rtest, 7, 7)
+          call point_diag(lateral_melt%thermal_forcing_applied, 'thermal_forcing_applied (deg C)', &
+               itest, jtest, rtest, 7, 7)
        endif
 
     endif  ! which_lateral_melt
 
-    !TODO - call the no-float calving again
+    if (verbose_latmelt) then
+       call point_diag(lateral_melt%melt_thck, 'melt_thck (m)', itest, jtest, rtest, 7, 7)
+    endif
 
     call parallel_halo(model%geometry%thck, parallel)
     call parallel_halo(lateral_melt%melt_thck, parallel)
+
+    ! Melting may have brought some cells to flotation
+    ! In the case CALVING_FLOAT_ZERO (which is the usual case when using a lateral melt parameterization),
+    !  remove floating ice so that none exists at the end of the timestep.
+
+    if (model%options%whichcalving == CALVING_FLOAT_ZERO) then
+
+       call calve_ice_basic(&
+            nx,             ny,             &
+            model%options%whichcalving,     &
+            model%options%calving_domain,   &
+            parallel,                       &
+            model%calving,                  &  ! calving derived type
+            itest,  jtest,  rtest,          &
+            dt,                             &  ! s
+            eps11,                          &  ! thcklim (m) = eps11
+            model%geometry%thck,            &  ! m
+            model%isostasy%relx,            &  ! m
+            model%geometry%topg,            &  ! m
+            model%climate%eus)                 ! m
+
+    endif  ! CALVING_FLOAT_ZERO
+
+    if (verbose_latmelt) then
+       call point_diag(model%geometry%thck, 'New thck (m)', itest, jtest, rtest, 7, 7)
+    endif
 
   end subroutine glissade_lateral_melt_solve
 
 !-------------------------------------------------------------------------------
 
-  subroutine glissade_lateral_melt_constant(&
+  subroutine constant_lateral_melt(&
        nx,                 ny,           &
        dx,                 dy,           &
        dt,                               &  ! s
@@ -334,11 +368,11 @@ contains
        enddo   ! i
     enddo   ! j
 
-  end subroutine glissade_lateral_melt_constant
+  end subroutine constant_lateral_melt
 
 !-------------------------------------------------------------------------------
 
-  subroutine glissade_lateral_melt_ismip(&
+  subroutine ismip_lateral_melt(&
        nx,                 ny,           &
        dx,                 dy,           &
        dt,                               &  ! s
@@ -436,11 +470,11 @@ contains
        enddo
     enddo
 
-  end subroutine glissade_lateral_melt_ismip
+  end subroutine ismip_lateral_melt
 
 !-------------------------------------------------------------------------------
 
-  subroutine glissade_subglacial_discharge(&
+  subroutine surface_runoff_to_discharge(&
        nx,             ny,                &
        dx,             dy,                &
        parallel,                          &
@@ -449,9 +483,9 @@ contains
        surface_runoff,                    &
        thck_submerged,                    &
        mf_length,                         &
-       subglacial_discharge)
+       runoff_applied)
 
-    ! Given the surface runoff, compute basin-scale subglacial discharge.
+    ! Given the surface runoff, compute basin-scale subglacial discharge ('runoff_applied').
     ! This as an input to the lateral melt parameterization.
 
     use glimmer_physcon, only: rhoi, rhow, rhoo
@@ -479,9 +513,9 @@ contains
          thck_submerged,             & !> effective thickness (m) of submerged ice
          mf_length                     ! length of melt front in each grid cell (m)
 
-    ! discharge per unit area of the submerged ice front; nonzero only for cells at the front
+    ! discharge per unit area at the submerged ice front; nonzero only for cells at the front
     real(dp), dimension(nx,ny), intent(out) :: &
-         subglacial_discharge          !> subglacial meltwater discharge for lateral melting (kg/m2/s)
+         runoff_applied                !> subglacial discharge applied to lateral melting (kg/m2/s)
 
     ! local variables
 
@@ -493,7 +527,7 @@ contains
     real(dp), dimension(nbasin) :: &
          runoff_sum_basin,           & ! runoff summed over each basin (m^3/s)
          area_submerged_sum_basin,   & ! submerged area summed over each basin (m^2)
-         subglacial_discharge_basin    ! discharge per unit front area in each basin (kg/m^2/s)
+         runoff_applied_basin          ! discharge per unit front area in each basin (kg/m^2/s)
 
     ! Sum the runoff over each basin
 
@@ -519,31 +553,31 @@ contains
 
     ! Compute the average subglacial discharge in each basin as the runoff per unit submerged melt front area
 
-    subglacial_discharge_basin = 0.0d0
+    runoff_applied_basin = 0.0d0
     do nb = 1, nbasin
        if (area_submerged_sum_basin(nb) > 0.0d0) then
           ! Divide total basin runoff (kg/s) by total basin submerged area (m^2)
-          subglacial_discharge_basin(nb) = runoff_sum_basin(nb) / area_submerged_sum_basin(nb)  ! kg/m^2/s
+          runoff_applied_basin(nb) = runoff_sum_basin(nb) / area_submerged_sum_basin(nb)  ! kg/m^2/s
        endif
     enddo
 
     ! Copy the basin-average subglacial discharge to cells at the melt front
 
-    subglacial_discharge = 0.0d0
+    runoff_applied = 0.0d0
     do j = 1, ny
        do i = 1, nx
           nb = basin_number(i,j)
           if (nb >= 1 .and. nb <= nbasin .and. mf_length(i,j) > 0.0d0) then
-             subglacial_discharge(i,j) = subglacial_discharge_basin(nb)
+             runoff_applied(i,j) = runoff_applied_basin(nb)
           endif
        enddo   ! i
     enddo   ! j
 
-  end subroutine glissade_subglacial_discharge
+  end subroutine surface_runoff_to_discharge
 
 !-------------------------------------------------------------------------------
 
-  subroutine glissade_thermal_forcing_avg_3d_to_2d(&
+  subroutine thermal_forcing_avg_3d_to_2d(&
        nx,              ny,      &
        nzocn,                    &
        zocn,                     &
@@ -628,11 +662,8 @@ contains
 
           do j = 1, ny
              do i = 1, nx
-                if (thermal_forcing(k,i,j) > -99998) then    !TODO - Rewrite
-                   !WHL - Limit TF to be non-negative; is that correct?
-                   thermal_forcing_layer = max(thermal_forcing(k,i,j), 0.0d0)
-                   thermal_forcing_2d(i,j) = thermal_forcing_2d(i,j) + thermal_forcing_layer*dlayer*layer_frac
-                endif
+                ! Accumulate the forcing for this layer
+                thermal_forcing_2d(i,j) = thermal_forcing_2d(i,j) + thermal_forcing_layer*dlayer*layer_frac
              enddo
           enddo
        endif
@@ -643,7 +674,7 @@ contains
        thermal_forcing_2d = thermal_forcing_2d / (ztop - zbot)
     endwhere
 
-  end subroutine glissade_thermal_forcing_avg_3d_to_2d
+  end subroutine thermal_forcing_avg_3d_to_2d
 
 !-------------------------------------------------------------------------------
 
