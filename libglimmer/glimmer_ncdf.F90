@@ -61,6 +61,15 @@ module glimmer_ncdf
   character(len=*), parameter :: glimmer_nc_tstep_count_varname = 'tstep_count'
   !> name of the integer variable giving the time step count
 
+  character(len=*), parameter :: &
+       glimmer_nc_internal_timebounds_varname = 'internal_time_bounds'
+  !> name of the time_bounds variable for internal use
+
+  character(len=*), parameter :: &
+       glimmer_nc_timebounds_varname = 'time_bounds'
+  !> name of the time_bounds variable for external use
+
+
   real(dp), parameter :: glimmer_nc_max_time=1.d10
   !> maximum time that can be written
 
@@ -72,9 +81,14 @@ module glimmer_ncdf
      !> set to .TRUE. when we are in define mode
      logical :: just_processed = .FALSE.
      !> set to .TRUE. if the file was used during the last time step
+     logical :: file_open = .FALSE.
+     !> set to .TRUE. while the netCDF file is open (i.e., between create/reopen and close)
+     logical :: time_bounds = .FALSE.
+     !> set to .TRUE. if the file contains the time bounds variables (i.e., a time-average file)
 
      !> the time when the file was last processed
-     real(dp) :: processsed_time = 0.d0
+     real(dp) :: processed_time = 0.d0              ! internal model time
+     real(dp) :: processed_external_time = 0.d0     ! external time; defaults to internal if no external time is passed in
 
      !> name of netCDF file
      character(len=fname_length) :: filename = " "
@@ -136,8 +150,23 @@ module glimmer_ncdf
      integer :: timevar                !> ID of time variable for external purposes
      integer :: tstep_count_var        !> ID of variable giving the integer time step count
 
-     ! TODO - Create a variable for vars length so it can be made longer (Matt has this implemented in his subglacial hydrology branch)
+     ! timebounds variables for time-average files
+     integer :: nbnd_dim                !> ID of time bounds dimension ('nbnd', following CESM convention)
+
+     ! Averaging state of the time-average output streams, saved in restart files (see glimmer_ncio.F90)
+     logical :: tavg_state = .false.    !> true if this restart file holds the averaging state
+     integer :: tavgstream_dim          !> ID of the dimension over time-average streams
+     integer :: tavg_total_time_var     !> ID of variable tavg_total_time (accumulated time in averaging interval)
+     integer :: tavg_start_time_var     !> ID of variable tavg_start_time (internal start time of interval)
+     integer :: tavg_start_external_time_var  !> ID of variable tavg_start_external_time (external start time)
+     integer :: tavg_accum_tstep_count_var    !> ID of variable tavg_accum_tstep_count
+     integer :: internal_timebounds_var !> ID of internal timebounds variable
+     integer :: timebounds_var          !> ID of timebounds variable for external purposes
+
+     ! TODO - Create a variable for vars length so it can be made longer
+     !        (Matt implemented this in his subglacial hydrology branch)
      !        Apply it here for vars, vars_copy and to restart_variable_list in glimmer_ncparams.F90
+     !        [Note: This is an old comment, c. 2013]
 
      character(len=glimmer_nc_vars_len) :: vars      !> string containing variables to be processed
      logical :: restartfile = .false.                !> Set to true if we're writing a restart file
@@ -169,10 +198,27 @@ module glimmer_ncdf
      logical  :: write_init = .true.                      !< if true, then write at the start of the run (tstep_count = 0)
      real(dp) :: end_write = glimmer_nc_max_time          !< stop writing after this year
      integer  :: timecounter = 1                          !< time counter
-     real(dp) :: total_time = 0.d0                        !< accumulate time steps (used for taking time averages)
+     real(dp) :: total_time = 0.d0                        !< total accumulated time for this averaging period
+     integer  :: accum_tstep_count = 0                    !< tstep_count at the most recent accumulation of averages
+     logical  :: tavg_restored = .false.                  !< true if the averaging state was restored from a restart file
+                                                          !<  (standard restart only; see NAME_io_createall).
+                                                          !<  An external driver can use this to decide whether to
+                                                          !<  start a new averaging interval.
 
-     integer :: default_xtype = NF90_REAL                 !< the default external type for storing floating point values
+     !Note: time variables are double precision, following the CESM standard
+     integer :: time_xtype = NF90_DOUBLE                  !< external type for storing time values
+
+     integer :: default_xtype = NF90_FLOAT                !< the default external type for storing floating point values
      logical :: do_averages = .false.                     !< set to .true. if we need to handle averages
+
+     !Note: The following two flags are independent.
+     !      external_control determines WHEN output is written; one_file_per_write determines WHERE.
+     logical :: external_control = .false.                !< if true, an external driver (e.g., the CESM wrapper)
+                                                          !<  decides when to write; NAME_io_writeall only accumulates averages
+     logical :: one_file_per_write = .false.              !< if true, each write creates a new file containing one time slice;
+                                                          !<  no file is created at initialization
+     character(len=fname_length) :: base_filename = ' '   !< for one_file_per_write: file name from the config file,
+                                                          !<  used to build the name of each new file
 
      type(glimmer_nc_meta) :: metadata
      !> structure holding metadata
@@ -204,12 +250,14 @@ module glimmer_ncdf
      type(glimmer_nc_input), pointer :: previous=>NULL()   !> previous element in list
 
      ! The following parameter is useful if the time variable in the input file is different from the CISM time.
-     ! For example, suppose a historical CISM run starts on 1 Jan. 1951.
-     ! This is CISM time 1950.0 (since CISM time 0.0 is 1 Jan. of year 1).
-     ! If a given time slice in the forcing file has t = 1961, corresponding to year 1961,
-     !  then we want this file to be read between CISM time 1960.0 and 1961.0.
-     ! Setting time_offset = 1 ensures that 1961 data is read when CISM time >= 1960.
-     ! Note: time_offset is defined to be positive when the time in the input file is greater than the CISM time.
+     ! Notes on time_offset:
+     ! We used to say that CISM time 0.0 corresponds to Jan. 1 of year 1,
+     !  implying that CISM time 1950.0 corresponds to Jan. 1 of year 1951.
+     !  However, forcing files for year 1950 typically start at t = 1950.0 and end at t = 1951.0.
+     !  Then we needed to set time_offset = 1 if we wanted to read the forcing file correctly.
+     ! The new convention is that CISM time 0.0 corresponds to Jan 1 of year 0
+     !  (i.e., the first year of the assumed calendar is year 0, not year 1). Then time_offset = 0 is correct.
+     ! We define time_offset to be positive when the time in the input file is greater than the CISM time.
 
      integer                        :: time_offset = 0     !> Difference (yr) between time in file and CISM time
 
@@ -273,8 +321,11 @@ contains
        else
           delete_output => NULL()
        end if
-       if (closefile) then
+       ! Close the file only if it is open (e.g., files written with one_file_per_write
+       !  are closed after each write)
+       if (closefile .and. oc%nc%file_open) then
           status = nf90_close(oc%nc%id)
+          oc%nc%file_open = .false.
           call write_log_div
           call write_log('Closing output file '//trim(oc%nc%filename))
        end if
@@ -392,7 +443,8 @@ contains
 
     write(iulog,*) 'define_mode:     ',stat%define_mode
     write(iulog,*) 'just_processed:  ',stat%just_processed
-    write(iulog,*) 'processsed_time: ',stat%processsed_time
+    write(iulog,*) 'processed_time:  ',stat%processed_time
+    write(iulog,*) 'processed_external_time:',stat%processed_external_time
     write(iulog,*) 'filename:        ',stat%filename
     write(iulog,*) 'id:              ',stat%id
     write(iulog,*) 'nlevel:          ',stat%nlevel
@@ -401,6 +453,8 @@ contains
     write(iulog,*) 'nzocn:           ',stat%nzocn
     write(iulog,*) 'nzatm:           ',stat%nzatm
     write(iulog,*) 'nglacier:        ',stat%nglacier
+    write(iulog,*) 'nbasin:          ',stat%nbasin
+    write(iulog,*) 'naxis:           ',stat%naxis
     write(iulog,*) 'timedim:         ',stat%timedim
     write(iulog,*) 'internal_timevar:',stat%internal_timevar
     write(iulog,*) 'timevar:         ',stat%timevar

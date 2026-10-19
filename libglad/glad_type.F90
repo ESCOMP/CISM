@@ -45,7 +45,6 @@ module glad_type
 
   ! General constants
 
-  integer, parameter :: len_history_vars = 4096
   integer, parameter :: len_history_option = 256
 
   ! Constants that describe the options available
@@ -82,10 +81,11 @@ module glad_type
      real(dp)                         :: glide_time         !> Time as seen by glide (years)
      integer                          :: next_time          !> The next time we expect to be called (hours)
 
-     ! History outputs, for history managed by the host ESM. GLAD (and the rest of CISM)
+     ! History settings, for history managed by the host ESM. GLAD (and the rest of CISM)
      ! doesn't use these variables itself, but we store them in the glad_instance for
      ! convenience, since they potentially differ for each ice sheet instance.
-     character(len=len_history_vars)   :: esm_history_vars = '' !> Space-delimited list of variables output to history file
+     ! Note: The history variables themselves are listed in [CF output] sections of the
+     !       config file (e.g., the h0i and h0a sections written by the CESM wrapper).
      character(len=len_history_option) :: history_option = ''   !> How history frequency is specified (interpreted by ESM)
      integer                           :: history_frequency = 1 !> History frequency (interpreted by ESM)
 
@@ -223,14 +223,8 @@ contains
 
     call GetSection(config,section,'esm_output')
     if (associated(section)) then
-       call GetValue(section,'esm_history_vars',instance%esm_history_vars)
        call GetValue(section,'history_option',instance%history_option)
        call GetValue(section,'history_frequency',instance%history_frequency)
-       if ((len_trim(instance%esm_history_vars)+3) >= len(instance%esm_history_vars)) then
-          ! Assume that if we get within 3 spaces of the variable length (excluding
-          ! spaces) then we may be truncating the intended value
-          call write_log('The value of esm_history_vars is too long for the variable', GM_FATAL)
-       end if
     end if
 
     call glad_nc_readparams(instance,config)

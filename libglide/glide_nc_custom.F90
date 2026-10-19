@@ -61,7 +61,8 @@ contains
     end if
 
     do while(associated(oc))
-       if (.not.oc%append) then
+       ! Note: Files written with one_file_per_write do not exist yet; they are filled when created.
+       if (.not.oc%append .and. .not.oc%one_file_per_write) then
           call glide_nc_filldvars(oc, model)
        endif
        oc=>oc%next

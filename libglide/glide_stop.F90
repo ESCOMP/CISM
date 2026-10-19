@@ -51,8 +51,10 @@ contains
     !> Finalises all models in the model registry
     logical, optional, intent(in) :: forcewrite_arg
 
-    logical :: forcewrite = .false.         !> if true, then force a write to output files
+    logical :: forcewrite         !> if true, then force a write to output files
     integer :: i
+
+    forcewrite = .false.
 
     if (present(forcewrite_arg)) then
         forcewrite = forcewrite_arg
@@ -81,7 +83,9 @@ contains
     logical, optional, intent(in) :: forcewrite_arg  !> if true, then force a write to output files
     character(len=100) :: message
 
-    logical :: forcewrite = .false.         !> if true, then force a write to output files
+    logical :: forcewrite         !> if true, then force a write to output files
+
+    forcewrite = .false.
 
     ! force write to output files if specified by the optional input argument
     if (present(forcewrite_arg)) then
