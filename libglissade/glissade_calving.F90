@@ -46,7 +46,7 @@ module glissade_calving
        glissade_calving_solve, calve_ice_basic, compute_calving_front_length, &
        verbose_calving, verbose_retreat
 
-  logical :: verbose_calving = .true.
+  logical :: verbose_calving = .false.
   logical :: verbose_retreat = .false.
 
 contains
