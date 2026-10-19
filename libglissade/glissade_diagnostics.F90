@@ -101,12 +101,12 @@
     model%mass_flux%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_applied(:,:)
     model%mass_flux%basal_mbal_flux(:,:) = rhoi * (-model%basal_melt%bmlt_applied(:,:))
     model%mass_flux%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)) / model%numerics%dt
-    model%mass_flux%latmelt_flux(:,:) = rhoi * (-model%lateral_melt%melt_thck(:,:)) / model%numerics%dt
+    model%mass_flux%latmelt_flux(:,:) = rhoi * (-model%lateral_melt%latmelt_thck(:,:)) / model%numerics%dt
     model%mass_flux%removal_flux(:,:) = rhoi * (-model%geometry%removal_thck(:,:)) / model%numerics%dt
 
     ! rates of calving, lateral melt and ice removal (m/yr ice; positive for ice loss)
     model%calving%calving_rate(:,:) = model%calving%calving_thck(:,:) / (model%numerics%dt/scyr)
-    model%lateral_melt%melt_rate(:,:) = model%lateral_melt%melt_thck(:,:) / (model%numerics%dt/scyr)
+    model%lateral_melt%latmelt_rate(:,:) = model%lateral_melt%latmelt_thck(:,:) / (model%numerics%dt/scyr)
     model%geometry%removal_rate(:,:) = model%geometry%removal_thck(:,:) / (model%numerics%dt/scyr)
 
   end subroutine glissade_mass_balance_diagnostics

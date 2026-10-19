@@ -37,10 +37,9 @@ module glissade_lateral_melt
   implicit none
 
   private
-  public :: glissade_lateral_melt_solve
-!!  public :: verbose_latmelt
+  public :: glissade_lateral_melt_solve, verbose_latmelt
 
-  logical :: verbose_latmelt = .true.
+  logical :: verbose_latmelt = .false.
 
 contains
 
@@ -170,7 +169,7 @@ contains
             thck_submerged,                        &  ! m
             mf_length,                             &  ! m
             model%geometry%thck,                   &  ! m
-            lateral_melt%melt_thck)                   ! m
+            lateral_melt%latmelt_thck)                ! m
 
        if (verbose_latmelt .and. main_task) then
           write(iulog,*) 'Called constant_lateral_melt, melt_rate_const (m/yr) =', &
@@ -232,7 +231,7 @@ contains
             thck_submerged,                        &  ! m
             mf_length,                             &  ! m
             model%geometry%thck,                   &  ! m
-            lateral_melt%melt_thck)                   ! m
+            lateral_melt%latmelt_thck)                ! m
 
        if (verbose_latmelt) then
           if (main_task) write(iulog,*) 'Called ismip_lateral_melt, melt_factor =', lateral_melt%melt_factor
@@ -245,11 +244,11 @@ contains
     endif  ! which_lateral_melt
 
     if (verbose_latmelt) then
-       call point_diag(lateral_melt%melt_thck, 'melt_thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(lateral_melt%latmelt_thck, 'latmelt_thck (m)', itest, jtest, rtest, 7, 7)
     endif
 
     call parallel_halo(model%geometry%thck, parallel)
-    call parallel_halo(lateral_melt%melt_thck, parallel)
+    call parallel_halo(lateral_melt%latmelt_thck, parallel)
 
     ! Melting may have brought some cells to flotation
     ! In the case CALVING_FLOAT_ZERO (which is the usual case when using a lateral melt parameterization),
@@ -291,7 +290,7 @@ contains
        thck_submerged,                   &  ! m
        mf_length,                        &  ! m
        thck,                             &  ! m
-       melt_thck)                           ! m
+       latmelt_thck)                        ! m
 
     ! Apply lateral melt horizontally based on a prescribed constant melt rate
 
@@ -311,7 +310,6 @@ contains
          melt_front_mask           ! = 1 where ice is marine-grounded or floating
                                    ! and borders at least one ocean cell, else = 0
 
-    !TODO - Make sure the input units are m/s
     real(dp), intent(in) :: &
          melt_rate_const           ! prescribed constant melt rate (m/s)
 
@@ -323,7 +321,7 @@ contains
          thck                      ! ice thickness (m)
 
     real(dp), dimension(nx,ny), intent(out) :: &
-         melt_thck                 ! thickness reduction (m) due to lateral melt
+         latmelt_thck              ! thickness reduction (m) due to lateral melt
 
     ! local variables
 
@@ -334,7 +332,7 @@ contains
 
     ! Initialize
 
-    melt_thck = 0.0d0
+    latmelt_thck = 0.0d0
 
     ! Loop over locally owned cells
     ! Melt occurs only in MF cells: marine ice-filled cells with one or more ocean neighbors.
@@ -350,17 +348,17 @@ contains
 
              !WHL - commented out m_sr; just using the prescribed melt rate with thck_submerged
              !TODO - Question: What happens to the ice above sea level? Should it collapse?
-             melt_thck(i,j) = melt_rate_const * dt * thck_submerged(i,j) * mf_length(i,j) / (dx*dy)
+             latmelt_thck(i,j) = melt_rate_const * dt * thck_submerged(i,j) * mf_length(i,j) / (dx*dy)
 
-             ! limit melt_thck and adjust thck
-             melt_thck (i,j) = min(melt_thck(i,j), thck(i,j))
-             thck(i,j) = thck(i,j) - melt_thck(i,j)
+             ! limit latmelt_thck and adjust thck
+             latmelt_thck (i,j) = min(latmelt_thck(i,j), thck(i,j))
+             thck(i,j) = thck(i,j) - latmelt_thck(i,j)
 
              if (verbose_latmelt) then
                 if (this_rank == rtest .and. i == itest .and. j == jtest) then
                    write(iulog,*) 'Constant lateral melting, rank, i, j:', this_rank, i, j
-                   write(iulog,*) 'melt rate (m/yr), Hsub, mf_length, melt_thck, new thck:', &
-                        melt_rate_const*scyr, thck_submerged(i,j), mf_length(i,j), melt_thck(i,j), thck(i,j)
+                   write(iulog,*) 'melt rate (m/yr), Hsub, mf_length, latmelt_thck, new thck:', &
+                        melt_rate_const*scyr, thck_submerged(i,j), mf_length(i,j), latmelt_thck(i,j), thck(i,j)
                 endif
              endif
 

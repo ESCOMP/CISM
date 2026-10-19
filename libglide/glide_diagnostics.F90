@@ -601,12 +601,11 @@ contains
        endif
 
        ! total lateral melt rate (m^3/yr ice)
-       ! Note: lateral_melt%melt_rate has units of m/yr ice
-       !TODO - Is it actually in m/s ice?
-       tot_latmelt = parallel_global_sum(model%lateral_melt%melt_rate*cell_area, parallel)
+       ! Note: latmelt_rate has units of m/yr ice
+       tot_latmelt = parallel_global_sum(model%lateral_melt%latmelt_rate*cell_area, parallel)
 
        ! total lateral melt mass balance flux (kg/s, negative for ice loss by melting)
-       tot_latmelt_flux = -tot_latmelt * rhoi / scyr   ! convert m^3/yr to kg/s
+       tot_latmelt_flux = -tot_latmelt * rhoi/scyr    ! convert m^3/yr to kg/s
 
        ! mean lateral melt rate (m/yr)
        ! Note: This will be only approximate if some ice has melted completely during the time step
