@@ -611,18 +611,18 @@ factor:        scyr
 dimensions:    time, y1, x1
 units:         meter
 long_name:     thickness of ice melting laterally
-data:          data%lateral_melt%melt_thck
+data:          data%lateral_melt%latmelt_thck
 
 [latmelt_rate]
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     rate of ice loss by lateral melt
-data:          data%lateral_melt%melt_rate
+data:          data%lateral_melt%latmelt_rate
 average:       1
 
 [melt_front_mask]
 dimensions:    time, y1, x1
-units:         meter/year
+units:         1
 long_name:     lateral melt front mask
 data:          data%lateral_melt%melt_front_mask
 

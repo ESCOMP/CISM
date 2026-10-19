@@ -527,12 +527,12 @@ contains
 
     ! Note on units: model%basal_melt%bmlt has units of m/s ice
     !                Multiply by rhoi to convert to kg/m^2/s water equiv.
-    !                model%lateral_melt%melt_thck has units of m of ice;
+    !                model%lateral_melt%latmelt_thck has units of m of ice;
     !                multiply by rhoi and divide by dt to convert to kg/m^2/s.
 
     ! Convert to kg/m^2/s
     rofl_tavg(:,:) = rofl_tavg(:,:)  + model%basal_melt%bmlt(:,:) * rhoi &
-                   + model%lateral_melt%melt_thck(:,:) * rhoi / model%numerics%dt
+                   + model%lateral_melt%latmelt_thck(:,:) * rhoi / model%numerics%dt
 
     !--------------------------------------------------------------------
     ! Accumulate basal heat flux
