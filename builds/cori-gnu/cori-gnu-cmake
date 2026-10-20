@@ -18,8 +18,6 @@
 # CISM_ENABLE_BISICLES -- OFF by default, set to ON to build a BISICLES-capable cism_driver.
 # CISM_ENABLE_FELIX -- OFF by default, set to ON to build a FELIX-capable cism_driver.
 # CISM_USE_TRILINOS -- OFF by default, set to on for builds with Trilinos.
-# CISM_MPI_MODE -- ON by default, only set to OFF for serial builds.
-# CISM_SERIAL_MODE -- OFF by default, set to ON for serial builds.
 # CISM_USE_GPTL_INSTRUMENTATION -- ON by default, set to OFF to not use GPTL instrumentation.
 # CISM_COUPLED -- OFF by default, set to ON to build with CESM.
 
@@ -72,8 +70,6 @@ cmake \
   -D CISM_ENABLE_FELIX=OFF \
 \
   -D CISM_USE_TRILINOS:BOOL=ON \
-  -D CISM_MPI_MODE:BOOL=ON \
-  -D CISM_SERIAL_MODE:BOOL=OFF \
 \
   -D CISM_USE_GPTL_INSTRUMENTATION:BOOL=ON \
   -D CISM_COUPLED:BOOL=OFF \

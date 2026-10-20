@@ -25,19 +25,13 @@ executable, e.g.:
 ln -s ../../../builds/mac-gnu/cism_driver/cism_driver
 ```
 
-For a serial build, the EISMINT-1, moving margin, test case 3 can be run using:
+The ELRA isostasy test case can be run on one processor using:
 
 ```sh
-./cism_driver isos.elra.config
+mpirun -np 1 ./cism_driver isos.elra.config
 ```
 
 and likewise for other test cases.
-
-For a parallel build, one would use:
-
-```sh
-mpirun -np 1 ./cism_driver isos.elra.config 
-```
 
 To view the results use ncview or another utility for viewing netCDF files.
 

@@ -9,13 +9,7 @@ executable, e.g.:
 ln -s ../../../builds/mac-gnu/cism_driver/cism_driver
 ```
 
-For a serial build, EISMINT-2 test A can be run using:
-
-```sh
-./cism_driver e2.a.config
-```
-
-For a parallel build, one would use:
+EISMINT-2 test A can be run on one processor using:
 
 ```sh
 mpirun -np 1 ./cism_driver e2.a.config

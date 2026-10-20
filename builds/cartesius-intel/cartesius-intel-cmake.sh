@@ -7,7 +7,7 @@
 # Set path to top cism directory
 # Note, this is an easy way to build out of source.
 # In directory you want to build in, run:
-#  source $CISM/builds/cartesius-intel/cartesius-intel-serial-cmake $CISM
+#  source $CISM/builds/cartesius-intel/cartesius-intel-cmake.sh $CISM
 # where $CISM is the path to the top level cism directory.
 if [ $# -eq 0 ]
 then
@@ -62,8 +62,6 @@ cmake \
   -D CISM_ENABLE_FELIX=OFF \
 \
   -D CISM_USE_TRILINOS:BOOL=OFF \
-  -D CISM_MPI_MODE:BOOL=ON \
-  -D CISM_SERIAL_MODE:BOOL=OFF \
 \
   -D CISM_USE_GPTL_INSTRUMENTATION:BOOL=OFF \
   -D CISM_COUPLED:BOOL=OFF \
