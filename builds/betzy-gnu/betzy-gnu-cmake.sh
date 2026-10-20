@@ -1,4 +1,4 @@
-# Run this script by typing: source cheyenne-intel-cmake
+# Run this script by typing: source betzy-gnu-cmake.sh
 # After this script completes, type: make -j 8
 # If rebuilding, type 'make clean' before running 'make -j 8'
 
