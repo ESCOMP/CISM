@@ -25,8 +25,6 @@ echo "Doing CMake Configuration step"
 # with the CESM build for simplicity.
 cmake \
   -D CISM_BUILD_CISM_DRIVER:BOOL=ON \
-  -D CISM_ENABLE_BISICLES=OFF \
-  -D CISM_ENABLE_FELIX=OFF \
 \
   -D CISM_USE_TRILINOS:BOOL=OFF \
 \

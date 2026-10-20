@@ -31,8 +31,7 @@
 module cism_front_end
   ! The CISM front-end is used to connect both the standalone driver
   ! (cism_driver) or the CISM interface to CESM (cism_cesm_interface),
-  ! to the internal and external dycore interface programs.  These are
-  !* cism_internal_dycore_interface and cism_external_dycore_interface.
+  ! to the dycore.
 
 contains
 
@@ -54,9 +53,6 @@ subroutine cism_init_dycore(model)
   use glide_stop, only: glide_finalise
   use glide_diagnostics
   use profile, only: profile_init, t_startf, t_stopf, t_adj_detailf
-!  use glimmer_to_dycore
-
-  use cism_external_dycore_interface
 
   implicit none
 
@@ -65,8 +61,6 @@ subroutine cism_init_dycore(model)
   type(ConfigSection), pointer :: config  ! configuration stuff
   real(kind=dp) :: time                   ! model time in years
   integer :: clock,clock_rate
-
-  integer*4 external_dycore_model_index
 
   integer :: wd
   logical :: do_glide_init
@@ -114,7 +108,6 @@ subroutine cism_init_dycore(model)
   call eismint_initialise(model%eismint_climate,config)
 
   wd = model%options%whichdycore 
-!  do_glide_init = (wd == DYCORE_GLIDE) .OR. (wd == DYCORE_BISICLES) .OR. (wd == DYCORE_ALBANYFELIX)
   do_glide_init = (wd == DYCORE_GLIDE)
 
   if (do_glide_init) then
@@ -147,86 +140,64 @@ subroutine cism_init_dycore(model)
 
   call t_stopf('initialization')
 
-  if (model%options%whichdycore == DYCORE_BISICLES) then
-    call t_startf('initial_diag_var_solve')
-
-    if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
-      ! disable further profiling in normal usage
-      call t_adj_detailf(+10)
-    endif
-
-    call cism_init_external_dycore(model%options%external_dycore_type,model)
-
-    if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
-      ! restore profiling to normal settings
-      call t_adj_detailf(-10)
-    endif
-
-    call t_stopf('initial_diag_var_solve')
-  endif
-
-  if (model%options%whichdycore .ne. DYCORE_BISICLES) then
   !MJH Created this block here to fill out initial state without needing to enter time stepping loop.  This allows
   ! a run with tend=tstart to be run without time-stepping at all.  It requires solving all diagnostic (i.e. not
   ! time depdendent) variables (most important of which is velocity) for the initial state and then writing the 
   ! initial state as time 0 (or more accurately, as time=tstart).  Also, halo updates need to occur after the 
   ! diagnostic variables are calculated.
 
-  ! ------------- Calculate initial state and output it -----------------
+! ------------- Calculate initial state and output it -----------------
 
-    call t_startf('initial_diag_var_solve')
+  call t_startf('initial_diag_var_solve')
 
-    select case (model%options%whichdycore)
-      case (DYCORE_GLIDE)
+  select case (model%options%whichdycore)
+    case (DYCORE_GLIDE)
 
-        if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
-          ! disable further profiling in normal usage
-          call t_adj_detailf(+10)
-        endif
+      if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
+        ! disable further profiling in normal usage
+        call t_adj_detailf(+10)
+      endif
 
-        ! Don't call glide_init_state_diagnostic when running old glide
-        ! Instead, start with zero velocity
-        if (.not. oldglide) then
-          call glide_init_state_diagnostic(model)
-        endif
+      ! Don't call glide_init_state_diagnostic when running old glide
+      ! Instead, start with zero velocity
+      if (.not. oldglide) then
+        call glide_init_state_diagnostic(model)
+      endif
 
-        if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
-          ! restore profiling to normal settings
-          call t_adj_detailf(-10)
-        endif
+      if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
+        ! restore profiling to normal settings
+        call t_adj_detailf(-10)
+      endif
 
-      case (DYCORE_GLAM, DYCORE_GLISSADE, DYCORE_ALBANYFELIX)
+    case (DYCORE_GLAM, DYCORE_GLISSADE)
 
-        if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
-          ! disable further profiling in normal usage
-          call t_adj_detailf(+10)
-        endif
+      if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
+        ! disable further profiling in normal usage
+        call t_adj_detailf(+10)
+      endif
 
-        ! solve the remaining diagnostic variables for the initial state
-        call glissade_diagnostic_variable_solve(model)  ! velocity, usrf, etc.
+      ! solve the remaining diagnostic variables for the initial state
+      call glissade_diagnostic_variable_solve(model)  ! velocity, usrf, etc.
 
-        if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
-          ! restore profiling to normal settings
-          call t_adj_detailf(-10)
-        endif
+      if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
+        ! restore profiling to normal settings
+        call t_adj_detailf(-10)
+      endif
 
-        case default
+      case default
 
-    end select
+  end select
 
-    call t_stopf('initial_diag_var_solve')
+  call t_stopf('initial_diag_var_solve')
 
-    ! Write initial diagnostic output to log file
-    ! Note: tstep_count is set to 0 at model initialization and then is incremented in cism_run_dycore
-    !  before each call to a dycore.
+  ! Write initial diagnostic output to log file
+  ! Note: tstep_count is set to 0 at model initialization and then is incremented in cism_run_dycore
+  !  before each call to a dycore.
 
-    call t_startf('initial_write_diagnostics')
-    call glide_write_diagnostics(model,        time,       &
-                                 tstep_count = model%numerics%tstep_count)
-    call t_stopf('initial_write_diagnostics')
-
-  end if ! whichdycore .ne. DYCORE_BISICLES
-
+  call t_startf('initial_write_diagnostics')
+  call glide_write_diagnostics(model,        time,       &
+                               tstep_count = model%numerics%tstep_count)
+  call t_stopf('initial_write_diagnostics')
 
   ! --- Output the initial state -------------
   ! Note: For a standard restart, the initial state is not output, because this state
@@ -259,30 +230,20 @@ subroutine cism_run_dycore(model)
   use glide_diagnostics
   use profile, only: t_startf, t_stopf
 
-  use cism_external_dycore_interface
-
   implicit none
 
 
   type(glide_global_type) :: model        ! model instance
   type(ConfigSection), pointer :: config  ! configuration stuff
   real(kind=dp) :: time                   ! model time in years
-  real(kind=dp) :: dt                     ! current time step to use
   real(kind=dp) :: time_eps               ! tolerance within which times are equal 
   integer :: clock,clock_rate
-
-  integer*4 :: external_dycore_model_index
-
-!  external_dycore_model_index = this_rank + 1
-  external_dycore_model_index = 1
 
   time = model%numerics%tstart
   time_eps = model%numerics%tinc/1000.0d0
 
   ! ------------- Begin time step loop -----------------
  
-  ! run an internal or external dycore, depending on setting external_dycore_type
-
   ! check if we're doing any evolution
   if (time < model%numerics%tend) then
     do while(time + time_eps < model%numerics%tend)
@@ -301,14 +262,9 @@ subroutine cism_run_dycore(model)
       call t_stopf('read_forcing')
 
       ! Increment time step
-      if (model%options%whichdycore /= DYCORE_BISICLES) then
-        time = time + model%numerics%tinc
-        model%numerics%time = time  ! TODO This is redundant with what is happening in glide/glissade, but this is needed for forcing to work properly.
-      endif
-! write(iulog,*) "external_dycore_type: ",model%options%external_dycore_type
+      time = time + model%numerics%tinc
+      model%numerics%time = time  ! TODO This is redundant with what is happening in glide/glissade, but this is needed for forcing to work properly.
 
-      !if (model%options%external_dycore_type .EQ. 0) then      ! NO_EXTERNAL_DYCORE) then
-      !  if (model%options%whichdycore == DYCORE_GLIDE) then
       call t_startf('tstep')
 
       select case (model%options%whichdycore)
@@ -326,27 +282,15 @@ subroutine cism_run_dycore(model)
           call glide_tstep_p3(model)
           call t_stopf('glide_tstep_p3')
 
-        case (DYCORE_GLAM, DYCORE_GLISSADE, DYCORE_ALBANYFELIX)
+        case (DYCORE_GLAM, DYCORE_GLISSADE)
           ! glam/glissade dycore
 
           call glissade_tstep(model,time)
 
-        case (DYCORE_BISICLES)
-          ! write(iulog,*) 'Using External Dycore'
-          ! The time variable gets incremented within this call:
-          dt = model%numerics%tinc
-        
-          if (time + dt + time_eps > model%numerics%tend) then
-             dt = model%numerics%tend - time
-          endif
-          call cism_run_external_dycore(model%options%external_dycore_model_index, &
-                                        time,dt)
-          ! time = time + model%numerics%tinc
         case default
       end select
 
       call t_stopf('tstep')
-      !endif
 
 !      write(iulog,*) 'Current time, tstep_count =', model%numerics%time, model%numerics%tstep_count
 
@@ -412,8 +356,6 @@ subroutine cism_finalize_dycore(model)
   use glide_diagnostics
   use profile, only: t_startf, t_stopf
 
-  use cism_external_dycore_interface
-  
   implicit none
 
   type(glide_global_type) :: model        ! model instance
@@ -423,15 +365,6 @@ subroutine cism_finalize_dycore(model)
 
   ! finalise GLIDE
   call glide_finalise(model)
-
-  ! (DFM) -- finalize external dycores 
-  if (model%options%whichdycore == DYCORE_BISICLES) then
-    call t_startf('finalize_external_dycore')
-    call cism_finalize_external_dycore(model%options%external_dycore_type,model)
-    call t_stopf('finalize_external_dycore')
-  endif
-
-
 
   !TODO - Do we need to call glimmer_write_stats?
 #if (! defined CCSMCOUPLED && ! defined CESMTIMERS)

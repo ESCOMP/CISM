@@ -2,14 +2,11 @@
 
 # This cmake configuration script builds cism_driver on a Mac using the Gnu compiler suite.
 # If Trilinos is used, it relies on a build of Trilinos located in $CISM_TRILINOS_DIR (set below).
-# If BISICLES is used, it relies on a build of BISICLES located in $BISICLES_INTERFACE_DIR (set below).
 
 # BUILD OPTIONS:
 # The call to cmake below includes several input ON/OFF switch parameters, to
 # provide a simple way to select different build options.  These are:
 # CISM_BUILD_CISM_DRIVER -- ON by default, set to OFF to only build the CISM libraries.
-# CISM_ENABLE_BISICLES -- OFF by default, set to ON to build a BISICLES-capable cism_driver.
-# CISM_ENABLE_FELIX -- OFF by default, set to ON to build a FELIX-capable cism_driver.
 # CISM_USE_TRILINOS -- OFF by default, set to on for builds with Trilinos.
 # CISM_USE_GPTL_INSTRUMENTATION -- ON by default, set to OFF to not use GPTL instrumentation.
 # CISM_COUPLED -- OFF by default, set to ON to build with CESM.
@@ -44,8 +41,6 @@ echo "Doing CMake Configuration step"
 
 cmake \
   -D CISM_BUILD_CISM_DRIVER:BOOL=ON \
-  -D CISM_ENABLE_BISICLES=OFF \
-  -D CISM_ENABLE_FELIX=OFF \
 \
   -D CISM_USE_TRILINOS:BOOL="${CISM_USE_TRILINOS:=OFF}" \
 \
@@ -69,6 +64,5 @@ cmake \
   -D CMAKE_CXX_FLAGS="" \
   -D CMAKE_Fortran_FLAGS="-g -O2 -ffree-line-length-none" \
 \
-  -D BISICLES_INTERFACE_DIR=~/BISICLES/CISM-interface/interface \
   "${cism_top}"
 
