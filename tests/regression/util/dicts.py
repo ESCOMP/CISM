@@ -108,33 +108,14 @@ perf_dict = {
 # the default batch scheduler options to use. Additionally, there is an
 # optional 'RUN_CMD' key whose value will replace the run command ('aprun' is
 # the default).
-hopper_dict = {
-        'PBS_A': 'm1795',
-        'PBS_q': 'regular',
-        'PBS_N': 'reg_test_all',
-        'PBS_RES': 'mppwidth',
-        'RES_NUM': '24',
-        'PBS_walltime': '01:00:00',
-        }
-
-
-titan_dict = {
-        'PBS_A': 'cli106ice',
-        'PBS_q': 'batch',
-        'PBS_N': 'reg_test_all',
-        'PBS_RES': 'nodes',
-        'RES_NUM': '1',
-        'PBS_walltime': '01:00:00',
-        }
-
-cheyenne_dict = {
+derecho_dict = {
         'PBS_A': 'P93300601',
-        'PBS_q': 'regular',
+        'PBS_q': 'main',
         'PBS_N': 'reg_test_all',
         'PBS_RES': 'select',
-        'RES_NUM': '2:ncpus=36:mpiprocs=36',
-        'PBS_walltime': '01:00:00',
-        'RUN_CMD': 'mpiexec_mpt',
+        'RES_NUM': '2:ncpus=128:mpiprocs=128',
+        'PBS_walltime': '02:00:00',
+        'RUN_CMD': 'mpiexec',
         }
 
 
@@ -142,7 +123,5 @@ cheyenne_dict = {
 # ===================
 # Collection of all the HPC platform dictionaries. 
 hpc_dict = {
-        'titan': titan_dict,
-        'hopper': hopper_dict,
-        'cheyenne': cheyenne_dict,
+        'derecho': derecho_dict,
         }

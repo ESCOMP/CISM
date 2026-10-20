@@ -86,10 +86,16 @@ def create_job(args, job_name, p_replace, run_commands):
     Create the job script for the HPC queues.
     """
 
+    # Use a platform-specific job template if there is one
+    platform_key = args.platform.split("-")[0]
+    template_file = os.path.join('util', platform_key+'_job.template')
+    if not os.path.isfile(template_file):
+        template_file = os.path.join('util', 'job.template')
+
     with open(job_name, 'w') as job_file:
-        with open('util/job.template','r') as base_job: 
+        with open(template_file,'r') as base_job: 
             for line in base_job:
-                for src, target in p_replace.iteritems():
+                for src, target in p_replace.items():
                     line = line.replace(src, target)
                 job_file.write(line)
 
@@ -197,7 +203,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
     small_run_commands = []
     for rf in small_run_files:
         with open(rf,'r') as rfo:
-            rfo.next() # skip shebang
+            next(rfo) # skip shebang
             for command in rfo:
                 small_run_commands.append(command)
 
@@ -269,7 +275,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
     large_run_commands = []
     for rf in large_run_files:
         with open(rf,'r') as rfo:
-            rfo.next() # skip shebang
+            next(rfo) # skip shebang
             for command in rfo:
                 large_run_commands.append(command)
 
@@ -279,8 +285,8 @@ def hpc(args, cism_driver, data_dir, test_dict):
     # create the default job script.
     platform_dict['PBS_N'] = 'large'
     platform_dict['PBS_walltime'] = '01:00:00'
-    if platform_key.lower() == 'hopper':
-        platform_dict['RES_NUM'] = str(11*24)
+    if platform_key.lower() == 'derecho':
+        platform_dict['RES_NUM'] = '2:ncpus=128:mpiprocs=128'
     else:
         platform_dict['RES_NUM'] = '16'
     
@@ -309,7 +315,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
             small_timing_run_commands = []
             for rf in subset_run_files:
                 with open(rf,'r') as rfo:
-                    rfo.next() # skip shebang
+                    next(rfo) # skip shebang
                     for command in rfo:
                         small_timing_run_commands.append(command)
 
@@ -319,8 +325,8 @@ def hpc(args, cism_driver, data_dir, test_dict):
             # create the default job script.
             platform_dict['PBS_N'] = 'small_timing_'+str(rnd)
             platform_dict['PBS_walltime'] = '1:00:00'
-            if platform_key.lower() == 'hopper':
-                platform_dict['RES_NUM'] = str(1*24)
+            if platform_key.lower() == 'derecho':
+                platform_dict['RES_NUM'] = '1:ncpus=128:mpiprocs=128'
             else:
                 platform_dict['RES_NUM'] = '1'
             
@@ -345,7 +351,7 @@ def hpc(args, cism_driver, data_dir, test_dict):
             large_timing_run_commands = []
             for rf in subset_run_files:
                 with open(rf,'r') as rfo:
-                    rfo.next() # skip shebang
+                    next(rfo) # skip shebang
                     for command in rfo:
                         large_timing_run_commands.append(command)
 
@@ -354,11 +360,10 @@ def hpc(args, cism_driver, data_dir, test_dict):
 
             # create the default job script.
             platform_dict['PBS_N'] = 'large_timing_'+str(rnd)
-            if platform_key.lower() == 'hopper':
-                platform_dict['PBS_walltime'] = '20:00'
-                platform_dict['RES_NUM'] = str(11*24)
+            platform_dict['PBS_walltime'] = '00:20:00'
+            if platform_key.lower() == 'derecho':
+                platform_dict['RES_NUM'] = '2:ncpus=128:mpiprocs=128'
             else:
-                platform_dict['PBS_walltime'] = '00:20:00'
                 platform_dict['RES_NUM'] = '16'
             
             large_timing_job_name = os.path.join(jobs_dir, platform_key+'_job.large_timing_'+str(rnd))

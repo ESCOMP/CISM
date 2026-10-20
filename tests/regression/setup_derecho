@@ -1,19 +1,7 @@
-module load intel
-##module load git
+# Load the modules needed to build CISM and run BATS on derecho.
+# Run this from $CISM/tests/regression: source setup_derecho
+source ../../builds/derecho-intel/derecho-intel-modules
 module load conda
 conda activate npl
-
-##module load jupyter
-
-##module load wrapt
-##module load pylint
-
-##module load numpy
-
-##module load numexpr
-##module load bottleneck
-##module load pandas
-
-##module load netcdf4-python
 
 module list
