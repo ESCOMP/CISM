@@ -38,8 +38,6 @@ echo "Doing CMake Configuration step"
 cmake \
   -D CISM_BUILD_CISM_DRIVER:BOOL=ON \
 \
-  -D CISM_USE_TRILINOS:BOOL=OFF \
-\
   -D CISM_USE_GPTL_INSTRUMENTATION:BOOL="${CISM_USE_GPTL_INSTRUMENTATION:=ON}" \
   -D CISM_COUPLED:BOOL=OFF \
   -D CISM_USE_CISM_FRONT_END:BOOL=OFF \
@@ -48,7 +46,6 @@ cmake \
   -D CISM_GPTL_DIR= "utils/libgptl" \
   -D CMAKE_VERBOSE_MAKEFILE:BOOL=OFF \
 \
-  -D CMAKE_CXX_COMPILER=mpiicpc \
   -D CMAKE_C_COMPILER=mpicc \
   -D CMAKE_Fortran_COMPILER=mpif90 \
 \
@@ -56,6 +53,5 @@ cmake \
 \
   -D CMAKE_Fortran_FLAGS:STRING="-qno-opt-dynamic-align  -convert big_endian -assume byterecl -ftz -traceback -assume realloc_lhs -fp-model source -qopt-report -O2 -debug minimal " \
   -D CMAKE_C_FLAGS:STRING="-qno-opt-dynamic-align -fp-model precise -std=gnu99 -qopt-report -O2 -debug minimal " \
-  -D CMAKE_CXX_FLAGS:STRING="-qno-opt-dynamic-align -fp-model precise -std=gnu99 -qopt-report -O2 -debug minimal " \
   "${cism_top}"
 

@@ -79,16 +79,6 @@
          pcg_solver_chrongear_3d,  pcg_solver_chrongear_2d, &
          matvec_multiply_structured_3d
 
-#ifdef TRILINOS
-    use glissade_velo_higher_trilinos, only: &
-         trilinos_fill_pattern_3d,     trilinos_fill_pattern_2d,     &
-         trilinos_global_id_3d,        trilinos_global_id_2d,        &
-         trilinos_assemble_3d,         trilinos_assemble_2d,         &
-         trilinos_init_velocity_3d,    trilinos_init_velocity_2d,    &
-         trilinos_extract_velocity_3d, trilinos_extract_velocity_2d, &
-         trilinos_test
-#endif
-
     use cism_parallel, only: this_rank, main_task, nhalo, tasks, &
          parallel_type, parallel_halo, staggered_parallel_halo, parallel_globalindex, &
          parallel_global_sum, parallel_global_sum_stagger, &
@@ -223,8 +213,6 @@
 !    logical :: verbose_basal = .true.
     logical :: verbose_bfric = .false.
 !    logical :: verbose_bfric = .true.
-    logical :: verbose_trilinos = .false.
-!    logical :: verbose_trilinos = .true.
     logical :: verbose_beta = .false.
 !    logical :: verbose_beta = .true.
     logical :: verbose_efvs = .false.
@@ -784,7 +772,7 @@
                                 ! (calculate it or make it uniform)
        whichresid, &            ! option for method of calculating residual
        whichsparse, &           ! option for method of doing elliptic solve
-                                ! (BiCG, GMRES, standalone Trilinos, etc.)
+                                ! (BiCG, GMRES, native PCG, etc.)
        whichnonlinear, &        ! option for nonlinear solver
                                 ! (standard or accelerated Picard)
        whichapprox, &           ! option for which Stokes approximation to use
@@ -906,7 +894,7 @@
        Avu, Avv           ! 1st dimension = 27 (node and its nearest neighbors in x, y and z direction) 
                           ! other dimensions = (k,i,j)
 
-    ! The following are used for the SLAP and Trilinos solvers
+    ! The following are used for the SLAP solver
 
     integer ::            &
        nNodesSolve        ! number of nodes where we solve for velocity
@@ -918,23 +906,6 @@
 
     integer, dimension((nx-1)*(ny-1)*nz) ::   &
        iNodeIndex, jNodeIndex, kNodeIndex   ! i, j and k indices of nodes
-
-    ! The following are used for the Trilinos solver only
-
-    integer, dimension(nx-1,ny-1) ::  &
-       global_vertex_id    ! unique global IDs for vertices on this processor
-
-    integer, dimension(nz,nx-1,ny-1) ::  &
-       global_node_id      ! unique global IDs for nodes on this processor
-
-    integer, dimension(:), allocatable ::    &
-       active_owned_unknown_map    ! maps owned active unknowns (u and v at each active node) to global IDs
-
-    logical, dimension(:,:,:,:), allocatable ::  &
-       Afill               ! true wherever the matrix value is potentially nonzero
-
-    real(dp), dimension(:), allocatable ::   &
-       velocityResult     ! velocity solution vector from Trilinos
 
     ! The following are used for the SLAP solver only
 
@@ -980,10 +951,6 @@
 
     real(dp), dimension(:,:), allocatable ::  &
        resid_u_2d, resid_v_2d   ! components of 2D solution residual
-
-    logical, dimension(:,:,:), allocatable ::  &
-       Afill_2d           ! true wherever the matrix value is potentially nonzero
-                          ! 2D Trilinos only
 
     ! The following are used for the depth-integrated viscosity solve.
     ! Note: To support slope corrections, DIVA now has two version of beta_eff:
@@ -1031,10 +998,6 @@
     logical, parameter :: test_matrix = .false.
 !    logical, parameter :: test_matrix = .true.
     integer, parameter :: test_order = 4
-
-    ! for trilinos test problem
-    logical, parameter :: test_trilinos = .false.
-!    logical, parameter :: test_trilinos = .true.
 
     ! for diagnostic prints
     integer, parameter :: xmax_print = 20
@@ -1105,13 +1068,6 @@
        write(iulog,*) 'In glissade_velo_higher_solve'
        write(iulog,*) 'rank, itest, jtest, ktest =', rtest, itest, jtest, ktest
     endif
-
-#ifdef TRILINOS
-    if (test_trilinos) then
-       call trilinos_test
-       stop
-    endif
-#endif
 
     !--------------------------------------------------------
     ! Assign local pointers and variables to derived type components
@@ -1650,119 +1606,6 @@
        call point_diag(vertexID, 'vertexID', itest, jtest, rtest, 7, 7, '(i5)')
        call point_diag(nodeID(1,:,:), 'nodeID, k = 1', itest, jtest, rtest, 7, 7, '(i5)')
     endif
-
-    ! Initialization for the Trilinos solver
-    ! Allocate arrays, initialize the velocity solution, compute an array 
-    !  that maps the local index for owned active nodes to a unique global ID,
-    !  and communicate this array to Trilinos
-
-#ifdef TRILINOS
-    if (whichsparse == HO_SPARSE_TRILINOS) then   
-
-       if (solve_2d) then
-
-          allocate(active_owned_unknown_map(2*nVerticesSolve))
-          allocate(velocityResult(2*nVerticesSolve))
-          allocate(Afill_2d(nx-1,ny-1,nNodeNeighbors_2d))
-
-          !----------------------------------------------------------------
-          ! Compute global IDs needed to initialize the Trilinos solver
-          !----------------------------------------------------------------
-
-          call t_startf('glissade_trilinos_glbid')
-          call trilinos_global_id_2d(nx,             ny,           &
-                                     parallel,                     &
-                                     nVerticesSolve,               &
-                                     iVertexIndex,   jVertexIndex, &
-                                     global_vertex_id,             &
-                                     active_owned_unknown_map)
-          call t_stopf('glissade_trilinos_glbid')
-
-          !----------------------------------------------------------------
-          ! Send this information to Trilinos (trilinosGlissadeSolver.cpp)
-          !----------------------------------------------------------------
-
-          call t_startf('glissade_init_tgs')
-          call initializetgs(2*nVerticesSolve, active_owned_unknown_map, comm)
-          call t_stopf('glissade_init_tgs')
-
-          !----------------------------------------------------------------
-          ! If this is the first outer iteration, then save the pattern of matrix
-          ! values that are potentially nonzero and should be sent to Trilinos.
-          ! Trilinos requires that this pattern remains fixed during the outer loop.
-          !----------------------------------------------------------------
-
-          call t_startf('glissade_trilinos_fill_pattern')
-          call trilinos_fill_pattern_2d(nx,            ny,              &
-                                        active_vertex, nVerticesSolve,  &
-                                        iVertexIndex,  jVertexIndex,    &
-                                        indxA_2d,      Afill_2d)
-          call t_stopf('glissade_trilinos_fill_pattern')
-
-          !----------------------------------------------------------------
-          ! Initialize the solution vector from uvel/vvel.
-          !----------------------------------------------------------------
-
-          call trilinos_init_velocity_2d(nx,           ny,           &
-                                         nVerticesSolve,             &
-                                         iNodeIndex,   jNodeIndex,   &
-                                         uvel_2d,      vvel_2d,      &
-                                         velocityResult)
-
-       else   ! 3D solve
-
-          allocate(active_owned_unknown_map(2*nNodesSolve))
-          allocate(velocityResult(2*nNodesSolve))
-          allocate(Afill(nNodeNeighbors_3d,nz,nx-1,ny-1))
-
-          !----------------------------------------------------------------
-          ! Compute global IDs needed to initialize the Trilinos solver
-          !----------------------------------------------------------------
-
-          call t_startf('glissade_trilinos_glbid')
-          call trilinos_global_id_3d(nx,         ny,         nz,   &
-                                     parallel,                     &
-                                     nNodesSolve,                  &
-                                     iNodeIndex, jNodeIndex, kNodeIndex,  &
-                                     global_node_id,               &
-                                     active_owned_unknown_map)
-          call t_stopf('glissade_trilinos_glbid')
-
-          !----------------------------------------------------------------
-          ! Send this information to Trilinos (trilinosGlissadeSolver.cpp)
-          !----------------------------------------------------------------
-
-          call t_startf('glissade_init_tgs')
-          call initializetgs(2*nNodesSolve, active_owned_unknown_map, comm)
-          call t_stopf('glissade_init_tgs')
-
-          !----------------------------------------------------------------
-          ! If this is the first outer iteration, then save the pattern of matrix
-          ! values that are potentially nonzero and should be sent to Trilinos.
-          ! Trilinos requires that this pattern remains fixed during the outer loop.
-          !----------------------------------------------------------------
-
-          call t_startf('glissade_trilinos_fill_pattern')
-          call trilinos_fill_pattern_3d(nx,            ny,           nz,   &
-                                        active_vertex, nNodesSolve,        &
-                                        iNodeIndex,    jNodeIndex,   kNodeIndex,  &
-                                        indxA_3d,      Afill)
-                                     
-          call t_stopf('glissade_trilinos_fill_pattern')
-
-          !----------------------------------------------------------------
-          ! Initialize the solution vector from uvel/vvel.
-          !----------------------------------------------------------------
-
-          call trilinos_init_velocity_3d(nx,           ny,                       &
-                                         nz,           nNodesSolve,              &
-                                         iNodeIndex,   jNodeIndex,  kNodeIndex,  &
-                                         uvel,         vvel,                     &
-                                         velocityResult)
-
-       endif   ! whichapprox
-    endif      ! whichsparse
-#endif
 
     !------------------------------------------------------------------------------
     ! Initialize the basal traction parameter, beta_internal.
@@ -3301,104 +3144,6 @@
 
           call t_stopf('glissade_pcg_slv_struct')
 
-#ifdef TRILINOS
-       elseif (whichsparse == HO_SPARSE_TRILINOS) then   ! solve with Trilinos
-
-          !------------------------------------------------------------------------
-          ! Compute the residual vector and its L2 norm
-          !------------------------------------------------------------------------
-
-          if (solve_2d) then
-
-             !------------------------------------------------------------------------
-             ! Given Auu, bu, etc., assemble the matrix and RHS in a form
-             ! suitable for Trilinos
-             !------------------------------------------------------------------------
-
-             if (verbose_trilinos .and. main_task) then
-                write(iulog,*) 'L2_norm, L2_target =', L2_norm, L2_target
-                write(iulog,*) 'Assemble matrix for Trilinos'
-             endif
-
-             call t_startf('glissade_trilinos_assemble')
-             call trilinos_assemble_2d(nx,             ny,               &   
-                                       nVerticesSolve, global_vertex_id, &
-                                       iVertexIndex,   jVertexIndex,     &
-                                       indxA_2d,       Afill_2d,         &
-                                       Auu_2d,         Auv_2d,           &
-                                       Avu_2d,         Avv_2d,           &
-                                       bu_2d,          bv_2d)
-             call t_stopf('glissade_trilinos_assemble')
-
-             !------------------------------------------------------------------------
-             ! Solve the linear matrix problem
-             !------------------------------------------------------------------------
-
-             if (verbose_trilinos .and. main_task) write(iulog,*) 'Solve the matrix using Trilinos'
-
-             call t_startf('glissade_vel_tgs')
-             call solvevelocitytgs(velocityResult)
-             call t_stopf('glissade_vel_tgs')
-
-             !------------------------------------------------------------------------
-             ! Put the velocity solution back into 2D arrays
-             !------------------------------------------------------------------------
-
-             call t_startf('glissade_trilinos_post')
-             call trilinos_extract_velocity_2d(nx,            ny,           &
-                                               nVerticesSolve,              &
-                                               iVertexIndex,  jVertexIndex, &
-                                               velocityResult,              &
-                                               uvel_2d,       vvel_2d)
-             call t_stopf('glissade_trilinos_post')
-
-          else   ! 3D solve
-
-             !------------------------------------------------------------------------
-             ! Given Auu, bu, etc., assemble the matrix and RHS in a form
-             ! suitable for Trilinos
-             !------------------------------------------------------------------------
-
-             if (verbose_trilinos .and. main_task) then
-                write(iulog,*) 'L2_norm, L2_target =', L2_norm, L2_target
-                write(iulog,*) 'Assemble matrix for Trilinos'
-             endif
-
-             call t_startf('glissade_trilinos_assemble')
-             call trilinos_assemble_3d(nx,           ny,            nz,  &   
-                                       nNodesSolve,  global_node_id,     &
-                                       iNodeIndex,   jNodeIndex,    kNodeIndex,  &
-                                       indxA_3d,     Afill,              &
-                                       Auu,          Auv,                &
-                                       Avu,          Avv,                &
-                                       bu,           bv)
-             call t_stopf('glissade_trilinos_assemble')
-
-             !------------------------------------------------------------------------
-             ! Solve the linear matrix problem
-             !------------------------------------------------------------------------
-
-             if (verbose_trilinos .and. main_task) write(iulog,*) 'Solve the matrix using Trilinos'
-
-             call t_startf('glissade_vel_tgs')
-             call solvevelocitytgs(velocityResult)
-             call t_stopf('glissade_vel_tgs')
-
-             !------------------------------------------------------------------------
-             ! Put the velocity solution back into 3D arrays
-             !------------------------------------------------------------------------
-
-             call t_startf('glissade_trilinos_post')
-             call trilinos_extract_velocity_3d(nx,          ny,         nz,  &
-                                               nNodesSolve,                  &
-                                               iNodeIndex,  jNodeIndex, kNodeIndex, &
-                                               velocityResult,               &
-                                               uvel,        vvel)
-             call t_stopf('glissade_trilinos_post')
-
-          endif  ! whichapprox
-#endif
-
        else   ! one-processor SLAP solve   
           
           !------------------------------------------------------------------------
@@ -3497,12 +3242,9 @@
 
        endif   ! whichsparse 
 
-       if (whichsparse /= HO_SPARSE_TRILINOS) then
-          ! niters isn't set when using the trilinos solver
-          if (main_task .and. verbose_solver) then
-             write(iulog,*) 'Solved the linear system, niters, err =', niters, err
-          endif
-       end if
+       if (main_task .and. verbose_solver) then
+          write(iulog,*) 'Solved the linear system, niters, err =', niters, err
+       endif
 
        if (solve_2d) then
 
@@ -3824,18 +3566,6 @@
        deallocate(rhs, answer, resid_vec)
     endif
 
-#ifdef TRILINOS
-    if (whichsparse == HO_SPARSE_TRILINOS) then
-       deallocate(active_owned_unknown_map)
-       deallocate(velocityResult)
-       if (solve_2d) then
-          deallocate(Afill_2d)
-       else
-          deallocate(Afill)
-       endif
-    endif
-#endif
-
     if (solve_2d) then
        deallocate(Auu_2d, Auv_2d, Avu_2d, Avv_2d)
        deallocate(bu_2d, bv_2d)
@@ -3990,8 +3720,8 @@
     ! Active cells include all cells that contain ice (thck > thklim) and border locally owned vertices.
     ! Active vertices include all vertices of active cells.
     !
-    ! Also compute some indices needed for the SLAP and Trilinos solvers.
-    !TODO - Move SLAP/Trilinos part to a different subroutine?
+    ! Also compute some indices needed for the SLAP solver.
+    !TODO - Move SLAP part to a different subroutine?
     !----------------------------------------------------------------
 
     !----------------------------------------------------------------
@@ -4032,7 +3762,7 @@
     logical, dimension(nx-1,ny-1), intent(out) :: &
        active_vertex          ! true for vertices of active cells
 
-    ! The remaining input/output arguments are for the SLAP and Trilinos solvers
+    ! The remaining input/output arguments are for the SLAP solver
 
     integer, intent(out) :: &
        nNodesSolve,         & ! number of locally owned nodes where we solve for velocity
@@ -4105,7 +3835,7 @@
 
     ! Identify and count the nodes where we must solve for the velocity.
     ! This indexing is used for pre- and post-processing of the assembled matrix
-    !  when we call the SLAP or Trilinos solver (one processor only).
+    !  when we call the SLAP solver (one processor only).
     ! It is not required by the native PCG solver.
 
     nVerticesSolve  = 0
@@ -5018,8 +4748,7 @@
     !
     ! The native structured PCG solver works with the dense A matrices in the form
     ! computed here.  For the SLAP solver, the terms of the A matrices are put
-    ! in a sparse matrix format during preprocessing.  For the Trilinos solver,
-    ! the terms of the A matrices are passed to Trilinos one row at a time.
+    ! in a sparse matrix format during preprocessing.
     !----------------------------------------------------------------
 
     real(dp), dimension(nNodesPerElement_2d, nNodesPerElement_2d) ::   &   !
@@ -5390,8 +5119,7 @@
     !
     ! The native structured PCG solver works with the dense A matrices in the form
     ! computed here.  For the SLAP solver, the terms of the A matrices are put
-    ! in a sparse matrix during preprocessing.  For the Trilinos solver, the terms
-    ! of the A matrices are passed to Trilinos one row at a time.
+    ! in a sparse matrix during preprocessing.
     !----------------------------------------------------------------
 
     real(dp), dimension(nNodesPerElement_3d, nNodesPerElement_3d) ::   &   !

@@ -56,7 +56,6 @@ module glimmer_sparse
     integer, parameter :: SPARSE_SOLVER_GMRES = HO_SPARSE_GMRES         ! SLAP GMRES
     integer, parameter :: STANDALONE_PCG_STANDARD = HO_SPARSE_PCG_STANDARD     ! Native PCG, parallel-enabled, standard solver
     integer, parameter :: STANDALONE_PCG_CHRONGEAR = HO_SPARSE_PCG_CHRONGEAR    ! Native PCG, parallel-enabled, Chronopoulos-Gear solver
-    integer, parameter :: STANDALONE_TRILINOS_SOLVER = HO_SPARSE_TRILINOS  ! Trilinos solver
 
 contains
 

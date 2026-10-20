@@ -61,11 +61,6 @@ parser.add_argument('--performance', action='store_true',
 parser.add_argument('--sleep', type=unsigned_int, default=30,
         help="Number of seconds to sleep between checks on running tests. Only used on personal machines, when HPC platforms are detected, BATS does not run the tests and just creates the batch jobs.")
 
-#TODO: Use options to turn on and off dycores/trilinos in build ,
-#      And then update the [dycore, which_ho_sparse, which_ho_nonlinear]
-#      options in the config files (still todo -- option will need to be added
-#      to the test files run*.py).
-
 
 # sets up the default options in args. Will be overwritten when running in
 # script mode, and can be overwritten by calling the parse function.
@@ -111,15 +106,7 @@ def main():
         print("\nBuilding CISM")
         print(  "=============\n")
 
-        #TODO: turn on args.library option.
-        #if args.library and args.library.lower() == 'trilinos':
-        #    trilinos_string = "CISM_USE_TRILINOS=ON"
-        #else:
-        #    trilinos_string = "CISM_USE_TRILINOS=OFF"
-
         prep_commands = ["cd "+args.build_dir,
-                         #TODO: turn on args.library option.
-                         #"export "+trilinos_string,
                          "source "+os.path.join(args.cmake_dir, args.cmake_file)+" "+args.cism_dir,
                          "make -j "+str(args.j),
                          "exit"]
