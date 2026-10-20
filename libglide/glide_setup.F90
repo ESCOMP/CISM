@@ -62,6 +62,7 @@ contains
  
     use glide_types
     use glimmer_config
+    use glimmer_log
     implicit none
     type(glide_global_type) :: model        !> model instance
     type(ConfigSection), pointer :: config  !> structure holding sections of configuration file
@@ -93,10 +94,10 @@ contains
         call handle_ho_options(section, model)
     end if
 
-    ! read options for computation using an external dycore -- Doug Ranken 04/20/12
+    ! External dycores (BISICLES, Albany-FELIX) are no longer supported
     call GetSection(config,section,'external_dycore_options')
     if (associated(section)) then
-        call handle_dycore_options(section, model)
+       call write_log('Error, external dycores are no longer supported', GM_FATAL)
     end if
 
     ! read parameters
@@ -925,26 +926,6 @@ contains
 
 !--------------------------------------------------------------------------------
 
-  ! Handles external dycore options -- Doug Ranken 03/26/12
-  subroutine handle_dycore_options(section, model)
-    use glimmer_config
-    use glide_types
-    implicit none
-    type(ConfigSection), pointer :: section
-    type(glide_global_type) :: model
-    
-    call GetValue(section, 'external_dycore_type', model%options%external_dycore_type)
-    call GetValue(section, 'dycore_input_file',  model%options%dycore_input_file)
-    if (model%options%external_dycore_type .eq. 1) model%options%whichdycore = 4 ! DYCORE_BISICLES
-    if (model%options%external_dycore_type .eq. 2) model%options%whichdycore = 3 ! DYCORE_ALBANYFELIX
-
-    write(iulog,*) "In handle_dycore_options, external dycore type, input file = ", &
-             model%options%external_dycore_type,model%options%dycore_input_file 
-    ! write(iulog,*) "In handle_dycore_options, whichdycore = ",model%options%whichdycore
-  end subroutine handle_dycore_options
-
-!--------------------------------------------------------------------------------
-
   subroutine print_options(model)
 
     use glide_types
@@ -959,12 +940,10 @@ contains
 
     ! basic Glide/Glimmer options
 
-    character(len=*), dimension(0:4), parameter :: dycore = (/ &
+    character(len=*), dimension(0:2), parameter :: dycore = (/ &
          'glide              ', &  ! Glimmer SIA
          'glam               ', &  ! Payne-Price finite difference; no longer supported
-         'glissade           ', &  ! prototype finite element
-         'albany-felix       ', &  ! External Albany-FELIX finite element
-         'bisicles           ' /)  ! External BISICLES-Chombo FVM 
+         'glissade           ' /)  ! prototype finite element
 
     character(len=*), dimension(0:2), parameter :: compute_blocks = (/ &
          'compute on all blocks              ', &
@@ -1308,12 +1287,6 @@ contains
     if (model%options%whichdycore == DYCORE_GLAM) then
       call write_log('ERROR: The Glam dycore is no longer supported', GM_FATAL)
     endif
-    if (model%options%whichdycore == DYCORE_ALBANYFELIX) then
-      call write_log('WARNING: Albany-FELIX dycore is not currently scientifically supported.  USE AT YOUR OWN RISK.', GM_WARNING)
-    endif
-    if (model%options%whichdycore == DYCORE_BISICLES) then
-      call write_log('WARNING: BISICLES dycore is not currently scientifically supported.  USE AT YOUR OWN RISK.', GM_WARNING)
-    endif
 
     ! Forbidden options associated with the Glide dycore
     if (model%options%whichdycore == DYCORE_GLIDE) then
@@ -1413,11 +1386,6 @@ contains
           call write_log('Error, no-penetration BC requires glissade dycore', GM_FATAL)
        endif
 
-    endif
-
-    ! Config specific to Albany-Felix dycore   
-    if (model%options%whichdycore == DYCORE_ALBANYFELIX) then
-       call write_log('WARNING: Albany-FELIX dycore requires external libraries, and it is still in development!!!', GM_WARNING)
     endif
 
     !NOTE : Old option 3 (TEMP_REMAP_ADV) has been removed.

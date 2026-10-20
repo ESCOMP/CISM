@@ -77,8 +77,6 @@ module glide_types
 !      Might repurpose the '1' slot for a future version of Glissade.
   integer, parameter :: DYCORE_GLAM = 1         ! Payne-Price finite-difference solver
   integer, parameter :: DYCORE_GLISSADE = 2     ! prototype finite-element solver
-  integer, parameter :: DYCORE_ALBANYFELIX = 3  ! External Albany-Felix finite-element solver
-  integer, parameter :: DYCORE_BISICLES = 4     ! BISICLES-Chombo external FVM solver
 
   integer, parameter :: EVOL_PSEUDO_DIFF = 0    ! glide only
   integer, parameter :: EVOL_ADI = 1            ! glide only
@@ -474,8 +472,6 @@ module glide_types
     !> \item[0] Glide dycore (SIA, serial (SLAP) only)
     !> \item[1] Glam dycore (no longer supported!)
     !> \item[2] Glissade dycore (1st-order, FEM, serial (SLAP) or parallel (F90 native PCG solver) )
-    !> \item[3] FELIX-Albany dycore (1st-order, FEM, using Trilino/Albany, mesh information from Glissade)
-    !> \item[4] BISICLES dycore (L1L2, FVM, parallel using Chombo AMR)
     !> \end{description}
 
     integer :: whichevol = 0
@@ -990,19 +986,6 @@ module glide_types
     !> \item[4] standalone interface to Trilinos
     !> \end{description}
 
-    ! parameters to store external dycore options/information -- Doug Ranken 04/20/12
-    integer*4 :: external_dycore_type = 0
-    integer*4 :: external_dycore_model_index = -1  
-    !> Flag to select an external dynamic core.
-    !> \begin{description}
-    !> \item[0] Do not use an external dynamic core
-    !> \item[1] Use the BISICLES external dynamic core
-    !> \item[2] Use the ALBANY_FELIX external dynamic core
-    !> \end{description}
-
-    character(fname_length) :: dycore_input_file=''
-    !FD Name of a file containing external dycore settings.
-
     integer :: which_ho_approx = 2 
     !> Flag that indicates which Stokes approximation to use with the glissade dycore.
     !> Not valid for other dycores 
@@ -1250,9 +1233,6 @@ module glide_types
     !> see glide_mask.f90 for possible values
 
     !TODO - Move masks to a mask derived type?
-    !* (DFM ----------------- The following fields were added for BISICLES interface --------------)
-    !*SFP: These fields need to be passed to POP for ice ocean coupling
-    ! WHL: When Dan added the masks, he made them real-valued. They are now integers, which might break the POP coupling.
     real(dp),dimension(:,:),pointer :: lower_cell_loc => null()  !> z-location of the center of the lowest ice cell center
     real(dp),dimension(:,:),pointer :: lower_cell_temp => null() !> temperature in the cell located at lower_cell_loc
     integer, dimension(:,:),pointer :: ice_mask => null()        !> = 1 where ice is present, else = 0

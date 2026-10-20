@@ -123,7 +123,6 @@ contains
     use glissade_utils, only: glissade_adjust_thickness, glissade_smooth_usrf, &
          glissade_smooth_topography, glissade_adjust_topography
     use glissade_utils, only: glissade_basin_average, glissade_handle_ice_caps
-    use felix_dycore_interface, only: felix_velo_init
 
     implicit none
 
@@ -748,10 +747,6 @@ contains
     case ( DYCORE_GLISSADE )   ! glissade finite-element
 
        call glissade_velo_higher_init
-
-    case ( DYCORE_ALBANYFELIX)
-
-       call felix_velo_init(model)
 
     end select
 
@@ -2139,7 +2134,6 @@ contains
     use glissade_calving, only: verbose_calving
     use glissade_diagnostics, only: glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues, &
          glissade_mass_balance_diagnostics, glissade_grounding_line_flux
-    use felix_dycore_interface, only: felix_velo_driver
     use glissade_inversion, only: verbose_inversion, glissade_inversion_solve
     use glissade_basal_traction, only: glissade_calc_effecpress, glissade_elevation_based_coulomb_c
     use glissade_glacier, only: glissade_glacier_update
@@ -2591,12 +2585,6 @@ contains
           call t_startf('glissade_velo_driver')
           call glissade_velo_driver(model)
           call t_stopf('glissade_velo_driver')
-
-       case ( DYCORE_ALBANYFELIX)
-
-          call t_startf('felix_velo_driver')
-          call felix_velo_driver(model)
-          call t_stopf('felix_velo_driver')
 
        end select
 

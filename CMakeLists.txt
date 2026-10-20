@@ -6,9 +6,6 @@ OPTION (CISM_BUILD_CISM_DRIVER "Toggle to build cism_driver, on by default" ON)
 
 OPTION (CISM_USE_TRILINOS "Toggle to use Trilinos: defaults to OFF" OFF)
 
-OPTION (CISM_BUILD_SIMPLE_GLIDE "Toggle to build simple_glide, OFF by default" OFF)
-OPTION (CISM_ENABLE_BISICLES "Toggle to build a BISICLES-capable cism_driver, off by default" OFF)
-
 OPTION (CISM_USE_GPTL_INSTRUMENTATION "Toggle to use GPTL instrumentation, on by default " ON)
 OPTION (CISM_COUPLED "Toggle to build CISM for use with CESM, off by default" OFF)
 # OPTION (CISM_USE_CISM_FRONT_END "Toggle to use cism_driver or cism_cesm_interface with cism_front_end, off by default" OFF)
@@ -26,8 +23,6 @@ ENDIF()
 # set (or override) other options, if CISM_COUPLED is ON:
 IF (CISM_COUPLED)
   SET(CISM_NO_EXECUTABLE "ON")
-  SET(CISM_BUILD_SIMPLE_GLIDE "OFF")
-  SET(CISM_ENABLE_BISICLES "OFF")
   SET(CISM_USE_CISM_FRONT_END "OFF")
   ADD_DEFINITIONS(-DCCSMCOUPLED)
 ENDIF()
@@ -118,8 +113,7 @@ ENDIF()
 
 # Only include C++ support if it's really needed, to avoid problems
 # caused by broken C++ compilers.
-#IK, 8/3/13: added simple_felix option 
-IF (CISM_USE_TRILINOS OR CISM_ENABLE_BISICLES)
+IF (CISM_USE_TRILINOS)
   ENABLE_LANGUAGE(CXX)
 ENDIF()
 
@@ -219,19 +213,6 @@ ELSE()
         		 ${CISM_HDF5_LIB_DIR} ) 
 ENDIF()
 
-IF (CISM_ENABLE_BISICLES)
-  MESSAGE("\nBISICLES build configured.\n")  
-
-  SET(CISM_DYCORE_DIR ${CISM_SOURCE_DIR}/libdycore)
-  SET(CISM_TO_DYCORE ${CISM_DYCORE_DIR}/glimmer_to_dycore.F90) 
-  SET(CISM_BISICLES_DIR ${CISM_DYCORE_DIR}/BISICLES)
-  
-  INCLUDE_DIRECTORIES(${CISM_DYCORE_DIR})
-  LINK_DIRECTORIES(${CISM_DYCORE_DIR} ${BISICLES_INTERFACE_DIR} )
-  ADD_DEFINITIONS(-DCISM_HAS_BISICLES)
-ENDIF()
-
-
 IF (CISM_USE_GPTL_INSTRUMENTATION)
  OPTION(CISM_GPTL_DIR "Optional path to installed gptl library")
  IF (CISM_GPTL_DIR)
@@ -262,8 +243,7 @@ file(GLOB FORTRANSOURCES
      cism_driver/testsfg.F90
      ${GLINT_SOURCES}
      ${GLAD_SOURCES}
-     ${GLISSADE_SOURCES}
-     ${CISM_TO_DYCORE})
+     ${GLISSADE_SOURCES})
 
 set (FORTRAN_AUTOGEN_SOURCES ${CISM_BINARY_DIR}/fortran_autogen_srcs/glide_io.F90
 			     ${CISM_BINARY_DIR}/fortran_autogen_srcs/glint_io.F90
@@ -405,29 +385,11 @@ IF (CISM_USE_TRILINOS)
   add_subdirectory(libglimmer-trilinos)
 ENDIF()
 
-#####Build simple_glide executable (unless turned off) #####
+#####Build cism_driver executable (unless turned off) #####
 OPTION(CISM_NO_EXECUTABLE "Set to  ON  to just build libraries (default:OFF)"  OFF)
-
-
-#IF (CISM_BUILD_SIMPLE_GLIDE AND (NOT CISM_NO_EXECUTABLE))
-#   add_subdirectory(example-drivers/simple_glide/src)
-#ENDIF()
 
 IF (CISM_USE_CISM_FRONT_END)
    add_subdirectory(cism_driver)
-ENDIF()
- 
-
-IF (CISM_ENABLE_BISICLES)
-  add_subdirectory(libdycore)
-
-  include_directories (${CISM_DYCORE_DIR}
-                       ${CISM_BISICLES_DIR})
-
-  message("glimmer src dir: ${CISM_SOURCE_DIR}")
-  message("glimmer dycore dir: ${CISM_DYCORE_DIR}")
-  get_property(inc_dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
-  message("inc_dirs = ${inc_dirs}")
 ENDIF()
 
 
