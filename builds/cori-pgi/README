@@ -53,24 +53,14 @@ make -j 8
 
 ------------------------------------------------------------------------------
 
-In the file cori-pgi-cmake, the first 4 lines of the cmake call can be modified
+In the file cori-pgi-cmake, the first 2 lines of the cmake call can be modified
 to configure different builds.  These lines are:
   -D NO_TRILINOS:BOOL=OFF \
-  -D CISM_MPI_MODE:BOOL=ON \
-  -D CISM_SERIAL_MODE:BOOL=OFF \
   -D BUILD_SIMPLE_BISICLES:BOOL=OFF \
 
 For instance, to build simple_bisicles (and simple_glide), use:
   -D NO_TRILINOS:BOOL=ON \
-  -D CISM_MPI_MODE:BOOL=ON \
-  -D CISM_SERIAL_MODE:BOOL=OFF \
   -D BUILD_SIMPLE_BISICLES:BOOL=ON \
-
-For a serial build of simple_glide, use:
-  -D NO_TRILINOS:BOOL=ON \
-  -D CISM_MPI_MODE:BOOL=OFF \
-  -D CISM_SERIAL_MODE:BOOL=ON \
-  -D BUILD_SIMPLE_BISICLES:BOOL=OFF \
 
 
 Dependencies:
