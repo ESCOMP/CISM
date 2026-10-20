@@ -340,7 +340,6 @@ module glide_types
   integer, parameter :: HO_SPARSE_GMRES = 1
   integer, parameter :: HO_SPARSE_PCG_STANDARD = 2
   integer, parameter :: HO_SPARSE_PCG_CHRONGEAR = 3
-  integer, parameter :: HO_SPARSE_TRILINOS = 4
 
   integer, parameter :: HO_APPROX_LOCAL_SIA = -1
   integer, parameter :: HO_APPROX_SIA = 0
@@ -983,7 +982,6 @@ module glide_types
     !> \item[1]  SLAP (serial): GMRES, incomplete LU preconditioner
     !> \item[2] Native PCG, parallel-enabled, standard solver
     !> \item[3] Native PCG, parallel-enabled, Chronopoulos-Gear solver
-    !> \item[4] standalone interface to Trilinos
     !> \end{description}
 
     integer :: which_ho_approx = 2 
@@ -2767,7 +2765,7 @@ module glide_types
   
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  ! for JFNK, NOX Trilinos solver
+  ! for the Glide thickness solver
   type, public :: glissade_solver
 
     integer ,dimension(:,:) ,allocatable :: ui 

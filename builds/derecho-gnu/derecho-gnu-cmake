@@ -2,7 +2,7 @@
 # After this script completes, type: make -j 8
 # If rebuilding, type 'make clean' before running 'make -j 8'
 
-# This cmake configuration script is set up to perform a parallel build with Trilinos
+# This cmake configuration script is set up to perform a parallel build.
 
 source /etc/profile.d/z00_modules.csh
 
@@ -23,8 +23,6 @@ echo "Doing CMake Configuration step"
 cmake \
   -D CISM_BUILD_CISM_DRIVER:BOOL=ON \
 \
-  -D CISM_USE_TRILINOS:BOOL=OFF \
-\
   -D CISM_USE_GPTL_INSTRUMENTATION:BOOL=OFF \
   -D CISM_COUPLED:BOOL=OFF \
   -D CISM_USE_CISM_FRONT_END:BOOL=OFF \
@@ -32,7 +30,6 @@ cmake \
   -D CISM_NETCDF_DIR=$NETCDF \
   -D CMAKE_VERBOSE_MAKEFILE:BOOL=OFF \
 \
-  -D CMAKE_CXX_COMPILER=CC \
   -D CMAKE_C_COMPILER=cc \
   -D CMAKE_Fortran_COMPILER=ftn \
 \
@@ -40,7 +37,6 @@ cmake \
 \
   -D CMAKE_Fortran_FLAGS:STRING="-fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -fallow-argument-mismatch  -fallow-invalid-boz  -g -Wall -O0 -g -fbacktrace -ffpe-trap=zero,overflow -fcheck=bounds " \
   -D CMAKE_C_FLAGS:STRING="-std=gnu99 -g -Wall -O0 -g -fbacktrace -ffpe-trap=invalid,zero,overflow -fcheck=bounds" \
-  -D CMAKE_CXX_FLAGS:STRING="-std=c++17 -g -Wall -O0 -g -fbacktrace -ffpe-trap=invalid,zero,overflow -fcheck=bounds " \
  ../..
 
 # Note: last argument above  "../.."  is path to top-level cism directory

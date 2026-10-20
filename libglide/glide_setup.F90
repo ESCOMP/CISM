@@ -1185,13 +1185,12 @@ contains
          'L2 norm of Ax-b = resid     ', &
          'relative L2 norm, |Ax-b|/|b|' /)
 
-    character(len=*), dimension(-1:4), parameter :: ho_whichsparse = (/ &
+    character(len=*), dimension(-1:3), parameter :: ho_whichsparse = (/ &
          'PCG with incomplete Cholesky preconditioner', &
          'BiCG with LU preconditioner                ', &
          'GMRES with LU preconditioner               ', &
          'Native PCG solver, standard                ', &
-         'Native PCG solver, Chronopoulos-Gear       ', &
-         'Trilinos interface                         '/)
+         'Native PCG solver, Chronopoulos-Gear       '/)
 
     character(len=*), dimension(-1:5), parameter :: ho_whichapprox = (/ &
          'SIA only (glissade_velo_sia)                     ', &
@@ -1992,12 +1991,13 @@ contains
               &USE AT YOUR OWN RISK.', GM_WARNING)
        endif
 
+       if (model%options%which_ho_sparse < lbound(ho_whichsparse,1) .or. &
+           model%options%which_ho_sparse > ubound(ho_whichsparse,1)) then
+          call write_log('Error, HO sparse solver input out of range', GM_FATAL)
+       end if
        write(message,*) 'ho_whichsparse          : ',model%options%which_ho_sparse,  &
                          ho_whichsparse(model%options%which_ho_sparse)
        call write_log(message)
-       if (model%options%which_ho_sparse < -1 .or. model%options%which_ho_sparse >= size(ho_whichsparse)) then
-          call write_log('Error, HO sparse solver input out of range', GM_FATAL)
-       end if
 
        if (model%options%whichdycore == DYCORE_GLISSADE) then
 

@@ -1,15 +1,9 @@
 # cism_driver and CISM front-end build
 
-IF (${CISM_USE_TRILINOS})
-  LIST(INSERT CISM_TRILINOS_LIBS 0 glimmercismcpp)
-ENDIF()
+# Need mod files from glimmer
+include_directories (${CISM_BINARY_DIR}/include  ${PYTHON_INC_DIR})
 
-# Need include directories from Trilinos but also mod files from glimmer
-include_directories (${CISM_BINARY_DIR}/include  ${PYTHON_INC_DIR}
-                     ${Trilinos_INCLUDE_DIRS} ${Trilinos_TPL_INCLUDE_DIRS})
-
-link_directories (${Trilinos_LIBRARY_DIRS} ${Trilinos_TPL_LIBRARY_DIRS}
-                  ${CISM_HDF5_LIB_DIR} ${PYTHON_LIB_DIR} )
+link_directories (${CISM_HDF5_LIB_DIR} ${PYTHON_LIB_DIR} )
 
 # DMR 6/2/14 -- Moved simple_forcing.F90 and testsfg.F90 to the glimmercismfortran lib.
 # These are local source files needed to make the cism_driver executable and CISM front-end
@@ -28,7 +22,7 @@ ENDIF()
 
 MESSAGE("CISM_HDF5_LIBS: " ${CISM_HDF5_LIBS})
 
-# Executable depends on several glimmer libraries and Trilinos,
+# Executable depends on several glimmer libraries,
 # and potentially an f90main.o file (on jaguar with PGI at least)
 
 target_link_libraries(cism_driver
@@ -38,7 +32,7 @@ target_link_libraries(cism_driver
     ${CISM_NETCDF_LIBS}
     ${CISM_HDF5_LIBS}
     ${CISM_MPI_LIBS}
-    ${CISM_TRILINOS_LIBS}
+    ${CISM_IMPLICIT_LINK_LIBS}
     ${CISM_EXTRA_LIBS}
     ${CISM_GPTL_LIB}
 )

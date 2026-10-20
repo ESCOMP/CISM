@@ -1,10 +1,8 @@
-# CMAKE File for CISM building against an installed Trilinos
+# CMake file for CISM
 
 cmake_minimum_required(VERSION 2.8.4)
 
 OPTION (CISM_BUILD_CISM_DRIVER "Toggle to build cism_driver, on by default" ON)
-
-OPTION (CISM_USE_TRILINOS "Toggle to use Trilinos: defaults to OFF" OFF)
 
 OPTION (CISM_USE_GPTL_INSTRUMENTATION "Toggle to use GPTL instrumentation, on by default " ON)
 OPTION (CISM_COUPLED "Toggle to build CISM for use with CESM, off by default" OFF)
@@ -13,8 +11,6 @@ OPTION (CISM_COUPLED "Toggle to build CISM for use with CESM, off by default" OF
 OPTION (CISM_STATIC_LINKING "Toggle to set static linking for executables, off by default" OFF)
 OPTION (CISM_FORCE_FORTRAN_LINKER "Toggle to force using a fortran linker for building executables, off by default" OFF)
 OPTION (CISM_INCLUDE_IMPLICIT_LINK_LIBRARIES "Toggle to explicitly include the CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES on the link line, on by default" ON)
-
-MESSAGE("CISM_USE_TRILINOS = ${CISM_USE_TRILINOS}")
 
 IF (CISM_BUILD_CISM_DRIVER)
   SET(CISM_USE_CISM_FRONT_END "ON")
@@ -34,87 +30,20 @@ ENDIF()
 
 MESSAGE("Building in: ${CISM_BINARY_DIR}")
 
-IF (CISM_USE_TRILINOS)
-  OPTION(CISM_TRILINOS_DIR "Required path to installed Trilinos")
-  OPTION(CISM_NETCDF_DIR "Required path to installed Netcdf")
-
-
-  IF (CISM_USE_GPTL_INSTRUMENTATION)
-     IF (DEFINED CISM_TRILINOS_GPTL_DIR)
-       SET(CISM_TRILINOS_DIR ${CISM_TRILINOS_GPTL_DIR})
-     ENDIF()
-  ENDIF()
-
-  
-  # Error check up front
-  IF (NOT DEFINED CISM_TRILINOS_DIR)
-    MESSAGE(FATAL_ERROR "\nCISM Error: cmake must define CISM_TRILINOS_DIR:
-    (-D CISM_TRILINOS_DIR=<trilinos_install_prefix>)!")
-  ENDIF()
-
-  # Get Trilinos as one entity
-  SET(CMAKE_PREFIX_PATH ${CISM_TRILINOS_DIR} ${CMAKE_PREFIX_PATH})
-  FIND_PACKAGE(Trilinos REQUIRED)
-
-  IF (${Trilinos_VERSION} VERSION_LESS  10.8.0)
-    MESSAGE(FATAL_ERROR "Trilinos version 10.8 or newer required!")
-  ENDIF()
-
-  MESSAGE("\nFound Trilinos!  Here are the details: ")
-  MESSAGE("   Trilinos_DIR = ${Trilinos_DIR}")
-  MESSAGE("   Trilinos_VERSION = ${Trilinos_VERSION}")
-  MESSAGE("   Trilinos_PACKAGE_LIST = ${Trilinos_PACKAGE_LIST}")
-  MESSAGE("   Trilinos_LIBRARIES = ${Trilinos_LIBRARIES}")
-  MESSAGE("   Trilinos_INCLUDE_DIRS = ${Trilinos_INCLUDE_DIRS}")
-  MESSAGE("   Trilinos_LIBRARY_DIRS = ${Trilinos_LIBRARY_DIRS}")
-  MESSAGE("   Trilinos_TPL_LIST = ${Trilinos_TPL_LIST}")
-  MESSAGE("   Trilinos_TPL_INCLUDE_DIRS = ${Trilinos_TPL_INCLUDE_DIRS}")
-  MESSAGE("   Trilinos_TPL_LIBRARIES = ${Trilinos_TPL_LIBRARIES}")
-  MESSAGE("   Trilinos_TPL_LIBRARY_DIRS = ${Trilinos_TPL_LIBRARY_DIRS}")
-  MESSAGE("   Trilinos_BUILD_SHARED_LIBS = ${Trilinos_BUILD_SHARED_LIBS}")
-  MESSAGE("   Trilinos_CXX_COMPILER_FLAGS = ${Trilinos_CXX_COMPILER_FLAGS}")
-  MESSAGE("   Trilinos_Fortran_COMPILER_FLAGS = ${Trilinos_Fortran_COMPILER_FLAGS}")
-  MESSAGE("End of Trilinos details\n")
-
-  # Get libraries for link line from Trilinos build information
-  set(CISM_TRILINOS_LIBS ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES} ${Trilinos_EXTRA_LD_FLAGS})
-
-  IF (NOT DEFINED CMAKE_CXX_COMPILER AND NOT DEFINED ENV{CXX}) 
-    SET(CMAKE_CXX_COMPILER ${Trilinos_CXX_COMPILER})
-  ENDIF()
-  IF (NOT DEFINED CMAKE_C_COMPILER AND NOT DEFINED ENV{CC}) 
-    SET(CMAKE_C_COMPILER ${Trilinos_C_COMPILER})
-  ENDIF()
-  IF (NOT DEFINED CMAKE_Fortran_COMPILER AND NOT DEFINED ENV{FC})
-    SET(CMAKE_Fortran_COMPILER ${Trilinos_Fortran_COMPILER})
-  ENDIF()
-ENDIF()
-
 ENABLE_LANGUAGE(Fortran) 
 
 IF (CISM_INCLUDE_IMPLICIT_LINK_LIBRARIES)
   # WJS (6-3-14) Until now, these Fortran_IMPLICIT_LINK_LIBRARIES were always
   # included. However, explicitly appending these implicit link libraries breaks
-  # the build on yellowstone, for some reason. It could be because the trilinos
-  # build is old. I suspect these implicit link libraries are needed when you're
-  # linking with a C++ linker, which is not the case for yellowstone-intel. In
-  # any case, I'm providing an option to exclude these from the build, to allow
-  # the yellowstone-intel build to work.
-  #
-  # Also, note that, although these are added to the variable CISM_TRILINOS_LIBS,
-  # this variable is used even when building without trilinos. I am merely
-  # maintaining the old behavior in this respect.
-  LIST(APPEND CISM_TRILINOS_LIBS ${CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES})
+  # the build on yellowstone, for some reason. I suspect these implicit link
+  # libraries are needed when you're linking with a C++ linker, which is not the
+  # case for yellowstone-intel. In any case, I'm providing an option to exclude
+  # these from the build, to allow the yellowstone-intel build to work.
+  LIST(APPEND CISM_IMPLICIT_LINK_LIBS ${CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES})
 
   #message("")
   #message("  CMake detected the following libraries for linking Fortran with C++ compiler:")
   #message("     ${CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES} ")
-ENDIF()
-
-# Only include C++ support if it's really needed, to avoid problems
-# caused by broken C++ compilers.
-IF (CISM_USE_TRILINOS)
-  ENABLE_LANGUAGE(CXX)
 ENDIF()
 
 MESSAGE(">> CISM_NETCDF_DIR set to : ${CISM_NETCDF_DIR}")
@@ -152,8 +81,6 @@ ENDIF()
 INCLUDE_DIRECTORIES(${CMAKE_Fortran_MODULE_DIRECTORY})
 
 
-# Note that C++ is excluded here -- we only include C++ support if
-# it's really needed (see ENABLE_LANGUAGE(CXX) command above)
 PROJECT(CISM Fortran C)
 
 
@@ -169,49 +96,16 @@ MESSAGE(">> see ${CISM_BINARY_DIR}/autocopy.log")
 INCLUDE_DIRECTORIES(${CISM_BINARY_DIR}/fortran_autocopy_includes)
 
 # End of setup and error checking
-#  NOTE: PROJECT command checks for compilers, so this statement
-#        is moved AFTER setting CMAKE_CXX_COMPILER from Trilinos
 
-## Use CMAKE_CXX_FLAGS   CMAKE_Fortran_FLAGS   to override  Trilinos flags
-## USe CISM_CXX_FLAGS CISM_Fortran_FLAGS to append to Trilinos flags
-
-IF (NOT CMAKE_CXX_FLAGS)
-  SET(CMAKE_CXX_FLAGS ${Trilinos_CXX_COMPILER_FLAGS} )
-ENDIF()
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CISM_CXX_FLAGS}")
-
-IF (NOT CMAKE_Fortran_FLAGS)
-  SET(CMAKE_Fortran_FLAGS ${Trilinos_Fortran_COMPILER_FLAGS} )
-ENDIF()
+## Use CMAKE_Fortran_FLAGS to set flags; use CISM_Fortran_FLAGS to append flags
 SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${CISM_Fortran_FLAGS}")
 
-IF (CISM_USE_TRILINOS) 
-   ## CISM requires Trilinos to include the Piro build 
-   MESSAGE("-- Looking for Piro within Trilinos:")
-   MESSAGE("Trilinos pkg list: " ${Trilinos_PACKAGE_LIST})
-   LIST(FIND Trilinos_PACKAGE_LIST  Piro Piro_List_ID)
-   IF (Piro_List_ID GREATER -1)
-     MESSAGE("-- Looking for Piro: -- found! Continuing.")
-   ELSE()
-     MESSAGE(FATAL_ERROR "-- Looking for Piro: -- not found! Rebuild Trilinos with Piro package.")
-   ENDIF()
+ADD_DEFINITIONS(-DCISM_MPI)
+ADD_DEFINITIONS(-DGLIMMER_MPI)
+include_directories(${CISM_NETCDF_DIR}/include ${CISM_MPI_INC_DIR})
 
-   ADD_DEFINITIONS(-DCISM_MPI -DTRILINOS)
-    ADD_DEFINITIONS(-DGLIMMER_MPI)
-   MESSAGE(">> Trilinos build: adding  -DTRILINOS  to compile lines")
-
-   include_directories(${CISM_NETCDF_DIR}/include)
-   link_directories(${CISM_NETCDF_DIR}/lib) 
-
-ELSE()
-
-   ADD_DEFINITIONS(-DCISM_MPI)
-   ADD_DEFINITIONS(-DGLIMMER_MPI)
-   include_directories(${CISM_NETCDF_DIR}/include ${CISM_MPI_INC_DIR})
-
-   link_directories(${CISM_NETCDF_DIR}/lib ${CISM_MPI_LIB_DIR} ${CISM_SCI_LIB_DIR} 
-        		 ${CISM_HDF5_LIB_DIR} ) 
-ENDIF()
+link_directories(${CISM_NETCDF_DIR}/lib ${CISM_MPI_LIB_DIR} ${CISM_SCI_LIB_DIR} 
+                 ${CISM_HDF5_LIB_DIR} ) 
 
 IF (CISM_USE_GPTL_INSTRUMENTATION)
  OPTION(CISM_GPTL_DIR "Optional path to installed gptl library")
@@ -378,12 +272,6 @@ ENDFOREACH()
 SET_SOURCE_FILES_PROPERTIES(${FIXEDSOURCES} PROPERTIES Fortran_FORMAT FIXED)
 
 add_library(glimmercismfortran ${FORTRANSOURCES} ${FORTRAN_AUTOGEN_SOURCES} ${SOURCEMODFILES})
-
-#####Build C++ Sources #####
-
-IF (CISM_USE_TRILINOS)
-  add_subdirectory(libglimmer-trilinos)
-ENDIF()
 
 #####Build cism_driver executable (unless turned off) #####
 OPTION(CISM_NO_EXECUTABLE "Set to  ON  to just build libraries (default:OFF)"  OFF)

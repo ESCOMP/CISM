@@ -1,13 +1,11 @@
 #!/bin/sh
 
 # This cmake configuration script builds cism_driver on a Mac using the Gnu compiler suite.
-# If Trilinos is used, it relies on a build of Trilinos located in $CISM_TRILINOS_DIR (set below).
 
 # BUILD OPTIONS:
 # The call to cmake below includes several input ON/OFF switch parameters, to
 # provide a simple way to select different build options.  These are:
 # CISM_BUILD_CISM_DRIVER -- ON by default, set to OFF to only build the CISM libraries.
-# CISM_USE_TRILINOS -- OFF by default, set to on for builds with Trilinos.
 # CISM_USE_GPTL_INSTRUMENTATION -- ON by default, set to OFF to not use GPTL instrumentation.
 # CISM_COUPLED -- OFF by default, set to ON to build with CESM.
 
@@ -29,8 +27,6 @@ fi
 echo
 echo Run this script by typing: source mac-gnu-cmake
 echo
-echo Set CISM_TRILINOS_DIR to your Trilinos installation directory.
-echo
 
 # remove old build data:
 rm -f ./CMakeCache.txt
@@ -42,12 +38,9 @@ echo "Doing CMake Configuration step"
 cmake \
   -D CISM_BUILD_CISM_DRIVER:BOOL=ON \
 \
-  -D CISM_USE_TRILINOS:BOOL="${CISM_USE_TRILINOS:=OFF}" \
-\
   -D CISM_USE_GPTL_INSTRUMENTATION:BOOL=OFF \
   -D CISM_COUPLED:BOOL=OFF \
 \
-  -D CISM_TRILINOS_DIR="$CISM_TRILINOS_DIR" \
   -D CISM_NETCDF_DIR=/opt/local \
   -D CISM_MPI_BASE_DIR=/opt/local \
   -D CISM_MPI_INC_DIR=/opt/local/lib \
@@ -57,11 +50,9 @@ cmake \
   -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON \
   -D CMAKE_VERBOSE_CONFIGURE:BOOL=ON \
 \
-  -D CMAKE_CXX_COMPILER=mpicxx \
   -D CMAKE_C_COMPILER=mpicc \
   -D CMAKE_Fortran_COMPILER=mpif90 \
 \
-  -D CMAKE_CXX_FLAGS="" \
   -D CMAKE_Fortran_FLAGS="-g -O2 -ffree-line-length-none" \
 \
   "${cism_top}"

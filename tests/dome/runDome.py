@@ -244,7 +244,6 @@ def main():
     nc_file.close()
     
     mkdir_p(args.output_dir)
-    subprocess.check_call("cp *rilinosOptions.xml "+args.output_dir, shell=True)
     subprocess.check_call("mv "+file_name+" "+args.output_dir, shell=True)
     subprocess.check_call("mv "+config_name+" "+args.output_dir, shell=True)
     
