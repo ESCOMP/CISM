@@ -6,7 +6,7 @@
 # Set path to top cism directory
 # Note, this is an easy way to build out of source.
 # In directory you want to build in, run:
-#   $ source $CISM/builds/linux-gnu-cism/linux-gnu-cism-cmake $CISM
+#   $ source $CISM/builds/derecho-intel/derecho-intel-cmake.sh $CISM
 # where $CISM is the path to the top level cism directory.
 if [ $# -eq 0 ]
 then
@@ -17,7 +17,7 @@ fi
 
 source /etc/profile.d/z00_modules.sh
 
-source derecho-intel-modules
+source "${cism_top}/builds/derecho-intel/derecho-intel-modules"
 
 echo CISM: "${cism_top}"
 

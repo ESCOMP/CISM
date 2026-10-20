@@ -6,7 +6,7 @@ The build and test structure (BATS) is primarily intended to allow users and dev
 quickly generate a set of regression tests for use with the Land Ice Validation
 and Verification (LIVV) toolkit. 
 
-BATS is a [Python 2.7](https://www.python.org/) module that is primarily
+BATS is a [Python 3](https://www.python.org/) module that is primarily
 controlled by command line options. 
 BATS requires:
 
@@ -28,7 +28,7 @@ CISM on your machine, we suggest following the installation instructions as they
 are laid out in the users manual first.
 
 (Note: on some High Performance Computing platforms, a
-`setup_PLATFORM.bash` script has been provided which will attempt to load the
+`setup_PLATFORM` script has been provided which will attempt to load the
 needed modules.)
 
 If you are having any troubles with dependencies, open an issue on the 
@@ -75,34 +75,34 @@ regression tests if you are using a personal computer (PC), or setup a series of
 regression tests and generate a job submission script if you are using a high
 performance computer (HPC). 
 
-That is, if CISM is located in `$CISM`  on ORNL's HPC
-platform titan, for example, and you want to run the `$CISM/higher-order/dome`
-test using the gnu compiler, you would typically build CISM by:
+That is, if CISM is located in `$CISM` on NSF NCAR's HPC
+platform derecho, for example, and you want to run the `$CISM/tests/dome`
+test using the Intel compiler, you would typically build CISM by:
 
 ```sh
-cd $CISM/builds/titan-gnu/
-source titan-gnu-cmake
+cd $CISM/builds/derecho-intel/
+source derecho-intel-cmake.sh
 make -j 8
 ```
 
-which would build a parallel version of CISM into the
-`$CISM/builds/titan-gnu/cism_driver/`
+which would build CISM into the
+`$CISM/builds/derecho-intel/cism_driver/`
 directory. Then you would go to the dome test directory, create a link to the
 CISM driver, and run the test:
 
 ```sh
-cd $CISM/tests/higher-order/dome
-ls -s $CISM/builds/titan-gnu/cism_driver/cism_driver cism_driver
+cd $CISM/tests/dome
+ln -s $CISM/builds/derecho-intel/cism_driver/cism_driver cism_driver
 ./runDome.py
 ```
 
 You would have to repeat this process for each individual test you'd like
-to run. BATS, however, automates these steps. On titan, running BATS like so
+to run. BATS, however, automates these steps. On derecho, running BATS like so
 
 ```sh
 cd $CISM/tests/regression/
-source setup_titan.bash
-./build_and_test.py -p titan -c gnu -b ./build
+source setup_derecho
+./build_and_test.py -p derecho-intel -b ./build
 ```
 
 will result in BATS generating all the CMake build file into a new directory
@@ -117,7 +117,7 @@ will then run a set of CISM's higher-order tests:
 * Stream
 
 All of the files associated with each test will be output to a directory called
-`reg_test/titan-gnu/CISM_glissade/` which has a leaf-node directory structure that 
+`reg_test/derecho-intel/CISM_glissade/` which has a leaf-node directory structure that 
 provides some metadata for each test: 
 
 ```sh
@@ -147,7 +147,7 @@ processors used to run the test. Everything below the dashed line will only
 appear on HPC systems. `submit_all_jobs.bash` will submit all the jobs in the
 `jobs/` directory and `clean_timing.bash` will clean out any repeated test run
 for performance profiling such that only the timing files remain (to be used
-once all jobs have finished). This `reg_test/titan-gnu/CISM_glissade`
+once all jobs have finished). This `reg_test/derecho-intel/CISM_glissade`
 directory is formatted to be used with LIVVkit 2.1+ directly. 
 
 BATS is designed to be flexible and work with any LIVVkit usage scenario. In
