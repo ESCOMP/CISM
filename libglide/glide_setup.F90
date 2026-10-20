@@ -838,6 +838,7 @@ contains
     call GetValue(section,'enable_acab_dthck_dt_correction',model%options%enable_acab_dthck_dt_correction)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
+    call GetValue(section,'which_lateral_melt',model%options%which_lateral_melt)
     call GetValue(section,'marine_margin',model%options%whichcalving)
     call GetValue(section,'calving_init',model%options%calving_init)
     call GetValue(section,'calving_domain',model%options%calving_domain)
@@ -874,7 +875,11 @@ contains
     implicit none
     type(ConfigSection), pointer :: section
     type(glide_global_type) :: model
-    
+
+    !TODO - Several variables in this and other sections have a capital letter mixed with lower-case
+    !        (e.g., which_ho_deltaT_ocn, inversion_deltaT_ocn_timescale).
+    !       This can cause them to be missed if the config file is all lower-case.
+    !       Either make these variables all lower-case, or modify GetValue to be case-indifferent.
     call GetValue(section, 'compute_blocks',              model%options%compute_blocks)
     call GetValue(section, 'which_ho_efvs',               model%options%which_ho_efvs)
     call GetValue(section, 'which_ho_disp',               model%options%which_ho_disp)
@@ -905,7 +910,6 @@ contains
     !TODO - Move the next two options to the calving type
     call GetValue(section, 'which_ho_calving_front',      model%options%which_ho_calving_front)
     call GetValue(section, 'which_ho_calvingmip_domain',  model%options%which_ho_calvingmip_domain)
-    call GetValue(section, 'which_lateral_melt',          model%options%which_lateral_melt)
     call GetValue(section, 'which_ho_ground',             model%options%which_ho_ground)
     call GetValue(section, 'which_ho_fground_no_glp',     model%options%which_ho_fground_no_glp)
     call GetValue(section, 'which_ho_ground_bmlt',        model%options%which_ho_ground_bmlt)
@@ -1260,10 +1264,9 @@ contains
          'standard finite-element assembly (glissade dycore)         ', &
          'use local thck and usrf on each cell face (glissade dycore)'  /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichcalving_front = (/ &
-         'no subgrid calving front parameterization       ', &
-         'subgrid calving front, floating ice only        ', &
-         'subgrid calving front, floating and grounded ice'  /)
+    character(len=*), dimension(0:1), parameter :: ho_whichcalving_front = (/ &
+         'no subgrid calving front parameterization', &
+         'subgrid calving front                    ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_calvingmip_domain = (/ &
          'none       ', &
@@ -1929,7 +1932,6 @@ contains
        endif
 
        if (model%options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
-
           write(message,*) 'ho_deltaT_ocn           : ',model%options%which_ho_deltaT_ocn,  &
                             ho_deltaT_ocn(model%options%which_ho_deltaT_ocn)
           call write_log(message)
@@ -2607,7 +2609,7 @@ contains
 
     endif   ! calving options: thck_threshold, eigencalving, stress-based, etc.
 
-    if (model%options%which_ho_calving_front /= HO_CALVING_FRONT_NO_SUBGRID) then
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
        write(message,*) 'subgrid dthck_dx_cf           : ', model%calving%dthck_dx_cf
        call write_log(message)
        write(message,*) 'thck_effective_min (m)        : ', model%calving%thck_effective_min
@@ -3377,7 +3379,7 @@ contains
 
     call GetValue(section, 'melt_rate_const', model%lateral_melt%melt_rate_const)
     call GetValue(section, 'melt_factor', model%lateral_melt%melt_factor)
-    call GetValue(section, 'subglacial_discharge_from_ablation', model%lateral_melt%subglacial_discharge_from_ablation)
+    call GetValue(section, 'runoff_from_ablation', model%lateral_melt%runoff_from_ablation)
     call GetValue(section, 'thermal_forcing_avg_3d_to_2d', model%lateral_melt%thermal_forcing_avg_3d_to_2d)
     call GetValue(section, 'ztop_tfavg', model%lateral_melt%ztop_tfavg)
     call GetValue(section, 'zbot_tfavg', model%lateral_melt%zbot_tfavg)
@@ -3416,10 +3418,10 @@ contains
        elseif (model%options%which_lateral_melt == LATERAL_MELT_ISMIP) then
           write(message,*) 'lateral melt factor                   : ', model%lateral_melt%melt_factor
           call write_log(message)
-          if (model%lateral_melt%subglacial_discharge_from_ablation) then
-             call write_log('subglacial discharge will be computed from surface ablation')
+          if (model%lateral_melt%runoff_from_ablation) then
+             call write_log('runoff will be computed from ablation')
           else
-             call write_log('subglacial discharge will be read in directly')
+             call write_log('runoff will be read from an input file')
           endif
           if (model%lateral_melt%thermal_forcing_avg_3d_to_2d) then
              call write_log('2d thermal_forcing will be averaged from 3d')
@@ -3428,14 +3430,8 @@ contains
              write(message,*) 'depth range for TF averaging, bottom  : ', model%lateral_melt%zbot_tfavg
              call write_log(message)
           else
-             call write_log('2d thermal forcing will be read in directly')
+             call write_log('2d thermal forcing will be read from an input file')
           endif
-       endif
-
-       if (model%options%which_ho_calving_front /= HO_CALVING_FRONT_SUBGRID_FLOAT_GROUND) then
-          write(message,*) 'For lateral melt, must set which_ho_calving_front = ', &
-               HO_CALVING_FRONT_SUBGRID_FLOAT_GROUND
-          call write_log(message, GM_FATAL)
        endif
 
     endif  ! which_lateral_melt /= lateral_melt_none
@@ -4139,6 +4135,20 @@ contains
            call glide_add_to_restart_variable_list('reference_thck', model_id)
         endif
 
+        ! lateral melt options
+        if (options%which_lateral_melt == LATERAL_MELT_ISMIP) then
+           if (model%lateral_melt%runoff_from_ablation) then
+              ! Need input SMB; this is already in the restart file
+           else   ! lateral melt parameterization needs runoff_applied (= subglacial discharge)
+              call glide_add_to_restart_variable_list('runoff_applied', model_id)
+           endif
+           if (model%lateral_melt%thermal_forcing_avg_3d_to_2d) then  ! need 3d thermal_forcing
+              call glide_add_to_restart_variable_list('thermal_forcing', model_id)
+           else   ! need vertical-average thermal forcing
+              call glide_add_to_restart_variable_list('thermal_forcing_applied', model_id)
+           endif
+        endif
+
         ! other Glissade options
 
         ! If overwriting acab in certain grid cells, than overwrite_acab_mask needs to be in the restart file.
@@ -4149,7 +4159,8 @@ contains
 
       end select ! which_dycore
 
-    ! ==== Other non-dycore specific options ====
+    ! ==== Other options ====
+    !TODO - Either separate Glissade from Glide options, or just assume the user is running Glissade.
 
     ! internal water option (for enthalpy scheme)
     select case (options%whichtemp)
@@ -4217,7 +4228,7 @@ contains
        call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif
 
-    ! fields needed for inversion optionS that try to match observed dthck_dt
+    ! fields needed for inversion options that try to match observed dthck_dt
     if (options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or. &
         options%enable_acab_dthck_dt_correction) then
        call glide_add_to_restart_variable_list('dthk_dt_obs', model_id)

@@ -10569,7 +10569,6 @@
     !  and preserve the i/j/k structure of the grid.
     !
     ! There can be small differences from perfect symmetry due to roundoff error.
-    ! These differences are fixed provided they are small enough.
     !------------------------------------------------------------------    
 
     integer, intent(in) ::   &
@@ -10608,7 +10607,6 @@
 
     ! Check matrix for symmetry
 
-    ! Here we correct for small differences from symmetry due to roundoff error.
     ! The maximum departure from symmetry is set to be a small fraction
     !  of the diagonal entry for the row.
     ! If the departure from symmetry is larger than this, then the model prints a warning 

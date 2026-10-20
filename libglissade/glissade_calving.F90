@@ -43,7 +43,8 @@ module glissade_calving
 
   private
   public :: glissade_calving_mask_init, glissade_subgrid_calving_mask_init, &
-       glissade_calving_solve, verbose_calving, verbose_retreat
+       glissade_calving_solve, calve_ice_basic, compute_calving_front_length, &
+       verbose_calving, verbose_retreat
 
   logical :: verbose_calving = .false.
   logical :: verbose_retreat = .false.
@@ -773,7 +774,6 @@ contains
                model%calving,                     &        ! calving object; includes calving_thck (m)
                model%lateral_melt,                &        ! lateral melt object; includes melt_thck (m)
                model%ocean_data,                  &        ! ocean data object, for lateral forcing
-               model%climate%acab_applied,        &        ! m/s
                itest, jtest, rtest,               &
                model%numerics%dt,                 &        ! s
                model%numerics%time*scyr,          &        ! s
@@ -1200,7 +1200,6 @@ contains
        calving,                 &  ! calving derived type
        lateral_melt,            &  ! lateral melt derived type
        ocean_data,              &  ! ocean data derived type
-       acab_applied,            &  ! m/s
        itest,  jtest,  rtest,   &
        dt,             time,    &  ! s
        dx,             dy,      &  ! m
@@ -1218,8 +1217,6 @@ contains
     use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
     use glissade_utils, only: glissade_input_fluxes
     use glissade_grid_operators, only: glissade_unstagger
-    use glissade_lateral_melt, only: glissade_lateral_melt_constant, glissade_lateral_melt_ismip, &
-         glissade_thermal_forcing_avg_3d_to_2d, glissade_subglacial_discharge
     use cism_parallel, only: parallel_is_zero
 
     implicit none
@@ -1280,7 +1277,6 @@ contains
 !    integer, dimension(:,:), pointer :: basin_number              !> basin number for each grid cell
 !    real(dp),dimension(:,:), pointer :: thermal_forcing_2d        !> 2d thermal forcing for lateral melt (deg K)
 
-    real(dp), dimension(:,:), intent(in)      :: acab_applied      !> applied accumulation/ablation (m/yr)
     integer, intent(in) :: itest, jtest, rtest                     !> coordinates of diagnostic point
     real(dp), intent(in)                      :: dt                !> model timestep (s)
     real(dp), intent(in)                      :: time              !> model time (s)
@@ -1732,12 +1728,8 @@ contains
 
        upstream_calving_mask = 0
 
-       if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID_FLOAT) then
+       if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
           where (floating_mask == 1)
-             upstream_calving_mask = 1
-          endwhere
-       elseif (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID_FLOAT_GROUND) then
-          where (ice_mask == 1 .and. land_mask == 0)
              upstream_calving_mask = 1
           endwhere
        endif
@@ -1792,153 +1784,6 @@ contains
          full_mask,                     &
          calving%effective_areafrac)
 
-    ! Optionally, compute lateral melting at the margin
-
-    if (which_lateral_melt /= LATERAL_MELT_NONE) then
-
-       ! Compute the submerged ice thickness
-       ! Set to the negative of the topography for marine-grounded ice.
-       ! Set to zero for land-grounded ice.
-
-       thck_submerged = calving%thck_effective*(rhoi/rhoo)
-       thck_submerged = min(thck_submerged, max(eus-topg,0.0d0))
-
-       if (which_lateral_melt == LATERAL_MELT_CONSTANT) then
-
-          call glissade_lateral_melt_constant(&
-               nx,                 ny,             &
-               dx,                 dy,             &
-               dt,                 time,           &  ! s
-               itest,   jtest,     rtest,          &
-               calving%calving_front_mask,         &
-               lateral_melt%melt_rate_const,       &  ! m/s
-               thck_submerged,                     &  ! m
-               cf_length,                          &  ! m
-               latmelt_dthck)                         ! m
-
-       elseif (which_lateral_melt == LATERAL_MELT_ISMIP) then
-
-          if (lateral_melt%subglacial_discharge_from_ablation) then
-
-             call glissade_subglacial_discharge(&
-                  nx,                  ny,                      &
-                  dx,                  dy,                      &  ! m
-                  parallel,                                     &
-                  ocean_data%nbasin,   ocean_data%basin_number, &
-                  ice_mask,                                     &
-                  acab_applied,                                 &  ! m^3/s
-                  thck_submerged,                               &  ! m
-                  cf_length,                                    &  ! m
-                  lateral_melt%subglacial_discharge)               ! kg/m^2/s??
-
-          else   ! should have received the submarine discharge directly (from input file or coupler)
-
-             if (parallel_is_zero(lateral_melt%subglacial_discharge)) then
-                call write_log('Missing submarine_discharge for lateral melt', GM_FATAL)
-             endif
-
-          endif
-
-          if (lateral_melt%thermal_forcing_avg_3d_to_2d) then
-
-             if (parallel_is_zero(ocean_data%thermal_forcing)) then
-                call write_log('Missing 3D thermal forcing for lateral melt', GM_FATAL)
-             endif
-
-             call glissade_thermal_forcing_avg_3d_to_2d(&
-                  nx,                  ny,            &
-                  ocean_data%nzocn,                   &
-                  ocean_data%zocn,                    &
-                  ocean_data%thermal_forcing,         &  ! K
-                  lateral_melt%ztop_tfavg,            &  ! m
-                  lateral_melt%zbot_tfavg,            &  ! m
-                  ocean_data%thermal_forcing_2d)         ! K
-
-          else   ! should have received the 2D thermal forcing directly (from input file or coupler)
-
-             if (parallel_is_zero(ocean_data%thermal_forcing_2d)) then
-                call write_log('Missing 2D thermal forcing for lateral melt', GM_FATAL)
-             endif
-
-          endif
-
-          call glissade_lateral_melt_ismip(&
-               nx,                 ny,             &
-               dx,                 dy,             &
-               dt,                 time,           &  ! s
-               itest,   jtest,     rtest,          &
-               calving%calving_front_mask,         &
-               lateral_melt%melt_factor,           &
-               lateral_melt%subglacial_discharge,  &  ! m/s
-               ocean_data%thermal_forcing_2d,      &  ! K
-               thck_submerged,                     &  ! m
-               cf_length,                          &  ! m
-               latmelt_dthck)                         ! m
-
-       endif  ! which_lateral_melt
-
-       ! Compute a mask of upstream cells that can melt after a downstream CF cell melts entirely.
-
-       upstream_calving_mask = 0
-
-       if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID_FLOAT) then
-          where (floating_mask == 1)
-             upstream_calving_mask = 1
-          endwhere
-       elseif (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID_FLOAT_GROUND) then
-          where (ice_mask == 1 .and. land_mask == 0)
-             upstream_calving_mask = 1
-          endwhere
-       endif
-
-       ! Apply lateral melting
-       ! Note: This is the same logic as for calving but with different input and output arguments
-
-       call apply_calving_dthck(&
-            nx,           ny,           &
-            itest, jtest, rtest,        &
-            parallel,                   &
-            calving%calving_front_mask, &
-            upstream_calving_mask,      &
-            flux_in,                    &
-            latmelt_dthck,              &
-            thck,                       &
-            lateral_melt%melt_thck)
-
-       call parallel_halo(thck, parallel)
-       call parallel_halo(lateral_melt%melt_thck, parallel)
-
-       ! Recompute the calving masks
-
-       call glissade_get_masks(&
-            nx,            ny,             &
-            parallel,                      &
-            thck,          topg,           &
-            eus,           eps11,          &
-            ice_mask,                      &
-            floating_mask = floating_mask, &
-            ocean_mask = ocean_mask,       &
-            land_mask = land_mask)
-
-       call glissade_calving_front_mask(&
-            nx,            ny,             &
-            which_ho_calving_front,        &
-            parallel,                      &
-            itest, jtest,  rtest,          &
-            thck,          topg,           &
-            eus,                           &
-            ice_mask,      floating_mask,  &
-            ocean_mask,    land_mask,      &
-            calving%calving_front_mask,    &
-            calving%dthck_dx_cf,           &
-            dx,            dy,             &
-            calving%thck_effective,        &
-            calving%thck_effective_min,    &
-            partial_cf_mask,               &
-            full_mask,                     &
-            calving%effective_areafrac)
-
-    endif  ! which_lateral_melt
 
     ! Where thck > thck_effective, allow the CF to advance by distributing ice downstream.
 
@@ -2123,7 +1968,7 @@ contains
          dx, dy                    ! grid cell size (m)
 
     integer, dimension(nx,ny), intent(in) :: &
-         calving_front_mask,     & ! = 1 for floating cells with an ice-free ocean neighber
+         calving_front_mask,     & ! = 1 for floating cells with an ice-free ocean neighbor
          ocean_mask                ! = 1 for ice-free ocean cells
 
     real(dp), dimension(nx,ny), intent(out) :: &
@@ -2156,8 +2001,8 @@ contains
                    cf_length(i,j) = count_ns*dx + count_ew*dy
                 endif
              elseif (count == 3) then
-                ! This is a bit arbitrary; assume the same length as a CF bordering two edges.
-                ! The goal is to speed up calving for 'teeth' but not remove them instantly.
+                ! This is a bit arbitrary;
+                ! the goal is to speed up calving for 'teeth' but not remove them instantly
                 cf_length(i,j) = dx + dy
              endif
 
@@ -3939,7 +3784,7 @@ contains
     !--------------------------------------------------------------------
 
     if ((model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) .and. &
-         model%options%which_ho_calving_front /= HO_CALVING_FRONT_NO_SUBGRID) then
+         model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
        ! Remove ice based on a subgrid calving mask.
        ! This is a real mask in the range [0,1], which thins and removes ice beyond a prescribed radius.

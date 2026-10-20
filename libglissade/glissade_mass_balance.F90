@@ -357,11 +357,14 @@
             model%climate%smb_anomaly_timescale,   &   ! yr
             model%numerics%time)                       ! yr
 
-       if (verbose_smb .and. this_rank==rtest) then
-          i = itest
-          j = jtest
-          write(iulog,*) 'i, j, time, input smb, smb anomaly, corrected smb (mm/yr):', &
-               i, j, model%numerics%time, model%climate%smb(i,j), model%climate%smb_anomaly(i,j), model%climate%smb_corrected(i,j)
+       if (verbose_smb) then
+          call point_diag(model%climate%smb_corrected, 'smb_corrected (mm/yr)', itest, jtest, rtest, 7, 7)
+          if (this_rank==rtest) then
+             i = itest
+             j = jtest
+             write(iulog,*) 'i, j, time, input smb, smb anomaly, corrected smb (mm/yr):', &
+                  i, j, model%numerics%time, model%climate%smb(i,j), model%climate%smb_anomaly(i,j), model%climate%smb_corrected(i,j)
+          endif
        endif
 
     endif
