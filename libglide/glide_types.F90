@@ -1220,10 +1220,6 @@ module glide_types
     integer, dimension(:,:),pointer :: thkmask => null()
     !> see glide_mask.f90 for possible values
 
-    !TODO - Temporary; remove when GLAD tests the current geometry for ice-free ocean
-    integer, dimension(:,:),pointer :: glad_ocean_mask => null()
-    !> = 1 for ice-free ocean cells, else = 0; set by Glissade for GLAD
-
     integer, dimension(:,:),pointer :: stagmask => null()
     !> see glide_mask.f90 for possible values
 
@@ -3163,7 +3159,6 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt_obs)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt_obs_basin)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%glad_ocean_mask)
     call coordsystem_allocate(model%general%velo_grid, model%geometry%stagmask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
 
@@ -3911,8 +3906,6 @@ contains
         deallocate(model%geometry%dthck_dt_obs_basin)
     if (associated(model%geometry%thkmask)) &
         deallocate(model%geometry%thkmask)
-    if (associated(model%geometry%glad_ocean_mask)) &
-        deallocate(model%geometry%glad_ocean_mask)
     if (associated(model%geometry%stagmask)) &
         deallocate(model%geometry%stagmask)
     if (associated(model%geomderv%stagthck)) &

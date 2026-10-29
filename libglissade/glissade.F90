@@ -849,9 +849,6 @@ contains
 
     endif  ! use_c_space_factor
 
-    ! Set the ice-free ocean mask used by GLAD
-    call glissade_set_glad_ocean_mask(model)
-
     ! compute halo for relaxed topography
     ! Note: See comments above with regard to the halo update for topg.
     !       Outflow BCs zero out scalars beyond the global boundary, and no_ice BCs zero out scalars
@@ -910,9 +907,6 @@ contains
          model%options%is_restart == NO_RESTART) then
 
        call glissade_calving_solve(model, .true.)   ! init_calving = .true.
-
-       ! Reset the ice-free ocean mask after calving
-       call glissade_set_glad_ocean_mask(model)
 
     endif  ! initial calving
 
@@ -1353,9 +1347,6 @@ contains
     ! ------------------------------------------------------------------------ 
 
     call glissade_cleanup_icefree_cells(model)
-
-    ! Set the ice-free ocean mask used by GLAD
-    call glissade_set_glad_ocean_mask(model)
 
     ! ------------------------------------------------------------------------
     !TODO - Remove the thermal solve here; always do it near the start of the time step.
@@ -2879,31 +2870,6 @@ contains
     endif
 
   end subroutine glissade_diagnostic_variable_solve
-
-!=======================================================================
-
-  subroutine glissade_set_glad_ocean_mask(model)
-
-    ! Set a mask of ice-free ocean cells, used by GLAD to zero out acab over the ocean.
-    ! This mask is set at the same points where Glissade formerly called glide_set_mask
-    !  to compute thkmask, and it has the same ice-free ocean cells as GLIDE_IS_OCEAN(thkmask).
-    !TODO - Temporary. Note that the mask computed during initialization can be out of date
-    !       at GLAD's first step (e.g., if icebergs or ice caps are removed later in initialization).
-    !       Remove this subroutine and have GLAD test the current geometry instead.
-    !       This will change answers slightly at startup.
-
-    use glimmer_physcon, only: rhoi, rhoo
-
-    type(glide_global_type), intent(inout) :: model   ! model instance
-
-    where (model%geometry%thck <= 0.0d0 .and. &
-           model%geometry%topg - model%climate%eus < (-rhoi/rhoo) * model%geometry%thck)
-       model%geometry%glad_ocean_mask = 1
-    elsewhere
-       model%geometry%glad_ocean_mask = 0
-    endwhere
-
-  end subroutine glissade_set_glad_ocean_mask
 
 !=======================================================================
 

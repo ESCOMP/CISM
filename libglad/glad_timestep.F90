@@ -188,7 +188,8 @@ contains
                 instance%acab = 0.d0
              endwhere
           else
-             where (instance%model%geometry%glad_ocean_mask == 1)
+             where (instance%model%geometry%thck <= 0.d0 .and. &
+                    instance%model%geometry%topg - instance%model%climate%eus < 0.d0)
                 instance%acab = 0.d0
              endwhere
           endif
