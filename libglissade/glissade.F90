@@ -108,7 +108,7 @@ contains
     use glimmer_coordinates, only: coordsystem_new
     use glissade_grid_operators, only: glissade_stagger, glissade_laplacian_smoother
     use glissade_velo_higher, only: glissade_velo_higher_init
-    use glide_diagnostics, only: glide_init_diag
+    use glissade_diagnostics, only: glissade_init_diag
     use glissade_calving, only: glissade_calving_mask_init, glissade_subgrid_calving_mask_init, &
          glissade_calving_solve, verbose_calving, verbose_retreat
     use glissade_inversion, only: glissade_inversion_init, verbose_inversion
@@ -343,7 +343,7 @@ contains
     call glide_io_readall(model,model)
 
     ! initialize model diagnostics
-    call glide_init_diag(model)
+    call glissade_init_diag(model)
 
     ! Set coordinates of diagnostic point
     rtest = model%numerics%rdiag_local

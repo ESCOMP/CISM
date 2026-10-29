@@ -53,13 +53,88 @@
     implicit none
 
     private
-    public :: glissade_mass_balance_diagnostics, glissade_grounding_line_flux, &
+    public :: glissade_init_diag, &
+         glissade_mass_balance_diagnostics, glissade_grounding_line_flux, &
          glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues, &
          glissade_calvingmip_diag
 
     logical :: verbose_calvingmip = .false.
 
   contains
+
+!****************************************************************************
+
+  subroutine glissade_init_diag (model)
+
+    ! Initialize model diagnostics.
+    ! (1) Set ndiag based on dt_diag.  (Diagnostics are written every ndiag steps.)
+    ! (2) Find the local rank and indices of the global diagnostic point
+
+    use glimmer_log, only: write_log, GM_DIAGNOSTIC
+    use cism_parallel, only: parallel_localindex
+
+    implicit none
+
+    ! input/output arguments
+
+    type(glide_global_type), intent(inout) :: model    ! model instance
+
+    ! local variables
+
+    character(len=100) :: message
+
+    !-----------------------------------------------------------------
+    ! Given dt_diag, compute the interval ndiag of diagnostic output.
+    ! (Output is written every ndiag timesteps.)
+    ! NOTE: The ratio dt_diag/tinc is rounded to the nearest integer.
+    !-----------------------------------------------------------------
+
+    if (model%numerics%dt_diag > 0.0d0) then   ! dt_diag was specified in the config file; use it to compute ndiag
+
+       ! Note: tinc and dt_diag have units of years, whereas dt has model timeunits
+       model%numerics%ndiag = nint(model%numerics%dt_diag / model%numerics%tinc)
+       model%numerics%ndiag = max(model%numerics%ndiag, 1)  ! cannot write more often than once per timestep
+
+    endif
+
+    !-----------------------------------------------------------------
+    ! Find the local rank and indices of the global diagnostic point
+    !-----------------------------------------------------------------
+
+    call parallel_localindex(model%numerics%idiag,       model%numerics%jdiag,       &
+                             model%numerics%idiag_local, model%numerics%jdiag_local, &
+                             model%numerics%rdiag_local, model%parallel)
+
+    if (main_task) then
+       write(iulog,'(a26,2i6)') ' Global idiag, jdiag:     ',   &
+                             model%numerics%idiag, model%numerics%jdiag
+       write(iulog,'(a26,3i6)') ' Local idiag, jdiag, task:',   &
+                             model%numerics%idiag_local,  &
+                             model%numerics%jdiag_local,  &
+                             model%numerics%rdiag_local
+    endif
+
+    if (main_task) then
+
+       write(message,'(a25,2i6)') 'Global idiag, jdiag:     ',   &
+                                   model%numerics%idiag, model%numerics%jdiag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,3i6)') 'Local idiag, jdiag, task:',   &
+                                   model%numerics%idiag_local,  &
+                                   model%numerics%jdiag_local,  &
+                                   model%numerics%rdiag_local
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    endif  ! main_task
+
+    ! Broadcast from main task to all processors
+    !TODO - Uncomment and make sure this does not cause problems
+!    call broadcast(model%numerics%idiag_local)
+!    call broadcast(model%numerics%jdiag_local)
+!    call broadcast(model%numerics%rdiag_local)
+
+  end subroutine glissade_init_diag
 
 !****************************************************************************
 
