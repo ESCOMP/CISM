@@ -1711,6 +1711,10 @@ contains
        call write_log('Error, geothermal flux option out of range',GM_FATAL)
     end if
 
+    if (model%options%whichdycore == DYCORE_GLISSADE .and. model%options%gthf == GTHF_COMPUTE) then
+       call write_log('Error, gthf = 2 (computed flux) is supported only for Glide', GM_FATAL)
+    end if
+
     write(message,*) 'geothermal heat flux    : ',model%options%gthf,gthf(model%options%gthf)
     call write_log(message)
 
