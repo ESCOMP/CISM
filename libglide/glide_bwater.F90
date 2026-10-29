@@ -85,7 +85,6 @@ contains
     !TODO - Upgrade calcbwat for Glissade?  Currently this subroutine is a mix of old Glide and newer Glissade code.
 
     use glide_grid_operators, only: stagvarb
-    use glissade_grid_operators, only: glissade_stagger
 
     implicit none
 
