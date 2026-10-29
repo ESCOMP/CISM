@@ -253,29 +253,6 @@ contains
     status = parallel_redef(NCO%id)
     call nc_errorhandle(__FILE__,__LINE__,status)
 
-    ! level and staglevel dimension
-    NCO%nlevel = model%general%upn
-    NCO%nstaglevel = model%general%upn-1
-    NCO%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
-
-    ! Note: The following dimension lengths are set to 1 by default,
-    !       but can be increased depending on the config options.
-
-    ! vertical coordinate for ocean data
-    NCO%nzocn = model%ocean_data%nzocn
-
-    ! vertical coordinate for atmosphere data
-    NCO%nzatm = model%climate%nzatm
-
-    ! glacier ID coordinate for glacier data
-    NCO%nglacier = model%glacier%nglacier
-
-    ! basin coordinate for basin data
-    NCO%nbasin = model%ocean_data%nbasin
-
-    ! coordinate for calvingMIP axis data
-    NCO%naxis = model%calving%naxis
-
   end subroutine glimmer_nc_openappend
 
   !------------------------------------------------------------------------------
@@ -515,29 +492,6 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
        call glimmap_CFPutProj(NCO%id,mapid,model%projection)
     end if
-
-    ! setting the size of the level and staglevel dimension
-    NCO%nlevel = model%general%upn
-    NCO%nstaglevel = model%general%upn-1
-    NCO%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
-
-    ! Note: The following dimension lengths are set to 1 by default,
-    !       but can be increased depending on the config options.
-
-    ! vertical coordinate for ocean data
-    NCO%nzocn = model%ocean_data%nzocn
-
-    ! vertical coordinate for atmosphere data
-    NCO%nzatm = model%climate%nzatm
-
-    ! glacier ID coordinate for glacier data
-    NCO%nglacier = model%glacier%nglacier
-
-    ! basin coordinate for basin data
-    NCO%nbasin = model%ocean_data%nbasin
-
-    ! coordinate for calvingMIP axis data
-    NCO%naxis = model%calving%naxis
 
   end subroutine glimmer_nc_createfile
 
@@ -1296,29 +1250,6 @@ contains
     else
        infile%tstep_counts_read = .false.
     end if
-
-    ! setting the size of the level and staglevel dimension
-    NCI%nlevel = model%general%upn
-    NCI%nstaglevel = model%general%upn-1
-    NCI%nstagwbndlevel = model%general%upn !MJH This is the max index, not size
-
-    ! Note: The following dimension lengths are set to 1 by default,
-    !       but can be increased depending on the config options.
-
-    ! vertical coordinate for ocean data
-    NCI%nzocn = model%ocean_data%nzocn
-
-    ! vertical coordinate for atmosphere data
-    NCI%nzatm = model%climate%nzatm
-
-    ! glacier ID coordinate for glacier data
-    NCI%nglacier = model%glacier%nglacier
-
-    ! basin coordinate for basin data
-    NCI%nbasin = model%ocean_data%nbasin
-
-    ! coordinate for calvingMIP axis data
-    NCI%naxis = model%calving%naxis
 
     ! checking if dimensions and grid spacing are the same as in the configuration file
     ! x1

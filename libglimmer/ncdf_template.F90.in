@@ -53,7 +53,7 @@ module NAME_io
 
   private :: get_xtype, is_enabled, is_enabled_0dint, is_enabled_1dint, &
        is_enabled_2dint, is_enabled_0dreal, is_enabled_1dreal, is_enabled_2dreal, is_enabled_3dreal, &
-       initialize_restart_variable_list
+       initialize_restart_variable_list, NAME_set_nc_dims
 
   ! List of variables needed for a restart; there is an array of restart variable lists,
   ! one for each ice sheet instance.
@@ -362,6 +362,31 @@ contains
 
   end subroutine NAME_io_write_slice
   
+  subroutine NAME_set_nc_dims(nc, model)
+
+    ! Set the sizes of the vertical and other non-horizontal dimensions,
+    !  used when reading and writing fields with these dimensions
+
+    implicit none
+    type(glimmer_nc_stat) :: nc
+    type(glide_global_type) :: model
+
+    ! level and staglevel dimensions
+    nc%nlevel = model%general%upn
+    nc%nstaglevel = model%general%upn-1
+    nc%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
+
+    ! Note: The following dimension lengths are set to 1 by default,
+    !       but can be increased depending on the config options.
+    nc%nzocn = model%ocean_data%nzocn      ! vertical coordinate for ocean data
+    nc%nzatm = model%climate%nzatm         ! vertical coordinate for atmosphere data
+    nc%nglacier = model%glacier%nglacier   ! glacier ID coordinate for glacier data
+    nc%nbasin = model%ocean_data%nbasin    ! basin coordinate for basin data
+    nc%naxis = model%calving%naxis         ! coordinate for calvingMIP axis data
+
+  end subroutine NAME_set_nc_dims
+
+
   subroutine NAME_io_create(outfile,model,data)
 
     use cism_parallel, only: main_task, parallel_type, &
@@ -381,6 +406,8 @@ contains
     integer :: up
 
     !GENVAR_DIMS!
+
+    call NAME_set_nc_dims(NCO, model)
 
     !TODO - WHL - This subroutine consumes NCO%vars each time it is read.
     !             New files must start with NCO%vars = NCO%vars_copy
@@ -641,6 +668,7 @@ contains
     do while(associated(ic))
        call glimmer_nc_checkread(ic,model)
        if (ic%nc%just_processed) then
+          call NAME_set_nc_dims(ic%nc, model)
           call NAME_io_read(ic,data)
        end if
        ic=>ic%next
@@ -795,6 +823,8 @@ contains
 
           nt = ic%nt
           ic%nc%vars = ''
+
+          call NAME_set_nc_dims(ic%nc, model)
 
           ! Allocate 3D arrays that contain all time slices for each 2D field
           ! Note: Variables with the 'read_once' attribute must be 2D
