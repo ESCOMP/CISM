@@ -34,7 +34,7 @@ def unsigned_int(x):
         raise argparse.ArgumentTypeError("This argument is an unsigned int type! Should be an integer greater than zero.")
     return x
 
-parser.add_argument('-c','--config', default='./dome.config', 
+parser.add_argument('-c','--config', default='./dome.config.diva',
         help="The configure file used to setup the test case and run CISM")
 parser.add_argument('-e','--executable', default='./cism_driver', 
         help="The CISM driver")
