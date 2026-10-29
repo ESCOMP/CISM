@@ -69,6 +69,7 @@ contains
     use glide_model_registry, only : register_model
     use glide
     use glissade
+    use glissade_setup, only: glissade_config
     use glad_constants
     use glad_restart_gcm
     use glide_diagnostics
@@ -102,7 +103,7 @@ contains
     ! initialise model
 
     call register_model(instance%model)
-    call glide_config(instance%model, config, config_fileunit)
+    call glissade_config(instance%model, config, config_fileunit)
 
     ! GLAD supports only the Glissade dycore
     if (instance%model%options%whichdycore /= DYCORE_GLISSADE) then

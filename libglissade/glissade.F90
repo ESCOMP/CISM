@@ -94,7 +94,7 @@ contains
          parallel_create_comm_row, parallel_create_comm_col, &
          parallel_reduce_max, parallel_is_zero
 
-    use glide_setup
+    use glissade_setup
     use glimmer_ncio, only: openall_in, openall_out, glimmer_nc_get_var, glimmer_nc_get_dimlength
     use glissade_therm, only: glissade_init_therm
     use glissade_mass_balance, only: glissade_mass_balance_init
@@ -164,7 +164,7 @@ contains
     call glimmer_init_scales
 
     ! scale parameters
-    call glide_scale_params(model)
+    call glissade_scale_params(model)
 
     ! Set up coordinate systems, and change the parallel values of ewn and nsn.
     ! With no_ice BCs, scalars adjacent to the global boundary (including halos) are set to zero.
@@ -324,7 +324,7 @@ contains
 
     ! compute sigma levels or load from external file
     ! (if not already read from config file)
-    call glide_load_sigma(model,dummyunit)
+    call glissade_load_sigma(model,dummyunit)
 
     ! initialize the time step counter
     ! For restart, tstep_count will be overwritten from the restart file.
