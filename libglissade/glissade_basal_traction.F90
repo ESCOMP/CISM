@@ -24,7 +24,6 @@
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-#include "glide_mask.inc"
 #include "config.inc"
 
   module glissade_basal_traction
