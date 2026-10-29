@@ -42,6 +42,7 @@ subroutine cism_init_dycore(model)
   use glide_model_registry, only : register_model
   use glide
   use glissade
+  use glissade_setup, only: glissade_config
   use eismint_forcing
   use glimmer_log
   use glimmer_config
@@ -59,6 +60,7 @@ subroutine cism_init_dycore(model)
 
   type(glide_global_type) :: model        ! model instance
   type(ConfigSection), pointer :: config  ! configuration stuff
+  type(ConfigSection), pointer :: section ! a section of the configuration
   real(kind=dp) :: time                   ! model time in years
   integer :: clock,clock_rate
 
@@ -102,7 +104,19 @@ subroutine cism_init_dycore(model)
   call t_startf('initialization')
 
   call register_model(model)
-  call glide_config(model,config)
+
+  ! Read the dycore option, then read the rest of the configuration with the
+  !  config reader for that dycore
+  call GetSection(config, section, 'options')
+  if (associated(section)) then
+     call GetValue(section, 'dycore', model%options%whichdycore)
+  endif
+
+  if (model%options%whichdycore == DYCORE_GLIDE) then
+     call glide_config(model,config)
+  else
+     call glissade_config(model,config)
+  endif
 
   ! This call is needed only if running the EISMINT test cases
   call eismint_initialise(model%eismint_climate,config)
