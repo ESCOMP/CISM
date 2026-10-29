@@ -37,7 +37,7 @@ module glimmer_sparse
   use glimmer_paramets, only: iulog
   use glimmer_sparse_type
   use glimmer_sparse_slap
-  use glide_types
+  use glide_types   ! only for HO_SPARSE parameters
 
   implicit none
 

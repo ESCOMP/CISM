@@ -196,7 +196,7 @@
 
     thklim = model%numerics%thklim
     eus    = model%climate%eus
-    btrc_const = model%velowk%btrac_const
+    btrc_const = model%paramets%btrac_const
     whichbtrc = model%options%whichbtrc
     whichgradient_margin = model%options%which_ho_gradient_margin
 

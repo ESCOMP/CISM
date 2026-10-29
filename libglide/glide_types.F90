@@ -868,7 +868,7 @@ module glide_types
 
     !> Flag that describes basal boundary condition for HO dyn core: 
     !> \begin{description}
-    !> \item[0] spatially uniform value; low value of 10 Pa/(m/yr) by default
+    !> \item[0] spatially uniform value of ho_beta_const
     !> \item[1] large value for frozen bed, lower value for bed at pressure melting point
     !> \item[2] pseudo-plastic basal sliding law; new version with coulomb_c options
     !> \item[3] pseudo-plastic basal sliding law; old version with tan(phi)
@@ -1436,8 +1436,7 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: uvel_2d_extend => null()  !> 2D $x$-velocity on extended staggered grid
     real(dp),dimension(:,:)  ,pointer :: vvel_2d_extend => null()  !> 2D $y$-velocity on extended staggered grid
 
-    real(dp),dimension(:,:)  ,pointer :: bed_softness => null() !> bed softness parameter
-    real(dp),dimension(:,:)  ,pointer :: btrc  => null()        !>  basal traction (scaler field)
+    real(dp),dimension(:,:)  ,pointer :: btrc  => null()        !> basal traction (scalar field)
     real(dp),dimension(:,:,:),pointer :: btraction => null()    !> x(1,:,:) and y(2,:,:) "consistent" basal traction fields 
     real(dp),dimension(:,:)  ,pointer :: beta  => null()        !> basal shear coefficient on velo grid (Pa yr/m)
     real(dp),dimension(:,:)  ,pointer :: beta_internal => null()!> beta weighted by f_ground or otherwise adjusted (glissade only)
@@ -2634,9 +2633,6 @@ module glide_types
     real(dp) :: trcmin = 0.0d0
     real(dp) :: marine = 1.0d0
     real(dp) :: trcmax = 10.0d0
-    real(dp) :: btrac_const = 0.0d0  !TODO - Remove from glide_velowk type; already in glide_paramets type.
-    real(dp) :: btrac_slope = 0.0d0
-    real(dp) :: btrac_max = 0.d0
   end type glide_velowk
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -2694,7 +2690,7 @@ module glide_types
   type glide_paramets
     real(dp),dimension(5) :: bpar = (/ 0.2d0, 0.5d0, 0.0d0 ,1.0d-2, 1.0d0/)
     real(dp) :: btrac_const = 0.d0     ! m yr^{-1} Pa^{-1} (gets scaled during init)
-    real(dp) :: btrac_slope = 0.0d0    ! Pa^{-1} (gets scaled during init)
+    real(dp) :: btrac_slope = 0.d0     ! Pa^{-1} (gets scaled during init)
     real(dp) :: btrac_max = 0.d0       ! m yr^{-1} Pa^{-1} (gets scaled during init)
     real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down  !TODO - Change default to 0.0?
     real(dp) :: flow_enhancement_factor_ground = 1.0d0   ! flow enhancement parameter for the Arrhenius relationship;
@@ -3117,7 +3113,6 @@ contains
     call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%velnorm)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%uflx)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%vflx)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%bed_softness)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%btrc)
     call coordsystem_allocate(model%general%velo_grid, 2, model%velocity%btraction)
     call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%resid_u)
@@ -3659,8 +3654,6 @@ contains
         deallocate(model%velocity%uflx)
     if (associated(model%velocity%vflx)) &
         deallocate(model%velocity%vflx)
-    if (associated(model%velocity%bed_softness)) &
-        deallocate(model%velocity%bed_softness)
     if (associated(model%velocity%btrc)) &
         deallocate(model%velocity%btrc)
     if (associated(model%velocity%btraction)) &
