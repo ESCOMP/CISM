@@ -99,8 +99,8 @@ contains
 
     call glide_io_writeall(model, model, forcewrite)
 
-    call closeall_in(model)
-    call closeall_out(model)
+    call closeall_in(model%funits)
+    call closeall_out(model%funits)
 
     call glide_deallocarr(model)
     call deregister_model(model)

@@ -179,7 +179,9 @@ contains
     call glad_io_createall(instance%model, data=instance)
 
     ! create instantaneous glad variables
-    call openall_out(instance%model, outfiles=instance%out_first)
+    call openall_out(instance%model%funits, instance%model%options%is_restart, instance%model%projection, &
+                     instance%model%numerics%tstart, instance%model%numerics%tstep_count, &
+                     outfiles=instance%out_first)
     call glad_mbal_io_createall(instance%model, data=instance, outfiles=instance%out_first)
 
     ! fill dimension variables
@@ -299,7 +301,7 @@ contains
     type(glad_instance),  intent(inout) :: instance    !> The instance being initialised.
 
     call glide_finalise(instance%model)
-    call closeall_out(instance%model,outfiles=instance%out_first)
+    call closeall_out(instance%model%funits, outfiles=instance%out_first)
     instance%out_first => null()
 
   end subroutine glad_i_end

@@ -53,17 +53,18 @@ contains
 
   !------------------------------------------------------------------------------
 
-  subroutine glimmer_nc_readparams(model,config)
+  subroutine glimmer_nc_readparams(funits, is_restart, config)
 
     ! read netCDF I/O related configuration file
-    use glide_types
+    use glimmer_ncdf
     use glimmer_config
     use glimmer_global, only : fname_length
 
     implicit none
 
-    type(glide_global_type)      :: model  ! model instance
-    type(ConfigSection), pointer :: config ! structure holding sections of configuration file
+    type(glimmer_funits)         :: funits     ! netCDF file lists of the model instance
+    integer, intent(in)          :: is_restart ! restart option (NO_RESTART, STANDARD_RESTART or HYBRID_RESTART)
+    type(ConfigSection), pointer :: config     ! structure holding sections of configuration file
     
     ! local variables
     type(ConfigSection), pointer :: section
@@ -88,20 +89,20 @@ contains
     ! There should be at most one 'CF restart' section in the config file.
     ! The filename should contain the string 'restart' or '.r.'. (Coupled CESM runs use '.r.')
     !
-    ! If model%options%is_restart = STANDARD_RESTART, then the file listed in 'CF restart' (provided it exists)
+    ! If is_restart = STANDARD_RESTART, then the file listed in 'CF restart' (provided it exists)
     !  is added to the glimmer_nc_input data structure, overriding any file listed in the 'CF input' section.
     !  The latest time slice will be read in.
     ! Thus when restarting the model, it is only necessary to set restart = 1 (i.e., STANDARD_RESTART)
     !  in the config file; it is not necesssary to change the filenames in 'CF input' or 'CF restart'.
     !
-    ! If model%options%is_restart = STANDARD_RESTART and there is no 'CF restart' section, the model will abort.
+    ! If is_restart = STANDARD_RESTART and there is no 'CF restart' section, the model will abort.
     !
-    ! If model%options%is_restart = HYBRID_RESTART, the file listed in 'CF input' is used to initialize the model.
+    ! If is_restart = HYBRID_RESTART, the file listed in 'CF input' is used to initialize the model.
     ! This file should be a restart file from a previous run (e.g., a long ice-sheet spin-up),
     !  which provides the initial ice state for the hybrid run.
     ! The differences from STANDARD_RESTART (besides the config section where the filename is given) are
     ! (1) tstep_count is set to 0, replacing the value in the CF input file.
-    ! (2) model%numerics%time is set to tstart from the config file, replacing the value in the CF input file.
+    ! (2) The model time is set to tstart from the config file, replacing the value in the CF input file.
 
     ! get config string
     call ConfigAsString(config,configstring)
@@ -116,8 +117,8 @@ contains
     call GetSection(config,section,'CF output')
     do while(associated(section))
        output => handle_output(section,output,configstring)
-       if (.not.associated(model%funits%out_first)) then
-          model%funits%out_first => output
+       if (.not.associated(funits%out_first)) then
+          funits%out_first => output
        end if
 
        ! Check the variable list for the string '_tavg', which indicates a time-average field.
@@ -169,8 +170,8 @@ contains
     call GetSection(config,section,'CF restart')
     if (associated(section)) then
        output => handle_output(section,output,configstring)
-       if (.not.associated(model%funits%out_first)) then
-          model%funits%out_first => output
+       if (.not.associated(funits%out_first)) then
+          funits%out_first => output
        end if
 
        ! Make sure the filename contains 'restart'
@@ -189,20 +190,20 @@ contains
     endif
 
     ! Make sure that no time-average variable appears in more than one output file
-    call check_duplicate_tavg(model%funits%out_first)
+    call check_duplicate_tavg(funits%out_first)
 
     ! set up inputs
     call GetSection(config,section,'CF input')
     do while(associated(section))
        input => handle_input(section,input)
-       if (.not.associated(model%funits%in_first)) then
-          model%funits%in_first => input
+       if (.not.associated(funits%in_first)) then
+          funits%in_first => input
        end if
        call GetSection(section%next,section,'CF input')
     end do
 
     ! set up restart input
-    if (model%options%is_restart == STANDARD_RESTART) then
+    if (is_restart == STANDARD_RESTART) then
 
        ! If there is a 'CF restart' section, the model will restart from the file listed there (if it exists).
        ! Else the model will abort.
@@ -221,11 +222,11 @@ contains
 
              ! nullify the input data structure set above
              input => null()
-             model%funits%in_first => null()
+             funits%in_first => null()
 
              ! set new pointers
              input => handle_input(section,input)
-             model%funits%in_first => input
+             funits%in_first => input
 
              ! Make sure the filename contains 'restart'
              pos = index(input%nc%filename,'restart')
@@ -247,14 +248,14 @@ contains
 
        endif   ! associated(section)
 
-    endif  ! model%options%is_restart
+    endif  ! is_restart
 
     ! setup forcings
     call GetSection(config,section,'CF forcing')
     do while(associated(section))
        forcing => handle_forcing(section,forcing)
-       if (.not.associated(model%funits%frc_first)) then
-          model%funits%frc_first => forcing
+       if (.not.associated(funits%frc_first)) then
+          funits%frc_first => forcing
        end if
        call GetSection(section%next,section,'CF forcing')
     end do
