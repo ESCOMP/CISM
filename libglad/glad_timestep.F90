@@ -62,7 +62,7 @@ contains
     use glimmer_coordinates, only: coordsystem_allocate
     use glide
     use glissade
-    use glide_io
+    use glissade_io
     use glide_types
     use glad_mbal_coupling, only : glad_accumulate_input_gcm, glad_average_input_gcm
     use glad_io
@@ -108,7 +108,7 @@ contains
 
     ! Get ice thickness ----------------------------------------
 
-    call glide_get_thk(instance%model,thck_temp)
+    call glissade_get_thk(instance%model,thck_temp)
 
     ! Accumulate Glide input fields, acab and artm and 7 layers of POP thermal forcings
     ! Note: At this point, instance%acab has units of m
@@ -165,7 +165,7 @@ contains
                                       instance%thermal_forcing)
                                   
           ! Calculate the initial ice volume (scaled and converted to water equivalent)
-          call glide_get_thk(instance%model,thck_temp)
+          call glissade_get_thk(instance%model,thck_temp)
           thck_temp = thck_temp * rhoi/rhow
 
           !Note: Call to glad_remove_bath is commented out for now.  Not sure if it is needed in GCM runs.
@@ -174,9 +174,9 @@ contains
 !!          call glad_remove_bath(instance%local_orog,1,1)
 
           ! Save the SMB received from the coupler, before masking, for SMB budget diagnostics.
-          ! Convert from m/yr w.e. to m/yr ice; glide_set_acab_cpl converts to m/s.
+          ! Convert from m/yr w.e. to m/yr ice; glissade_set_acab_cpl converts to m/s.
 
-          call glide_set_acab_cpl(instance%model, instance%acab * rhow/rhoi)
+          call glissade_set_acab_cpl(instance%model, instance%acab * rhow/rhoi)
 
           ! Mask out non-accumulation in ice-free areas
 
@@ -201,12 +201,12 @@ contains
           !TODO - It is confusing to have units of m/yr w.e. for instance%acab, compared to units m/yr ice for Glide. 
           !       Change to use the same units consistently?  E.g., switch to w.e. in Glide
 
-          call glide_set_acab(instance%model, instance%acab * rhow/rhoi)
+          call glissade_set_acab(instance%model, instance%acab * rhow/rhoi)
 
           ! Diagnose the SMB zeroed by the masking above (m/s ice)
           instance%model%climate%acab_unapplied_glad(:,:) = &
                instance%model%climate%acab_cpl(:,:) - instance%model%climate%acab(:,:)
-          call glide_set_artm(instance%model, instance%artm)
+          call glissade_set_artm(instance%model, instance%artm)
 
           ! Note: CISM has several thermal forcing options, as determined by ocean_data_domain:
           !        compute internally, read from external file, or receive from Glad.
@@ -232,7 +232,7 @@ contains
              il = instance%model%numerics%idiag
              jl = instance%model%numerics%jdiag
              write (iulog,*) ' '
-             write (iulog,*) 'After glide_set_acab, glide_set_artm, glide_set_thermal_forcing: i, j =', il, jl
+             write (iulog,*) 'After glissade_set_acab, glissade_set_artm, glissade_set_thermal_forcing: i, j =', il, jl
              write (iulog,*) 'acab (m/y), artm (C), thermal_forcing (K) =', &
                   instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl), instance%thermal_forcing(:,il,jl)
           end if
@@ -278,7 +278,7 @@ contains
 
           ! write netCDF output
 
-          call glide_io_writeall(instance%model,instance%model)
+          call glissade_io_writeall(instance%model,instance%model)
           call glad_io_writeall(instance,instance%model)
 
           ! Accumulate Glide output fields to be sent to GCM

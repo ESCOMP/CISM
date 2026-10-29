@@ -140,6 +140,7 @@ file(GLOB FORTRANSOURCES
      ${GLISSADE_SOURCES})
 
 set (FORTRAN_AUTOGEN_SOURCES ${CISM_BINARY_DIR}/fortran_autogen_srcs/glide_io.F90
+			     ${CISM_BINARY_DIR}/fortran_autogen_srcs/glissade_io.F90
 			     ${CISM_BINARY_DIR}/fortran_autogen_srcs/glint_io.F90
 			     ${CISM_BINARY_DIR}/fortran_autogen_srcs/glint_mbal_io.F90
 			     ${CISM_BINARY_DIR}/fortran_autogen_srcs/glad_io.F90
@@ -157,9 +158,11 @@ MESSAGE(">> Calling utils/build/autogenerate-in-build-dir")
 
 ADD_CUSTOM_COMMAND(
 		OUTPUT fortran_autogen_srcs/glide_io.F90
+		       fortran_autogen_srcs/glissade_io.F90
 		COMMAND ${CISM_SOURCE_DIR}/utils/build/autogenerate-in-build-dir
 		${CISM_SOURCE_DIR} 
 		DEPENDS ${CISM_SOURCE_DIR}/libglide/glide_vars.def 
+			${CISM_SOURCE_DIR}/libglissade/glissade_vars.def
 		        ${CISM_SOURCE_DIR}/libglimmer/ncdf_template.F90.in
 			${CISM_SOURCE_DIR}/utils/build/generate_ncvars.py
 			${CISM_SOURCE_DIR}/utils/build/autogenerate-in-build-dir

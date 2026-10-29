@@ -56,7 +56,7 @@ module glissade
   use glimmer_log
   use glissade_types
   use glimmer_utils, only: point_diag, calc_lsrf_usrf
-  use glide_io
+  use glissade_io
   use glimmer_config
   use glissade_test, only: &
        glissade_test_halo, glissade_test_transport
@@ -339,7 +339,7 @@ contains
                     model%numerics%dew, model%numerics%dns, model%general%upn)
 
     ! read first time slice
-    call glide_io_readall(model,model)
+    call glissade_io_readall(model,model)
 
     ! initialize model diagnostics
     call glissade_init_diag(model)
@@ -702,7 +702,7 @@ contains
                      model%numerics%tstart, model%numerics%tstep_count)
 
     ! create glide I/O variables
-    call glide_io_createall(model, model)
+    call glissade_io_createall(model, model)
 
     ! initialize glissade components
 
@@ -1616,7 +1616,6 @@ contains
     use glissade_inversion, only: verbose_inversion
     use glissade_calving, only: verbose_calving
     use glissade_glacier, only: verbose_glacier
-    use glide_stop, only: glide_finalise
 
     implicit none
 
@@ -1912,11 +1911,11 @@ contains
 
           ! If advective_cfl exceeds 1.0, then abort cleanly.  Otherwise, set dt_transport and proceed.
           ! Note: Usually, it would be enough to write a fatal abort message.
-          !       The call to glide_finalise was added to allow CISM to finish cleanly when running
+          !       The call to glissade_finalise (formerly glide_finalise) was added to allow CISM to finish cleanly when running
           !        a suite of automated stability tests, e.g. with the stabilitySlab.py script.
           if (advective_cfl > 1.0d0) then
-             if (main_task) write(iulog,*) 'advective CFL violation; call glide_finalise and exit cleanly'
-             call glide_finalise(model, forcewrite_arg=.true.)
+             if (main_task) write(iulog,*) 'advective CFL violation; call glissade_finalise and exit cleanly'
+             call glissade_finalise(model, forcewrite_arg=.true.)
              stop
           else
              nsubcyc = model%numerics%subcyc
@@ -2847,6 +2846,58 @@ contains
     endif
 
   end subroutine glissade_diagnostic_variable_solve
+
+!=======================================================================
+
+  subroutine glissade_finalise(model,forcewrite_arg)
+
+    !> finalise model instance
+    !> (Glissade copy of glide_finalise)
+
+    use glimmer_ncio
+    use glimmer_log
+    use glissade_types
+    use glissade_io
+    use glide_model_registry, only: deregister_model
+    use profile
+    implicit none
+    type(glide_global_type) :: model                 !> model instance
+    logical, optional, intent(in) :: forcewrite_arg  !> if true, then force a write to output files
+    character(len=100) :: message
+
+    logical :: forcewrite         !> if true, then force a write to output files
+
+    forcewrite = .false.
+
+    ! force write to output files if specified by the optional input argument
+    if (present(forcewrite_arg)) then
+       forcewrite = forcewrite_arg
+    end if
+
+    ! force write to output files if set by a model option
+    if (model%options%forcewrite_final) then
+       forcewrite = .true.
+    endif
+
+    call glissade_io_writeall(model, model, forcewrite)
+
+    call closeall_in(model%funits)
+    call closeall_out(model%funits)
+
+    call glide_deallocarr(model)
+    call deregister_model(model)
+
+    ! write some statistics
+    call write_log('Some Stats')
+    write(message,*) 'Maximum temperature iterations: ',model%temper%niter
+    call write_log(message)
+
+    ! close profile
+#if (defined PROFILING || defined CCSMCOUPLED || defined CESMTIMERS)
+    call profile_close(model%profile)
+#endif
+
+  end subroutine glissade_finalise
 
 !=======================================================================
 

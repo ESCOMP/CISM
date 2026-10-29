@@ -276,7 +276,7 @@ contains
 
     ! Write netCDF output for this instance
 
-    call glide_io_writeall(instance%model, instance%model)
+    call glissade_io_writeall(instance%model, instance%model)
     call glad_io_writeall(instance, instance%model)
     call glad_mbal_io_writeall(instance, instance%model, outfiles=instance%out_first)
 
@@ -288,13 +288,12 @@ contains
 
     !> Tidy up 
 
-    use glide
+    use glissade, only: glissade_finalise
     use glimmer_ncio
-    use glide_stop, only : glide_finalise
     implicit none
     type(glad_instance),  intent(inout) :: instance    !> The instance being initialised.
 
-    call glide_finalise(instance%model)
+    call glissade_finalise(instance%model)
     call closeall_out(instance%model%funits, outfiles=instance%out_first)
     instance%out_first => null()
 
