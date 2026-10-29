@@ -170,8 +170,6 @@ contains
 
     function slap_solve (matrix, rhs, solution, options, workspace,err,niters, verbose)
 
-        use glide_types  ! only for HO_SPARSE parameter values
-
         !> Solves the slap linear system, and reports status information.
         !> This function returns an error code that should be zero if the
         !> call succeeded and nonzero if it failed.  No additional error codes
@@ -336,7 +334,7 @@ contains
 
             select case(options%base%method)
 
-               ! Case values come from parameters defined in glide_types.F90.
+               ! Case values come from parameters defined in glimmer_sparse_type.F90.
                ! (These parameter values are also used in glimmer_sparse.F90.)
 
                case(HO_SPARSE_GMRES)   ! GMRES

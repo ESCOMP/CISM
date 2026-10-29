@@ -73,6 +73,11 @@ module glimmer_ncdf
   real(dp), parameter :: glimmer_nc_max_time=1.d10
   !> maximum time that can be written
 
+  !> restart options (model%options%is_restart)
+  integer, parameter :: NO_RESTART = 0
+  integer, parameter :: STANDARD_RESTART = 1
+  integer, parameter :: HYBRID_RESTART = 2
+
   !> Data structure holding netCDF file description
   type glimmer_nc_stat
      !> Data structure holding netCDF file description
