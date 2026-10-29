@@ -20,8 +20,9 @@ fortran_autogen_srcs
 fortran_mod_files
 lib
 
-#ignore cism_driver executables
+#ignore cism_driver executables and links to them (but not the cism_driver source directory)
 cism_driver
+!/cism_driver/
 
 #ignore test outputs
 results
