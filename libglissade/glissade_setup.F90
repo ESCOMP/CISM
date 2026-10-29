@@ -3866,7 +3866,7 @@ contains
     !       Check glide_vars.def to make sure any added variables have 'load: 1'
 
     use glissade_types
-    use glide_io, only: glide_add_to_restart_variable_list
+    use glissade_io, only: glissade_add_to_restart_variable_list
 
     implicit none
 
@@ -3902,7 +3902,7 @@ contains
     !        to be in the restart file, but without adding a check for that we cannot assume any of them are.
     !        There are some options where artm would not be needed.  Logic could be added to make that distinction.
     !        Note that bheatflx may not be an input variable but can also be assigned as a parameter in the config file!
-    call glide_add_to_restart_variable_list('topg thk temp bheatflx artm', model_id)
+    call glissade_add_to_restart_variable_list('topg thk temp bheatflx artm', model_id)
 
     ! add the SMB variable, based on options%smb_input
     ! Note: SMB can be input in one of several functional forms:
@@ -3918,18 +3918,18 @@ contains
 
           select case (options%smb_input)
           case (SMB_INPUT_MYR_ICE)
-             call glide_add_to_restart_variable_list('acab', model_id)
+             call glissade_add_to_restart_variable_list('acab', model_id)
           case (SMB_INPUT_MMYR_WE)
-             call glide_add_to_restart_variable_list('smb', model_id)
+             call glissade_add_to_restart_variable_list('smb', model_id)
           end select  ! smb_input
 
        case(SMB_INPUT_FUNCTION_XY_GRADZ)
-          call glide_add_to_restart_variable_list('smb_ref', model_id)
-          call glide_add_to_restart_variable_list('smb_gradz', model_id)
-          call glide_add_to_restart_variable_list('usrf_ref', model_id)
+          call glissade_add_to_restart_variable_list('smb_ref', model_id)
+          call glissade_add_to_restart_variable_list('smb_gradz', model_id)
+          call glissade_add_to_restart_variable_list('usrf_ref', model_id)
 
        case(SMB_INPUT_FUNCTION_XYZ)
-          call glide_add_to_restart_variable_list('smb_3d', model_id)
+          call glissade_add_to_restart_variable_list('smb_3d', model_id)
 
        ! Note: For SMB_INPUT_FUNCTION_PDD, precip and artm are read in as forcing
        !       and are not needed for exact restart
@@ -3942,29 +3942,29 @@ contains
     select case(options%artm_input_function)
 
        case(ARTM_INPUT_FUNCTION_XY_GRADZ)
-          call glide_add_to_restart_variable_list('artm_ref', model_id)
-          call glide_add_to_restart_variable_list('artm_gradz', model_id)
+          call glissade_add_to_restart_variable_list('artm_ref', model_id)
+          call glissade_add_to_restart_variable_list('artm_gradz', model_id)
           if (options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
              ! usrf_ref was added to restart above; nothing to do here
           else
-             call glide_add_to_restart_variable_list('usrf_ref', model_id)
+             call glissade_add_to_restart_variable_list('usrf_ref', model_id)
           endif
 
        case(ARTM_INPUT_FUNCTION_XYZ)
-          call glide_add_to_restart_variable_list('artm_3d', model_id)
+          call glissade_add_to_restart_variable_list('artm_3d', model_id)
           if (options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
              ! smb_levels was added to restart above; nothing to do here
           else
-             call glide_add_to_restart_variable_list('smb_levels', model_id)
+             call glissade_add_to_restart_variable_list('smb_levels', model_id)
           endif
 
        case(ARTM_INPUT_FUNCTION_XY_LAPSE)
-          call glide_add_to_restart_variable_list('artm_ref', model_id)
+          call glissade_add_to_restart_variable_list('artm_ref', model_id)
           ! Note: Instead of artm_gradz, there is a uniform lapse rate
           if (options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
              ! usrf_ref was added to restart above; nothing to do here
           else
-             call glide_add_to_restart_variable_list('usrf_ref', model_id)
+             call glissade_add_to_restart_variable_list('usrf_ref', model_id)
           endif
 
     end select  ! artm_input_function
@@ -3973,38 +3973,38 @@ contains
     !TODO - Remove these? Anomaly forcing is typically in a forcing file, not the main input file.
 
     if (options%enable_smb_anomaly) then
-          call glide_add_to_restart_variable_list('smb_anomaly', model_id)
+          call glissade_add_to_restart_variable_list('smb_anomaly', model_id)
     endif
 
     if (options%enable_artm_anomaly) then
-       call glide_add_to_restart_variable_list('artm_anomaly', model_id)
+       call glissade_add_to_restart_variable_list('artm_anomaly', model_id)
     endif
 
     if (options%enable_bmlt_anomaly) then
-       call glide_add_to_restart_variable_list('bmlt_float_anomaly', model_id)
+       call glissade_add_to_restart_variable_list('bmlt_float_anomaly', model_id)
     endif
 
     if (options%read_lat_lon) then
        ! If lat and lon are to be read from the input file, they should be written to the restart file
-       call glide_add_to_restart_variable_list('lat lon', model_id)
+       call glissade_add_to_restart_variable_list('lat lon', model_id)
     endif
 
     select case (options%whichbmlt_float)
 
        ! If bmlt_float is read from an external file at startup, then it needs to be in the restart file
        case (BMLT_FLOAT_EXTERNAL)
-          call glide_add_to_restart_variable_list('bmlt_float_external', model_id)
+          call glissade_add_to_restart_variable_list('bmlt_float_external', model_id)
 
        ! If prescribing a warm ocean mask for depth-dependent melting, this needs to be read on restart
        case (BMLT_FLOAT_DEPTH)
-          call glide_add_to_restart_variable_list('warm_ocean_mask', model_id)
+          call glissade_add_to_restart_variable_list('warm_ocean_mask', model_id)
 
        case (BMLT_FLOAT_THERMAL_FORCING)
           ! Need the latest value of the thermal forcing field.
           ! This could be either the baseline value (if not updating during runtime), or a value read from a forcing file.
           ! If the latter, this field may not be needed, but include to be on the safe side, in case the forcing file
           !  is not read at restart.
-          call glide_add_to_restart_variable_list('thermal_forcing', model_id)
+          call glissade_add_to_restart_variable_list('thermal_forcing', model_id)
 
     end select  ! whichbmlt_float
 
@@ -4015,7 +4015,7 @@ contains
         options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
         options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE .or. &
         options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
-       call glide_add_to_restart_variable_list('basin_number', model_id)
+       call glissade_add_to_restart_variable_list('basin_number', model_id)
     endif
 
     ! add dycore specific restart variables
@@ -4040,7 +4040,7 @@ contains
         !        before thk evolution.  This means flwa is calculated from the current temp and 
         !        the old thk.  The old thk is not available on a restart (just the current thk).
         !        (thk is needed to calculate flwa for 1) a mask for where ice is, 2) correction for pmp.)
-         call glide_add_to_restart_variable_list('thkmask wgrd wvel flwa uvel vvel', model_id)
+         call glissade_add_to_restart_variable_list('thkmask wgrd wvel flwa uvel vvel', model_id)
     
         ! slip option for SIA
         select case (options%whichbtrc)
@@ -4067,7 +4067,7 @@ contains
            ! no restart variables needed
         case default
            ! restart needs to know bwat value
-           call glide_add_to_restart_variable_list('bwat', model_id)
+           call glissade_add_to_restart_variable_list('bwat', model_id)
         end select
 
 
@@ -4075,7 +4075,7 @@ contains
         ! beta - b.c. needed for runs with sliding - could add logic to only include in that case
         ! flwa is not needed for glissade.
 
-         call glide_add_to_restart_variable_list('kinbcmask bfricflx dissip', model_id)
+         call glissade_add_to_restart_variable_list('kinbcmask bfricflx dissip', model_id)
 
         ! uvel,vvel: These are needed for an exact restart because we can only recalculate
         !            them to within the picard/jfnk convergence tolerance.
@@ -4089,9 +4089,9 @@ contains
         !       and uvel/vvel are sufficient.
 
         if (options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE) then
-           call glide_add_to_restart_variable_list('uvel_extend vvel_extend', model_id)
+           call glissade_add_to_restart_variable_list('uvel_extend vvel_extend', model_id)
         else
-           call glide_add_to_restart_variable_list('uvel vvel', model_id)
+           call glissade_add_to_restart_variable_list('uvel vvel', model_id)
         endif
 
         ! Glissade approximation options
@@ -4109,10 +4109,10 @@ contains
               !       because horizontal transport is done before updating the velocity.
               
               if (options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE) then
-                 call glide_add_to_restart_variable_list('uvel_2d_extend vvel_2d_extend btractx_extend btracty_extend efvs', &
+                 call glissade_add_to_restart_variable_list('uvel_2d_extend vvel_2d_extend btractx_extend btracty_extend efvs', &
                       model_id)
               else
-                 call glide_add_to_restart_variable_list('uvel_2d vvel_2d btractx btracty efvs', model_id)
+                 call glissade_add_to_restart_variable_list('uvel_2d vvel_2d btractx btracty efvs', model_id)
               endif
               
            case default
@@ -4122,7 +4122,7 @@ contains
            
         ! mask used to limit computation to active blocks
         if (options%compute_blocks == ACTIVE_BLOCKS_ONLY) then
-           call glide_add_to_restart_variable_list('ice_domain_mask', model_id)
+           call glissade_add_to_restart_variable_list('ice_domain_mask', model_id)
         endif
 
         ! basal water option for Glissade
@@ -4131,10 +4131,10 @@ contains
            ! no restart variables needed
         case (HO_BWAT_FLUX_ROUTING)
            ! need to know the heat flux associated with refreezing meltwater
-           call glide_add_to_restart_variable_list('bhydroflx', model_id)
+           call glissade_add_to_restart_variable_list('bhydroflx', model_id)
         case default
            ! restart needs to know bwat value
-           call glide_add_to_restart_variable_list('bwat', model_id)
+           call glissade_add_to_restart_variable_list('bwat', model_id)
         end select
 
         ! calving options for Glissade
@@ -4144,9 +4144,9 @@ contains
         if (options%whichcalving == CALVING_GRID_MASK .or. options%apply_calving_mask .or. &
              options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
            if (options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
-              call glide_add_to_restart_variable_list('calving_mask', model_id)
+              call glissade_add_to_restart_variable_list('calving_mask', model_id)
            else   ! using a subgrid CF scheme
-              call glide_add_to_restart_variable_list('subgrid_calving_mask', model_id)
+              call glissade_add_to_restart_variable_list('subgrid_calving_mask', model_id)
            endif
         endif
 
@@ -4154,20 +4154,20 @@ contains
         !  which depends on the stress tensor, which is computed by the HO solver.
         ! On restart, the correct stress and strain rate tensors are not available, so we read in the eigenproduct.
         if (options%whichcalving == EIGEN_CALVING) then
-           call glide_add_to_restart_variable_list('eps_eigen1', model_id)
-           call glide_add_to_restart_variable_list('eps_eigen2', model_id)
+           call glissade_add_to_restart_variable_list('eps_eigen1', model_id)
+           call glissade_add_to_restart_variable_list('eps_eigen2', model_id)
         elseif (options%whichcalving == CALVING_STRESS .or. &
                 options%whichcalving == CALVING_STRESS_STOCHASTIC .or. &
                 options%whichcalving == CALVING_DAMAGE) then
-           call glide_add_to_restart_variable_list('tau_eigen1', model_id)
-           call glide_add_to_restart_variable_list('tau_eigen2', model_id)
+           call glissade_add_to_restart_variable_list('tau_eigen1', model_id)
+           call glissade_add_to_restart_variable_list('tau_eigen2', model_id)
         endif
 
         ! If forcing ice retreat, then we need ice_fraction_retreat_mask (which specifies the cells where retreat is forced)
         !  and reference_thck (which sets up an upper thickness limit for partly retreating cells)
         if (options%force_retreat /= FORCE_RETREAT_NONE) then
-           call glide_add_to_restart_variable_list('ice_fraction_retreat_mask', model_id)
-           call glide_add_to_restart_variable_list('reference_thck', model_id)
+           call glissade_add_to_restart_variable_list('ice_fraction_retreat_mask', model_id)
+           call glissade_add_to_restart_variable_list('reference_thck', model_id)
         endif
 
         ! lateral melt options
@@ -4175,12 +4175,12 @@ contains
            if (model%lateral_melt%runoff_from_ablation) then
               ! Need input SMB; this is already in the restart file
            else   ! lateral melt parameterization needs runoff_applied (= subglacial discharge)
-              call glide_add_to_restart_variable_list('runoff_applied', model_id)
+              call glissade_add_to_restart_variable_list('runoff_applied', model_id)
            endif
            if (model%lateral_melt%thermal_forcing_avg_3d_to_2d) then  ! need 3d thermal_forcing
-              call glide_add_to_restart_variable_list('thermal_forcing', model_id)
+              call glissade_add_to_restart_variable_list('thermal_forcing', model_id)
            else   ! need vertical-average thermal forcing
-              call glide_add_to_restart_variable_list('thermal_forcing_applied', model_id)
+              call glissade_add_to_restart_variable_list('thermal_forcing_applied', model_id)
            endif
         endif
 
@@ -4189,7 +4189,7 @@ contains
         ! If overwriting acab in certain grid cells, than overwrite_acab_mask needs to be in the restart file.
         ! This mask is read in at model initialization, or is set based on the input acab or ice thickness.
         if (options%overwrite_acab /= 0) then
-           call glide_add_to_restart_variable_list('overwrite_acab_mask', model_id)
+           call glissade_add_to_restart_variable_list('overwrite_acab_mask', model_id)
         endif
 
       end select ! which_dycore
@@ -4201,7 +4201,7 @@ contains
     select case (options%whichtemp)
       case (TEMP_ENTHALPY)
          ! restart needs to know internal water fraction
-         call glide_add_to_restart_variable_list('waterfrac', model_id)
+         call glissade_add_to_restart_variable_list('waterfrac', model_id)
       case default
          ! no restart variables needed
     end select
@@ -4212,40 +4212,40 @@ contains
          ! Note: These options compute beta internally, so it does not need to be in the restart file.
          if (options%use_c_space_factor) then
             ! c_space_factor needs to be in the restart file
-            call glide_add_to_restart_variable_list('c_space_factor', model_id)
+            call glissade_add_to_restart_variable_list('c_space_factor', model_id)
          endif
       case default
          ! Other HO basal boundary conditions may need the external beta field (although there are a few that don't)
          ! Note: If using beta from an external file, then 'beta' here needs to be the fixed, external field,
          !       and not the internal beta field that may have been weighted by the grounded fraction or otherwise adjusted.
-         call glide_add_to_restart_variable_list('beta', model_id)
+         call glissade_add_to_restart_variable_list('beta', model_id)
     end select
 
     ! basal friction inversion options
 
     if (options%which_ho_powerlaw_c /= HO_POWERLAW_C_CONSTANT .and. &
         options%which_ho_powerlaw_c /= HO_POWERLAW_C_FUNCTION_COULOMB_C) then
-       call glide_add_to_restart_variable_list('powerlaw_c', model_id)
+       call glissade_add_to_restart_variable_list('powerlaw_c', model_id)
     endif
 
     if (options%which_ho_coulomb_c /= HO_COULOMB_C_CONSTANT) then
-       call glide_add_to_restart_variable_list('coulomb_c', model_id)
+       call glissade_add_to_restart_variable_list('coulomb_c', model_id)
     endif
 
     ! If using the basin-scale inversion option for powerlaw_c or coulomb_c, we need a target thickness for grounded ice
     if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or. &
         options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
-       call glide_add_to_restart_variable_list('grounded_thck_target', model_id)
+       call glissade_add_to_restart_variable_list('grounded_thck_target', model_id)
     endif
 
     ! inversion options for ocean temperature corrections
     if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
-       call glide_add_to_restart_variable_list('deltaT_ocn', model_id)
+       call glissade_add_to_restart_variable_list('deltaT_ocn', model_id)
     endif
 
     ! If using the basin-scale inversion option for deltaT_ocn, we need a target thickness for floating ice
     if (options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
-       call glide_add_to_restart_variable_list('floating_thck_target', model_id)
+       call glissade_add_to_restart_variable_list('floating_thck_target', model_id)
     endif
 
     ! fields needed for inversion options that try to match local thickness, elevation, and/or surface speed
@@ -4259,32 +4259,32 @@ contains
         options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION_BASIN  .or. &
         options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN .or. &
         options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
-       call glide_add_to_restart_variable_list('usrf_obs', model_id)
-       call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
+       call glissade_add_to_restart_variable_list('usrf_obs', model_id)
+       call glissade_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif
 
     ! fields needed for inversion options that try to match observed dthck_dt
     if (options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or. &
         options%enable_acab_dthck_dt_correction) then
-       call glide_add_to_restart_variable_list('dthk_dt_obs', model_id)
-       call glide_add_to_restart_variable_list('dthk_dt_obs_basin', model_id)
+       call glissade_add_to_restart_variable_list('dthk_dt_obs', model_id)
+       call glissade_add_to_restart_variable_list('dthk_dt_obs_basin', model_id)
     endif
 
     ! inversion options for the flow enhancement factor E
     if (options%which_ho_flow_enhancement_factor /= HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT) then
-       call glide_add_to_restart_variable_list('flow_enhancement_factor', model_id)
+       call glissade_add_to_restart_variable_list('flow_enhancement_factor', model_id)
     endif
 
     ! if inverting for E, we need the modeled and observed surface speed
     if (options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
-       call glide_add_to_restart_variable_list('velo_sfc', model_id)
+       call glissade_add_to_restart_variable_list('velo_sfc', model_id)
     endif
 
     ! geothermal heat flux option
     select case (options%gthf)
       case(GTHF_COMPUTE)
          ! restart needs to know lithosphere temperature
-         call glide_add_to_restart_variable_list('litho_temp', model_id)
+         call glissade_add_to_restart_variable_list('litho_temp', model_id)
       case default
          ! no restart variables needed
     end select
@@ -4296,14 +4296,14 @@ contains
          !      this should be tested when isostasy implementation is finalized/tested.
          ! WHL: Looking at subroutine isos_compute, I think relx is needed also when asthenosphere = 0 (fluid mantle).
          !      In this case, topg is set instantaneously to relx - load.
-         call glide_add_to_restart_variable_list('relx', model_id)
+         call glissade_add_to_restart_variable_list('relx', model_id)
          !WHL - The load field also needs to be in the restart file. The reason is that the load is updated
          !      at a period set by isostasy%period. If we restart between two updates, we need to use the most
          !      recently computed load. If we recompute the load right after restarting, the restart may not be exact.
-         call glide_add_to_restart_variable_list('load', model_id)
+         call glissade_add_to_restart_variable_list('load', model_id)
          if (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_LATVAR) then
             ! The relaxation timescale is a 2d field read at initialization and again on restart
-            call glide_add_to_restart_variable_list('tau_relax', model_id)
+            call glissade_add_to_restart_variable_list('tau_relax', model_id)
          endif
          case default
          ! no new restart variables needed
@@ -4314,7 +4314,7 @@ contains
     !      Omitting it from restart will only break the diagnostic.
     select case (options%which_ho_ice_age)
        case(HO_ICE_AGE_COMPUTE)
-          call glide_add_to_restart_variable_list('ice_age', model_id)
+          call glissade_add_to_restart_variable_list('ice_age', model_id)
        case default
           ! no restart variables needed
     end select
@@ -4322,36 +4322,36 @@ contains
     if (model%options%enable_glaciers) then
        ! some fields related to glacier indexing
        !TODO - Do we need all the SMB masks?
-       call glide_add_to_restart_variable_list('rgi_glacier_id', model_id)
-       call glide_add_to_restart_variable_list('cism_glacier_id', model_id)
-       call glide_add_to_restart_variable_list('cism_glacier_id_init', model_id)
-       call glide_add_to_restart_variable_list('cism_glacier_id_baseline', model_id)
-       call glide_add_to_restart_variable_list('smb_glacier_id', model_id)
-       call glide_add_to_restart_variable_list('smb_glacier_id_init', model_id)
-       call glide_add_to_restart_variable_list('smb_glacier_id_baseline', model_id)
-       call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id', model_id)
+       call glissade_add_to_restart_variable_list('rgi_glacier_id', model_id)
+       call glissade_add_to_restart_variable_list('cism_glacier_id', model_id)
+       call glissade_add_to_restart_variable_list('cism_glacier_id_init', model_id)
+       call glissade_add_to_restart_variable_list('cism_glacier_id_baseline', model_id)
+       call glissade_add_to_restart_variable_list('smb_glacier_id', model_id)
+       call glissade_add_to_restart_variable_list('smb_glacier_id_init', model_id)
+       call glissade_add_to_restart_variable_list('smb_glacier_id_baseline', model_id)
+       call glissade_add_to_restart_variable_list('cism_to_rgi_glacier_id', model_id)
        ! SMB is computed at the end of each year to apply during the next year
-       call glide_add_to_restart_variable_list('smb', model_id)
-       call glide_add_to_restart_variable_list('smb_rgi', model_id)
-       call glide_add_to_restart_variable_list('smb_recent', model_id)
+       call glissade_add_to_restart_variable_list('smb', model_id)
+       call glissade_add_to_restart_variable_list('smb_rgi', model_id)
+       call glissade_add_to_restart_variable_list('smb_recent', model_id)
        ! mu_star, alpha_snow, and beta_artm are inversion parameters
-       call glide_add_to_restart_variable_list('glacier_mu_star', model_id)
-       call glide_add_to_restart_variable_list('glacier_alpha_snow', model_id)
-       call glide_add_to_restart_variable_list('glacier_beta_artm', model_id)
+       call glissade_add_to_restart_variable_list('glacier_mu_star', model_id)
+       call glissade_add_to_restart_variable_list('glacier_alpha_snow', model_id)
+       call glissade_add_to_restart_variable_list('glacier_beta_artm', model_id)
        ! smb_obs and usrf_obs are used to invert for mu_star
-       call glide_add_to_restart_variable_list('glacier_smb_obs', model_id)
-       call glide_add_to_restart_variable_list('usrf_obs', model_id)
+       call glissade_add_to_restart_variable_list('glacier_smb_obs', model_id)
+       call glissade_add_to_restart_variable_list('usrf_obs', model_id)
        ! powerlaw_c is used for power law sliding
-       call glide_add_to_restart_variable_list('powerlaw_c', model_id)
+       call glissade_add_to_restart_variable_list('powerlaw_c', model_id)
        !TODO: Are area_init and volume_init needed in the restart file?
        !      These could be computed based on cism_glacier_id_init and usrf_obs.
-       call glide_add_to_restart_variable_list('glacier_volume_init', model_id)
-       call glide_add_to_restart_variable_list('glacier_area_init', model_id)
+       call glissade_add_to_restart_variable_list('glacier_volume_init', model_id)
+       call glissade_add_to_restart_variable_list('glacier_area_init', model_id)
     endif
 
     ! basal processes module - requires tauf for a restart
 !!    if (options%which_bproc /= BAS_PROC_DISABLED ) then
-!!        call glide_add_to_restart_variable_list('tauf', model_id)
+!!        call glissade_add_to_restart_variable_list('tauf', model_id)
 !!    endif
 
     ! TODO bmlt was set as a restart variable, but I'm not sure when or if it is needed.

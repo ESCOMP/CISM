@@ -51,6 +51,8 @@ subroutine cism_init_dycore(model)
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
   use glide_io, only: glide_io_writeall
+  use glissade_io, only: glissade_io_writeall, glissade_read_forcing, &
+       glissade_read_forcing_once, glissade_retrieve_forcing
   use glide_stop, only: glide_finalise
   use glide_diagnostics
   use profile, only: profile_init, t_startf, t_stopf, t_adj_detailf
@@ -145,10 +147,18 @@ subroutine cism_init_dycore(model)
 
   ! read forcing time slice if needed - this will overwrite values from IC file if there is a conflict.
   ! Note: The first 'model' is passed to the argument 'data', which is filled by calling glide_read.
-  call glide_read_forcing(model, model)
+  if (model%options%whichdycore == DYCORE_GLIDE) then
+     call glide_read_forcing(model, model)
+  else
+     call glissade_read_forcing(model, model)
+  endif
 
   ! Optionally, read all the time slices at once from selected forcing files.
-  call glide_read_forcing_once(model, model)
+  if (model%options%whichdycore == DYCORE_GLIDE) then
+     call glide_read_forcing_once(model, model)
+  else
+     call glissade_read_forcing_once(model, model)
+  endif
 
   call spinup_lithot(model)
 
@@ -219,9 +229,13 @@ subroutine cism_init_dycore(model)
 
   if (model%options%is_restart == NO_RESTART .or. model%options%is_restart == HYBRID_RESTART) then
      call t_startf('initial_io_writeall')
-     call glide_io_writeall(model, model, time=time)          ! MJH The optional time argument needs to be supplied 
-                                                              !     since we have not yet set model%numerics%time
-                                                              !WHL - model%numerics%time is now set above
+     ! MJH The optional time argument needs to be supplied since we have not yet set model%numerics%time
+     !WHL - model%numerics%time is now set above
+     if (model%options%whichdycore == DYCORE_GLIDE) then
+        call glide_io_writeall(model, model, time=time)
+     else
+        call glissade_io_writeall(model, model, time=time)
+     endif
      call t_stopf('initial_io_writeall')
   endif
 
@@ -240,6 +254,8 @@ subroutine cism_run_dycore(model)
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
   use glide_io, only: glide_io_writeall
+  use glissade_io, only: glissade_io_writeall, glissade_read_forcing, &
+       glissade_read_forcing_once, glissade_retrieve_forcing
   use glide_stop, only: glide_finalise
   use glide_diagnostics
   use profile, only: t_startf, t_stopf
@@ -268,11 +284,19 @@ subroutine cism_run_dycore(model)
 
       ! Forcing from a 'forcing' data file - will read time slice if needed
       call t_startf('read_forcing')
-      call glide_read_forcing(model, model)
+      if (model%options%whichdycore == DYCORE_GLIDE) then
+         call glide_read_forcing(model, model)
+      else
+         call glissade_read_forcing(model, model)
+      endif
 
       ! If any forcing data have been read once into Fortran arrays at initialization,
       !  simply copy the data based on the current forcing time.
-      call glide_retrieve_forcing(model, model)
+      if (model%options%whichdycore == DYCORE_GLIDE) then
+         call glide_retrieve_forcing(model, model)
+      else
+         call glissade_retrieve_forcing(model, model)
+      endif
       call t_stopf('read_forcing')
 
       ! Increment time step
@@ -344,7 +368,11 @@ subroutine cism_run_dycore(model)
 
       ! Write to output netCDF files at desired intervals
       call t_startf('io_writeall')
-      call glide_io_writeall(model,model)
+      if (model%options%whichdycore == DYCORE_GLIDE) then
+         call glide_io_writeall(model,model)
+      else
+         call glissade_io_writeall(model,model)
+      endif
       call t_stopf('io_writeall')
     end do   ! time < model%numerics%tend
   else ! no evolution -- diagnostic run, still want to do IO
@@ -360,12 +388,15 @@ subroutine cism_finalize_dycore(model)
 
   use glimmer_global
   use glide
+  use glissade, only: glissade_finalise
   use glimmer_log
   use glimmer_config
   use glimmer_commandline
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
   use glide_io, only: glide_io_writeall
+  use glissade_io, only: glissade_io_writeall, glissade_read_forcing, &
+       glissade_read_forcing_once, glissade_retrieve_forcing
   use glide_stop, only: glide_finalise
   use glide_diagnostics
   use profile, only: t_startf, t_stopf
@@ -377,8 +408,12 @@ subroutine cism_finalize_dycore(model)
 
   call t_stopf('cism')
 
-  ! finalise GLIDE
-  call glide_finalise(model)
+  ! finalise the model
+  if (model%options%whichdycore == DYCORE_GLIDE) then
+     call glide_finalise(model)
+  else
+     call glissade_finalise(model)
+  endif
 
   !TODO - Do we need to call glimmer_write_stats?
 #if (! defined CCSMCOUPLED && ! defined CESMTIMERS)
