@@ -67,7 +67,7 @@ contains
     use glad_mbal_coupling, only : glad_accumulate_input_gcm, glad_average_input_gcm
     use glad_io
     use glad_mbal_io
-    use glide_diagnostics
+    use glissade_diagnostics, only: glissade_write_diagnostics
     use glad_output_fluxes, only : accumulate_output_fluxes, reset_output_fluxes
     
     implicit none
@@ -272,7 +272,7 @@ contains
 
           ! write ice sheet diagnostics at specified interval (model%numerics%dt_diag)
 
-          call glide_write_diagnostics(instance%model,                  &
+          call glissade_write_diagnostics(instance%model,                  &
                                        instance%model%numerics%time,    &
                                        tstep_count = instance%model%numerics%tstep_count)
 

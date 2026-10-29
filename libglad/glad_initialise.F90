@@ -72,7 +72,7 @@ contains
     use glissade_setup, only: glissade_config
     use glad_constants
     use glad_restart_gcm
-    use glide_diagnostics
+    use glissade_diagnostics, only: glissade_write_diagnostics
     use cism_parallel, only: main_task
 
     implicit none
@@ -270,7 +270,7 @@ contains
 
    ! Write initial ice sheet diagnostics for this instance
 
-    call glide_write_diagnostics(instance%model,                  &
+    call glissade_write_diagnostics(instance%model,                  &
                                  instance%model%numerics%time,    &
                                  tstep_count = instance%model%numerics%tstep_count)
 

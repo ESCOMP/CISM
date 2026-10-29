@@ -55,6 +55,7 @@ subroutine cism_init_dycore(model)
        glissade_read_forcing_once, glissade_retrieve_forcing
   use glide_stop, only: glide_finalise
   use glide_diagnostics
+  use glissade_diagnostics, only: glissade_write_diagnostics
   use profile, only: profile_init, t_startf, t_stopf, t_adj_detailf
 
   implicit none
@@ -219,8 +220,13 @@ subroutine cism_init_dycore(model)
   !  before each call to a dycore.
 
   call t_startf('initial_write_diagnostics')
-  call glide_write_diagnostics(model,        time,       &
-                               tstep_count = model%numerics%tstep_count)
+  if (model%options%whichdycore == DYCORE_GLIDE) then
+     call glide_write_diagnostics(model,        time,       &
+                                  tstep_count = model%numerics%tstep_count)
+  else
+     call glissade_write_diagnostics(model,        time,       &
+                                     tstep_count = model%numerics%tstep_count)
+  endif
   call t_stopf('initial_write_diagnostics')
 
   ! --- Output the initial state -------------
@@ -258,6 +264,7 @@ subroutine cism_run_dycore(model)
        glissade_read_forcing_once, glissade_retrieve_forcing
   use glide_stop, only: glide_finalise
   use glide_diagnostics
+  use glissade_diagnostics, only: glissade_write_diagnostics
   use profile, only: t_startf, t_stopf
 
   implicit none
@@ -335,8 +342,13 @@ subroutine cism_run_dycore(model)
       ! write ice sheet diagnostics to log file at desired interval (model%numerics%dt_diag)
 
       call t_startf('write_diagnostics')
-      call glide_write_diagnostics(model,        time,       &
-                                   tstep_count = model%numerics%tstep_count)
+      if (model%options%whichdycore == DYCORE_GLIDE) then
+         call glide_write_diagnostics(model,        time,       &
+                                      tstep_count = model%numerics%tstep_count)
+      else
+         call glissade_write_diagnostics(model,        time,       &
+                                         tstep_count = model%numerics%tstep_count)
+      endif
       call t_stopf('write_diagnostics')
 
       ! update time from dycore advance
