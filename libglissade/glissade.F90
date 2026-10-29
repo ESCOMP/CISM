@@ -97,7 +97,6 @@ contains
 
     use glide_setup
     use glimmer_ncio, only: openall_in, openall_out, glimmer_nc_get_var, glimmer_nc_get_dimlength
-    use glide_velo, only: init_velo  !TODO - Remove call to init_velo?
     use glissade_therm, only: glissade_init_therm
     use glissade_mass_balance, only: glissade_mass_balance_init
     use glissade_basal_water, only: glissade_basal_water_init
@@ -707,10 +706,6 @@ contains
     call glide_io_createall(model, model)
 
     ! initialize glissade components
-
-    !TODO - Remove call to init_velo in glissade_initialise?
-    !       Most of what's done in init_velo is needed for SIA only, but still need velowk for call to wvelintg
-    call init_velo(model)
 
     ! Initialize basal hydrology, if needed
     call glissade_basal_water_init(model)
@@ -2090,8 +2085,7 @@ contains
 
     use glimmer_paramets, only: eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
-    use glissade_velo, only: glissade_velo_driver
-    use glide_velo, only: wvelintg
+    use glissade_velo, only: glissade_velo_driver, glissade_wvelintg
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask, glissade_calving_front_mask
     use glissade_grid_operators, only: glissade_stagger, glissade_gradient, glissade_laplacian_smoother
     use glissade_grounding_line, only: glissade_grounded_fraction, verbose_glp
@@ -2607,15 +2601,14 @@ contains
     ! Note: This current implementation for wvel only supports whichwvel=VERTINT_STANDARD
     ! Note: For glissade, wvel is diagnostic only.
     !       Pass in the basal melt rate for grounded ice only, as in Glide.
-    call wvelintg(model%velocity%uvel,                        &
-                  model%velocity%vvel,                        &
-                  model%geomderv,                             &
-                  model%numerics,                             &
-                  model%velowk,                               &
-                  model%geometry%thck * 0.0d0,                &  ! Just need a 2d array of all 0's for wgrd
-                  model%geometry%thck,                        &
-                  model%basal_melt%bmlt,                      &
-                  model%velocity%wvel)
+    call glissade_wvelintg(model%velocity%uvel,               &
+                           model%velocity%vvel,               &
+                           model%geomderv,                    &
+                           model%numerics,                    &
+                           model%geometry%thck * 0.0d0,       &  ! Just need a 2d array of all 0's for wgrd
+                           model%geometry%thck,               &
+                           model%basal_melt%bmlt,             &
+                           model%velocity%wvel)
     ! Note: halos may be wrong for wvel, but since it is currently only used as an output diagnostic variable, that is OK.
 
     ! compute the velocity norm (for diagnostic output)
