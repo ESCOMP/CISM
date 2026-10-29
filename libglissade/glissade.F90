@@ -47,8 +47,6 @@
 #include "config.inc"
 #endif
 
-#include "glide_mask.inc"
-
 module glissade
 
   ! Driver for Glissade (parallel, higher-order) dynamical core
@@ -106,7 +104,6 @@ contains
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_scales
     use glimmer_physcon, only: scyr
-    use glide_mask
     use glissade_isostasy, only: glissade_isostasy_init
     use glimmer_map_init
     use glimmer_coordinates, only: coordsystem_new
@@ -852,14 +849,6 @@ contains
 
     endif  ! use_c_space_factor
 
-    ! calculate mask
-    ! Note: This call includes a halo update for thkmask
-    !TODO - Replace with glissade masks?
-    call glide_set_mask(model%numerics,                                &
-                        model%geometry%thck,  model%geometry%topg,     &
-                        model%general%ewn,    model%general%nsn,       &
-                        model%climate%eus,    model%geometry%thkmask)
-
     ! compute halo for relaxed topography
     ! Note: See comments above with regard to the halo update for topg.
     !       Outflow BCs zero out scalars beyond the global boundary, and no_ice BCs zero out scalars
@@ -918,14 +907,6 @@ contains
          model%options%is_restart == NO_RESTART) then
 
        call glissade_calving_solve(model, .true.)   ! init_calving = .true.
-
-       ! The mask needs to be recalculated after calving.
-       ! Note: glide_set_mask includes a halo update for thkmask.
-       !TODO - Delete this call? Glissade dycore does not use thkmask.
-       call glide_set_mask(model%numerics,                                &
-                           model%geometry%thck,  model%geometry%topg,     &
-                           model%general%ewn,    model%general%nsn,       &
-                           model%climate%eus,    model%geometry%thkmask)
 
     endif  ! initial calving
 
@@ -1175,7 +1156,6 @@ contains
 
     use glimmer_paramets, only: eps11
     use glimmer_physcon, only: scyr
-    use glide_mask, only: glide_set_mask
     use glissade_mass_balance, only: glissade_prepare_climate_forcing
     use glissade_bmlt_float, only: glissade_bmlt_float_solve
     use glissade_calving, only: glissade_calving_solve
@@ -1367,21 +1347,6 @@ contains
     ! ------------------------------------------------------------------------ 
 
     call glissade_cleanup_icefree_cells(model)
-
-    ! glissade_calve_ice adjusts thickness for calved ice.  Therefore the mask needs to be recalculated.
-    ! Note: glide_set_mask includes a halo update of thkmask
-    ! This time we want to calculate the optional arguments iarea and ivol because thickness 
-    ! will not change further during this time step.
-    !TODO - Remove this call to glide_set_mask?
-    !       This subroutine is called at the beginning of glissade_velo_driver,
-    !        so a call here is not needed for the velo diagnostic solve.
-    !       The question is whether it is needed for the isostasy.
-    !TODO - Remove the call to glide_set_mask after checking isostasy
-
-    call glide_set_mask(model%numerics,                                &
-                        model%geometry%thck,  model%geometry%topg,     &
-                        model%general%ewn,    model%general%nsn,       &
-                        model%climate%eus,    model%geometry%thkmask)
 
     ! ------------------------------------------------------------------------
     !TODO - Remove the thermal solve here; always do it near the start of the time step.

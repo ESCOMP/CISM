@@ -4004,9 +4004,8 @@ contains
       case (DYCORE_GLISSADE)
         ! beta - b.c. needed for runs with sliding - could add logic to only include in that case
         ! flwa is not needed for glissade.
-        ! TODO not sure if thkmask is needed for HO
 
-         call glide_add_to_restart_variable_list('thkmask kinbcmask bfricflx dissip', model_id)
+         call glide_add_to_restart_variable_list('kinbcmask bfricflx dissip', model_id)
 
         ! uvel,vvel: These are needed for an exact restart because we can only recalculate
         !            them to within the picard/jfnk convergence tolerance.
