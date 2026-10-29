@@ -129,7 +129,7 @@ contains
        if (oc%do_averages .and. glimmer_nc_is_tavg_stream(oc)) then
           restored = .false.
           if (model%options%is_restart == STANDARD_RESTART) then
-             call glimmer_nc_restore_tavg_state(oc, model, restored)
+             call glimmer_nc_restore_tavg_state(oc, model%funits, restored)
              if (.not. restored) then
                 call write_log('No averaging state in the restart file; starting a new averaging interval for '// &
                      trim(glimmer_nc_stream_name(oc)), GM_WARNING)
@@ -281,7 +281,7 @@ contains
           !       For files that also include variables from other modules (e.g., glad_io), the driver
           !       must create and write the file itself, using external_control.
           call glimmer_nc_advance_timeslice(oc, sub_time)
-          if (glimmer_nc_write_due(oc, model, forcewrite, sub_time)) then
+          if (glimmer_nc_write_due(oc, forcewrite, sub_time, model%numerics%tinc, model%numerics%tstep_count)) then
              call NAME_io_write_slice(oc, data, model, glimmer_nc_slice_filename(oc, sub_time), sub_time)
              if (oc%do_averages) tavg_wrote = .true.
           end if
@@ -289,7 +289,8 @@ contains
           cycle
        end if
 
-       call glimmer_nc_checkwrite(oc,model,forcewrite,time,wrote_timeslice=wrote_timeslice)
+       call glimmer_nc_checkwrite(oc, model%funits, forcewrite, sub_time, model%numerics%tinc, &
+            model%numerics%tstep_count, wrote_timeslice=wrote_timeslice)
        ! Note: Write the fields only if a new time slice was written during this call.
        !       NCO%just_processed is not a reliable test, since it stays true for later calls at the same time
        !        (e.g., in glide_finalise), which would rewrite the fields and (for tavg files) overwrite the averages.
@@ -308,7 +309,7 @@ contains
           !  time slice and been reset. Rewrite the restart time slice, so that the averaging state and
           !  the running sums are those after the reset. Otherwise, a standard restart would continue
           !  an averaging interval that has already been written.
-          call glimmer_nc_write_tavg_state(oc, model)
+          call glimmer_nc_write_tavg_state(oc, model%funits)
           call NAME_io_write(oc,data)
        end if
        oc=>oc%next
@@ -348,10 +349,10 @@ contains
     end if
 
     call glimmer_nc_newfile(outfile, filename)
-    call glimmer_nc_createfile(outfile, model, external_baseline_year, external_time_units)
+    call glimmer_nc_createfile(outfile, model%funits, model%projection, external_baseline_year, external_time_units)
     call NAME_io_create(outfile, model, data)
     call glide_nc_filldvars(outfile, model)   ! also leaves define mode
-    call glimmer_nc_write_timeslice(outfile, model, time, sub_external_time)
+    call glimmer_nc_write_timeslice(outfile, model%funits, time, sub_external_time, model%numerics%tstep_count)
     call NAME_io_write(outfile, data)
 #ifdef HAVE_AVG
     if (outfile%do_averages) then
@@ -441,7 +442,7 @@ contains
 
     ! Convert temp and flwa to versions on stag grid, if needed
     ! Note: this check must occur after restart variables are expanded in glimmer_nc_readparams
-    call check_for_tempstag(model%options%whichdycore,NCO)
+    call check_for_tempstag(model%options%whichdycore /= DYCORE_GLIDE, NCO)
 
     ! checking if we need to handle time averages
     ! Note: Match whole words ending in '_tavg'. Restart files hold the running sums as '_tavg_sum' variables,
@@ -666,7 +667,8 @@ contains
       ic=>model%funits%frc_first
     endif
     do while(associated(ic))
-       call glimmer_nc_checkread(ic,model)
+       call glimmer_nc_checkread(ic, model%options%is_restart, model%numerics%tstart, model%numerics%time, &
+            model%numerics%tinc, model%numerics%tstep_count)
        if (ic%nc%just_processed) then
           call NAME_set_nc_dims(ic%nc, model)
           call NAME_io_read(ic,data)

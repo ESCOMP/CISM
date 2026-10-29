@@ -123,7 +123,7 @@ contains
        call ConfigRead(process_path(model%funits%ncfile), ncconfig, unit)
     end if
 
-    call glimmer_nc_readparams(model, ncconfig)
+    call glimmer_nc_readparams(model%funits, model%options%is_restart, ncconfig)
 
   end subroutine glide_config
 
@@ -210,7 +210,9 @@ contains
     model%numerics%tstep_count = 0
 
     ! open all input files and forcing files
-    call openall_in(model)
+    call openall_in(model%funits, model%projection, &
+                    model%parallel%global_ewn, model%parallel%global_nsn, &
+                    model%numerics%dew, model%numerics%dns, model%general%upn)
 
     ! read first time slice
     call glide_io_readall(model,model)
@@ -289,7 +291,8 @@ contains
     end select
 
     ! open all output files
-    call openall_out(model)
+    call openall_out(model%funits, model%options%is_restart, model%projection, &
+                     model%numerics%tstart, model%numerics%tstep_count)
 
     ! create glide variables
     call glide_io_createall(model, model)

@@ -59,17 +59,21 @@ contains
   !*****************************************************************************
   ! netCDF output
   !*****************************************************************************  
-  subroutine openall_out(model,outfiles)
+  subroutine openall_out(funits, is_restart, projection, tstart, tstep_count, outfiles)
 
     !> open all netCDF files for output
-    use glide_types
     use glimmer_ncdf
+    use glimmer_map_types, only: glimmap_proj
     use glimmer_filenames, only: process_path
 
     implicit none
 
-    type(glide_global_type) :: model
-    type(glimmer_nc_output), pointer, optional :: outfiles
+    type(glimmer_funits) :: funits          !> netCDF file lists of the model instance
+    integer, intent(in) :: is_restart       !> restart option (NO_RESTART, STANDARD_RESTART or HYBRID_RESTART)
+    type(glimmap_proj) :: projection        !> map projection, written to new files
+    real(dp), intent(in) :: tstart          !> model start time (yr)
+    integer, intent(in) :: tstep_count      !> model timestep count
+    type(glimmer_nc_output), pointer, optional :: outfiles  !> if present, open these files instead of funits%out_first
     
     ! local variables
     type(glimmer_nc_output), pointer :: oc
@@ -78,7 +82,7 @@ contains
     if (present(outfiles)) then
        oc => outfiles
     else
-       oc => model%funits%out_first
+       oc => funits%out_first
     end if
 
     do while(associated(oc))
@@ -89,33 +93,32 @@ contains
 
        elseif (oc%append) then   ! assume the file exists, and reopen it
 
-          call glimmer_nc_openappend(oc,model)
+          call glimmer_nc_openappend(oc, funits)
 
-       elseif (model%options%is_restart == STANDARD_RESTART) then   ! reopen the file if it exists
+       elseif (is_restart == STANDARD_RESTART) then   ! reopen the file if it exists
 
           status = parallel_open(process_path(oc%nc%filename),NF90_WRITE,oc%nc%id)
 
           if (status == NF90_NOERR) then  ! file exists and is now open; append it
 
              oc%append = .true.
-             call glimmer_nc_openappend(oc, model, already_open_in=.true.)
+             call glimmer_nc_openappend(oc, funits, already_open_in=.true.)
 
           else  ! file does not exist; create it
 
-             call glimmer_nc_createfile(oc, model)
+             call glimmer_nc_createfile(oc, funits, projection)
 
           endif
 
        else  ! assume the file does not exist; create it
              ! Note: For hybrid restarts, the file is created at initialization
 
-          call glimmer_nc_createfile(oc, model)
+          call glimmer_nc_createfile(oc, funits, projection)
 
        end if
 
        ! Set the start of the first averaging interval (used for tavg time bounds)
-       call glimmer_nc_checkwrite_init(oc, model%numerics%tstart, &
-                                       tstep_count = model%numerics%tstep_count)
+       call glimmer_nc_checkwrite_init(oc, tstart, tstep_count = tstep_count)
 
        oc => oc%next
 
@@ -125,14 +128,13 @@ contains
 
   !------------------------------------------------------------------------------
 
-  subroutine closeall_out(model,outfiles)
+  subroutine closeall_out(funits,outfiles)
 
     !> close all netCDF files for output
-    use glide_types
     use glimmer_ncdf
     implicit none
-    type(glide_global_type) :: model
-    type(glimmer_nc_output),pointer,optional :: outfiles
+    type(glimmer_funits) :: funits                     !> netCDF file lists of the model instance
+    type(glimmer_nc_output),pointer,optional :: outfiles  !> if present, close these files instead of funits%out_first
 
     ! local variables
     type(glimmer_nc_output), pointer :: oc
@@ -140,24 +142,23 @@ contains
     if (present(outfiles)) then
        oc => outfiles
     else
-       oc => model%funits%out_first
+       oc => funits%out_first
     end if
 
     do while(associated(oc))
        oc => delete(oc)
     end do
-    if (.not.present(outfiles)) model%funits%out_first=>NULL()
+    if (.not.present(outfiles)) funits%out_first=>NULL()
 
   end subroutine closeall_out
 
   !------------------------------------------------------------------------------
 
-  subroutine glimmer_nc_openappend(outfile, model, &
+  subroutine glimmer_nc_openappend(outfile, funits, &
                                    already_open_in)
 
     !> open netCDF file for appending
     use glimmer_log
-    use glide_types
     use glimmer_map_CFproj
     use glimmer_map_types
     use glimmer_filenames
@@ -165,7 +166,7 @@ contains
     implicit none
 
     type(glimmer_nc_output), pointer :: outfile       !> structure containing output netCDF descriptor
-    type(glide_global_type) :: model                  !> the model instance
+    type(glimmer_funits) :: funits                    !> netCDF file lists of the model instance
     logical, intent(in), optional :: already_open_in  !> if true, then the file is already open 
 
     ! local variables
@@ -229,7 +230,7 @@ contains
     NCO%tavg_state = .false.
     status = parallel_inq_dimid(NCO%id, 'tavgstream', NCO%tavgstream_dim)
     if (status == NF90_NOERR) then
-       call glimmer_nc_tavg_streams(model, nstreams, stream_list)
+       call glimmer_nc_tavg_streams(funits, nstreams, stream_list)
        file_stream_list = ''
        status = parallel_get_att(NCO%id, NF90_GLOBAL, 'tavg_streams', file_stream_list)
        if (status == NF90_NOERR .and. trim(file_stream_list) == trim(stream_list)) then
@@ -257,18 +258,18 @@ contains
 
   !------------------------------------------------------------------------------
 
-  subroutine glimmer_nc_createfile(outfile, model, external_baseline_year, external_time_units)
+  subroutine glimmer_nc_createfile(outfile, funits, projection, external_baseline_year, external_time_units)
 
     !> create a new netCDF file
     use glimmer_log
-    use glide_types
     use glimmer_map_CFproj
     use glimmer_map_types
     use glimmer_filenames
     implicit none
 
     type(glimmer_nc_output), pointer :: outfile     !> structure containing output netCDF descriptor
-    type(glide_global_type) :: model                !> the model instance
+    type(glimmer_funits) :: funits                  !> netCDF file lists of the model instance
+    type(glimmap_proj) :: projection                !> map projection
     integer, intent(in), optional :: &
          external_baseline_year                     !> baseline year for external time; default = internal_baseline_year
     character(len=*), intent(in), optional :: &     !> external time units; default = internal_time_units
@@ -450,7 +451,7 @@ contains
     ! Note: As for the time bounds above, this test is done before the 'restart' keyword is expanded.
     NCO%tavg_state = .false.
     if (glimmer_nc_is_restart(outfile)) then
-       call glimmer_nc_tavg_streams(model, nstreams, stream_list)
+       call glimmer_nc_tavg_streams(funits, nstreams, stream_list)
        if (nstreams > 0) then
           NCO%tavg_state = .true.
           status = parallel_def_dim(NCO%id, 'tavgstream', nstreams, NCO%tavgstream_dim)
@@ -487,10 +488,10 @@ contains
     end if
 
     ! adding projection info
-    if (glimmap_allocated(model%projection)) then
+    if (glimmap_allocated(projection)) then
        status = parallel_def_var(NCO%id,glimmer_nc_mapvarname,NF90_CHAR,mapid)
        call nc_errorhandle(__FILE__,__LINE__,status)
-       call glimmap_CFPutProj(NCO%id,mapid,model%projection)
+       call glimmap_CFPutProj(NCO%id,mapid,projection)
     end if
 
   end subroutine glimmer_nc_createfile
@@ -645,23 +646,22 @@ contains
 
   !------------------------------------------------------------------------------
 
-  subroutine glimmer_nc_write_tavg_state(outfile, model)
+  subroutine glimmer_nc_write_tavg_state(outfile, funits)
 
     !> Write the averaging state of each time-average output stream (total time, start of the
     !>  averaging interval, timestep of the most recent accumulation) to a restart file,
     !>  at the current time slice.
 
-    use glide_types
     implicit none
     type(glimmer_nc_output), pointer :: outfile
-    type(glide_global_type) :: model
+    type(glimmer_funits) :: funits   !> netCDF file lists of the model instance
 
     type(glimmer_nc_output), pointer :: p
     integer :: istream, status
 
     ! The streams are in the same order as in the global attribute 'tavg_streams' (see glimmer_nc_createfile).
     istream = 0
-    p => model%funits%out_first
+    p => funits%out_first
     do while (associated(p))
        if (glimmer_nc_is_tavg_stream(p)) then
           istream = istream + 1
@@ -705,14 +705,13 @@ contains
 
   !------------------------------------------------------------------------------
 
-  subroutine glimmer_nc_tavg_streams(model, nstreams, stream_list)
+  subroutine glimmer_nc_tavg_streams(funits, nstreams, stream_list)
 
     !> Return the number of time-average output streams, and their names (space-separated, in the
     !>  order of the output list). This order is used for the averaging state in restart files.
 
-    use glide_types
     implicit none
-    type(glide_global_type) :: model
+    type(glimmer_funits) :: funits   !> netCDF file lists of the model instance
     integer, intent(out) :: nstreams
     character(len=*), intent(out) :: stream_list
 
@@ -720,7 +719,7 @@ contains
 
     nstreams = 0
     stream_list = ''
-    p => model%funits%out_first
+    p => funits%out_first
     do while (associated(p))
        if (glimmer_nc_is_tavg_stream(p)) then
           nstreams = nstreams + 1
@@ -734,7 +733,7 @@ contains
 
   !------------------------------------------------------------------------------
 
-  subroutine glimmer_nc_restore_tavg_state(outfile, model, restored)
+  subroutine glimmer_nc_restore_tavg_state(outfile, funits, restored)
 
     !> On a standard restart (restart = 1), restore the averaging state of a time-average output stream
     !>  (total_time, the start of the averaging interval in internal and external time, and
@@ -747,10 +746,9 @@ contains
     !>  should not change across a standard restart.
 
     use glimmer_log
-    use glide_types
     implicit none
     type(glimmer_nc_output), pointer :: outfile
-    type(glide_global_type) :: model
+    type(glimmer_funits) :: funits   !> netCDF file lists of the model instance
     logical, intent(out) :: restored
 
     type(glimmer_nc_input), pointer :: infile
@@ -761,7 +759,7 @@ contains
     integer, dimension(2) :: start
 
     restored = .false.
-    infile => model%funits%in_first
+    infile => funits%in_first
     if (.not. associated(infile)) return
 
     stream_list = ''
@@ -859,7 +857,8 @@ contains
 
   !------------------------------------------------------------------------------
 
-  subroutine glimmer_nc_checkwrite(outfile,model,forcewrite,time,external_time,wrote_timeslice)
+  subroutine glimmer_nc_checkwrite(outfile, funits, forcewrite, time, tinc, tstep_count, &
+                                   external_time, wrote_timeslice)
 
     !> Check whether output is due for this file, and if so, write the time-slice variables.
     !> The caller (e.g., NAME_io_writeall) writes the model fields if wrote_timeslice = T.
@@ -871,42 +870,35 @@ contains
     !> (3) glimmer_nc_write_timeslice: write the time-slice variables
 
     use glimmer_log
-    use glide_types
     use glimmer_filenames
     implicit none
     type(glimmer_nc_output), pointer :: outfile    
-    type(glide_global_type) :: model
+    type(glimmer_funits) :: funits      ! netCDF file lists of the model instance
     logical forcewrite
-    real(dp),optional :: time  ! time in years (written to 'internal_time')
+    real(dp), intent(in) :: time        ! time in years (written to 'internal_time')
+    real(dp), intent(in) :: tinc        ! model timestep (yr)
+    integer, intent(in) :: tstep_count  ! model timestep count
     real(dp),optional :: external_time  ! external time (written to 'time'); if not present, defaults to internal_time
                                         ! units of external time are not necessarily years; e.g., CESM uses days
     logical, intent(out), optional :: wrote_timeslice  ! true if a time slice was written during this call
-    real(dp) :: sub_time  ! local version of time (years)
     real(dp) :: sub_external_time  ! local version of external_time
     logical :: write_now  ! true if a time slice is written during this call
-
-    ! Check for optional time argument
-    if (present(time)) then
-       sub_time = time
-    else
-       sub_time = model%numerics%time
-    end if
 
     if (present(external_time)) then
        sub_external_time = external_time
     else
-       sub_external_time = sub_time
+       sub_external_time = time
     end if
 
     if (verbose_ncio .and. main_task) &
-         write(iulog,*) 'In glimmer_nc_checkwrite, time, file =', sub_time, trim(process_path(NCO%filename))
+         write(iulog,*) 'In glimmer_nc_checkwrite, time, file =', time, trim(process_path(NCO%filename))
 
-    call glimmer_nc_advance_timeslice(outfile, sub_time)
+    call glimmer_nc_advance_timeslice(outfile, time)
 
-    write_now = glimmer_nc_write_due(outfile, model, forcewrite, sub_time)
+    write_now = glimmer_nc_write_due(outfile, forcewrite, time, tinc, tstep_count)
 
     if (write_now) then
-       call glimmer_nc_write_timeslice(outfile, model, sub_time, sub_external_time)
+       call glimmer_nc_write_timeslice(outfile, funits, time, sub_external_time, tstep_count)
     end if
 
     if (present(wrote_timeslice)) wrote_timeslice = write_now
@@ -957,18 +949,18 @@ contains
 
   !------------------------------------------------------------------------------
 
-  function glimmer_nc_write_due(outfile, model, forcewrite, time) result(write_due)
+  function glimmer_nc_write_due(outfile, forcewrite, time, tinc, tstep_count) result(write_due)
 
     !> Return true if output should be written to this file at the current time.
     !> This function sets no flags and writes nothing to the file, but it can write a warning to the log.
 
     use glimmer_log
-    use glide_types
     implicit none
     type(glimmer_nc_output), pointer :: outfile
-    type(glide_global_type) :: model
     logical, intent(in) :: forcewrite  ! if true, write regardless of the output frequency
     real(dp), intent(in) :: time       ! current model time (yr)
+    real(dp), intent(in) :: tinc       ! model timestep (yr)
+    integer, intent(in) :: tstep_count ! model timestep count
     logical :: write_due
 
     character(len=msglen) :: message
@@ -978,12 +970,12 @@ contains
     write_due = .false.
 
     ! Compute the desired integer frequency for writing output (every nfreq timesteps), rounding if needed.
-    ! Note: Both outfile%freq and model%general%tinc have units of years.
+    ! Note: Both outfile%freq and tinc have units of years.
     !       If tinc does not divide evenly into freq, then output will be written at regular intervals,
     !        but not exactly at the user-desired frequency. For example, suppose tinc = 0.3 yr and freq = 1.0 yr.
     !       Then output will be written every 3 timesteps, since nint(1.0/0.3) = 3.
     !
-    nfreq = nint(outfile%freq / model%numerics%tinc)
+    nfreq = nint(outfile%freq / tinc)
 
     if (nfreq == 0) then  ! freq < tinc/2
        nfreq = 1
@@ -1002,11 +994,11 @@ contains
     !       (e.g., 8.00000000000001 when end_write = 8), so allow a small tolerance.
     !       This follows the convention used for forcing times in NAME_read_forcing.
 
-    eps = model%numerics%tinc * 1.0d-3
+    eps = tinc * 1.0d-3
 
     if ( forcewrite .or.  &
-        (model%numerics%tstep_count == 0 .and. outfile%write_init) .or.  &
-        (model%numerics%tstep_count > 0 .and. mod(model%numerics%tstep_count, nfreq) == 0) ) then
+        (tstep_count == 0 .and. outfile%write_init) .or.  &
+        (tstep_count > 0 .and. mod(tstep_count, nfreq) == 0) ) then
 
        if (time <= outfile%end_write + eps .and. .not.NCO%just_processed) then
           write_due = .true.
@@ -1018,7 +1010,7 @@ contains
 
   !------------------------------------------------------------------------------
 
-  subroutine glimmer_nc_write_timeslice(outfile, model, time, external_time)
+  subroutine glimmer_nc_write_timeslice(outfile, funits, time, external_time, tstep_count)
 
     !> Write internal_time, time, tstep_count, and (for tavg files) the time bounds
     !>  to the current time slice (outfile%timecounter).
@@ -1030,13 +1022,13 @@ contains
     !>  give the start and end of the interval.
 
     use glimmer_log
-    use glide_types
     use glimmer_filenames
     implicit none
     type(glimmer_nc_output), pointer :: outfile
-    type(glide_global_type) :: model
+    type(glimmer_funits) :: funits         ! netCDF file lists of the model instance (for restart files)
     real(dp), intent(in) :: time           ! time in years (written to 'internal_time')
     real(dp), intent(in) :: external_time  ! external time (written to 'time')
+    integer, intent(in) :: tstep_count     ! model timestep count (written to 'tstep_count')
 
     character(len=msglen) :: message
     integer :: status
@@ -1077,7 +1069,7 @@ contains
     call nc_errorhandle(__FILE__,__LINE__,status)
     status = parallel_put_var(NCO%id, NCO%timevar, external_time_out, (/outfile%timecounter/))
     call nc_errorhandle(__FILE__,__LINE__,status)
-    status = parallel_put_var(NCO%id, NCO%tstep_count_var, model%numerics%tstep_count, &
+    status = parallel_put_var(NCO%id, NCO%tstep_count_var, tstep_count, &
          (/outfile%timecounter/))
     call nc_errorhandle(__FILE__,__LINE__,status)
 
@@ -1110,7 +1102,7 @@ contains
     endif   ! time_bounds
 
     ! For restart files, write the averaging state of each time-average output stream
-    if (NCO%tavg_state) call glimmer_nc_write_tavg_state(outfile, model)
+    if (NCO%tavg_state) call glimmer_nc_write_tavg_state(outfile, funits)
 
     NCO%just_processed = .TRUE.
 
@@ -1124,29 +1116,34 @@ contains
   ! netCDF input
   !*****************************************************************************  
 
-  subroutine openall_in(model)
+  subroutine openall_in(funits, projection, global_ewn, global_nsn, dew, dns, upn)
 
     !> open all netCDF files for input
-    use glide_types
     use glimmer_ncdf
+    use glimmer_map_types, only: glimmap_proj
     implicit none
 
-    type(glide_global_type) :: model
-    
+    type(glimmer_funits) :: funits          !> netCDF file lists of the model instance
+    type(glimmap_proj) :: projection        !> map projection; read from the first file that has one, if not yet set
+    integer, intent(in) :: &
+         global_ewn, global_nsn, &          !> global grid dimensions
+         upn                                !> number of vertical levels
+    real(dp), intent(in) :: dew, dns        !> grid cell dimensions (m)
+
     ! local variables
     type(glimmer_nc_input), pointer :: ic
 
     ! open input files
-    ic=>model%funits%in_first
+    ic=>funits%in_first
     do while(associated(ic))
-       call glimmer_nc_openfile(ic,model)
+       call glimmer_nc_openfile(ic, projection, global_ewn, global_nsn, dew, dns, upn)
        ic=>ic%next
     end do
 
     ! open forcing files
-    ic=>model%funits%frc_first
+    ic=>funits%frc_first
     do while(associated(ic))
-       call glimmer_nc_openfile(ic,model)
+       call glimmer_nc_openfile(ic, projection, global_ewn, global_nsn, dew, dns, upn)
        ic=>ic%next
     end do
 
@@ -1154,40 +1151,38 @@ contains
 
   !------------------------------------------------------------------------------
 
-  subroutine closeall_in(model)
+  subroutine closeall_in(funits)
 
     !> close all netCDF files for input
-    use glide_types
     use glimmer_ncdf
     implicit none
-    type(glide_global_type) :: model
-    
+    type(glimmer_funits) :: funits   !> netCDF file lists of the model instance
+
     ! local variables
     type(glimmer_nc_input), pointer :: ic
 
     ! Input files
-    ic=>model%funits%in_first
+    ic=>funits%in_first
     do while(associated(ic))
        ic=>delete(ic)
     end do
-    model%funits%in_first=>NULL()
+    funits%in_first=>NULL()
 
     ! Forcing files
-    ic=>model%funits%frc_first
+    ic=>funits%frc_first
     do while(associated(ic))
        ic=>delete(ic)
     end do
-    model%funits%frc_first=>NULL()
+    funits%frc_first=>NULL()
 
   end subroutine closeall_in
 
   !------------------------------------------------------------------------------
   !TODO - Modify so the input file does not have to contain (x1,y1); OK if it just has (x0,y0)
 
-  subroutine glimmer_nc_openfile(infile, model)
+  subroutine glimmer_nc_openfile(infile, projection, global_ewn, global_nsn, dew, dns, upn)
 
-    !> open an existing netCDF file
-    use glide_types
+    !> open an existing netCDF file, and check that its grid matches the model grid
     use glimmer_map_CFproj
     use glimmer_map_types
     use glimmer_log
@@ -1196,7 +1191,11 @@ contains
     implicit none
 
     type(glimmer_nc_input), pointer :: infile    !> structure containg input netCDF descriptor
-    type(glide_global_type) :: model             !> the model instance
+    type(glimmap_proj) :: projection             !> map projection; read from this file if not yet set
+    integer, intent(in) :: &
+         global_ewn, global_nsn, &               !> global grid dimensions
+         upn                                     !> number of vertical levels
+    real(dp), intent(in) :: dew, dns             !> grid cell dimensions (m)
 
     ! local variables
     integer dimsize, dimid, varid
@@ -1216,7 +1215,7 @@ contains
     call write_log('opening file '//trim(process_path(NCI%filename))//' for input')
 
     ! getting projection, if none defined already
-    if (.not.glimmap_allocated(model%projection)) model%projection = glimmap_CFGetProj(NCI%id)
+    if (.not.glimmap_allocated(projection)) projection = glimmap_CFGetProj(NCI%id)
 
     ! getting time dimension
     status = parallel_inq_dimid(NCI%id, 'time', NCI%timedim)
@@ -1257,9 +1256,9 @@ contains
     call nc_errorhandle(__FILE__,__LINE__,status)
     status = parallel_inquire_dimension(NCI%id,dimid,len=dimsize)
     call nc_errorhandle(__FILE__,__LINE__,status)
-    if (dimsize /= model%parallel%global_ewn) then
+    if (dimsize /= global_ewn) then
        write(message,*) 'Dimension x1 of file '//trim(process_path(NCI%filename))// &
-            ' does not match with config dimension: ', dimsize, model%parallel%global_ewn
+            ' does not match with config dimension: ', dimsize, global_ewn
        call write_log(message,type=GM_FATAL)
     end if
     status = parallel_inq_varid(NCI%id,'x1',varid)
@@ -1269,10 +1268,10 @@ contains
 
 !WHL - mod to prevent code from crashing due to small roundoff error
 !    if (abs(delta(2)-delta(1) - model%numerics%dew*len0) > small) then
-    if (abs( (delta(2)-delta(1) - model%numerics%dew) / (model%numerics%dew) ) > small) then
+    if (abs( (delta(2)-delta(1) - dew) / (dew) ) > small) then
        write(message,*) 'deltax1 of file '//trim(process_path(NCI%filename))// &
 !!            ' does not match with config deltax: ', delta(2)-delta(1),model%numerics%dew*len0
-            ' does not match with config deltax: ', delta(2)-delta(1),model%numerics%dew
+            ' does not match with config deltax: ', delta(2)-delta(1),dew
        call write_log(message,type=GM_FATAL)
     end if
 
@@ -1301,9 +1300,9 @@ contains
     call nc_errorhandle(__FILE__,__LINE__,status)
     status = parallel_inquire_dimension(NCI%id,dimid,len=dimsize)
     call nc_errorhandle(__FILE__,__LINE__,status)
-    if (dimsize /= model%parallel%global_nsn) then
+    if (dimsize /= global_nsn) then
        write(message,*) 'Dimension y1 of file '//trim(process_path(NCI%filename))// &
-            ' does not match with config dimension: ', dimsize, model%parallel%global_nsn
+            ' does not match with config dimension: ', dimsize, global_nsn
        call write_log(message,type=GM_FATAL)
     end if
     status = parallel_inq_varid(NCI%id,'y1',varid)
@@ -1314,10 +1313,10 @@ contains
 
 !WHL - mod to prevent code from crashing due to small roundoff error
 !    if (abs(delta(2)-delta(1) - model%numerics%dns*len0) > small) then
-    if (abs( (delta(2)-delta(1) - model%numerics%dns) / (model%numerics%dns) ) > small) then
+    if (abs( (delta(2)-delta(1) - dns) / (dns) ) > small) then
        write(message,*) 'deltay1 of file '//trim(process_path(NCI%filename))// &
 !!            ' does not match with config deltay: ', delta(2)-delta(1),model%numerics%dns*len0
-            ' does not match with config deltay: ', delta(2)-delta(1),model%numerics%dns
+            ' does not match with config deltay: ', delta(2)-delta(1),dns
        call write_log(message,type=GM_FATAL)
     end if
     
@@ -1351,10 +1350,10 @@ contains
   if (status == NF90_NOERR) then
         status = parallel_inquire_dimension(NCI%id, dimid, len=dimsize)
         call nc_errorhandle(__FILE__, __LINE__, status)
-        if (dimsize /= model%general%upn .and. dimsize  /=  1) then
+        if (dimsize /= upn .and. dimsize  /=  1) then
             write(message,*) 'Dimension level of file '//trim(process_path(NCI%filename))//&
                 ' does not match with config dimension: ', &
-                dimsize, model%general%upn
+                dimsize, upn
             call write_log(message,type=GM_FATAL)
         end if
   else
@@ -1365,21 +1364,22 @@ contains
 
   !------------------------------------------------------------------------------
 
-  subroutine glimmer_nc_checkread(infile,model,time)
+  subroutine glimmer_nc_checkread(infile, is_restart, tstart, time, tinc, tstep_count)
 
     !> check if we should read from file
     !>
-    !> If we're reading a restart file, then also sets model%numerics%tstart,
-    !  model%numerics%time and model%numerics%tstep_count
+    !> If we're reading a restart file, then also sets tstart, time and tstep_count
     use glimmer_log
-    use glide_types
     use glimmer_filenames
 
     implicit none
 
     type(glimmer_nc_input), pointer :: infile  !> structure containing output netCDF descriptor
-    type(glide_global_type) :: model    !> the model instance
-    real(dp),optional :: time           !> Optional alternative time
+    integer, intent(in) :: is_restart          !> restart option (NO_RESTART, STANDARD_RESTART or HYBRID_RESTART)
+    real(dp), intent(inout) :: tstart          !> model start time (yr); reset for a standard restart
+    real(dp), intent(inout) :: time            !> model time (yr); reset for a standard or hybrid restart
+    real(dp), intent(in) :: tinc               !> model timestep (yr)
+    integer, intent(inout) :: tstep_count      !> model timestep count; reset for a standard or hybrid restart
 
     character(len=msglen) :: message
 
@@ -1406,39 +1406,39 @@ contains
 
           call write_log_div
 
-          ! Reset model%numerics%tstart if reading a restart file
+          ! Reset tstart if reading a restart file
           !write(message,*) 'Check for restart:', trim(infile%nc%filename)
           !call write_log(message)
 
           if (pos /= 0 .or. pos_cesm /= 0) then   ! get the start time based on the current time slice
 
-             if (model%options%is_restart == STANDARD_RESTART) then
+             if (is_restart == STANDARD_RESTART) then
 
                 restart_time = infile%times(infile%current_time)      ! years
-                model%numerics%tstart = restart_time
-                model%numerics%time = restart_time
+                tstart = restart_time
+                time = restart_time
 
                 if (infile%tstep_counts_read) then
-                   model%numerics%tstep_count = infile%tstep_counts(infile%current_time)
+                   tstep_count = infile%tstep_counts(infile%current_time)
                 else
                    ! BACKWARDS_COMPATIBILITY(wjs, 2017-05-17) Older files may not have
                    ! 'tstep_count', so compute it ourselves here. We don't want to use this
                    ! formulation in general because it is prone to roundoff errors.
-                   model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
+                   tstep_count = nint(time/tinc)
                 end if
 
                 write(message,*) 'Standard restart: New tstart, tstep_count =', &
-                     model%numerics%tstart, model%numerics%tstep_count
+                     tstart, tstep_count
                 call write_log(message)
 
-             elseif (model%options%is_restart == HYBRID_RESTART) then
+             elseif (is_restart == HYBRID_RESTART) then
 
                 ! Use tstart from the config file, not the time from the restart file
-                model%numerics%time = model%numerics%tstart  ! years
-                model%numerics%tstep_count = 0
+                time = tstart  ! years
+                tstep_count = 0
 
                 write(message,*) 'Hybrid restart: New tstart, tstep_count =', &
-                     model%numerics%tstart, model%numerics%tstep_count
+                     tstart, tstep_count
                 call write_log(message)
 
              endif   ! is_restart
@@ -1446,15 +1446,15 @@ contains
           endif  ! pos/=0 or pos_cesm/=0
 
           write(message,*) 'Reading time slice ',infile%current_time,'(',infile%times(infile%current_time),') from file ', &
-               trim(process_path(NCI%filename)), ' at time ', sub_time(model, time)
+               trim(process_path(NCI%filename)), ' at time ', time
           call write_log(message)
           NCI%just_processed = .TRUE.
-          NCI%processed_time = sub_time(model, time)
+          NCI%processed_time = time
 
        end if  ! not just processed
     end if  ! current_time <= nt
 
-    if (sub_time(model, time) > NCI%processed_time) then
+    if (time > NCI%processed_time) then
        if (NCI%just_processed) then
           ! finished reading during last time step, need to increase counter...
           infile%current_time = infile%current_time + 1
@@ -1467,34 +1467,11 @@ contains
        NCI%just_processed = .FALSE.
     endif
 
-  contains
-
-    real(dp) function sub_time(model, time)
-      ! Get the current time applicable to this subroutine. 
-      ! If time is present, use that; otherwise use model%numerics%time
-      !
-      ! We need this function to avoid code duplication. We canNOT simply set a local
-      ! sub_time variable variable at the start of glimmer_nc_checkread, because model
-      ! %numerics%time can be updated in the midst of this routine... so we need to
-      ! determine sub_time when it's actually needed, with this function.
-      use glide_types
-      implicit none
-      type(glide_global_type) :: model    !> the model instance
-      real(dp),optional :: time           !> Optional alternative time
-
-      if (present(time)) then
-         sub_time = time
-      else
-         sub_time = model%numerics%time
-      end if
-
-    end function sub_time
-
   end subroutine glimmer_nc_checkread
 
   !------------------------------------------------------------------------------
 
-  subroutine check_for_tempstag(whichdycore, nc)
+  subroutine check_for_tempstag(staggered, nc)
 
       ! Check for the need to output tempstag and update the output variables if needed.
       !
@@ -1515,10 +1492,9 @@ contains
       !       starts from vars_copy.
 
       use glimmer_log
-      use glide_types
 
       implicit none
-      integer, intent(in) :: whichdycore
+      logical, intent(in) :: staggered   ! true if temp, flwa and dissip are on the staggered vertical grid
       type(glimmer_nc_stat) :: nc
 
       ! If both temp and tempstag are specified, temp will get converted to tempstag
@@ -1530,7 +1506,7 @@ contains
       ! so that the first and last variable names can be matched
       nc%vars_copy = ' '//trim(adjustl(nc%vars_copy))//' '
 
-      if (whichdycore/=DYCORE_GLIDE) then
+      if (staggered) then
          ! We want temp, flwa and dissip to become tempstag, flwastag and dissipstag
          call replace_varname('temp', 'tempstag', &
               'Temperature remapping option uses temperature on a staggered vertical grid.' // &

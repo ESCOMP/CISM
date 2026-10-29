@@ -339,7 +339,9 @@ contains
     model%numerics%tstep_count = 0
 
     ! open all input files
-    call openall_in(model)
+    call openall_in(model%funits, model%projection, &
+                    model%parallel%global_ewn, model%parallel%global_nsn, &
+                    model%numerics%dew, model%numerics%dns, model%general%upn)
 
     ! read first time slice
     call glide_io_readall(model,model)
@@ -701,7 +703,8 @@ contains
     endif
 
     ! open all output files
-    call openall_out(model)
+    call openall_out(model%funits, model%options%is_restart, model%projection, &
+                     model%numerics%tstart, model%numerics%tstep_count)
 
     ! create glide I/O variables
     call glide_io_createall(model, model)
