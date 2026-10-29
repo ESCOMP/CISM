@@ -49,11 +49,14 @@ module glide_types
   use glimmer_global, only: sp, dp, fname_length
   use glimmer_physcon, only: rhoi, rhoo, coni
   use glimmer_paramets, only: unphys_val
-  use glimmer_ncdf, only: glimmer_nc_input, glimmer_nc_output
+  use glimmer_ncdf, only: glimmer_nc_input, glimmer_nc_output, &
+       NO_RESTART, STANDARD_RESTART, HYBRID_RESTART
   use profile, only: profile_type
   use glimmer_coordinates, only: coordsystem_type
   use glimmer_map_types, only: glimmap_proj
-  use glimmer_sparse_type, only: sparse_matrix_type
+  use glimmer_sparse_type, only: sparse_matrix_type, &
+       HO_SPARSE_PCG_INCH, HO_SPARSE_BICG, HO_SPARSE_GMRES, &
+       HO_SPARSE_PCG_STANDARD, HO_SPARSE_PCG_CHRONGEAR
   use cism_parallel, only: parallel_type
 
   implicit none
@@ -230,10 +233,6 @@ module glide_types
   integer, parameter :: SIGMA_COMPUTE_EVEN = 3
   integer, parameter :: SIGMA_COMPUTE_PATTYN = 4
 
-  integer, parameter :: NO_RESTART = 0
-  integer, parameter :: STANDARD_RESTART = 1
-  integer, parameter :: HYBRID_RESTART = 2
-
   integer, parameter :: RESTART_EXTEND_VELO_FALSE = 0
   integer, parameter :: RESTART_EXTEND_VELO_TRUE = 1
   
@@ -334,12 +333,6 @@ module glide_types
   integer, parameter :: HO_RESID_MEANU = 2
   integer, parameter :: HO_RESID_L2NORM = 3
   integer, parameter :: HO_RESID_L2NORM_RELATIVE = 4
-
-  integer, parameter :: HO_SPARSE_PCG_INCH = -1
-  integer, parameter :: HO_SPARSE_BICG = 0
-  integer, parameter :: HO_SPARSE_GMRES = 1
-  integer, parameter :: HO_SPARSE_PCG_STANDARD = 2
-  integer, parameter :: HO_SPARSE_PCG_CHRONGEAR = 3
 
   integer, parameter :: HO_APPROX_LOCAL_SIA = -1
   integer, parameter :: HO_APPROX_SIA = 0
