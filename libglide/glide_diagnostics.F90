@@ -47,6 +47,11 @@ module glide_diagnostics
 
   logical, parameter :: verbose_diagnostics = .false.
 
+  ! Temporary private copies of glissade_utils subroutines, so that this module
+  !  does not depend on libglissade. Remove when the Glissade-only diagnostics
+  !  are moved out of this module.
+  private :: diag_rms_error, diag_usrf_to_thck
+
 contains
 
   subroutine glide_write_diagnostics (model,  time,    &
@@ -167,7 +172,6 @@ contains
  
     use glimmer_paramets, only: unphys_val
     use glimmer_physcon, only: scyr, rhoi, shci
-    use glissade_utils, only: glissade_usrf_to_thck, glissade_rms_error
 
     implicit none
  
@@ -1048,13 +1052,13 @@ contains
 
     if (.not.parallel_is_zero(model%geometry%usrf_obs)) then
 
-       call glissade_usrf_to_thck(&
+       call diag_usrf_to_thck(&
             model%geometry%usrf_obs,      &
             model%geometry%topg,          &
             model%climate%eus,            &
             thck_obs)
 
-       call glissade_rms_error(&
+       call diag_rms_error(&
             ewn,            nsn,          &
             ice_mask,                     &
             parallel,                     &
@@ -1072,7 +1076,7 @@ contains
        velo_sfc = sqrt(model%velocity%uvel(1,:,:)**2   &
                      + model%velocity%vvel(1,:,:)**2)
 
-       call glissade_rms_error(&
+       call diag_rms_error(&
             ewn-1,          nsn-1,              &
             stag_ice_mask,                      &
             parallel,                           &
@@ -1381,7 +1385,7 @@ contains
              glacier_ice_mask = 0
           endwhere
 
-          call glissade_rms_error(&
+          call diag_rms_error(&
                ewn,            nsn,          &
                glacier_ice_mask,             &
                parallel,                     &
@@ -1397,7 +1401,7 @@ contains
              glacier_ice_mask = 0.0d0
           endwhere
 
-          call glissade_rms_error(&
+          call diag_rms_error(&
                ewn,            nsn,          &
                glacier_ice_mask,             &
                parallel,                     &
@@ -1488,6 +1492,107 @@ contains
   end subroutine glide_write_diag
      
 !==============================================================
+
+  subroutine diag_rms_error(&
+       nx,       ny,          &
+       mask,     parallel,    &
+       field,    field_ref,   &
+       rmse)
+
+    use cism_parallel, only: parallel_global_sum, parallel_global_sum_stagger
+
+    ! Compute the root-mean-square error of an input field relative to a reference field.
+    ! Typically, the input field would be computed by CISM, with the reference field
+    !  based on observations.
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny                  ! number of cells in x and y direction on input grid (global)
+
+    integer, dimension(nx,ny), intent(in) :: &
+         mask                    ! = 1 for the domain over which the rmse is computed
+
+    type(parallel_type), intent(in) :: &
+         parallel                ! info for parallel communication
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         field,                & ! 2D model field
+         field_ref               ! reference field
+
+    real(dp), intent(out) :: &
+         rmse                    ! root-mean-square error
+
+    ! local variables
+
+    real(dp), dimension(nx,ny) :: &
+         sq_diff              ! |field - field_ref|^2
+
+    real(dp) :: &
+         sum_sq_diff,       & ! global sum of sq_diff
+         ncells               ! number of global cells with mask = 1
+
+    if (nx == parallel%local_ewn .and. ny == parallel%local_nsn) then
+       ncells = parallel_global_sum(mask, parallel)
+       sq_diff = (abs(field - field_ref))**2
+       sum_sq_diff = parallel_global_sum(sq_diff, parallel, mask_2d = mask)
+    elseif (nx == parallel%local_ewn-1 .and. ny == parallel%local_nsn-1) then
+       ncells = parallel_global_sum_stagger(mask, parallel)
+       sq_diff = (abs(field - field_ref))**2
+       sum_sq_diff = parallel_global_sum_stagger(sq_diff, parallel, mask_2d = mask)
+    else
+       call write_log('Bad input array size in diag_rms_error', GM_FATAL)
+    endif
+
+    if (ncells > 0.0d0) then
+       rmse = sqrt(sum_sq_diff/ncells)
+    else
+       rmse = 0.0d0
+    endif
+
+  end subroutine diag_rms_error
+
+!****************************************************************************
+
+  subroutine diag_usrf_to_thck(usrf, topg, eus, thck)
+
+    ! Given the bed topography and upper ice surface elevation, compute the ice thickness.
+    ! The ice is assumed to satisfy a flotation condition.
+    ! That is, if topg - eus < 0 (marine-based ice), and if the upper surface is too close
+    !  to sea level to ground the ice, then the ice thickness is chosen to satisfy
+    !  rhoi*H = -rhoo*(topg-eus).
+    ! Note: usrf, topg, eus and thck must all have the same units (usually but not necessarily meters).
+
+    use glimmer_physcon, only : rhoo, rhoi
+
+    real(dp), dimension(:,:), intent(in) :: &
+         usrf,           & ! ice upper surface elevation
+         topg              ! elevation of bedrock topography
+
+    real(dp), intent(in) :: &
+         eus               ! eustatic sea level
+
+    real(dp), dimension(:,:), intent(out) :: &
+         thck              ! ice thickness
+
+    ! initialize
+    thck(:,:) = 0.0d0
+
+    where (usrf > (topg - eus))   ! ice is present, thck > 0
+       where (topg - eus < 0.0d0)   ! marine-based ice
+          where ((topg - eus) * (1.0d0 - rhoo/rhoi) > usrf)  ! ice is floating
+             thck = usrf / (1.0d0 - rhoi/rhoo)
+          elsewhere   ! ice is grounded
+             thck = usrf - (topg - eus)
+          endwhere
+       elsewhere   ! land-based ice
+          thck = usrf - (topg - eus)
+       endwhere
+    endwhere
+
+  end subroutine diag_usrf_to_thck
+
+!****************************************************************************
 
 end module glide_diagnostics
 
