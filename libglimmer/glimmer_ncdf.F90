@@ -288,6 +288,16 @@ module glimmer_ncdf
 
   end type glimmer_nc_input
 
+  !> Data structure holding the netCDF input, output and forcing files of a model instance
+  type glimmer_funits
+    character(fname_length) :: sigfile=''                      !> sigma coordinates file
+    character(fname_length) :: ncfile=''                       !> configuration file for netCDF I/O
+    type(glimmer_nc_output),pointer :: out_first=>NULL()       !> first element of linked list defining netCDF outputs
+    type(glimmer_nc_input), pointer :: in_first=>NULL()        !> first element of linked list defining netCDF inputs
+    type(glimmer_nc_input), pointer :: frc_first=>NULL()       !> first element of linked list defining netCDF forcings
+    ! Note: forcing files are of the same type as input files since they share a lot in common.
+  end type glimmer_funits
+
 
   interface delete
      module procedure delete_output, delete_input
