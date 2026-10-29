@@ -29,7 +29,6 @@
 #include "config.inc" 
 #endif
 #include "glide_nan.inc"
-#include "glide_mask.inc"
 
 module glissade_velo
 
@@ -49,7 +48,6 @@ contains
       use glide_types
       use glissade_velo_higher, only: glissade_velo_higher_solve
       use glissade_velo_sia, only: glissade_velo_sia_solve
-      use glide_mask
       use profile, only: t_startf, t_stopf
 
       type(glide_global_type),intent(inout) :: model
@@ -129,15 +127,6 @@ contains
          ! temporarily set the approximation to SSA
          model%options%which_ho_approx = HO_APPROX_SSA
 
-         ! Compute mask for staggered grid. This is needed as an input to calcbeta
-         ! (which used to be called here but now is called from glissade_velo_higher_solve).
-         ! TODO - Remove the use of stagmask in the Glissade solver?
-
-         call glide_set_mask(model%numerics,                                     &
-                             model%geomderv%stagthck, model%geomderv%stagtopg,   &
-                             model%general%ewn-1,     model%general%nsn-1,       &
-                             model%climate%eus,       model%geometry%stagmask)
-
          call t_startf('glissade_velo_higher_solver')
          call glissade_velo_higher_solve(model, ewn, nsn, upn)
          call t_stopf('glissade_velo_higher_solver')
@@ -169,17 +158,6 @@ contains
 
       else   ! standard higher-order solve
              ! can be BP, L1L2, SSA or SIA, depending on model%options%which_ho_approx
-
-         !-------------------------------------------------------------------
-         ! Compute mask for staggered grid. This is needed as an input to calcbeta
-         ! (which used to be called here but now is called from glissade_velo_higher_solve).
-         ! TODO - Remove the use of stagmask in the Glissade solver?
-         !-------------------------------------------------------------------
-
-         call glide_set_mask(model%numerics,                                     &
-                             model%geomderv%stagthck, model%geomderv%stagtopg,   &
-                             model%general%ewn-1,     model%general%nsn-1,       &
-                             model%climate%eus,       model%geometry%stagmask)
 
          ! Note: The geometry fields (thck, topg, and usrf) must be updated in halos
          !        before calling glissade_velo_higher_solve.
