@@ -45,7 +45,7 @@ contains
       use glimmer_log
       use glimmer_paramets, only: iulog
       use glimmer_physcon, only: scyr
-      use glide_types
+      use glissade_types
       use glissade_velo_higher, only: glissade_velo_higher_solve
       use glissade_velo_sia, only: glissade_velo_sia_solve
       use profile, only: t_startf, t_stopf
@@ -202,7 +202,7 @@ contains
       ! Adapted from subroutine wvelintg in glide_velo.F90.
 
       use glimmer_global, only: dp
-      use glide_types, only: glide_geomderv, glide_numerics
+      use glissade_types, only: glide_geomderv, glide_numerics
 
       real(dp), dimension(:,:,:), intent(in) :: &
            uvel, vvel                ! horizontal velocity components on the staggered grid

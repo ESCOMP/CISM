@@ -55,7 +55,7 @@ module glissade_therm
 
     use glimmer_global, only : dp 
     use glimmer_paramets, only: iulog
-    use glide_types
+    use glissade_types
     use glimmer_log
     use cism_parallel, only: this_rank, broadcast, parallel_globalindex
 

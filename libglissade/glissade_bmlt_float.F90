@@ -39,7 +39,7 @@ module glissade_bmlt_float
   use glimmer_physcon, only: rhoi, rhoo, rhow, grav, lhci, scyr, pi
   use glimmer_paramets, only: iulog, unphys_val
   use glimmer_log
-  use glide_types
+  use glissade_types
   use glimmer_utils, only: point_diag
   use cism_parallel, only: this_rank, main_task, nhalo, &
        parallel_type, parallel_halo, parallel_globalindex, parallel_boundary_value, &
