@@ -1131,9 +1131,10 @@ contains
              bwat_diag = model%basal_hydro%bwat(i,j)
           endif
           bheatflx_diag = model%temper%bheatflx(i,j)
-          top_age_diag = model%geometry%ice_age(1,i,j)       ! age of top ice layer
-          bot_age_diag = model%geometry%ice_age(upn-1,i,j)   ! age of bottom ice layer
-       
+          if (associated(model%geometry%ice_age)) then
+             top_age_diag = model%geometry%ice_age(1,i,j)       ! age of top ice layer
+             bot_age_diag = model%geometry%ice_age(upn-1,i,j)   ! age of bottom ice layer
+          endif
           temp_diag(:) = model%temper%temp(1:upn,i,j)          
           spd_diag(:) = sqrt(model%velocity%uvel(1:upn,i,j)**2   &
                            + model%velocity%vvel(1:upn,i,j)**2) * scyr
@@ -1155,8 +1156,10 @@ contains
        bmlt_diag = parallel_reduce_max(bmlt_diag)
        bwat_diag = parallel_reduce_max(bwat_diag)
        bheatflx_diag = parallel_reduce_max(bheatflx_diag)
-       top_age_diag = parallel_reduce_max(top_age_diag)
-       bot_age_diag = parallel_reduce_max(bot_age_diag)
+       if (associated(model%geometry%ice_age)) then
+          top_age_diag = parallel_reduce_max(top_age_diag)
+          bot_age_diag = parallel_reduce_max(bot_age_diag)
+       endif
        do k = 1, upn
           temp_diag(k) = parallel_reduce_max(temp_diag(k))
           spd_diag(k)  = parallel_reduce_max(spd_diag(k))

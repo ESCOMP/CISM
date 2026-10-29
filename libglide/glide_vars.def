@@ -200,18 +200,10 @@ factor:        scyr
 
 [btrc]
 dimensions:    time, y0, x0
-units:         meter/pascal/year
+units:         m/yr/Pa
 long_name:     basal slip coefficient
 data:          data%velocity%btrc
 factor:        scyr
-
-[soft]
-dimensions:    time, y0, x0
-units:         meter/pascal/year
-long_name:     bed softness parameter
-data:          data%velocity%bed_softness
-factor:        scyr
-load:          1
 
 [beta]
 dimensions:    time, y0, x0

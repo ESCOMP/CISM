@@ -209,8 +209,8 @@ contains
     model%calving%cliff_timescale = model%calving%cliff_timescale * scyr    ! convert from yr to s
 
     ! scale glide basal traction parameters
-    model%velowk%btrac_const = model%paramets%btrac_const/scyr
-    model%velowk%btrac_max   = model%paramets%btrac_max/scyr
+    model%paramets%btrac_const = model%paramets%btrac_const/scyr
+    model%paramets%btrac_max   = model%paramets%btrac_max/scyr
 
     ! scale basal melting parameters (1/yr -> 1/s, or m/yr -> m/s)
     model%basal_melt%bmlt_float_omega = model%basal_melt%bmlt_float_omega / scyr
@@ -1749,16 +1749,18 @@ contains
        call write_log('Will write to output files on restart')
     endif
 
-!!     This option is not currently supported
-!!    if (model%options%which_bproc < 0 .or. model%options%which_bproc >= size(which_bproc)) then
-!!       call write_log('Error, basal_proc out of range',GM_FATAL)
-!!    end if
-!!    write(message,*) 'basal_proc              : ',model%options%which_bproc,which_bproc(model%options%which_bproc)
-!!    call write_log(message)
+    if (model%options%whichdycore == DYCORE_GLIDE) then   ! glide SIA
 
-    !HO options
+       if (model%options%which_ho_ice_age /= HO_ICE_AGE_NONE) then
+          call write_log('Ice age computation not supported for glide dycore', GM_WARNING)
+          write(message,*) 'Setting which_ho_ice_age =', HO_ICE_AGE_NONE
+          call write_log(message)
+          model%options%which_ho_ice_age = HO_ICE_AGE_NONE
+       endif
 
-    if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glissade higher-order
+       !TODO - Add more Glide checks here?
+
+    else    ! glissade higher-order
 
        call write_log(' ')
        call write_log('Higher-order options:')
@@ -2303,7 +2305,6 @@ contains
     !      This parameter is now called 'basal_tract_tanh' instead of 'basal_tract'.
     call GetValue(section,'basal_tract_tanh',  tempvar, 5)
     if (associated(tempvar)) then
-!!       model%paramets%btrac_const = tempvar(1)  ! old code
        model%paramets%bpar(:) = tempvar(:)
        deallocate(tempvar)
     end if

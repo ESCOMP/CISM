@@ -59,7 +59,6 @@ module glide
 
   integer, private, parameter :: dummyunit=99
 
-!WHL - debug
   logical, parameter :: verbose_glide = .false.
 
 contains
@@ -193,10 +192,6 @@ contains
 
     ! allocate arrays
     call glide_allocarr(model)
-
-!TODO - Eliminate the bed softness parameter and set btrc to model%velowo%btrac_const in glide_velo?
-    ! initialise bed softness to uniform parameter
-    model%velocity%bed_softness = model%velowk%btrac_const
 
     ! set uniform basal heat flux (positive down)
     !NOTE: This value will be overridden if we read bheatflx from an input file 
@@ -456,11 +451,18 @@ contains
     integer :: itest, jtest, rtest, upn
     logical :: l_evolve_ice  ! local version of evolve_ice
 
+    upn = model%general%upn
+    itest = model%numerics%idiag_local
+    jtest = model%numerics%jdiag_local
+    rtest = model%numerics%rdiag_local
+
     if (present(evolve_ice)) then
        l_evolve_ice = evolve_ice
     else
        l_evolve_ice = .true.
     end if
+
+    !TODO - I don't think a hybrid restart has been tested for Glide. Not sure it needs to be supported.
 
     if (model%options%is_restart == STANDARD_RESTART .or. &
         model%options%is_restart == HYBRID_RESTART) then
@@ -551,6 +553,13 @@ contains
        call glide_prof_stop(model,model%glide_prof%ice_mask1)
 
 
+       if (verbose_glide) then
+          call point_diag(model%geometry%thck, 'Geometry calcs: thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geomderv%stagthck, 'stagthck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geomderv%dusrfdew, 'dusrfdew (m/m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geomderv%dusrfdns, 'dusrfdns (m/m)', itest, jtest, rtest, 7, 7, '(f10.5)')
+       endif
+
     ! ------------------------------------------------------------------------ 
     ! Part 3: Solve velocity
     ! ------------------------------------------------------------------------    
@@ -569,6 +578,11 @@ contains
                             model%geomderv%dusrfdew,   &
                             model%geomderv%dusrfdns,   &
                             model%velocity%diffu)
+
+       if (verbose_glide) then
+          call point_diag(model%velowk%dintflwa, 'Velocity prep: flwa', itest, jtest, rtest, 7, 7, '(e12.3)')
+          call point_diag(model%velocity%diffu*scyr, 'diffu (m^2/yr)', itest, jtest, rtest, 7, 7, '(e12.3)')
+       endif
 
        ! If necessary, compute staggered variables required for basal traction calculation
 
@@ -653,6 +667,13 @@ contains
                      model%velocity%ubas,       &
                      model%velocity%vbas)
        
+       if (verbose_glide) then
+          write(iulog,*) 'Basal calcs, whichbtrc =', model%options%whichbtrc
+          call point_diag(model%temper%stagbtemp, 'stagbtemp (deg C)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%velocity%btrc, 'btrc (m/yr/Pa)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%velocity%ubas, 'ubas (m/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%velocity%vbas, 'vbas (m/yr)', itest, jtest, rtest, 7, 7)
+       endif  ! verbose_glide
 
        ! Calculate velocity
        call velo_calc_velo(model%velowk,            model%geomderv%stagthck,  &
@@ -662,6 +683,13 @@ contains
                            model%velocity%uvel,     model%velocity%vvel,      &
                            model%velocity%uflx,     model%velocity%vflx,      &
                            model%velocity%velnorm)    
+
+       if (verbose_glide) then
+          call point_diag(model%velocity%uvel(upn,:,:)*scyr, 'Velocity calcs: ubas (m/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%velocity%vvel(upn,:,:)*scyr, 'vbas (m/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%velocity%uvel(1,:,:)*scyr, 'usfc (m/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%velocity%vvel(1,:,:)*scyr, 'vsfc (m/yr)', itest, jtest, rtest, 7, 7)
+       endif
 
     endif  ! if a restart
 
@@ -684,18 +712,6 @@ contains
     ! velocity norm
     model%velocity%velnorm = sqrt(model%velocity%uvel**2 + model%velocity%vvel**2)
 
-    if (verbose_glide) then
-       upn = model%general%upn
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
-       rtest = model%numerics%rdiag_local
-       call point_diag(model%geomderv%stagthck, 'stagthck (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(model%velocity%diffu*scyr, 'diffu (m^2/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
-       call point_diag(model%velocity%uvel(upn,:,:)*scyr, 'ubas (m/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
-       call point_diag(model%velocity%vvel(upn,:,:)*scyr, 'vbas (m/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
-       call point_diag(model%velocity%uvel(1,:,:)*scyr, 'usfc (m/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
-       call point_diag(model%velocity%vvel(1,:,:)*scyr, 'vsfc (m/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
-    endif  ! verbose_glide
 
   end subroutine glide_init_state_diagnostic
 

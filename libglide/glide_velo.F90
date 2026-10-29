@@ -111,7 +111,7 @@ contains
 
     ! Note: cflow < 0 is used in several equations below.
     !       Signs in this module can be tricky, so comments are added to help keep track.
-    cflow = -2.0d0*(rhoi*grav)**gn / (8.0d0/scyr)
+    cflow = -2.0d0*(rhoi*grav)**gn / 8.0d0
 
   end subroutine init_velo
 
@@ -1044,7 +1044,7 @@ contains
     case(BTRC_CONSTANT)
        ! constant everywhere
        ! This option is used for EISMINT-2 experiment G
-       btrc = model%velocity%bed_softness
+       btrc = model%paramets%btrac_const
 
     case(BTRC_CONSTANT_BWAT)
        ! constant where basal melt water is present, else = 0
@@ -1054,7 +1054,7 @@ contains
        do ns = 1,nsn-1
           do ew = 1,ewn-1
              if (0.0d0 < model%basal_hydro%stagbwat(ew,ns)) then
-                btrc(ew,ns) = model%velocity%bed_softness(ew,ns)
+                btrc(ew,ns) = model%paramets%btrac_const
              else
                 btrc(ew,ns) = 0.0d0
              end if
@@ -1069,7 +1069,7 @@ contains
        do ns = 1,nsn-1
           do ew = 1,ewn-1
              if (abs(model%temper%stagbpmp(ew,ns) - model%temper%stagbtemp(ew,ns))<0.001) then
-                btrc(ew,ns) = model%velocity%bed_softness(ew,ns)
+                btrc(ew,ns) = model%paramets%btrac_const
              else
                 btrc(ew,ns) = 0.0d0
              end if
@@ -1084,8 +1084,8 @@ contains
              stagbmlt = 0.25d0*sum(model%basal_melt%bmlt(ew:ew+1,ns:ns+1))
              
              if (stagbmlt > 0.0d0) then
-                btrc(ew,ns) = min(model%velowk%btrac_max, &
-                                  model%velocity%bed_softness(ew,ns) + model%velowk%btrac_slope*stagbmlt)
+                btrc(ew,ns) = min(model%paramets%btrac_max, &
+                                  model%paramets%btrac_const + model%paramets%btrac_slope*stagbmlt)
              else
                 btrc(ew,ns) = 0.0d0
              end if
