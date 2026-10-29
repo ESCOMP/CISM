@@ -47,8 +47,6 @@
 #include "config.inc"
 #endif
 
-#include "glide_mask.inc"
-
 module glissade
 
   ! Driver for Glissade (parallel, higher-order) dynamical core
@@ -106,7 +104,6 @@ contains
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_scales
     use glimmer_physcon, only: scyr
-    use glide_mask
     use glissade_isostasy, only: glissade_isostasy_init
     use glimmer_map_init
     use glimmer_coordinates, only: coordsystem_new
@@ -852,13 +849,8 @@ contains
 
     endif  ! use_c_space_factor
 
-    ! calculate mask
-    ! Note: This call includes a halo update for thkmask
-    !TODO - Replace with glissade masks?
-    call glide_set_mask(model%numerics,                                &
-                        model%geometry%thck,  model%geometry%topg,     &
-                        model%general%ewn,    model%general%nsn,       &
-                        model%climate%eus,    model%geometry%thkmask)
+    ! Set the ice-free ocean mask used by GLAD
+    call glissade_set_glad_ocean_mask(model)
 
     ! compute halo for relaxed topography
     ! Note: See comments above with regard to the halo update for topg.
@@ -919,13 +911,8 @@ contains
 
        call glissade_calving_solve(model, .true.)   ! init_calving = .true.
 
-       ! The mask needs to be recalculated after calving.
-       ! Note: glide_set_mask includes a halo update for thkmask.
-       !TODO - Delete this call? Glissade dycore does not use thkmask.
-       call glide_set_mask(model%numerics,                                &
-                           model%geometry%thck,  model%geometry%topg,     &
-                           model%general%ewn,    model%general%nsn,       &
-                           model%climate%eus,    model%geometry%thkmask)
+       ! Reset the ice-free ocean mask after calving
+       call glissade_set_glad_ocean_mask(model)
 
     endif  ! initial calving
 
@@ -1175,7 +1162,6 @@ contains
 
     use glimmer_paramets, only: eps11
     use glimmer_physcon, only: scyr
-    use glide_mask, only: glide_set_mask
     use glissade_mass_balance, only: glissade_prepare_climate_forcing
     use glissade_bmlt_float, only: glissade_bmlt_float_solve
     use glissade_calving, only: glissade_calving_solve
@@ -1368,20 +1354,8 @@ contains
 
     call glissade_cleanup_icefree_cells(model)
 
-    ! glissade_calve_ice adjusts thickness for calved ice.  Therefore the mask needs to be recalculated.
-    ! Note: glide_set_mask includes a halo update of thkmask
-    ! This time we want to calculate the optional arguments iarea and ivol because thickness 
-    ! will not change further during this time step.
-    !TODO - Remove this call to glide_set_mask?
-    !       This subroutine is called at the beginning of glissade_velo_driver,
-    !        so a call here is not needed for the velo diagnostic solve.
-    !       The question is whether it is needed for the isostasy.
-    !TODO - Remove the call to glide_set_mask after checking isostasy
-
-    call glide_set_mask(model%numerics,                                &
-                        model%geometry%thck,  model%geometry%topg,     &
-                        model%general%ewn,    model%general%nsn,       &
-                        model%climate%eus,    model%geometry%thkmask)
+    ! Set the ice-free ocean mask used by GLAD
+    call glissade_set_glad_ocean_mask(model)
 
     ! ------------------------------------------------------------------------
     !TODO - Remove the thermal solve here; always do it near the start of the time step.
@@ -2905,6 +2879,31 @@ contains
     endif
 
   end subroutine glissade_diagnostic_variable_solve
+
+!=======================================================================
+
+  subroutine glissade_set_glad_ocean_mask(model)
+
+    ! Set a mask of ice-free ocean cells, used by GLAD to zero out acab over the ocean.
+    ! This mask is set at the same points where Glissade formerly called glide_set_mask
+    !  to compute thkmask, and it has the same ice-free ocean cells as GLIDE_IS_OCEAN(thkmask).
+    !TODO - Temporary. Note that the mask computed during initialization can be out of date
+    !       at GLAD's first step (e.g., if icebergs or ice caps are removed later in initialization).
+    !       Remove this subroutine and have GLAD test the current geometry instead.
+    !       This will change answers slightly at startup.
+
+    use glimmer_physcon, only: rhoi, rhoo
+
+    type(glide_global_type), intent(inout) :: model   ! model instance
+
+    where (model%geometry%thck <= 0.0d0 .and. &
+           model%geometry%topg - model%climate%eus < (-rhoi/rhoo) * model%geometry%thck)
+       model%geometry%glad_ocean_mask = 1
+    elsewhere
+       model%geometry%glad_ocean_mask = 0
+    endwhere
+
+  end subroutine glissade_set_glad_ocean_mask
 
 !=======================================================================
 

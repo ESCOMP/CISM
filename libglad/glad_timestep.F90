@@ -183,9 +183,15 @@ contains
 
           ! Set acab to zero for ocean cells (bed below sea level, no ice present)
 
-          where (GLIDE_IS_OCEAN(instance%model%geometry%thkmask))
-             instance%acab = 0.d0
-          endwhere
+          if (instance%model%options%whichdycore == DYCORE_GLIDE) then
+             where (GLIDE_IS_OCEAN(instance%model%geometry%thkmask))
+                instance%acab = 0.d0
+             endwhere
+          else
+             where (instance%model%geometry%glad_ocean_mask == 1)
+                instance%acab = 0.d0
+             endwhere
+          endif
 
           ! Put climate inputs in the appropriate places, with conversion ----------
 
