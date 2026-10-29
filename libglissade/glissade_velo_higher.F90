@@ -67,7 +67,7 @@
     use glissade_grid_operators
     use glissade_masks, only: glissade_get_masks
 
-    use glide_types
+    use glissade_types
 
     use glissade_velo_higher_slap, only:   &
          slap_preprocess_3d,   slap_preprocess_2d,   &

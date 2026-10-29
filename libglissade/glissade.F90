@@ -54,7 +54,7 @@ module glissade
   use glimmer_global, only: dp
   use glimmer_paramets, only: iulog
   use glimmer_log
-  use glide_types
+  use glissade_types
   use glimmer_utils, only: point_diag, calc_lsrf_usrf
   use glide_io
   use glimmer_config

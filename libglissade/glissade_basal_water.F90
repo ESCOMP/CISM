@@ -31,7 +31,7 @@ module glissade_basal_water
    use glimmer_physcon, only: rhoi, rhow, lhci, grav, scyr
    use glimmer_log
    use glimmer_utils, only: point_diag
-   use glide_types
+   use glissade_types
    use cism_parallel, only: main_task, this_rank, nhalo, parallel_type, &
         parallel_halo, parallel_global_sum
 
@@ -96,7 +96,7 @@ module glissade_basal_water
     ! Note: This subroutine assumes SI units.
     ! Currently, only a few simple options are supported.
 
-    use glide_types
+    use glissade_types
 
     integer, intent(in) :: &
          which_ho_bwat     !> basal water options

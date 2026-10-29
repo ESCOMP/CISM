@@ -44,7 +44,7 @@
 
     use glimmer_global, only: dp
     use glimmer_paramets, only: iulog
-    use glide_types   ! for preconditioning options
+    use glissade_types   ! for preconditioning options
     use glimmer_log
     use profile, only: t_startf, t_stopf
     use cism_parallel, only: this_rank, main_task, &

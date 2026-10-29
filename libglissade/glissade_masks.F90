@@ -43,7 +43,7 @@
     use glimmer_physcon, only: rhoi, rhoo
     use glimmer_log
     use glimmer_utils, only: point_diag
-    use glide_types
+    use glissade_types
     use cism_parallel, only: this_rank, main_task, nhalo, parallel_globalindex, &
          parallel_type, parallel_halo, parallel_reduce_sum
 

@@ -26,7 +26,7 @@
 
 module glissade_lateral_melt
 
-  use glide_types
+  use glissade_types
   use glimmer_global, only: dp
   use glimmer_paramets, only: iulog, eps11
   use glimmer_log

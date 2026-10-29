@@ -38,7 +38,7 @@ module glissade_isostasy_elastic
 
   use glimmer_global, only : dp
   use glimmer_paramets, only: iulog
-  use glide_types, only: isos_elastic
+  use glissade_types, only: isos_elastic
   use glimmer_log
 
   implicit none

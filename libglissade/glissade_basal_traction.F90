@@ -49,7 +49,7 @@
   use glimmer_physcon,  only : scyr
   use glimmer_log
   use glimmer_utils, only: point_diag
-  use glide_types
+  use glissade_types
   use cism_parallel, only : this_rank, main_task, parallel_type, &
        parallel_halo, staggered_parallel_halo, parallel_globalindex, scatter_var
 

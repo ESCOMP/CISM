@@ -76,7 +76,7 @@
       
       ! This subroutine copies all the 3D tracer fields into a single array for transport.
 
-      use glide_types
+      use glissade_types
 
       type(glide_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
 
@@ -221,7 +221,7 @@
       !  back to individual tracer arrays.
       ! It also does halo updates for tracers.
 
-      use glide_types
+      use glissade_types
 
       type(glide_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
 
@@ -1119,7 +1119,7 @@
     !
     ! Author: William Lipscomb, LANL
 
-    use glide_types, only: HO_VERTICAL_REMAP_SECOND_ORDER
+    use glissade_types, only: HO_VERTICAL_REMAP_SECOND_ORDER
 
     implicit none
  

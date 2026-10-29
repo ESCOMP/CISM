@@ -42,7 +42,7 @@ module glissade_grid_operators
     use glimmer_paramets, only: iulog
     use glimmer_physcon, only: pi
     use glimmer_log
-    use glide_types
+    use glissade_types
     use cism_parallel, only: this_rank, main_task, nhalo, &
          parallel_type, parallel_halo, parallel_reduce_sum, parallel_globalindex
 

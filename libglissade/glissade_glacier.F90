@@ -31,7 +31,7 @@ module glissade_glacier
     use glimmer_global 
     use glimmer_paramets, only: iulog, eps08
     use glimmer_physcon, only: scyr, pi, rhow, rhoi
-    use glide_types
+    use glissade_types
     use glimmer_log
     use glimmer_utils, only: point_diag
     use cism_parallel, only: main_task, this_rank, nhalo
