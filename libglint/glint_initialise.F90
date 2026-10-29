@@ -74,7 +74,6 @@ contains
     use glide_nc_custom   , only: glide_nc_fillall
     use glide_model_registry, only : register_model
     use glide
-    use glissade
     use glad_constants
     use glad_restart_gcm
     use glide_diagnostics
@@ -111,6 +110,12 @@ contains
     call register_model(instance%model)
     call glide_config(instance%model, config, config_fileunit)
 
+    ! Glint supports only the Glide dycore
+    if (instance%model%options%whichdycore /= DYCORE_GLIDE) then
+       call write_log('Glint supports only the Glide dycore (dycore = 0)', &
+                      GM_FATAL,__FILE__,__LINE__)
+    endif
+
     ! if this is a continuation run, then set up to read restart
     ! (currently assumed to be a CESM restart file)
 
@@ -134,23 +139,11 @@ contains
       endif
     endif
 
-    if (instance%model%options%whichdycore == DYCORE_GLIDE) then  ! SIA dycore
+    ! initialise the model
+    call glide_initialise(instance%model)
 
-       ! initialise the model
-       call glide_initialise(instance%model)
-
-       ! compute the initial diagnostic state
-       call glide_init_state_diagnostic(instance%model)
-
-    else       ! glam/glissade HO dycore     
-
-       ! initialise the model
-       call glissade_initialise(instance%model)
- 
-       ! compute the initial diagnostic state
-       call glissade_diagnostic_variable_solve(instance%model)
-
-    endif
+    ! compute the initial diagnostic state
+    call glide_init_state_diagnostic(instance%model)
 
     instance%ice_tstep = get_tinc(instance%model)*nint(years2hours)
     instance%glide_time = instance%model%numerics%tstart
@@ -336,7 +329,6 @@ contains
     use glide_nc_custom   , only: glide_nc_fillall
     use glide_model_registry, only : register_model
     use glide
-    use glissade
     use glad_constants
     use glad_restart_gcm
     use glide_diagnostics
@@ -372,6 +364,12 @@ contains
     call register_model(instance%model)
     call glide_config(instance%model, config, config_fileunit)
 
+    ! Glint supports only the Glide dycore
+    if (instance%model%options%whichdycore /= DYCORE_GLIDE) then
+       call write_log('Glint supports only the Glide dycore (dycore = 0)', &
+                      GM_FATAL,__FILE__,__LINE__)
+    endif
+
     ! if this is a continuation run, then set up to read restart
     ! (currently assumed to be a CESM restart file)
 
@@ -395,23 +393,11 @@ contains
       endif
     endif
 
-    if (instance%model%options%whichdycore == DYCORE_GLIDE) then  ! SIA dycore
+    ! initialise the model
+    call glide_initialise(instance%model)
 
-       ! initialise the model
-       call glide_initialise(instance%model)
-
-       ! compute the initial diagnostic state
-       call glide_init_state_diagnostic(instance%model)
-
-    else       ! glam/glissade HO dycore     
-
-       ! initialise the model
-       call glissade_initialise(instance%model)
-
-       ! compute the initial diagnostic state
-       call glissade_diagnostic_variable_solve(instance%model)
-
-    endif
+    ! compute the initial diagnostic state
+    call glide_init_state_diagnostic(instance%model)
 
     instance%ice_tstep = get_tinc(instance%model)*nint(years2hours)
     idts = instance%ice_tstep
