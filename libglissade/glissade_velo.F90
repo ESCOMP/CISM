@@ -187,6 +187,101 @@ contains
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+    subroutine glissade_wvelintg(uvel,  vvel,      &
+                                 geomderv, numerics, &
+                                 wgrd,  thck,  bmlt, &
+                                 wvel)
+
+      ! Calculate the vertical velocity field, wvel, by integrating
+      !
+      !    w(sigma) = -int_1^sigma [dU/dsigma (sigma) . (grad(s) - sigma*grad(H))
+      !                             + H div(U(sigma))] dsigma + w(1)
+      !
+      !  (equation 13 in Payne and Dongelmans), where the thickness exceeds thklim.
+      ! For Glissade, wvel is a diagnostic output only.
+      ! Adapted from subroutine wvelintg in glide_velo.F90.
+
+      use glimmer_global, only: dp
+      use glide_types, only: glide_geomderv, glide_numerics
+
+      real(dp), dimension(:,:,:), intent(in) :: &
+           uvel, vvel                ! horizontal velocity components on the staggered grid
+
+      type(glide_geomderv), intent(in) :: &
+           geomderv                  ! horizontal derivatives of thickness and upper surface,
+                                     ! and thickness on the staggered grid
+
+      type(glide_numerics), intent(in) :: &
+           numerics                  ! numerical parameters, including sigma values
+
+      real(dp), dimension(:,:), intent(in) :: &
+           wgrd,                   & ! grid vertical velocity at the lowest model level
+           thck,                   & ! ice thickness (m)
+           bmlt                      ! basal melt rate; see Payne and Dongelmans, equation 14
+
+      real(dp), dimension(:,:,:), intent(out) :: &
+           wvel                      ! vertical velocity
+
+      ! local variables
+
+      real(dp) :: dew16, dns16       ! inverse of grid spacings multiplied by 16
+      real(dp), dimension(6) :: cons ! temporary local values of derivatives
+      integer :: ns, ew, up          ! loop indices
+      integer :: nsn, ewn, upn       ! domain sizes
+
+      real(dp), dimension(size(uvel,1)) :: &
+           dupsw,                  & ! sigma(up+1) - sigma(up)
+           depthw,                 & ! (sigma(up+1) + sigma(up)) / 2
+           suvel, svvel              ! sums of uvel and vvel over the 4 vertices of a cell
+
+      upn = size(uvel,1) ; ewn = size(uvel,2) ; nsn = size(uvel,3)
+
+      dupsw  = (/ (numerics%sigma(up+1) - numerics%sigma(up), up=1,upn-1), 0.0d0 /)
+      depthw = (/ ((numerics%sigma(up+1) + numerics%sigma(up)) / 2.0d0, up=1,upn-1), 0.0d0 /)
+
+      dew16 = 1.d0/(16.0d0 * numerics%dew)
+      dns16 = 1.d0/(16.0d0 * numerics%dns)
+
+      do ns = 2, nsn
+         do ew = 2, ewn
+            if (thck(ew,ns) > numerics%thklim) then
+
+               ! bottom boundary condition
+               wvel(upn,ew,ns) = wgrd(ew,ns) - bmlt(ew,ns)
+
+               ! local values of thickness and surface elevation derivatives
+               cons(1) = sum(geomderv%dusrfdew(ew-1:ew,ns-1:ns)) / 16.0d0
+               cons(2) = sum(geomderv%dthckdew(ew-1:ew,ns-1:ns)) / 16.0d0
+               cons(3) = sum(geomderv%dusrfdns(ew-1:ew,ns-1:ns)) / 16.0d0
+               cons(4) = sum(geomderv%dthckdns(ew-1:ew,ns-1:ns)) / 16.0d0
+               cons(5) = sum(geomderv%stagthck(ew-1:ew,ns-1:ns))
+               cons(6) = cons(5)*dns16
+               cons(5) = cons(5)*dew16
+
+               suvel(:) = uvel(:,ew-1,ns-1) + uvel(:,ew-1,ns) + uvel(:,ew,ns-1) + uvel(:,ew,ns)
+               svvel(:) = vvel(:,ew-1,ns-1) + vvel(:,ew-1,ns) + vvel(:,ew,ns-1) + vvel(:,ew,ns)
+
+               ! integrate upward from the bed
+               do up = upn-1, 1, -1
+                  wvel(up,ew,ns) = wvel(up+1,ew,ns) &
+                       - dupsw(up) * cons(5) * (sum(uvel(up:up+1,ew,ns-1:ns))  - sum(uvel(up:up+1,ew-1,ns-1:ns))) &
+                       - dupsw(up) * cons(6) * (sum(vvel(up:up+1,ew-1:ew,ns))  - sum(vvel(up:up+1,ew-1:ew,ns-1))) &
+                       - (suvel(up+1) - suvel(up)) * (cons(1) - depthw(up) * cons(2)) &
+                       - (svvel(up+1) - svvel(up)) * (cons(3) - depthw(up) * cons(4))
+               enddo
+
+            else   ! too thin; set wvel = 0
+
+               wvel(:,ew,ns) = 0.0d0
+
+            endif
+         enddo
+      enddo
+
+    end subroutine glissade_wvelintg
+
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
   end module glissade_velo
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
