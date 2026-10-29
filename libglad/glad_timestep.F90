@@ -31,8 +31,6 @@
 #include "config.inc"
 #endif
 
-#include "glide_mask.inc"
-
 module glad_timestep
   !> timestep of a GLAD instance
 
@@ -183,16 +181,10 @@ contains
 
           ! Set acab to zero for ocean cells (bed below sea level, no ice present)
 
-          if (instance%model%options%whichdycore == DYCORE_GLIDE) then
-             where (GLIDE_IS_OCEAN(instance%model%geometry%thkmask))
-                instance%acab = 0.d0
-             endwhere
-          else
-             where (instance%model%geometry%thck <= 0.d0 .and. &
-                    instance%model%geometry%topg - instance%model%climate%eus < 0.d0)
-                instance%acab = 0.d0
-             endwhere
-          endif
+          where (instance%model%geometry%thck <= 0.d0 .and. &
+                 instance%model%geometry%topg - instance%model%climate%eus < 0.d0)
+             instance%acab = 0.d0
+          endwhere
 
           ! Put climate inputs in the appropriate places, with conversion ----------
 
@@ -248,19 +240,7 @@ contains
 
           if (instance%evolve_ice == EVOLVE_ICE_TRUE) then
 
-             if (instance%model%options%whichdycore == DYCORE_GLIDE) then
- 
-                call glide_tstep_p1(instance%model, instance%glide_time)
-
-                call glide_tstep_p2(instance%model)
- 
-                call glide_tstep_p3(instance%model)
-
-             else   ! glam/glissade dycore
-
-                call glissade_tstep(instance%model, instance%glide_time)
-
-             endif
+             call glissade_tstep(instance%model, instance%glide_time)
 
           else  ! EVOLVE_ICE_FALSE
 

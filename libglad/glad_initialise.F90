@@ -104,6 +104,12 @@ contains
     call register_model(instance%model)
     call glide_config(instance%model, config, config_fileunit)
 
+    ! GLAD supports only the Glissade dycore
+    if (instance%model%options%whichdycore /= DYCORE_GLISSADE) then
+       call write_log('GLAD supports only the Glissade dycore (dycore = 2)', &
+                      GM_FATAL,__FILE__,__LINE__)
+    endif
+
     ! if this is a continuation run, then set up to read restart
     ! (currently assumed to be a CESM restart file)
 
@@ -141,25 +147,12 @@ contains
 
     do_ice_evolution = (instance%evolve_ice == EVOLVE_ICE_TRUE)
 
-    if (instance%model%options%whichdycore == DYCORE_GLIDE) then  ! SIA dycore
+    ! initialise the model
+    call glissade_initialise(instance%model, &
+         evolve_ice = do_ice_evolution)
 
-       ! initialise the model
-       call glide_initialise(instance%model)
-
-       ! compute the initial diagnostic state
-       call glide_init_state_diagnostic(instance%model, &
-            evolve_ice = do_ice_evolution)
-
-    else       ! glam/glissade HO dycore     
-
-       ! initialise the model
-       call glissade_initialise(instance%model, &
-            evolve_ice = do_ice_evolution)
-
-       ! compute the initial diagnostic state
-       call glissade_diagnostic_variable_solve(instance%model)
-
-    endif
+    ! compute the initial diagnostic state
+    call glissade_diagnostic_variable_solve(instance%model)
 
     instance%ice_tstep = get_tinc(instance%model)*nint(years2hours)
 
