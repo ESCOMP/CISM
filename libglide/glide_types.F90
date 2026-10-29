@@ -49,7 +49,7 @@ module glide_types
   use glimmer_global, only: sp, dp, fname_length
   use glimmer_physcon, only: rhoi, rhoo, coni
   use glimmer_paramets, only: unphys_val
-  use glimmer_ncdf, only: glimmer_nc_input, glimmer_nc_output, &
+  use glimmer_ncdf, only: glimmer_nc_input, glimmer_nc_output, glimmer_funits, &
        NO_RESTART, STANDARD_RESTART, HYBRID_RESTART
   use profile, only: profile_type
   use glimmer_coordinates, only: coordsystem_type
@@ -2522,17 +2522,6 @@ module glide_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glide_funits
-    character(fname_length) :: sigfile=''                      !> sigma coordinates file
-    character(fname_length) :: ncfile=''                       !> configuration file for netCDF I/O
-    type(glimmer_nc_output),pointer :: out_first=>NULL()       !> first element of linked list defining netCDF outputs
-    type(glimmer_nc_input), pointer :: in_first=>NULL()        !> first element of linked list defining netCDF inputs
-    type(glimmer_nc_input), pointer :: frc_first=>NULL()       !> first element of linked list defining netCDF forcings
-    ! Note: forcing files are of the same type as input files since they share a lot in common.
-  end type glide_funits
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
   type glide_numerics
 
     !> Parameters relating to the model numerics
@@ -2801,7 +2790,7 @@ module glide_types
     type(glide_inversion):: inversion
     type(glide_plume)    :: plume
     type(glide_lithot_type)  :: lithot
-    type(glide_funits)   :: funits
+    type(glimmer_funits) :: funits
     type(glide_numerics) :: numerics
     type(glide_velowk)   :: velowk
     type(glide_thckwk)   :: thckwk
