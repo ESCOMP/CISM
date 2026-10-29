@@ -57,7 +57,6 @@ module glissade
   use glide_types
   use glimmer_utils, only: point_diag, calc_lsrf_usrf
   use glide_io
-  use glide_lithot
   use glimmer_config
   use glissade_test, only: &
        glissade_test_halo, glissade_test_transport
@@ -93,7 +92,7 @@ contains
          parallel_halo, parallel_halo_extrapolate, parallel_globalindex, &
          staggered_parallel_halo_extrapolate, staggered_no_penetration_mask, &
          parallel_create_comm_row, parallel_create_comm_col, &
-         parallel_reduce_max, parallel_is_zero, not_parallel
+         parallel_reduce_max, parallel_is_zero
 
     use glide_setup
     use glimmer_ncio, only: openall_in, openall_out, glimmer_nc_get_var, glimmer_nc_get_dimlength
@@ -731,11 +730,6 @@ contains
                              model%temper%temp,                                     & ! deg C
                              model%temper%tempunstag)                                 ! deg C
 
-    if (model%options%gthf == GTHF_COMPUTE) then
-       call not_parallel(__FILE__,__LINE__)
-       call init_lithot(model)
-    end if
-
     ! Dycore-specific velocity solver initialization
     select case (model%options%whichdycore)
 
@@ -1147,7 +1141,7 @@ contains
 
     ! Perform time-step of an ice model instance with the Glissade dycore
 
-    use cism_parallel, only:  parallel_type, not_parallel
+    use cism_parallel, only:  parallel_type
 
     use glimmer_paramets, only: eps11
     use glimmer_physcon, only: scyr
@@ -1219,16 +1213,6 @@ contains
     ! ------------------------------------------------------------------------
 
     call glissade_isostasy_solve(model)
-
-    ! ------------------------------------------------------------------------ 
-    ! Calculate geothermal heat flux
-    ! ------------------------------------------------------------------------ 
-    !TODO Not sure if this is in the right place.  G1=f(G0,T0) and T1=g(G0,T0)  
-    !     If we update G1 now, then we will be doing T1=g(G1,T0).
-    if (model%options%gthf == GTHF_COMPUTE) then
-       call not_parallel(__FILE__,__LINE__)
-       call calc_lithot(model)
-    end if
 
     ! ------------------------------------------------------------------------
     ! Prepare climate forcing (acab, artm, snow and/or precip) as needed.
