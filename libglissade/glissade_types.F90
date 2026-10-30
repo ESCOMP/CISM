@@ -406,7 +406,7 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_general
+  type glissade_general_type
 
     !> Holds fundamental parameters of the ice model geometry.
 
@@ -445,11 +445,11 @@ module glissade_types
     integer :: nx_block = 0      ! user-specified block sizes
     integer :: ny_block = 0      ! one task per block; optionally, tasks not assigned to inactive blocks
 
-  end type glissade_general
+  end type glissade_general_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_options
+  type glissade_options_type
 
     !> Holds user options controlling the methods used in the ice-model integration.
 
@@ -1163,11 +1163,11 @@ module glissade_types
     !> \item[2] Fast calculation, using Tulaczyk empirical parametrization
     !> \end{description}
 
-  end type glissade_options
+  end type glissade_options_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_geometry
+  type glissade_geometry_type
 
     !> Holds fields and other information relating to the geometry of the ice sheet and bedrock.
 
@@ -1257,11 +1257,11 @@ module glissade_types
     integer :: totpts = 0       ! total number of points with nonzero thck_index
     logical :: empty = .true.   ! true if totpts = 0
 
-  end type glissade_geometry
+  end type glissade_geometry_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_scalars
+  type glissade_scalars_type
 
     !> Holds various global and basin-scale diagnostic scalars that can be written to output
 
@@ -1291,11 +1291,11 @@ module glissade_types
     real(dp), dimension(:), pointer :: bmlt_float_basin         ! total bmlt_float per basin (kg s^-1)
     real(dp), dimension(:), pointer :: bmlt_float_target_basin  ! total bmlt_float_target per basin (kg s^-1)
 
- end type glissade_scalars
+ end type glissade_scalars_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_mass_flux
+  type glissade_mass_flux_type
 
     !> Holds various mass flux diagnostics
 
@@ -1333,11 +1333,11 @@ module glissade_types
     real(dp) :: total_gl_flux          ! total grounding line mass flux (kg/s)
     real(dp) :: total_gl_flux_tavg     ! total grounding line mass flux (kg/s), time average
 
- end type glissade_mass_flux
+ end type glissade_mass_flux_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_geomderv
+  type glissade_geomderv_type
 
     !> Holds the horizontal and temporal derivatives of the thickness and
     !> upper surface elevation, as well as the thickness on the staggered grid.
@@ -1359,7 +1359,7 @@ module glissade_types
     real(dp),dimension(:,:),pointer :: dthckdtm => null() !> Temporal derivative of thickness.
     real(dp),dimension(:,:),pointer :: dusrfdtm => null() !> Temporal derivative of upper surface elevation.
 
-    !TODO - Move staggered variables from glissade_geomderv type to glissade_geometry?
+    !TODO - Move staggered variables from glissade_geomderv_type type to glissade_geometry_type?
 
     !Staggered grid versions of geometry variables
     real(dp),dimension(:,:),pointer :: stagthck => null() !> Thickness averaged onto the staggered grid.
@@ -1367,22 +1367,22 @@ module glissade_types
     real(dp),dimension(:,:),pointer :: staglsrf => null() !> Lower surface averaged onto the staggered grid
     real(dp),dimension(:,:),pointer :: stagtopg => null() !> Bedrock topography averaged onto the staggered grid
 
-  end type glissade_geomderv
+  end type glissade_geomderv_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_tensor
+  type glissade_tensor_type
     real(dp), dimension(:,:,:), pointer :: scalar => null()
     real(dp), dimension(:,:,:), pointer :: xz => null()
     real(dp), dimension(:,:,:), pointer :: yz => null()
     real(dp), dimension(:,:,:), pointer :: xx => null()
     real(dp), dimension(:,:,:), pointer :: yy => null()
     real(dp), dimension(:,:,:), pointer :: xy => null()
-  end type glissade_tensor
+  end type glissade_tensor_type
   
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_velocity
+  type glissade_velocity_type
 
     !> Holds the velocity fields in 2D and 3D. Some of these fields are defined only in Glide.
     real(dp),dimension(:,:,:),pointer :: uvel  => null()   !> 3D $x$-velocity.
@@ -1445,18 +1445,18 @@ module glissade_types
     real(dp),dimension(:,:,:),pointer :: rhs_v => null()       ! v component of b in Ax = b
 
     ! strain rate tensor (HO only) 
-    type(glissade_tensor) :: strain_rate                          ! strain rate tensor, diagnosed from stress tensor and efvs (s^-1)
+    type(glissade_tensor_type) :: strain_rate                          ! strain rate tensor, diagnosed from stress tensor and efvs (s^-1)
 
     real(dp), dimension(:,:), pointer :: divu => null()        ! horizontal divergence rate, eps_xx + eps_yy (s^-1)
     real(dp), dimension(:,:), pointer :: shear => null()       ! invariant related to shear (s^-1): sqrt{[(eps_xx - eps_yy)/2]^2 + eps_xy^2}
 
-  end type glissade_velocity
+  end type glissade_velocity_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_stress_t      
+  type glissade_stress_type      
 
-    type(glissade_tensor) :: tau         ! HO only
+    type(glissade_tensor_type) :: tau         ! HO only
     real(dp),dimension(:,:,:),pointer :: efvs => null()    !> effective viscosity
     real(dp),dimension(:,:),  pointer :: efvs_vertavg => null()  !> vertical mean effective viscosity
     real(dp),dimension(:,:),  pointer :: btractx => null() !> basal traction (Pa), x comp
@@ -1468,7 +1468,7 @@ module glissade_types
     real(dp),dimension(:,:),  pointer :: taudx => null()   !> driving stress (Pa), x comp
     real(dp),dimension(:,:),  pointer :: taudy => null()   !> driving stress (Pa), y comp
 
-  end type glissade_stress_t      
+  end type glissade_stress_type      
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -1500,7 +1500,7 @@ module glissade_types
   !                         The background field, artm, does not include the anomaly.
   !                         Write artm_corrected to the output file to see the modified artm field.
 
-  type glissade_climate
+  type glissade_climate_type
      !> Holds fields used to drive the model
      real(dp),dimension(:,:),pointer :: acab            => null() !> Surface mass balance (m/yr ice for I/O, m/s ice in code)
      real(dp),dimension(:,:),pointer :: acab_tavg       => null() !> Surface mass balance (time average).
@@ -1586,7 +1586,7 @@ module glissade_types
 
      !TODO - Remove the equivalent glacier variables
 
-  end type glissade_climate
+  end type glissade_climate_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -1701,7 +1701,7 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_temper
+  type glissade_temper_type
 
     !> Holds fields relating to temperature.
 
@@ -1755,7 +1755,7 @@ module glissade_types
     logical  :: first1  = .true. !>
     logical  :: newtemps = .false. !> new temperatures
 
-  end type glissade_temper
+  end type glissade_temper_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -1822,7 +1822,7 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_basal_melt
+  type glissade_basal_melt_type
 
      !> Holds fields and parameters relating to basal melting
 
@@ -1890,11 +1890,11 @@ module glissade_types
      real(dp) :: bmlt_anomaly_timescale = 0.0d0     !> number of years over which the bmlt_float anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
 
-  end type glissade_basal_melt
+  end type glissade_basal_melt_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_ocean_data
+  type glissade_ocean_data_type
 
      !----------------------------------
      ! fields and parameters for ocean data input
@@ -1948,7 +1948,7 @@ module glissade_types
           thermal_forcing_anomaly_basin = 0         !> basin where anomaly is applied;
                                                     !> for default value of 0, apply to all basins
 
-  end type glissade_ocean_data
+  end type glissade_ocean_data_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -2134,7 +2134,7 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_plume
+  type glissade_plume_type
 
      !> Holds fields and parameters relating to a sub-shelf plume model
      !> Used to hold more fields, but most were removed when the plume model was abandoned
@@ -2159,11 +2159,11 @@ module glissade_types
                                          !> for MISOMIP, should be set to gammaT/35 
      real(dp) :: zbed_deep = -720.d0     !> min sea floor elevation (m)
 
-  end type glissade_plume
+  end type glissade_plume_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_basal_hydro
+  type glissade_basal_hydro_type
 
      !> Holds variables related to basal hydrology
      !> See glissade_bwater.F90 for usage details
@@ -2254,11 +2254,11 @@ module glissade_types
      real(dp) :: bpmp_threshold = 0.1d0          !> temperature range over which N ramps up from a small value to overburden (deg C)
      real(dp) :: haf_threshold = 500.d0          !> thickness at which height above flotation is capped (m)
 
-  end type glissade_basal_hydro
+  end type glissade_basal_hydro_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_basal_physics
+  type glissade_basal_physics_type
 
      !> Holds variables related to basal physics associated with friction laws.
      !> See glissade_basal_traction.F90 for usage details
@@ -2379,7 +2379,7 @@ module glissade_types
      !TODO - Remove ocean_p_timescale
      real(dp) :: p_ocean_penetration = 0.0d0           !> p-exponent for ocean penetration; N weighted by (1-Hf/H)^p (0 <= p <= 1)
 
-  end type glissade_basal_physics
+  end type glissade_basal_physics_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -2425,7 +2425,7 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type isos_elastic
+  type isos_elastic_type
      !> Holds data used by isostatic adjustment calculations
 
      real(dp) :: d = 0.24d25                !> flexural rigidity (N m)
@@ -2434,7 +2434,7 @@ module glissade_types
      real(dp) :: c1,c2,cd3,cd4              !> coefficients
      real(dp), dimension(:,:), pointer :: w => null() !> matrix operator for lithosphere deformation
      integer :: wsize                       !> size of operator (0:rbel_wsize, 0:rbel_wsize), operator is axis symmetric
-  end type isos_elastic
+  end type isos_elastic_type
 
   type isostasy_type
      !> contains isostasy configuration
@@ -2467,7 +2467,7 @@ module glissade_types
      real(dp) :: load_update_interval = 10.d0 ! update interval for elastic load (yr)
      integer :: nlith                         ! update lithosphere every nlith time steps; tinc * nlith = lithosphere_period
      logical :: new_load = .false.            ! set to true if there is a new surface load
-     type(isos_elastic) :: rbel               ! structure holding elastic lithosphere setup
+     type(isos_elastic_type) :: rbel               ! structure holding elastic lithosphere setup
 
      real(dp),dimension(:,:),pointer :: relx => null()  ! elevation of relaxed topography (m)
      real(dp),dimension(:,:),pointer :: load => null()  ! deflection due to applied load on lithosphere (m)
@@ -2479,7 +2479,7 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_numerics
+  type glissade_numerics_type
 
     !> Parameters relating to the model numerics
     real(dp) :: tstart =     0.d0 !> starting time
@@ -2532,11 +2532,11 @@ module glissade_types
     real(dp) :: adaptive_cfl_threshold = 0.0d0  ! adaptively subcycle the advection when advective CFL exceeds this value
                                                 ! (zero value means no adaptive subcycling)
 
-  end type glissade_numerics
+  end type glissade_numerics_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_velowk
+  type glissade_velowk_type
     real(dp),dimension(:),  pointer :: depth    => null()
     real(dp),dimension(:),  pointer :: dupsw    => null()
     real(dp),dimension(:),  pointer :: depthw   => null()
@@ -2553,11 +2553,11 @@ module glissade_types
     real(dp) :: trcmin = 0.0d0
     real(dp) :: marine = 1.0d0
     real(dp) :: trcmax = 10.0d0
-  end type glissade_velowk
+  end type glissade_velowk_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_thckwk
+  type glissade_thckwk_type
      real(dp),dimension(:,:),  pointer :: oldthck   => null()
      real(dp),dimension(:,:),  pointer :: oldthck2  => null()
      real(dp),dimension(:,:,:),pointer :: olds      => null()
@@ -2570,11 +2570,11 @@ module glissade_types
      real(dp), dimension(:), pointer :: gamma => null()
      real(dp), dimension(:), pointer :: delta => null()
 
-  end type glissade_thckwk
+  end type glissade_thckwk_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_tempwk
+  type glissade_tempwk_type
     real(dp),dimension(:,:,:),pointer :: inittemp => null()
     real(dp),dimension(:,:,:),pointer :: compheat => null()
     real(dp),dimension(:,:,:),pointer :: initadvt => null()
@@ -2601,13 +2601,13 @@ module glissade_types
     real(dp) :: dt_wat      = 0.d0
     real(dp) :: watvel      = 0.d0
     integer  :: nwat        = 0
-  end type glissade_tempwk
+  end type glissade_tempwk_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   !TODO - Move these parameters to types associated with a certain kind of physics
   !TODO - Change default geot to 0.0, so that idealized tests by default have no mass loss
-  type glissade_paramets
+  type glissade_paramets_type
     real(dp),dimension(5) :: bpar = (/ 0.2d0, 0.5d0, 0.0d0 ,1.0d-2, 1.0d0/)
     real(dp) :: btrac_const = 0.d0     ! m yr^{-1} Pa^{-1} (gets scaled during init)
     real(dp) :: btrac_slope = 0.d0     ! Pa^{-1} (gets scaled during init)
@@ -2646,12 +2646,12 @@ module glissade_types
     real(dp) :: adjust_topg_max_adjust = 0.0d0  ! elevation (m) beyond which there is full adjustment of topg
     real(dp) :: adjust_topg_delta = 0.0d0  ! max adjustment, applied where topg > topg_hi
 
-  end type glissade_paramets
+  end type glissade_paramets_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   !TODO - Remove the basalproc type?  Not currently used.
-!!  type glissade_basalproc
+!!  type glissade_basalproc_type
     !Tuneables, set in the config file 
 !    real(dp):: fric=0.45d0                   ! Till coeff of internal friction: ND
 !    real(dp):: etillo=0.7d0                  ! Till void ratio at No
@@ -2673,7 +2673,7 @@ module glissade_types
 !    real(dp),dimension(:,:,:)  ,pointer :: u => null()     !Till excess pore pressure (Pa)
 !    real(dp),dimension(:,:,:)  ,pointer :: etill  => null()  !Till void ratio (ND)  
     
-!  end type glissade_basalproc
+!  end type glissade_basalproc_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -2690,18 +2690,18 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-!TODO - Remove the glissade_phaml type?  Commented out for now
-!!  type glissade_phaml
+!TODO - Remove the glissade_phaml_type type?  Commented out for now
+!!  type glissade_phaml_type
 !!    real(dp),dimension(:,:),pointer :: uphaml => null()
 !!    real(dp),dimension(:,:),pointer :: init_phaml => null()
 !!    real(dp),dimension(:,:),pointer :: rs_phaml => null()
 !!    !maybe put the x/y vectors here too just for simplicity
-!!  end type glissade_phaml
+!!  end type glissade_phaml_type
   
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   ! for the Glide thickness solver
-  type, public :: glissade_solver
+  type, public :: glissade_solver_type
 
     integer ,dimension(:,:) ,allocatable :: ui 
     integer ,dimension(:,:) ,allocatable :: um 
@@ -2717,49 +2717,49 @@ module glissade_types
     real(dp),dimension(:),pointer :: answ    => null()
     integer :: ct     = 0
 
-    !TODO - KJE - Remove ewn/nsn from glissade_solver type once new glissade_global_type is working and we can use those ewn/nsn
+    !TODO - KJE - Remove ewn/nsn from glissade_solver_type type once new glissade_global_type is working and we can use those ewn/nsn
     integer :: ewn
     integer :: nsn
 
-  end type glissade_solver
+  end type glissade_solver_type
 
        
   type glissade_global_type    ! type containing all of the above for an ice sheet model instance
     integer              :: model_id = 0 !> identifier of this model instance (1..N, where N is the number of ice sheets in this run)
-    type(glissade_general)  :: general
-    type(glissade_options)  :: options
-    type(glissade_geometry) :: geometry
-    type(glissade_geomderv) :: geomderv
-    type(glissade_velocity) :: velocity
-    type(glissade_scalars)  :: scalars
-    type(glissade_mass_flux):: mass_flux
-    type(glissade_stress_t) :: stress   
-    type(glissade_climate)  :: climate
+    type(glissade_general_type)  :: general
+    type(glissade_options_type)  :: options
+    type(glissade_geometry_type) :: geometry
+    type(glissade_geomderv_type) :: geomderv
+    type(glissade_velocity_type) :: velocity
+    type(glissade_scalars_type)  :: scalars
+    type(glissade_mass_flux_type):: mass_flux
+    type(glissade_stress_type) :: stress   
+    type(glissade_climate_type)  :: climate
     type(glissade_calving_type)  :: calving
     type(glissade_lateral_melt_type) :: lateral_melt
-    type(glissade_temper)   :: temper
-    type(glissade_basal_hydro)  :: basal_hydro
-    type(glissade_basal_physics):: basal_physics
-    type(glissade_basal_melt)   :: basal_melt
-    type(glissade_ocean_data)   :: ocean_data
+    type(glissade_temper_type)   :: temper
+    type(glissade_basal_hydro_type)  :: basal_hydro
+    type(glissade_basal_physics_type):: basal_physics
+    type(glissade_basal_melt_type)   :: basal_melt
+    type(glissade_ocean_data_type)   :: ocean_data
     type(glissade_glacier_type)  :: glacier
     type(glissade_inversion_type):: inversion
-    type(glissade_plume)    :: plume
+    type(glissade_plume_type)    :: plume
     type(glissade_lithot_type)  :: lithot
     type(glimmer_funits) :: funits
-    type(glissade_numerics) :: numerics
-    type(glissade_velowk)   :: velowk
-    type(glissade_thckwk)   :: thckwk
-    type(glissade_tempwk)   :: tempwk
-    type(glissade_paramets) :: paramets
+    type(glissade_numerics_type) :: numerics
+    type(glissade_velowk_type)   :: velowk
+    type(glissade_thckwk_type)   :: thckwk
+    type(glissade_tempwk_type)   :: tempwk
+    type(glissade_paramets_type) :: paramets
     type(glimmap_proj)   :: projection
     type(profile_type)   :: profile
     type(glissade_prof_type):: glide_prof
     type(isostasy_type)  :: isostasy
-    type(glissade_solver):: solver_data
+    type(glissade_solver_type):: solver_data
     type(parallel_type)  :: parallel  !WHL - new derived type to hold information about parallel communication
-!!    type(glissade_basalproc):: basalproc
-!!    type(glissade_phaml)    :: phaml
+!!    type(glissade_basalproc_type):: basalproc
+!!    type(glissade_phaml_type)    :: phaml
 
   end type glissade_global_type
 

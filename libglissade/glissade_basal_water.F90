@@ -101,7 +101,7 @@ module glissade_basal_water
     integer, intent(in) :: &
          which_ho_bwat     !> basal water options
 
-    type(glissade_basal_hydro), intent(inout) :: basal_hydro ! basal hydro object
+    type(glissade_basal_hydro_type), intent(inout) :: basal_hydro ! basal hydro object
 
     real(dp), intent(in) :: &
          dt,             & !> time step (s) 

@@ -108,7 +108,7 @@ contains
 
   real(dp), intent(in)                    :: dew, dns           ! m
   real(dp), intent(in), dimension(:,:)    :: thisvel, othervel  ! basal velocity components (m/yr)
-  type(glissade_basal_physics), intent(in)   :: basal_physics      ! basal physics object
+  type(glissade_basal_physics_type), intent(in)   :: basal_physics      ! basal physics object
   real(dp), intent(in), dimension(:,:)    :: flwa_basal         ! flwa for the basal ice layer (Pa^{-3} yr^{-1})
   real(dp), intent(in), dimension(:,:)    :: thck               ! ice thickness (m)
   real(dp), intent(in), dimension(:,:)    :: topg               ! bed topography (m)
@@ -709,11 +709,11 @@ contains
 
     integer, intent(in) :: itest, jtest, rtest     ! coordinates of diagnostic point
 
-    type(glissade_basal_physics), intent(inout) :: &
+    type(glissade_basal_physics_type), intent(inout) :: &
          basal_physics       ! basal physics object
                              ! includes effecpress, effecpress_stag and various parameters
 
-    type(glissade_basal_hydro), intent(inout) :: &
+    type(glissade_basal_hydro_type), intent(inout) :: &
          basal_hydro         ! basal hydro object
                              ! includes bwat, bwat_diag, and various parameters
 

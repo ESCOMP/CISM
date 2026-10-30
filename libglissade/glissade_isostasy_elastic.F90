@@ -38,7 +38,7 @@ module glissade_isostasy_elastic
 
   use glimmer_global, only : dp
   use glimmer_paramets, only: iulog
-  use glissade_types, only: isos_elastic
+  use glissade_types, only: isos_elastic_type
   use glimmer_log
 
   implicit none
@@ -61,7 +61,7 @@ contains
     use glimmer_physcon, only : pi
     implicit none
 
-    type(isos_elastic) :: rbel          !> structure holding elastic lithosphere data
+    type(isos_elastic_type) :: rbel          !> structure holding elastic lithosphere data
     real(dp), intent(in) :: deltax      !> grid spacing
 
     ! local variables
@@ -140,7 +140,7 @@ contains
     implicit none
 
     ! input-output arguments
-    type(isos_elastic) :: rbel                             !> structure holding elastic litho data
+    type(isos_elastic_type) :: rbel                             !> structure holding elastic litho data
     real(dp), dimension(:,:), intent(in)  :: load_factors  !> load mass divided by mantle density
     real(dp), dimension(:,:), intent(out) :: load          !> loading effect due to load_factors
 
@@ -241,7 +241,7 @@ contains
     use glissade_isostasy_kelvin, only: set_kelvin, dker, dkei, dber, dbei
     implicit none
 
-    type(isos_elastic) :: rbel        !> structure holding elastic litho data
+    type(isos_elastic_type) :: rbel        !> structure holding elastic litho data
     real(dp), intent(in) :: a         !> radius of disk
 
     real(dp) :: dummy_a
@@ -271,7 +271,7 @@ contains
     implicit none
     real(dp) :: rbel_ow
     real(dp), intent(in) :: r          !> radius, r should be scaled with lr
-    type(isos_elastic) :: rbel     !> structure holding elastic litho data
+    type(isos_elastic_type) :: rbel     !> structure holding elastic litho data
     
     rbel_ow = rbel%cd3*ker(r) + rbel%cd4*kei(r)
 
@@ -287,7 +287,7 @@ contains
     implicit none
     real(dp) :: rbel_iw
     real(dp), intent(in) :: r          !> radius, r should be scaled with lr
-    type(isos_elastic) :: rbel         !> structure holding elastic litho data
+    type(isos_elastic_type) :: rbel         !> structure holding elastic litho data
     
     rbel_iw = 1.d0 + rbel%c1*ber(r) + rbel%c2*bei(r)
 
