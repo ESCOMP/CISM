@@ -857,7 +857,6 @@ contains
   subroutine findvtri_init(model,ew,ns,subd,diag,supd,weff,temp,thck,float)
     !> called during first iteration to set inittemp
 
-    use glimmer_paramets, only: velo_scale
     use glimmer_physcon, only: scyr
 
     type(glide_global_type) :: model
@@ -867,6 +866,7 @@ contains
     logical, intent(in) :: float    
 
     ! local variables
+    real(dp), parameter :: velo_scale = 500.0d0 / scyr    ! velocity scale (m/yr converted to m/s; = vel0 in old Glimmer)
     real(dp) :: slterm
     integer ewp,nsp
     integer slide_count

@@ -59,7 +59,6 @@
     use glimmer_global, only: dp, i8
     use glimmer_physcon, only: n_glen, rhoi, rhoo, grav, scyr, pi
     use glimmer_paramets, only: iulog, eps11, eps10
-    use glimmer_paramets, only: velo_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
     use glimmer_utils, only: point_diag, double_to_binary
     use glimmer_log
     use glimmer_sparse_type
@@ -87,6 +86,10 @@
 
     private
     public :: glissade_velo_higher_init, glissade_velo_higher_solve
+
+    ! velocity and length scales used for whichefvs = HO_EFVS_FLOWFACT
+    real(dp), parameter :: velo_scale = 500.0d0 / scyr    ! m yr^{-1} converted to S.I. units
+    real(dp), parameter :: len_scale = 200.0d3          ! m
 
     !----------------------------------------------------------------
     ! Here are some definitions:

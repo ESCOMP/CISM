@@ -220,7 +220,7 @@ contains
     use glide_velo
     use glide_setup
     use glide_nonlin !For unstable manifold correction
-    use glimmer_paramets, only: thk_scale, GLC_DEBUG
+    use glimmer_paramets, only: GLC_DEBUG
     use glide_grid_operators, only: glide_geometry_derivs
 
     implicit none
@@ -230,6 +230,7 @@ contains
 
     ! local variables
     integer, parameter :: pmax=50                       !> maximum Picard iterations
+    real(dp), parameter :: thk_scale = 2000.0d0         !> thickness scale (m) for the residual (= thk0 in old Glimmer)
 
     real(dp), parameter :: tol=1.0d-6
     real(dp) :: residual

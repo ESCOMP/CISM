@@ -982,7 +982,7 @@ contains
     use glint_downscale, only: glint_downscaling
     use glint_upscale, only: glint_upscaling
     use glimmer_log
-    use glimmer_paramets, only: scyr
+    use glimmer_physcon, only: scyr
 
     implicit none
 
@@ -1368,7 +1368,7 @@ contains
     use glint_downscale, only: glint_downscaling_gcm
     use glint_upscale, only: glint_upscaling_gcm
     use glimmer_log
-    use glimmer_paramets, only: scyr
+    use glimmer_physcon, only: scyr
 
     implicit none
 
