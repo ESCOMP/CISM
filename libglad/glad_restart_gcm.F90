@@ -66,9 +66,9 @@
 
    subroutine glad_read_restart_gcm(model, restart_filename)
 
-    use glide_types
+    use glissade_types
     implicit none
-    type(glide_global_type), intent(inout) :: model
+    type(glissade_global_type), intent(inout) :: model
     character(*),            intent(in   ) :: restart_filename
 
     ! local variables

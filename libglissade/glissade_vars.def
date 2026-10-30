@@ -16,7 +16,7 @@
 # prefix of the generated module
 name:     glissade
 # f90 type containing all necessary data
-datatype: glide_global_type   
+datatype: glissade_global_type   
 # module where type is defined
 datamod:  glissade_types
 # path to parallel derived type

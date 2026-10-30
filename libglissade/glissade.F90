@@ -121,7 +121,7 @@ contains
 
     implicit none
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
     logical, intent(in), optional :: evolve_ice       ! whether ice evolution is turned on (if not present, assumed true)
 
     !TODO - Is glimmer_version_char still needed?
@@ -304,7 +304,7 @@ contains
     endif
 
     ! allocate arrays
-    call glide_allocarr(model)
+    call glissade_allocarr(model)
 
     ! Compute a mask to identify cells at the edge of the global domain
     ! (Currently used only to compute bwat_mask for basal water routing)
@@ -1155,7 +1155,7 @@ contains
 
     implicit none
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
     real(dp), intent(in) :: time         ! current time in years
 
     ! --- Local variables ---
@@ -1381,7 +1381,7 @@ contains
 
     implicit none
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     real(dp), intent(in) :: dt   ! time step (s)
 
@@ -1619,7 +1619,7 @@ contains
 
     implicit none
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     ! --- Local variables ---
 
@@ -2085,7 +2085,7 @@ contains
 
     implicit none
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     ! Local variables
 
@@ -2861,7 +2861,7 @@ contains
     use glimmer_model_registry, only: deregister_model
     use profile
     implicit none
-    type(glide_global_type) :: model                 !> model instance
+    type(glissade_global_type) :: model                 !> model instance
     logical, optional, intent(in) :: forcewrite_arg  !> if true, then force a write to output files
     character(len=100) :: message
 
@@ -2884,7 +2884,7 @@ contains
     call closeall_in(model%funits)
     call closeall_out(model%funits)
 
-    call glide_deallocarr(model)
+    call glissade_deallocarr(model)
     call deregister_model(model%model_id)
 
     ! write some statistics

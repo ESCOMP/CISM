@@ -112,7 +112,7 @@ contains
 
     implicit none
 
-    type(glide_global_type) :: model
+    type(glissade_global_type) :: model
 
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
 
@@ -230,7 +230,7 @@ contains
 
     implicit none
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     ! --- Local variables ---
 
@@ -321,7 +321,7 @@ contains
     use glissade_types
     implicit none
 
-    type(glide_global_type) :: model
+    type(glissade_global_type) :: model
 
     real(dp) :: ice_mass, water_depth, water_mass
     integer :: ew,ns
@@ -366,7 +366,7 @@ contains
     use glissade_types
     implicit none
 
-    type(glide_global_type) :: model
+    type(glissade_global_type) :: model
 
     ! Calculate the load
     call isostasy_icewaterload(model)
@@ -388,7 +388,7 @@ contains
     use glissade_types
     implicit none
 
-    type(glide_global_type) :: model
+    type(glissade_global_type) :: model
 
     ! update load if it is time to do so
     if (model%isostasy%new_load) then
@@ -425,7 +425,7 @@ contains
     ! input/output arguments
     !TODO - units of load and load_factors?
 
-    type(glide_global_type) :: model
+    type(glissade_global_type) :: model
     real(dp), dimension(:,:), intent(out) :: load         !> loading effect due to load_factors
     real(dp), dimension(:,:), intent(in)  :: load_factors !> load mass divided by mantle density
 
@@ -477,7 +477,7 @@ contains
     use glissade_types
     implicit none
 
-    type(glide_global_type) :: model
+    type(glissade_global_type) :: model
     
     integer :: i, j
     real(dp) :: ft1, ft2

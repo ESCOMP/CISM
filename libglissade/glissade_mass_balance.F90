@@ -74,7 +74,7 @@
 
     ! input/output arguments
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     ! local variables
 
@@ -171,7 +171,7 @@
 
     ! input/output arguments
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     ! local variables
 
@@ -480,7 +480,7 @@
 
     ! input/output arguments
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     ! local variables
 
@@ -626,7 +626,7 @@
 
     ! input/output arguments
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     ! local variables
 
@@ -825,7 +825,7 @@
 
     ! input/output arguments
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     !TODO: Put the masks in a derived type so ocean_mask doesn't have to be passed through
     !      the various interfaces.

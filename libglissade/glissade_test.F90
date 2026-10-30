@@ -63,7 +63,7 @@ contains
     ! print statements are formatted for a 30x30 global array of scalars
     ! (34x34 with nhalo = 2), as for the standard dome problem
 
-    type(glide_global_type), intent(inout) :: model      ! model instance
+    type(glissade_global_type), intent(inout) :: model      ! model instance
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
@@ -420,7 +420,7 @@ contains
     !  would leave the geometry unchanged.  
     !-------------------------------------------------------------------
 
-    type(glide_global_type), intent(inout) :: model      ! model instance
+    type(glissade_global_type), intent(inout) :: model      ! model instance
 
     type(parallel_type) :: parallel   ! info for parallel communication
 

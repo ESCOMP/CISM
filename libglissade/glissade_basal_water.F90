@@ -56,7 +56,7 @@ module glissade_basal_water
 
   subroutine glissade_basal_water_init(model)
 
-    type(glide_global_type) :: model
+    type(glissade_global_type) :: model
 
     select case (model%options%which_ho_bwat)
 
@@ -101,7 +101,7 @@ module glissade_basal_water
     integer, intent(in) :: &
          which_ho_bwat     !> basal water options
 
-    type(glide_basal_hydro), intent(inout) :: basal_hydro ! basal hydro object
+    type(glissade_basal_hydro), intent(inout) :: basal_hydro ! basal hydro object
 
     real(dp), intent(in) :: &
          dt,             & !> time step (s) 

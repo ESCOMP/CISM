@@ -68,7 +68,7 @@ contains
 
     use glimmer_coordinates
     use glad_constants, only : years2hours
-    use glide_types, only : get_nzocn
+    use glissade_types, only : get_nzocn
 
     type(glad_mbc)  :: params
     type(coordsystem_type) :: lgrid

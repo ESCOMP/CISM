@@ -78,9 +78,9 @@ contains
          parallel_global_sum, parallel_reduce_max, parallel_reduce_min, parallel_is_zero, &
          broadcast, parallel_halo, staggered_parallel_halo, parallel_globalindex
 
-    type(glide_global_type),intent(inout) :: model
+    type(glissade_global_type),intent(inout) :: model
 
-    type(glide_glacier) :: glacier    ! derived type for glacier info
+    type(glissade_glacier_type) :: glacier    ! derived type for glacier info
                                       ! included in 'model', but passed separately to save typing
 
     ! local variables
@@ -550,7 +550,7 @@ contains
        ! Here, do some error checks and diagnostics.
 
        ! From the restart file, nglacier is found as the length of dimension 'glacierid'.
-       ! The 1D glacier arrays are then allocated with dimension(nglacier) in subroutine glide_allocarr.
+       ! The 1D glacier arrays are then allocated with dimension(nglacier) in subroutine glissade_allocarr.
        ! The following glacier arrays should be present in the restart file:
        !     rgi_glacier_id, cism_glacier_id, cism_glacier_id_init, cism_to_rgi_glacier_id,
        !     glacier_mu_star, and powerlaw_c.
@@ -738,9 +738,9 @@ contains
 
     ! input/output arguments
 
-    type(glide_global_type), intent(inout) :: model
+    type(glissade_global_type), intent(inout) :: model
 
-    type(glide_glacier) :: glacier  ! derived type for glacier info
+    type(glissade_glacier_type) :: glacier  ! derived type for glacier info
                                     ! included in 'model', but passed separately to save typing
 
     ! local variables

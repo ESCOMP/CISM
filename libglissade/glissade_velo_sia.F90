@@ -93,7 +93,7 @@
     ! Input-output arguments
     !----------------------------------------------------------------
 
-    type(glide_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
+    type(glissade_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
 
     !----------------------------------------------------------------
     ! Note that the glissade solver uses SI units.

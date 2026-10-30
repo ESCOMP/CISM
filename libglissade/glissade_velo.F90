@@ -50,7 +50,7 @@ contains
       use glissade_velo_sia, only: glissade_velo_sia_solve
       use profile, only: t_startf, t_stopf
 
-      type(glide_global_type),intent(inout) :: model
+      type(glissade_global_type),intent(inout) :: model
 
       real(dp), dimension(:,:,:), allocatable :: &
            uvel_sia, vvel_sia        ! temporary SIA velocity
@@ -202,16 +202,16 @@ contains
       ! Adapted from subroutine wvelintg in glide_velo.F90.
 
       use glimmer_global, only: dp
-      use glissade_types, only: glide_geomderv, glide_numerics
+      use glissade_types, only: glissade_geomderv, glissade_numerics
 
       real(dp), dimension(:,:,:), intent(in) :: &
            uvel, vvel                ! horizontal velocity components on the staggered grid
 
-      type(glide_geomderv), intent(in) :: &
+      type(glissade_geomderv), intent(in) :: &
            geomderv                  ! horizontal derivatives of thickness and upper surface,
                                      ! and thickness on the staggered grid
 
-      type(glide_numerics), intent(in) :: &
+      type(glissade_numerics), intent(in) :: &
            numerics                  ! numerical parameters, including sigma values
 
       real(dp), dimension(:,:), intent(in) :: &

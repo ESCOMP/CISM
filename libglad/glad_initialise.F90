@@ -67,7 +67,6 @@ contains
     use glimmer_ncio
     use glissade_nc_custom, only: glissade_nc_fillall
     use glimmer_model_registry, only : register_model
-    use glide
     use glissade
     use glissade_setup, only: glissade_config
     use glad_constants
@@ -305,7 +304,7 @@ contains
     !> read data from netCDF file and initialise climate
 
     use glad_io
-    use glide_thck, only: glide_calclsrf
+    use glimmer_utils, only: calc_lsrf_usrf
     implicit none
 
     type(glad_instance),intent(inout)   :: instance    !> Instance whose elements are to be allocated.
@@ -313,9 +312,10 @@ contains
     ! read data
     call glad_io_readall(instance,instance%model)
 
-    call glide_calclsrf(instance%model%geometry%thck,instance%model%geometry%topg, &
-         instance%model%climate%eus,instance%model%geometry%lsrf)
-    instance%model%geometry%usrf = max(0.d0, instance%model%geometry%thck + instance%model%geometry%lsrf)
+    ! compute the lower and upper ice surface elevations
+    call calc_lsrf_usrf(instance%model%geometry%thck, instance%model%geometry%topg, &
+                        instance%model%climate%eus,                                &
+                        instance%model%geometry%lsrf, instance%model%geometry%usrf)
 
   end subroutine glad_i_readdata
 

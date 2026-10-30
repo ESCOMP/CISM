@@ -34,7 +34,7 @@ module glad_output_states
   ! to a climate model.
 
   use glimmer_global, only : dp
-  use glide_types, only : glide_global_type, glide_geometry
+  use glissade_types, only : glissade_global_type, glissade_geometry
   
   implicit none
   private
@@ -111,7 +111,7 @@ contains
     ! Return true if the given point is inside the "active grid". The active grid includes
     ! any point that can receive a positive surface mass balance, which includes any
     ! point classified as land or ice sheet.
-    type(glide_geometry), intent(in) :: geometry
+    type(glissade_geometry), intent(in) :: geometry
     integer, intent(in) :: i, j  ! point of interest
 
     real(dp) :: usrf     ! surface elevation (m)
@@ -139,7 +139,7 @@ contains
 
     use glad_constants, only : min_thck
 
-    type(glide_geometry), intent(in) :: geometry
+    type(glissade_geometry), intent(in) :: geometry
     integer, intent(in) :: i, j  ! point of interest
 
     real(dp) :: thck     ! ice thickness (m)

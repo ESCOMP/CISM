@@ -69,7 +69,7 @@ contains
 
     implicit none
 
-    type(glide_global_type), intent(inout) :: model  ! model instance
+    type(glissade_global_type), intent(inout) :: model  ! model instance
     type(ConfigSection), pointer  :: config          ! structure holding sections of configuration file
     integer, intent(in), optional :: fileunit        ! fileunit for reading config file 
 
@@ -130,7 +130,7 @@ contains
     use glimmer_config
     use glimmer_log
     implicit none
-    type(glide_global_type) :: model        !> model instance
+    type(glissade_global_type) :: model        !> model instance
     type(ConfigSection), pointer :: config  !> structure holding sections of configuration file
     
     ! local variables
@@ -235,7 +235,7 @@ contains
     use glimmer_log
     use glissade_types
     implicit none
-    type(glide_global_type)  :: model !> model instance
+    type(glissade_global_type)  :: model !> model instance
 
     call write_log_div
     call print_grid(model)
@@ -259,7 +259,7 @@ contains
 
     implicit none
 
-    type(glide_global_type)  :: model !> model instance
+    type(glissade_global_type)  :: model !> model instance
 
     model%numerics%dttem = model%numerics%ntem * model%numerics%tinc   
 
@@ -312,7 +312,7 @@ contains
     use glimmer_log
     implicit none
 
-    type(glide_global_type) :: model        !> model instance
+    type(glissade_global_type) :: model        !> model instance
     type(ConfigSection), pointer :: config  !> structure holding sections of configuration file
         
     ! local variables
@@ -351,7 +351,7 @@ contains
     implicit none
 
     ! Arguments
-    type(glide_global_type),intent(inout) :: model !> Ice model to use
+    type(glissade_global_type),intent(inout) :: model !> Ice model to use
     integer,               intent(in)    :: unit   !> Logical file unit to use. 
                                                    !> (Must not already be in use)
 
@@ -482,7 +482,7 @@ contains
 
     implicit none
 
-    type(glide_global_type) :: model        !> model instance
+    type(glissade_global_type) :: model        !> model instance
     type(ConfigSection), pointer :: config  !> structure holding sections of configuration file
 
     ! local variables
@@ -592,7 +592,7 @@ contains
 
     implicit none
 
-    type(glide_global_type) :: model        !> model instance
+    type(glissade_global_type) :: model        !> model instance
     type(ConfigSection), pointer :: config  !> structure holding sections of configuration file
 
     ! local variables
@@ -687,7 +687,7 @@ contains
     use glimmer_filenames
     implicit none
     type(ConfigSection), pointer :: section
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
 
     call GetValue(section,'ewn',model%general%ewn)
     call GetValue(section,'nsn',model%general%nsn)
@@ -715,7 +715,7 @@ contains
     use glissade_types
     use glimmer_log
     implicit none
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
     character(len=512) :: message
 
 
@@ -771,7 +771,7 @@ contains
     implicit none
 
     type(ConfigSection), pointer :: section
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
 
 !       Set dt_input_option to specify whether the dynamic timestep (model%numerics%tinc)
 !        is based on dt (the timestep in years) or nsteps_per_year in the config file.
@@ -823,7 +823,7 @@ contains
     use glissade_types
     use glimmer_log
     implicit none
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
     character(len=100) :: message
 
     call write_log('Time steps')
@@ -878,7 +878,7 @@ contains
 
     implicit none
     type(ConfigSection), pointer :: section
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
 
     call GetValue(section,'dycore',model%options%whichdycore)
     call GetValue(section,'evolution',model%options%whichevol)
@@ -941,7 +941,7 @@ contains
     use glissade_types
     implicit none
     type(ConfigSection), pointer :: section
-    type(glide_global_type) :: model
+    type(glissade_global_type) :: model
     
     call GetValue(section, 'compute_blocks',              model%options%compute_blocks)
     call GetValue(section, 'which_ho_efvs',               model%options%which_ho_efvs)
@@ -1001,7 +1001,7 @@ contains
 
     implicit none
 
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
     character(len=500) :: message
 
     ! basic Glide/Glimmer options
@@ -2285,7 +2285,7 @@ contains
 
     implicit none
     type(ConfigSection), pointer :: section
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
     real(dp), pointer, dimension(:) :: tempvar => NULL()
     integer :: loglevel
 
@@ -2526,7 +2526,7 @@ contains
     use glissade_types
     use glimmer_log
     implicit none
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
     character(len=100) :: message
 
     call write_log(' ')
@@ -3220,7 +3220,7 @@ contains
     use glimmer_log
     implicit none
     type(ConfigSection), pointer :: section
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
 
     if (model%options%which_sigma==SIGMA_EXTERNAL) then
        call write_log('Sigma levels specified twice - use only'// &
@@ -3237,7 +3237,7 @@ contains
     use glissade_types
     use glimmer_log
     implicit none
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
     character(len=100) :: message,temp
     integer :: i
 
@@ -3261,7 +3261,7 @@ contains
     use glissade_types
     implicit none
     type(ConfigSection), pointer :: section
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
 
     call GetValue(section,'num_dim',model%lithot%num_dim)
     call GetValue(section,'nlayer',model%lithot%nlayer)
@@ -3279,7 +3279,7 @@ contains
     use glissade_types
     use glimmer_log
     implicit none
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
     character(len=100) :: message
     
     if (model%options%gthf == GTHF_COMPUTE) then
@@ -3317,7 +3317,7 @@ contains
     use glissade_types
     implicit none
     type(ConfigSection), pointer :: section
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
 
     call GetValue(section,'lithosphere',model%isostasy%lithosphere)
     call GetValue(section,'asthenosphere',model%isostasy%asthenosphere)
@@ -3336,7 +3336,7 @@ contains
     use glimmer_log
 
     implicit none
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
     character(len=100) :: message
 
     character(len=*), dimension(0:1), parameter :: lithosphere = (/ &
@@ -3411,7 +3411,7 @@ contains
     implicit none
 
     type(ConfigSection), pointer :: section
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
 
     call GetValue(section, 'melt_rate_const', model%lateral_melt%melt_rate_const)
     call GetValue(section, 'melt_factor', model%lateral_melt%melt_factor)
@@ -3430,7 +3430,7 @@ contains
     use glimmer_log
 
     implicit none
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
     character(len=100) :: message
 
     character(len=*), dimension(0:2), parameter :: which_lateral_melt = (/ &
@@ -3483,7 +3483,7 @@ contains
     implicit none
 
     type(ConfigSection), pointer :: section
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
 
     ! constant basal water
     call GetValue(section, 'const_bwat', model%basal_hydro%const_bwat)
@@ -3521,7 +3521,7 @@ contains
     use glimmer_log
 
     implicit none
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
     character(len=100) :: message
 
     character(len=*), dimension(0:3), parameter :: ho_whichbwat = (/ &
@@ -3661,7 +3661,7 @@ contains
     implicit none
 
     type(ConfigSection), pointer :: section
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
 
     call GetValue(section,'set_mu_star',             model%glacier%set_mu_star)
     call GetValue(section,'set_alpha_snow',          model%glacier%set_alpha_snow)
@@ -3698,7 +3698,7 @@ contains
     use glimmer_log
 
     implicit none
-    type(glide_global_type)  :: model
+    type(glissade_global_type)  :: model
     character(len=100) :: message
 
     ! glacier options
@@ -3873,14 +3873,14 @@ contains
     !------------------------------------------------------------------------------------
     ! Subroutine arguments
     !------------------------------------------------------------------------------------
-    type(glide_global_type), intent (in) :: model  !> Derived type holding all model info
+    type(glissade_global_type), intent (in) :: model  !> Derived type holding all model info
 
     integer, intent(in) :: model_id  !> identifier of this ice sheet instance (1 - N, where N is the total number of ice sheet models in this run)
 
     !------------------------------------------------------------------------------------
     ! Internal variables
     !------------------------------------------------------------------------------------
-    type(glide_options) :: options  !> Derived type holding all model options
+    type(glissade_options) :: options  !> Derived type holding all model options
 
     ! Copy model%options to options to save typing below
     ! Note: Originally, only model%options was passed in, but passing in the full model derived type

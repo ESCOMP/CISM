@@ -60,10 +60,9 @@ contains
     use glimmer_physcon, only: rhow, rhoi
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
-    use glide
     use glissade
     use glissade_io
-    use glide_types
+    use glissade_types
     use glad_mbal_coupling, only : glad_accumulate_input_gcm, glad_average_input_gcm
     use glad_io
     use glad_mbal_io

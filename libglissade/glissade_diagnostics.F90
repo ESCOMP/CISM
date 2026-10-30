@@ -79,7 +79,7 @@
 
     ! input/output arguments
 
-    type(glide_global_type), intent(inout) :: model    ! model instance
+    type(glissade_global_type), intent(inout) :: model    ! model instance
 
     ! local variables
 
@@ -149,7 +149,7 @@
     ! input/output arguments
 
     ! Note: model is intent(inout) so that some global diagnostics can be computed below
-    type(glide_global_type), intent(inout) :: model    ! model instance
+    type(glissade_global_type), intent(inout) :: model    ! model instance
 
     real(dp), intent(in) :: time          ! current time in years
 
@@ -199,7 +199,7 @@
     ! input/output arguments
 
     ! Note: model is intent(inout) so that some global diagnostics can be computed here 
-    type(glide_global_type), intent(inout) :: model ! model instance
+    type(glissade_global_type), intent(inout) :: model ! model instance
 
     real(dp),  intent(in) :: time                   ! current time in years
 
@@ -1523,7 +1523,7 @@
 
     use glimmer_physcon, only: rhoi, rhow
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     ! Compute diagnostics
 
@@ -1744,7 +1744,7 @@
     real(dp), dimension(nz), intent(in) :: &
          sigma                     ! vertical sigma coordinate
 
-    type(glide_tensor), intent(in) :: &
+    type(glissade_tensor), intent(in) :: &
          tau                       ! 3D stress tensor (Pa)
 
     real(dp), dimension(nx,ny), intent(out) :: &
@@ -1821,14 +1821,14 @@
     real(dp), dimension(nz), intent(in) :: &
          sigma                     ! vertical sigma coordinate
 
-    type(glide_tensor), intent(inout) :: &
+    type(glissade_tensor), intent(inout) :: &
          strain_rate               ! 3D strain rate tensor
                                    ! intent(out) if computed from tau and efvs
 
     real(dp), dimension(nx,ny), intent(out) :: &
          eps_eigen1, eps_eigen2    ! eigenvalues of 2D horizontal stress tensor (1/s)
 
-    type(glide_tensor), intent(in), optional :: &
+    type(glissade_tensor), intent(in), optional :: &
          tau                       ! 3D stress tensor (Pa)
 
     real(dp), dimension(nz-1,nx,ny), intent(in), optional :: &
@@ -1937,7 +1937,7 @@
     use glissade_grid_operators, only: glissade_unstagger
     use cism_parallel, only: parallel_halo, parallel_global_sum
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     ! Local variables
 

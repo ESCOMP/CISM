@@ -78,7 +78,7 @@
 
       use glissade_types
 
-      type(glide_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
+      type(glissade_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
 
       logical, intent(in), optional ::  &
            transport_tracers_in
@@ -223,7 +223,7 @@
 
       use glissade_types
 
-      type(glide_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
+      type(glissade_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
 
       integer :: k, nt
       integer :: nlyr ! number of vertical layers = upn-1
