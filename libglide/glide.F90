@@ -140,6 +140,7 @@ contains
     use glide_temp
     use glimmer_log
     use glimmer_scales
+    use glimmer_utils, only: calc_lsrf_usrf
     use glide_mask
     use isostasy, only: init_isostasy, isos_relaxed
     use glimmer_map_init
@@ -385,9 +386,8 @@ contains
                         model%climate%eus,    model%geometry%thkmask)
  
     ! calculate lower and upper ice surface
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus,model%geometry%lsrf)
-
-    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+    call calc_lsrf_usrf(model%geometry%thck, model%geometry%topg, model%climate%eus, &
+                        model%geometry%lsrf, model%geometry%usrf)
 
     ! initialise thckwk variables; used in timeders subroutine
     model%thckwk%olds(:,:,1) = model%geometry%thck(:,:)
@@ -441,7 +441,7 @@ contains
     use glide_velo
     use glide_mask
     use glimmer_physcon, only: scyr, rhoi, rhow
-    use glimmer_utils, only: point_diag
+    use glimmer_utils, only: point_diag, calc_lsrf_usrf
     use glide_ground, only: glide_calve_ice
     use glide_bwater, only: calcbwat
     use glide_temp, only: glide_calcbmlt, glide_calcbpmp
@@ -519,10 +519,8 @@ contains
     ! calculate upper and lower ice surface
     ! ------------------------------------------------------------------------
 
-       call glide_calclsrf(model%geometry%thck, model%geometry%topg, &
-                        model%climate%eus,   model%geometry%lsrf)
-
-       model%geometry%usrf = max(0.d0,model%geometry%thck + model%geometry%lsrf)
+       call calc_lsrf_usrf(model%geometry%thck, model%geometry%topg, model%climate%eus, &
+                           model%geometry%lsrf, model%geometry%usrf)
 
     ! ------------------------------------------------------------------------ 
     ! Calculate various derivatives
@@ -1002,7 +1000,7 @@ contains
     use glimmer_physcon, only: rhoi, rhow
     use glide_setup
     use glide_velo, only: glide_velo_vertical
-    use glide_thck, only: glide_calclsrf
+    use glimmer_utils, only: calc_lsrf_usrf
     implicit none
 
     type(glide_global_type), intent(inout) :: model     ! model instance
@@ -1023,10 +1021,8 @@ contains
     ! calculate upper and lower ice surface
     ! ------------------------------------------------------------------------
 
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, &
-                        model%climate%eus,   model%geometry%lsrf)
-
-    model%geometry%usrf = max(0.d0,model%geometry%thck + model%geometry%lsrf)
+    call calc_lsrf_usrf(model%geometry%thck, model%geometry%topg, model%climate%eus, &
+                        model%geometry%lsrf, model%geometry%usrf)
 
     ! surface mass balance in units of mm/yr w.e.
     ! model%climate%acab  has units of m/s of ice
