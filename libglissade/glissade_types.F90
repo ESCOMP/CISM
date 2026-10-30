@@ -2754,7 +2754,7 @@ module glissade_types
     type(glissade_paramets_type) :: paramets
     type(glimmap_proj)   :: projection
     type(profile_type)   :: profile
-    type(glissade_prof_type):: glide_prof
+    type(glissade_prof_type):: glissade_prof
     type(isostasy_type)  :: isostasy
     type(glissade_solver_type):: solver_data
     type(parallel_type)  :: parallel  !WHL - new derived type to hold information about parallel communication
