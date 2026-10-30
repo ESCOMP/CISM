@@ -33,6 +33,15 @@ module cism_front_end
   ! (cism_driver) or the CISM interface to CESM (cism_cesm_interface),
   ! to the dycore.
 
+  use eismint_forcing, only: eismint_climate_type
+
+  implicit none
+  private
+  public :: cism_init_dycore, cism_run_dycore, cism_finalize_dycore
+
+  ! parameters for the EISMINT climate (used only for EISMINT test cases)
+  type(eismint_climate_type), save :: eismint_climate
+
 contains
 
 subroutine cism_init_dycore(model)
@@ -123,7 +132,10 @@ subroutine cism_init_dycore(model)
   endif
 
   ! This call is needed only if running the EISMINT test cases
-  call eismint_initialise(model%eismint_climate,config)
+  call eismint_initialise(eismint_climate,config)
+  if (eismint_climate%eismint_type == 4 .and. model%options%whichdycore /= DYCORE_GLIDE) then
+     call write_log('The EXACT verification test is supported for the Glide dycore only', GM_FATAL)
+  endif
 
   wd = model%options%whichdycore 
   do_glide_init = (wd == DYCORE_GLIDE)
@@ -148,8 +160,7 @@ subroutine cism_init_dycore(model)
                                 !                     the correct time on a restart unless we set it here.
 
   ! Set EISMINT forcing for initial time
-  call eismint_massbalance(model%eismint_climate,model,time)
-  call eismint_surftemp(model%eismint_climate,model,time)
+  call set_eismint_forcing(model, time)
 
   ! read forcing time slice if needed - this will overwrite values from IC file if there is a conflict.
   ! Note: The first 'model' is passed to the argument 'data', which is filled by calling glide_read.
@@ -372,8 +383,7 @@ subroutine cism_run_dycore(model)
       ! EISMINT forcing
       ! NOTE: these only do something when an EISMINT case is run
       call t_startf('set_forcing')
-      call eismint_massbalance(model%eismint_climate,model,time)
-      call eismint_surftemp(model%eismint_climate,model,time)
+      call set_eismint_forcing(model, time)
       call t_stopf('set_forcing')
 
       !!! SFP moved this next block of code to the start of the time step. See additional notes there.
@@ -444,5 +454,31 @@ subroutine cism_finalize_dycore(model)
   !TODO - call this only for parallel runs?
   ! call parallel_finalise
 end subroutine cism_finalize_dycore
+
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+subroutine set_eismint_forcing(model, time)
+
+  ! Set the surface mass balance and air temperature for EISMINT test cases
+  ! Note: These calls do nothing unless an EISMINT case is run.
+
+  use glimmer_global, only: dp
+  use glide_types, only: glide_global_type
+  use eismint_forcing, only: eismint_massbalance, eismint_surftemp, eismint_exact_forcing
+
+  implicit none
+
+  type(glide_global_type) :: model        ! model instance
+  real(dp), intent(in) :: time            ! model time in years
+
+  call eismint_massbalance(eismint_climate, time, model%numerics%dew, model%parallel, &
+                           model%climate%acab)
+  call eismint_surftemp(eismint_climate, time, model%numerics%dew, model%parallel, &
+                        model%geometry%thck, model%climate%artm)
+
+  ! exact verification test (Glide only)
+  call eismint_exact_forcing(eismint_climate, model, time)
+
+end subroutine set_eismint_forcing
 
 end module cism_front_end

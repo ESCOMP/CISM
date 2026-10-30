@@ -1720,49 +1720,6 @@ module glide_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type eismint_climate_type
-
-     ! holds parameters for the eismint climate
-
-     ! For EISMINT2:
-     ! airt(1) = Tmin = summit surface temperature (K)
-     ! airt(2) = S_T = horizontal temperature gradient (K/m)
-     ! nmsb(1) = M_max = max accumulation (m/yr)
-     ! nmsb(2) = S_b = horizontal smb gradient (m/yr/m)
-     ! nmsb(3) = R_el = radial distance from summit where mass balance = 0 (m)   
-     !
-
-     integer :: eismint_type = 0
-     !> select EISMINT experiment
-     !> \begin{description}
-     !> \item[{\bf 1}] EISMINT-1 fixed margin
-     !> \item[{\bf 2}] EISMINT-1 moving margin
-     !> \item[{\bf 3}] EISMINT-2
-     !> \item[{\bf 4}] MISMIP-1 (not EISMINT but has similar climate parameters)
-     !> \item[{\bf 5}] Exact verification (not EISMINT but has similar climate parameters)
-     !> \end{description}
-
-     ! NOTE: The initial nmsb values in the declarations below are appropriate
-     !       for EISMINT-2, but the initial airt values are not.
-     ! TODO: Change default airt values in eismint_type to be consistent with EISMINT-2?
-
-     !> air temperature parameterisation K, K km$^{-3}$
-     real(dp), dimension(2) :: airt = (/ -3.15d0, 1.d-2 /)  
-
-     !> mass balance parameterisation:
-!!     real(dp), dimension(3) :: nmsb = (/ 0.5d0, 1.05d-5, 450.0d3 /)
-     real(dp), dimension(3) :: nmsb = (/ 0.5d0, 1.0d-5, 450.0d3 /)
-
-     !> EISMINT time-dep climate forcing period, switched off when set to 0
-     real(dp) :: period = 0.d0
-
-     !> EISMINT amplitude of mass balance time-dep climate forcing
-     real(dp) :: mb_amplitude = 0.2d0
-
-  end type eismint_climate_type
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
   type glide_temper
 
     !> Holds fields relating to temperature.
@@ -2797,7 +2754,6 @@ module glide_types
     type(glide_mass_flux):: mass_flux
     type(glide_stress_t) :: stress   
     type(glide_climate)  :: climate
-    type(eismint_climate_type) :: eismint_climate
     type(glide_calving)  :: calving
     type(glide_lateral_melt) :: lateral_melt
     type(glide_temper)   :: temper
