@@ -565,7 +565,7 @@ contains
     !> read data from netCDF file and initialise climate
 
     use glint_io
-    use glide_thck, only: glide_calclsrf
+    use glimmer_utils, only: calc_lsrf_usrf
     implicit none
 
     type(glint_instance),intent(inout)   :: instance    !> Instance whose elements are to be allocated.
@@ -573,9 +573,9 @@ contains
     ! read data
     call glint_io_readall(instance,instance%model)
 
-    call glide_calclsrf(instance%model%geometry%thck,instance%model%geometry%topg, &
-         instance%model%climate%eus,instance%model%geometry%lsrf)
-    instance%model%geometry%usrf = max(0.d0, instance%model%geometry%thck + instance%model%geometry%lsrf)
+    call calc_lsrf_usrf(instance%model%geometry%thck, instance%model%geometry%topg, &
+                        instance%model%climate%eus,                                &
+                        instance%model%geometry%lsrf, instance%model%geometry%usrf)
 
   end subroutine glint_i_readdata
 

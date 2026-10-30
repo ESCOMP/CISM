@@ -41,6 +41,7 @@ module glide_thck
   use glimmer_global, only : dp
   use glimmer_paramets, only: iulog
   use glide_types
+  use glimmer_utils, only: calc_lsrf_usrf
   use glimmer_sparse
   use glimmer_sparse_type
 
@@ -55,7 +56,7 @@ module glide_thck
   private
 
   public :: init_thck, thck_nonlin_evolve, thck_lin_evolve, stagleapthck, &
-            glide_thck_index, glide_calclsrf
+            glide_thck_index
 
   ! debugging Picard iteration
   integer, private, parameter :: picard_unit=101
@@ -586,8 +587,8 @@ contains
 
     ! calculate upper and lower surface
 
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-    model%geometry%usrf = max(0.d0,model%geometry%thck + model%geometry%lsrf)
+    call calc_lsrf_usrf(model%geometry%thck, model%geometry%topg, model%climate%eus, &
+                        model%geometry%lsrf, model%geometry%usrf)
 
   contains
 
@@ -982,8 +983,8 @@ contains
     ! calculate upper and lower surface
     !------------------------------------------------------------
 
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-    model%geometry%usrf = max(0.d0,model%geometry%thck + model%geometry%lsrf)
+    call calc_lsrf_usrf(model%geometry%thck, model%geometry%topg, model%climate%eus, &
+                        model%geometry%lsrf, model%geometry%usrf)
 
   end subroutine stagleapthck
 
@@ -1047,33 +1048,6 @@ contains
     b(:) = 1.+b(:)
 
   end subroutine adi_tri
-
-!-------------------------------------------------------------------------
-
-  subroutine glide_calclsrf(thck,topg,eus,lsrf)
-
-    ! Calculates the elevation of the lower surface of the ice, 
-    ! by considering whether it is floating or not.
-    !
-    ! NOTE: This subroutine computes over all grid cells, not just locally owned.
-    !       Halos should be updated before it is called.
-
-    use glimmer_physcon, only : rhoi, rhoo
-
-    implicit none
-
-    real(dp), intent(in),  dimension(:,:) :: thck !> Ice thickness
-    real(dp), intent(in),  dimension(:,:) :: topg !> Bedrock topography elevation
-    real(dp), intent(in)                  :: eus  !> global sea level
-    real(dp), intent(out), dimension(:,:) :: lsrf !> Lower ice surface elevation
-
-    where (topg - eus < (-rhoi/rhoo) * thck)
-       lsrf = (-rhoi/rhoo) * thck
-    elsewhere
-       lsrf = topg
-    end where
-
-  end subroutine glide_calclsrf
 
 !---------------------------------------------------------------------------------
 
