@@ -1131,7 +1131,7 @@ contains
 
   !> allocate and initialize the restart_variable_list
   subroutine initialize_restart_variable_list()
-    use glide_model_registry, only : get_max_models
+    use glimmer_model_registry, only : get_max_models
 
     allocate(restart_variable_list(get_max_models()))
     restart_variable_list(:) = ''

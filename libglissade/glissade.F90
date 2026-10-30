@@ -2858,7 +2858,7 @@ contains
     use glimmer_log
     use glissade_types
     use glissade_io
-    use glide_model_registry, only: deregister_model
+    use glimmer_model_registry, only: deregister_model
     use profile
     implicit none
     type(glide_global_type) :: model                 !> model instance
@@ -2885,7 +2885,7 @@ contains
     call closeall_out(model%funits)
 
     call glide_deallocarr(model)
-    call deregister_model(model)
+    call deregister_model(model%model_id)
 
     ! write some statistics
     call write_log('Some Stats')

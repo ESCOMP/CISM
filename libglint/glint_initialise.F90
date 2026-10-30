@@ -72,7 +72,7 @@ contains
     use glint_mbal_io     , only: glint_mbal_io_createall, glint_mbal_io_writeall
     use glimmer_ncio
     use glide_nc_custom   , only: glide_nc_fillall
-    use glide_model_registry, only : register_model
+    use glimmer_model_registry, only : register_model
     use glide
     use glad_constants
     use glad_restart_gcm
@@ -107,7 +107,7 @@ contains
 
     ! initialise model
 
-    call register_model(instance%model)
+    call register_model(instance%model%model_id)
     call glide_config(instance%model, config, config_fileunit)
 
     ! Glint supports only the Glide dycore
@@ -327,7 +327,7 @@ contains
     use glint_mbal_io     , only: glint_mbal_io_createall, glint_mbal_io_writeall
     use glimmer_ncio
     use glide_nc_custom   , only: glide_nc_fillall
-    use glide_model_registry, only : register_model
+    use glimmer_model_registry, only : register_model
     use glide
     use glad_constants
     use glad_restart_gcm
@@ -361,7 +361,7 @@ contains
 
     ! initialise model
 
-    call register_model(instance%model)
+    call register_model(instance%model%model_id)
     call glide_config(instance%model, config, config_fileunit)
 
     ! Glint supports only the Glide dycore
