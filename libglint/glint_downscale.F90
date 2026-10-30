@@ -34,7 +34,6 @@
   ! Much of the actual work is done at a lower level, in glint_interp.F90.
 
   use glint_type
-  use glad_constants
   use glimmer_global, only: dp
 
   implicit none
@@ -118,7 +117,6 @@ contains
                                     topo_g,     gmask)
  
     use glimmer_paramets, only: iulog, GLC_DEBUG
-    use glad_constants, only: lapse
     use glint_type
     use glint_interp, only: interp_to_local, copy_to_local
     use glimmer_log
@@ -140,6 +138,7 @@ contains
     ! local variables
     type(parallel_type) :: parallel        ! info for parallel communication
     real(dp), parameter :: maskval = 0.d0  ! value written to masked out gridcells
+    real(dp), parameter :: lapse = 0.0065_dp   ! atm lapse rate, deg/m
 
     integer :: nxl, nyl, nec               ! local grid dimensions
     integer :: i, j, n
@@ -209,7 +208,7 @@ contains
           usrf = instance%model%geometry%usrf(i,j)
           thck = instance%model%geometry%thck(i,j)
 
-          if (thck <= min_thck) then ! if ice-free...
+          if (thck == 0.d0) then ! if ice-free...
 
              if (usrf > 0.d0) then   ! and on land (not ocean)...
 
@@ -295,7 +294,7 @@ contains
     ! to a GCM that provides the surface mass balance and temperature
 
     use glimmer_coordinates
-    use glad_constants, only: years2hours
+    use glimmer_physcon, only: years2hours
 
     type(glint_mbc)        :: params      ! mass balance parameters
     type(coordsystem_type) :: lgrid       ! local grid
@@ -366,7 +365,7 @@ contains
 
   subroutine glint_average_input_gcm(params, dt, acab, artm)
 
-    use glad_constants, only: hours2years
+    use glimmer_physcon, only: hours2years
 
     type(glint_mbc)  :: params
     integer,                intent(in)    :: dt     !> mbal accumulation time (hours)

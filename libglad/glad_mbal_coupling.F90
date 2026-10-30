@@ -67,7 +67,7 @@ contains
     ! into this glad_mbal_coupling module.
 
     use glimmer_coordinates
-    use glad_constants, only : years2hours
+    use glimmer_physcon, only : years2hours
     use glissade_types, only : get_nzocn
 
     type(glad_mbc)  :: params
@@ -153,7 +153,7 @@ contains
 
     ! In glint, this was done in glint_downscale.F90
 
-    use glad_constants, only: hours2years
+    use glimmer_physcon, only: hours2years
 
     type(glad_mbc)  :: params
     integer,                intent(in)   :: dt     !> mbal accumulation time (hours)

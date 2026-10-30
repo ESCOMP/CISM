@@ -66,7 +66,7 @@ contains
 
     use glimmer_config
     use glimmer_log
-    use glad_constants
+    use glimmer_physcon, only: days2hours, years2hours
 
     ! Initialise mass-balance schemes
 

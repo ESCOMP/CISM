@@ -378,7 +378,7 @@ contains
 
     use glimmer_config
     use glimmer_log
-    use glad_constants, only: years2hours
+    use glimmer_physcon, only: years2hours
 
     implicit none
 
@@ -472,7 +472,7 @@ contains
   subroutine glint_i_printconfig(instance)
 
     use glimmer_log
-    use glad_constants, only: hours2years
+    use glimmer_physcon, only: hours2years
     use cism_parallel, only: tasks
 
     implicit none

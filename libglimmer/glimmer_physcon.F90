@@ -87,8 +87,6 @@ module glimmer_physcon
   real(dp) :: n_glen = 3.0d0                     !< Exponent in Glen's flow law; user-configurable real(dp) in Glissade
   integer, parameter :: gn = 3                   !< Exponent in Glen's flow law; fixed integer parameter in Glide
   real(dp),parameter :: celsius_to_kelvin = 273.15d0  !< Note: Not quite equal to trpt
-  real(dp),parameter :: scyr = 31536000.d0       !< Number of seconds in a year of exactly 365 days
-  real(dp),parameter :: scday = 86400.d0         !< Number of seconds in a day
   real(dp),parameter :: rhom = 3300.0d0          !< The density of magma(?) (kg m<SUP>-3</SUP>) 
   real(dp),parameter :: rhos = 2600.0d0          !< The density of solid till (kg m$^{-3}$) 
   real(dp),parameter :: actenh = 139.0d3         !< Activation energy in Glen's flow law for \f$T^{*}\geq263\f$K. (J mol<SUP>-1</SUP>)
@@ -113,5 +111,30 @@ module glimmer_physcon
   real(dp),parameter :: dtocnfrz_dsal = -0.057d0 !< rate of change of Tf with salinity (deg/psu)
   real(dp),parameter :: dtocnfrz_dz = 7.64d-4    !< rate of change of Tf with z (deg/m)
 
+  ! Time conversions
+  ! Note: days_in_year, years2hours and hours2years are used by the GCM coupling layers
+  !       (GLAD and Glint), which reset them at runtime by calling set_year_length.
+  real(dp),parameter :: scyr = 31536000.d0       !< Number of seconds in a year of exactly 365 days
+  real(dp),parameter :: scday = 86400.d0         !< Number of seconds in a day
+  real(dp),parameter :: days2hours = 24.d0       !< Days to hours conversion factor
+  real(dp),parameter :: hours2seconds = 3600.d0  !< Hours to seconds conversion factor
+  integer  :: days_in_year = 360                 !< The number of days in a year
+  real(dp) :: years2hours = 24.d0*360.d0         !< Years to hours conversion factor
+  real(dp) :: hours2years = 1.d0/(24.d0*360.d0)  !< Hours to years conversion factor
+
+
+contains
+
+  subroutine set_year_length(daysinyear)
+
+    ! Set the number of days in a year, and the year/hour conversion factors
+
+    integer, intent(in) :: daysinyear
+
+    days_in_year = daysinyear
+    years2hours = days2hours*days_in_year
+    hours2years = 1.d0/years2hours
+
+  end subroutine set_year_length
 
 end module glimmer_physcon

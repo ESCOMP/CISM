@@ -69,7 +69,7 @@ contains
     use glimmer_model_registry, only : register_model
     use glissade
     use glissade_setup, only: glissade_config
-    use glad_constants
+    use glimmer_physcon, only: years2hours
     use glad_restart_gcm
     use glissade_diagnostics, only: glissade_write_diagnostics
     use cism_parallel, only: main_task
