@@ -67,7 +67,6 @@ subroutine gci_init_interface(which_gcm,g2c)
   integer, intent(in) :: which_gcm
   type(gcm_to_cism_type) :: g2c   ! holds everything
 
-  integer :: whichdycore
   type(ConfigSection), pointer :: config   ! configuration stuff
   type(ConfigSection), pointer :: section  ! pointer to the section to be checked
 
@@ -97,8 +96,8 @@ subroutine gci_init_interface(which_gcm,g2c)
   !       Either all instances are basic or all instances use glint; a mix is not supported.
   call ConfigRead(commandline_configname(1),config)
   call GetSection(config,section,'options')
-  call GetValue(section,'dycore',whichdycore)
-  if (main_task) write(iulog,*) 'CISM dycore type (0=Glide, 2=Glissade) = ', whichdycore
+  call GetValue(section,'dycore',g2c%whichdycore)
+  if (main_task) write(iulog,*) 'CISM dycore type (0=Glide, 2=Glissade) = ', g2c%whichdycore
 
   ! Check to see if running basic GCM or glint GCM.  Still need to add CESM GCM:
   call GetSection(config,section,'GLINT climate')
@@ -112,8 +111,13 @@ subroutine gci_init_interface(which_gcm,g2c)
 
   select case (g2c%which_gcm)
     case (GCM_BASIC_MODEL)
-      if (main_task) write(iulog,*) 'call cism_init_dycore'
-      call cism_init_dycore(g2c%glide_model)
+      if (g2c%whichdycore == DYCORE_GLIDE) then
+         if (main_task) write(iulog,*) 'call cism_init_glide'
+         call cism_init_glide(g2c%glide_model)
+      else
+         if (main_task) write(iulog,*) 'call cism_init_glissade'
+         call cism_init_glissade(g2c%glissade_model)
+      endif
  
     case (GCM_GLINT_MODEL)
       if (main_task) write(iulog,*) 'call g2c_glint_init'
@@ -139,8 +143,11 @@ subroutine gci_run_model(g2c)
     select case (g2c%which_gcm)
       case (GCM_BASIC_MODEL)
         ! call gcm_update_model(gcm_model,cism_model)
-!        if (main_task) write(iulog,*) "In gci_run_model, calling cism_run_dycore"
-        call cism_run_dycore(g2c%glide_model)
+        if (g2c%whichdycore == DYCORE_GLIDE) then
+           call cism_run_glide(g2c%glide_model)
+        else
+           call cism_run_glissade(g2c%glissade_model)
+        endif
 
       case (GCM_GLINT_MODEL,GCM_CESM)
 !        if (main_task) write(iulog,*) "In gci_run_model, calling g2c_glint_run"
@@ -178,7 +185,11 @@ subroutine gci_finalize_interface(g2c)
 
   select case (g2c%which_gcm)
     case (GCM_BASIC_MODEL)
-      call cism_finalize_dycore(g2c%glide_model)
+      if (g2c%whichdycore == DYCORE_GLIDE) then
+         call cism_finalize_glide(g2c%glide_model)
+      else
+         call cism_finalize_glissade(g2c%glissade_model)
+      endif
  
     case (GCM_GLINT_MODEL)
       call g2c_glint_end(g2c)

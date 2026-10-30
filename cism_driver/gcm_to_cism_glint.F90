@@ -48,13 +48,16 @@ module gcm_to_cism_glint
 !  use glimmer_commandline
   use glimmer_paramets, only: GLC_DEBUG
   use cism_parallel, only: main_task
+  use glissade_types, only: glissade_global_type
 
 type gcm_to_cism_type
 
   ! Program variables -------------------------------------------------------------------
 
   integer :: which_gcm = 0  ! type of global climate model being used, 0=minimal model, 1=data model, 2=CESM model
+  integer :: whichdycore = 2  ! dycore for standalone (basic) runs: 0 = Glide, 2 = Glissade (default, as in glide_types)
   type(glide_global_type) :: glide_model ! ice sheet model used for glide
+  type(glissade_global_type) :: glissade_model ! ice sheet model used for glissade
 
   type(glint_params)      :: ice_sheet   ! This is the derived type variable that holds all 
                                          ! domains of the ice model
