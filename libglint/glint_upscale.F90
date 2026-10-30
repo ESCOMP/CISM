@@ -34,7 +34,6 @@
   ! Much of the actual work is done at a lower level, in glint_interp.F90.
 
   use glint_type
-  use glad_constants
   use glimmer_global, only: dp
   implicit none
 
@@ -313,7 +312,7 @@ contains
          topg = instance%model%geometry%topg(i,j)
          
          if (usrf > 0.d0) then   ! if not at sea level (assume a land point)...
-            if (thck <= min_thck) then ! and is not ice-covered...
+            if (thck == 0.d0) then ! and is not ice-covered...
                area_frac_l(i,j,0) = dew*dns ! accumulate bare land area fraction in 0-indexed cell
             else ! and is ice-covered...
                do n = 1, nec       

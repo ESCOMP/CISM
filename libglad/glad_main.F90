@@ -38,7 +38,7 @@ module glad_main
 
   use glimmer_global, only: dp, fname_length
   use glad_type
-  use glad_constants
+  use glimmer_physcon, only: hours2seconds, set_year_length
   use glimmer_config
   use glimmer_filenames, only : process_path
   use glad_input_averages, only : get_av_start_time, accumulate_averages, &
@@ -208,7 +208,7 @@ contains
     ! Initialise year-length -------------------------------------------------------------------
 
     if (present(daysinyear)) then
-       call glad_set_year_length(daysinyear)
+       call set_year_length(daysinyear)
     end if
 
     ! ---------------------------------------------------------------

@@ -37,7 +37,7 @@ module glint_timestep
   !> timestep of a GLINT instance
 
   use glint_type
-  use glad_constants
+  use glimmer_physcon, only: hours2years
   use glimmer_global, only: dp
   use cism_parallel, only: tasks, main_task, this_rank
 

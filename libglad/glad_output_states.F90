@@ -137,7 +137,6 @@ contains
   logical function is_ice_covered(geometry, i, j)
     ! Return true if the given point is ice-covered
 
-    use glad_constants, only : min_thck
 
     type(glissade_geometry_type), intent(in) :: geometry
     integer, intent(in) :: i, j  ! point of interest
@@ -149,7 +148,8 @@ contains
 
     thck = geometry%thck(i,j)
 
-    if (thck > min_thck) then
+    !TODO - Consider using a small positive threshold instead of 0.0d0
+    if (thck > 0.d0) then
        is_ice_covered = .true.
     else
        is_ice_covered = .false.

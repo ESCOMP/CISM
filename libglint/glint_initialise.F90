@@ -74,7 +74,7 @@ contains
     use glide_nc_custom   , only: glide_nc_fillall
     use glimmer_model_registry, only : register_model
     use glide
-    use glad_constants
+    use glimmer_physcon, only: years2hours
     use glint_restart_gcm
     use glide_diagnostics
 
@@ -329,7 +329,7 @@ contains
     use glide_nc_custom   , only: glide_nc_fillall
     use glimmer_model_registry, only : register_model
     use glide
-    use glad_constants
+    use glimmer_physcon, only: years2hours
     use glint_restart_gcm
     use glide_diagnostics
 

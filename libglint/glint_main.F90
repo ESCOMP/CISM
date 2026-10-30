@@ -35,7 +35,7 @@ module glint_main
   use glimmer_global, only: dp, fname_length
   use glint_type
   use glint_global_grid
-  use glad_constants
+  use glimmer_physcon, only: days_in_year, hours2seconds, set_year_length
   use glint_anomcouple
   use glimmer_paramets, only: iulog, GLC_DEBUG
   use cism_parallel, only: main_task, tasks
@@ -306,7 +306,7 @@ contains
     ! Initialise year-length -------------------------------------------------------------------
 
     if (present(daysinyear)) then
-       call glad_set_year_length(daysinyear)
+       call set_year_length(daysinyear)
     end if
 
     if (GLC_DEBUG .and. main_task) then
@@ -712,7 +712,7 @@ contains
     ! Initialise year-length -------------------------------------------------------------------
 
     if (present(daysinyear)) then
-       call glad_set_year_length(daysinyear)
+       call set_year_length(daysinyear)
     end if
 
     if (GLC_DEBUG .and. main_task) then
