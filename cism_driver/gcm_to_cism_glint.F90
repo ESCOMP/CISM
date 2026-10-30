@@ -44,7 +44,6 @@ module gcm_to_cism_glint
   use glint_global_interp
   use glint_example_clim
   use glint_commandline
-  use glimmer_writestats
 !  use glimmer_commandline
   use glimmer_paramets, only: GLC_DEBUG
   use cism_parallel, only: main_task
@@ -104,8 +103,6 @@ type gcm_to_cism_type
   logical :: out    ! Outputs set flag
   integer :: i,j    ! Array index counters
   integer :: time   ! Current time (hours)
-  real(dp):: t1,t2
-  integer :: clock,clock_rate
 
   ! fields passed to and from a GCM 
   ! (useful for testing the GCM subroutines in standalone mode)
@@ -141,7 +138,6 @@ type gcm_to_cism_type
   character(len=fname_length), dimension(:), allocatable :: &
                                  commandline_configname    !< name of ice sheet configuration file(s)
   character(len=fname_length) :: commandline_configname_scalar  !< name of ice sheet config files, concatenated in one string
-  character(len=fname_length) :: commandline_results_fname !< name of results file
   character(len=fname_length) :: commandline_climate_fname !< name of climate configuration file
 
 end type gcm_to_cism_type
@@ -182,12 +178,7 @@ subroutine g2c_glint_init(g2c)
   allocate(g2c%commandline_configname(num_icesheet_config))
   g2c%commandline_configname =  commandline_configname     !< name of ice sheet configuration file(s)
   g2c%commandline_configname_scalar = commandline_configname_scalar  ! name of ice sheet config file(s), concatenated
-  g2c%commandline_results_fname = commandline_resultsname  !< name of results file
   g2c%commandline_climate_fname = commandline_climatename  !< name of climate configuration 
-
-  call system_clock(g2c%clock,g2c%clock_rate)  
-  g2c%t1 = real(g2c%clock,kind=dp)/real(g2c%clock_rate,kind=dp)
-  !write(iulog,*) "g2c%clock, g2c%clock_rate, t1",g2c%clock,g2c%clock_rate,g2c%t1
 
   if (verbose_glint .and. main_task) write(iulog,*) 'call glex_clim_init'
 
@@ -435,11 +426,6 @@ subroutine g2c_glint_end(g2c)
   ! Finalise/tidy up everything -----------------------------------------------------------
 
   call end_glint(g2c%ice_sheet)
-  call system_clock(g2c%clock, g2c%clock_rate)
-  t2 = real(g2c%clock,kind=dp)/real(g2c%clock_rate,kind=dp)
-  call glimmer_write_stats(g2c%commandline_results_fname,  &
-                           g2c%commandline_configname_scalar,  &
-                           g2c%t2-g2c%t1)
 
 end subroutine g2c_glint_end
 
