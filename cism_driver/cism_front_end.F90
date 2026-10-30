@@ -72,7 +72,7 @@ subroutine cism_init_glide(model)
   type(ConfigSection), pointer :: section ! a section of the configuration
   real(kind=dp) :: time                   ! model time in years
 
-  ! read the configuration and start timing
+  ! read the configuration
   call cism_front_end_read_config(config)
 
   ! initialise profiling
@@ -253,6 +253,7 @@ subroutine cism_finalize_glide(model)
 
   use glide_types, only: glide_global_type
   use glide_stop, only: glide_finalise
+  use glimmer_log, only: close_log
   use profile, only: t_stopf
 
   implicit none
@@ -264,7 +265,7 @@ subroutine cism_finalize_glide(model)
   ! finalise the model
   call glide_finalise(model)
 
-  call cism_front_end_finalize()
+  call close_log
 
 end subroutine cism_finalize_glide
 
@@ -319,7 +320,7 @@ subroutine cism_init_glissade(model)
   type(ConfigSection), pointer :: section ! a section of the configuration
   real(kind=dp) :: time                   ! model time in years
 
-  ! read the configuration and start timing
+  ! read the configuration
   call cism_front_end_read_config(config)
 
   ! initialise profiling
@@ -500,6 +501,7 @@ subroutine cism_finalize_glissade(model)
 
   use glissade_types
   use glissade, only: glissade_finalise
+  use glimmer_log, only: close_log
   use profile, only: t_stopf
 
   implicit none
@@ -511,7 +513,7 @@ subroutine cism_finalize_glissade(model)
   ! finalise the model
   call glissade_finalise(model)
 
-  call cism_front_end_finalize()
+  call close_log
 
 end subroutine cism_finalize_glissade
 
@@ -543,9 +545,8 @@ end subroutine set_eismint_forcing_glissade
 
 subroutine cism_front_end_read_config(config)
 
-  ! Read the command line and the configuration file, and start timing
+  ! Read the command line and the configuration file
 
-  use glimmer_global, only: dp, wall_start_time, wall_stop_time
   use glimmer_config
   use glimmer_commandline
   use glimmer_filenames, only : filenames_init
@@ -553,7 +554,6 @@ subroutine cism_front_end_read_config(config)
   implicit none
 
   type(ConfigSection), pointer :: config  ! configuration stuff
-  integer :: clock,clock_rate
 
   call glimmer_GetCommandline()
 
@@ -569,40 +569,6 @@ subroutine cism_front_end_read_config(config)
   ! read configuration
   call ConfigRead(commandline_configname,config)
 
-#if (! defined CCSMCOUPLED && ! defined CESMTIMERS)
-  ! start timing
-  call system_clock(clock,clock_rate)
-  wall_start_time = real(clock,kind=dp)/real(clock_rate,kind=dp)
-#else
-  wall_start_time = 0.0
-  wall_stop_time = 0.0
-#endif
-
 end subroutine cism_front_end_read_config
-
-
-subroutine cism_front_end_finalize()
-
-  ! Write timing statistics and close the log file
-
-  use glimmer_global, only: dp, wall_start_time, wall_stop_time
-  use glimmer_log, only: close_log
-  use glimmer_commandline
-  use glimmer_writestats
-
-  implicit none
-
-  integer :: clock,clock_rate
-
-  !TODO - Do we need to call glimmer_write_stats?
-#if (! defined CCSMCOUPLED && ! defined CESMTIMERS)
-  call system_clock(clock,clock_rate)
-  wall_stop_time = real(clock,kind=dp)/real(clock_rate,kind=dp)
-  call glimmer_write_stats(commandline_resultsname,commandline_configname,wall_stop_time-wall_start_time)
-#endif
-
-  call close_log
-
-end subroutine cism_front_end_finalize
 
 end module cism_front_end

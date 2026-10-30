@@ -45,7 +45,6 @@ module glint_commandline
   character(len=fname_length), dimension(:), allocatable :: &
                                  commandline_configname         !< name of ice sheet configuration file(s)
   character(len=fname_length) :: commandline_configname_scalar  !< configuration filenames, concatenated into a single string
-  character(len=fname_length) :: commandline_resultsname        !< name of results file
   character(len=fname_length) :: commandline_climatename        !< name of climate configuration file
 
 contains
@@ -78,7 +77,6 @@ contains
     integer, dimension(100) :: argumentIdx
     
     ! defaults
-    commandline_resultsname = 'results'
 
     ! get number of arguments and file names
     numargs = NARGS
@@ -104,14 +102,6 @@ contains
              case ('-h')
                 call glint_commandlineHelp()
                 stop
-             case ('-r')
-                i = i + 1
-                if (i > numargs) then
-                   write(*,*) 'Error, expect name of output file to follow -o option'
-                   call glint_commandlineHelp()
-                   stop
-                end if
-                call GETARG(i,commandline_resultsname)
              case default
                 write(*,*) 'Unknown option ',trim(argument)
                 call glint_commandlineHelp()
@@ -176,7 +166,6 @@ contains
     write(*,*)
     write(*,*) 'commandline_climatename:   ', trim(commandline_climatename)
     write(*,*) 'commandline_configname(s): ', trim(commandline_configname_scalar)
-    write(*,*) 'commandline_resultsname:   ', trim(commandline_resultsname)
 
   end subroutine glint_PrintCommandline
 
@@ -193,7 +182,6 @@ contains
     write(*,*) 'Usage: ',trim(pname),' [options] climname cfgname'
     write(*,*) 'where [options] are'
     write(*,*) '  -h:          this message'
-    write(*,*) '  -r <fname>:  the name of the results file (default: results)'
   end subroutine glint_commandlineHelp
 
 end module glint_commandline

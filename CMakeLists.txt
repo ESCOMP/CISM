@@ -131,7 +131,7 @@ ENDIF()
 file(GLOB FORTRANSOURCES
      libglimmer-solve/SLAP/*.f
      libglimmer-solve/*.F90
-     libglimmer/*.F90 libglimmer/writestats.c
+     libglimmer/*.F90
      libglide/*.F90
      cism_driver/eismint_forcing.F90
      cism_driver/testsfg.F90

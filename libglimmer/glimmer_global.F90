@@ -90,6 +90,4 @@ module glimmer_global
   !> ASCII linefeed and carriage-return characters,
   !> and set up default newline appropriate for UNIX-type systems
 
-  real(kind=dp) :: wall_start_time, wall_stop_time
-
 end module glimmer_global
