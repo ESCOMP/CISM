@@ -62,10 +62,10 @@ contains
 
     ! input/output arguments
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     ! Passing in lateral melt in addition to model saves some typing below
-    type(glide_lateral_melt), intent(inout) :: lateral_melt
+    type(glissade_lateral_melt_type), intent(inout) :: lateral_melt
 
     ! --- Local variables ---
 

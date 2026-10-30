@@ -36,7 +36,7 @@ module glad_type
   !> contains type definitions for GLAD
 
   use glimmer_global, only: dp
-  use glide_types
+  use glissade_types
   use glad_input_averages, only : glad_input_averages_type, initialize_glad_input_averages
   use glad_mbal_coupling, only : glad_mbc
   use glad_output_fluxes, only : glad_output_fluxes_type, initialize_glad_output_fluxes
@@ -69,7 +69,7 @@ module glad_type
                                                             !> (WJS: Note that origin may be incorrect with multiple tasks;
                                                             !>  as far as I can tell, this isn't currently a problem)
      type(glad_input_averages_type)   :: glad_inputs        !> Time-averaged inputs from the climate model
-     type(glide_global_type)          :: model              !> The instance and all its arrays.
+     type(glissade_global_type)          :: model              !> The instance and all its arrays.
      character(fname_length)          :: paramfile          !> The name of the configuration file.
      character(fname_length)          :: gcm_restart_file   !> Name of restart file
      integer                          :: ice_tstep          !> Ice timestep in hours

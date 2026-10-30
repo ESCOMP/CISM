@@ -64,7 +64,7 @@ contains
     use glissade_utils, only: glissade_usrf_to_thck, glissade_thck_to_usrf
     use glissade_basal_traction, only: glissade_elevation_based_coulomb_c
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     ! local variables
 
@@ -401,7 +401,7 @@ contains
     use glissade_utils, only: glissade_usrf_to_thck, glissade_basin_average
     use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask, glissade_unstagger
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     ! local variables
 

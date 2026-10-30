@@ -328,7 +328,7 @@ contains
     ! Get nzocn (the number of ocean levels, needed for ocean coupling fields)
     ! corresponding to this instance.
 
-    use glide_types, only : get_nzocn
+    use glissade_types, only : get_nzocn
 
     type(glad_params), intent(in) :: params
     integer, intent(in) :: instance_index  ! index of current ice sheet index
@@ -604,7 +604,7 @@ contains
     use glad_timestep, only : glad_i_tstep_gcm
     use glimmer_log
     use glimmer_physcon, only : celsius_to_kelvin
-    use glide_types, only : get_ewn, get_nsn
+    use glissade_types, only : get_ewn, get_nsn
     use glad_output_fluxes, only : calculate_average_output_fluxes
     use cism_parallel, only : parallel_type, parallel_convert_nonhaloed_to_haloed
 
@@ -979,7 +979,7 @@ contains
     ! the halo cells.
 
     use glad_output_states, only : set_output_states
-    use glide_types, only : get_ewn, get_nsn
+    use glissade_types, only : get_ewn, get_nsn
     use cism_parallel, only : parallel_type, parallel_convert_haloed_to_nonhaloed
 
     ! Subroutine argument declarations --------------------------------------------------------

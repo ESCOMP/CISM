@@ -79,10 +79,10 @@ contains
     ! accumulate contributions to the rofi, rofl, and hflx fields to be sent to the coupler.
 
     use glimmer_physcon, only : rhoi
-    use glide_types, only : glide_global_type
+    use glissade_types, only : glissade_global_type
 
     type(glad_output_fluxes_type), intent(inout) :: output_fluxes
-    type(glide_global_type), intent(in) :: model
+    type(glissade_global_type), intent(in) :: model
 
     output_fluxes%av_count_output = output_fluxes%av_count_output + 1
 

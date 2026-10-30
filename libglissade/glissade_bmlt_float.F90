@@ -144,10 +144,10 @@ module glissade_bmlt_float
     real(dp), intent(in) :: &
          eus                     ! eustatic sea level (m), = 0. by default
 
-    type(glide_basal_melt), intent(inout) :: &
+    type(glissade_basal_melt), intent(inout) :: &
          basal_melt              ! derived type with fields and parameters related to basal melting
 
-    type(glide_ocean_data), intent(inout) :: &
+    type(glissade_ocean_data), intent(inout) :: &
          ocean_data              ! derived type with fields and parameters related to ocean data
 
     !-----------------------------------------------------------------
@@ -460,9 +460,9 @@ module glissade_bmlt_float
     ! Initialization for basal melting
     ! Currently called only if model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING)
 
-    type(glide_global_type), intent(inout) :: model   !> derived type holding ice-sheet info
+    type(glissade_global_type), intent(inout) :: model   !> derived type holding ice-sheet info
 
-    type(glide_ocean_data), intent(inout) ::  &
+    type(glissade_ocean_data), intent(inout) ::  &
          ocean_data                                   !> derived type holding ocean input data
     
     integer, dimension(model%general%ewn, model%general%nsn) ::  &
@@ -854,7 +854,7 @@ module glissade_bmlt_float
 
     implicit none
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     logical, intent(in), optional :: &
          calibrate_in             ! if true, then calibrate melt rates; false by default
@@ -1366,7 +1366,7 @@ module glissade_bmlt_float
          lsrf,                   & !> ice lower surface elevation (m), negative below sea level
          topg                      !> bed topography (m), negative below sea level
 
-    type(glide_ocean_data), intent(inout) :: &
+    type(glissade_ocean_data), intent(inout) :: &
          ocean_data         !> derived type with fields and parameters related to ocean thermal forcing;
                             !> includes the following fields:
                             !> thermal_forcing = input 3D thermal forcing (deg C) from ocean data;

@@ -637,7 +637,7 @@ contains
 
     implicit none
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     logical, intent(in) :: init_calving  ! true when this subroutine is called at initialization
 
@@ -998,7 +998,7 @@ contains
                                                    !>     to the ocean through other cells where the criterion is met
 
     type(parallel_type), intent(in) :: parallel    !> info for parallel communication
-    type(glide_calving), intent(inout) :: calving  !> calving object
+    type(glissade_calving_type), intent(inout) :: calving  !> calving object
 
 !    Note: The calving object includes the following fields and parameters used in this subroutine:
 !    real(dp), intent(in)                     :: marine_limit        !> lower limit on topography elevation at marine edge before ice calves
@@ -1236,7 +1236,7 @@ contains
 
     type(parallel_type), intent(in) :: parallel    !> info for parallel communication
 
-    type(glide_calving), intent(inout) :: calving  !> calving object
+    type(glissade_calving_type), intent(inout) :: calving  !> calving object
 !    Note: The calving object includes the following fields and parameters used in this subroutine:
 !    real(dp), intent(in)                     :: minthck             !> min thickness for ice at the calving front (m)
 !    real(dp), intent(in)                     :: dthck_dx_cf         !> assumed max thickness gradient (m/m) at the subgrid CF
@@ -1258,7 +1258,7 @@ contains
 !    integer,  dimension(:,:), intent(in)     :: calving_mask        !> integer mask: calve ice where calving_mask = 1
 !    real(dp), dimension(:,:), intent(out)    :: calving_thck        !> thickness lost due to calving in each grid cell (m)
 
-    type(glide_lateral_melt), intent(inout) :: lateral_melt  !> lateral melt object
+    type(glissade_lateral_melt_type), intent(inout) :: lateral_melt  !> lateral melt object
 !    Note: The lateral_melt object includes the following fields and parameters used in this subroutine:
 !    real(dp),dimension(:,:),  pointer :: subglacial_discharge       !> subglacial meltwater discharge for lateral melting (kg/m2/s)
 !    real(dp) :: melt_rate_const               !> constant lateral retreat rate at melt front (m/yr)
@@ -1268,7 +1268,7 @@ contains
 !    logical :: thermal_forcing_avg_3d_to_2d       !> if true, then get 2D thermal forcing by averaging from 3D
 !    logical :: submarine_discharge_from_ablation  !> if true, then estimate submarine discharge from ablation
 
-    type(glide_ocean_data), intent(in) :: ocean_data         !> ocean data object
+    type(glissade_ocean_data), intent(in) :: ocean_data         !> ocean data object
 !   Note: The ocean_data object includes the following fields and parameters used in this subroutine:
 !    integer  :: nbasin                         !> number of basins
 !    integer  :: nzocn                          !> number of ocean levels
@@ -3562,7 +3562,7 @@ contains
          glissade_ocean_connection_mask
     use glissade_grounding_line, only: glissade_grounded_fraction
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
 
     ! --- Local variables ---

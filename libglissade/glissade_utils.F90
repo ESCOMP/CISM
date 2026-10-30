@@ -81,7 +81,7 @@ contains
     ! Input-output arguments
     !----------------------------------------------------------------
 
-    type(glide_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
+    type(glissade_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
 
     ! local variables
 
@@ -169,7 +169,7 @@ contains
     ! Input-output arguments
     !----------------------------------------------------------------
 
-    type(glide_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
+    type(glissade_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
 
     integer, intent(in), optional :: nsmooth     ! number of smoothing passes
 
@@ -298,7 +298,7 @@ contains
     ! Input-output arguments
     !----------------------------------------------------------------
 
-    type(glide_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
+    type(glissade_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
 
     ! local variables
 
@@ -395,7 +395,7 @@ contains
     ! Input-output arguments
     !----------------------------------------------------------------
 
-    type(glide_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
+    type(glissade_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
 
     ! local variables
 
@@ -1150,7 +1150,7 @@ contains
     ! Input-output arguments
     !----------------------------------------------------------------
 
-    type(glide_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
+    type(glissade_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
 
     ! local variables
 
@@ -1243,7 +1243,7 @@ contains
 
     use cism_parallel, only: parallel_halo, parallel_globalindex
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
     real(dp), intent(in) :: tiny_thck    ! zero out where thck < tiny_thck
 
     integer :: nx, ny
@@ -1305,7 +1305,7 @@ contains
 
     use cism_parallel, only: parallel_halo
 
-    type(glide_global_type), intent(inout) :: model   ! model instance
+    type(glissade_global_type), intent(inout) :: model   ! model instance
 
     integer :: nx, ny
     integer :: i, j
