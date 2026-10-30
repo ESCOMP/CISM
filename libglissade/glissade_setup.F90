@@ -3880,7 +3880,7 @@ contains
     !------------------------------------------------------------------------------------
     ! Internal variables
     !------------------------------------------------------------------------------------
-    type(glissade_options) :: options  !> Derived type holding all model options
+    type(glissade_options_type) :: options  !> Derived type holding all model options
 
     ! Copy model%options to options to save typing below
     ! Note: Originally, only model%options was passed in, but passing in the full model derived type

@@ -1776,7 +1776,7 @@
     real(dp), dimension(nz), intent(in) :: &
          sigma                     ! vertical sigma coordinate
 
-    type(glissade_tensor), intent(in) :: &
+    type(glissade_tensor_type), intent(in) :: &
          tau                       ! 3D stress tensor (Pa)
 
     real(dp), dimension(nx,ny), intent(out) :: &
@@ -1853,14 +1853,14 @@
     real(dp), dimension(nz), intent(in) :: &
          sigma                     ! vertical sigma coordinate
 
-    type(glissade_tensor), intent(inout) :: &
+    type(glissade_tensor_type), intent(inout) :: &
          strain_rate               ! 3D strain rate tensor
                                    ! intent(out) if computed from tau and efvs
 
     real(dp), dimension(nx,ny), intent(out) :: &
          eps_eigen1, eps_eigen2    ! eigenvalues of 2D horizontal stress tensor (1/s)
 
-    type(glissade_tensor), intent(in), optional :: &
+    type(glissade_tensor_type), intent(in), optional :: &
          tau                       ! 3D stress tensor (Pa)
 
     real(dp), dimension(nz-1,nx,ny), intent(in), optional :: &

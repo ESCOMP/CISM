@@ -1268,7 +1268,7 @@ contains
 !    logical :: thermal_forcing_avg_3d_to_2d       !> if true, then get 2D thermal forcing by averaging from 3D
 !    logical :: submarine_discharge_from_ablation  !> if true, then estimate submarine discharge from ablation
 
-    type(glissade_ocean_data), intent(in) :: ocean_data         !> ocean data object
+    type(glissade_ocean_data_type), intent(in) :: ocean_data         !> ocean data object
 !   Note: The ocean_data object includes the following fields and parameters used in this subroutine:
 !    integer  :: nbasin                         !> number of basins
 !    integer  :: nzocn                          !> number of ocean levels
