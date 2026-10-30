@@ -33,7 +33,6 @@
 module glimmer_paramets
 
   use glimmer_global, only : dp
-  use glimmer_physcon, only : scyr
 
   implicit none
   save
@@ -79,22 +78,7 @@ module glimmer_paramets
   ! scaling parameters
   !WHL - Removed the old Glimmer scaling parameters, April 2025
   !      These included thk0, len0, vel0, tim0, acc0, vis0, tau0, and evs0.
-
-!WHL - Here I am defining some new constants that have the same values as thk0, len0, etc. in old Glimmer.
-!      I am giving the new constants new names to minimize confusion.
-!      These are used in only a few places.  For instance, we have this in glide_thck:
-!
-!          residual = maxval(abs(model%geometry%thck-model%thckwk%oldthck2))
-!
-!      In old Glimmer, thk0 = 2000 m and thck = O(1)
-!      In new CISM, thk0 = 1 and thck = true thickness in meters
-!      With thk0 = 1, we need to divide the rhs by 2000 m to reproduce the results of old Glimmer.
-!      The following code satisfies either of the two conventions:
-!
-!          residual = maxval( abs(model%geometry%thck-model%thckwk%oldthck2) * (thk0/thk_scale) )
-
-  real(dp), parameter :: thk_scale = 2000.0d0        ! m
-  real(dp), parameter :: len_scale = 200.0d3         ! m
-  real(dp), parameter :: velo_scale = 500.0 / scyr    ! m yr^{-1} converted to S.I. units
+  !      A few modules keep local parameters with the old values (e.g., thk_scale = 2000 m
+  !      in glide_thck, velo_scale = 500 m/yr in glide_temp and glissade_velo_higher).
 
 end module glimmer_paramets

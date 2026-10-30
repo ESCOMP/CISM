@@ -320,7 +320,7 @@ contains
     ! Note: For eismint_type = 4 (exact verification), acab is set in eismint_exact_forcing.
 
     use glimmer_global, only : dp
-    use glimmer_paramets, only : scyr
+    use glimmer_physcon, only : scyr
     use glimmer_physcon, only : pi
     use cism_parallel, only: parallel_type, parallel_globalindex
 
