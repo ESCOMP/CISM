@@ -66,7 +66,7 @@ contains
     use glad_mbal_io     , only: glad_mbal_io_createall, glad_mbal_io_writeall
     use glimmer_ncio
     use glide_nc_custom   , only: glide_nc_fillall
-    use glide_model_registry, only : register_model
+    use glimmer_model_registry, only : register_model
     use glide
     use glissade
     use glissade_setup, only: glissade_config
@@ -102,7 +102,7 @@ contains
 
     ! initialise model
 
-    call register_model(instance%model)
+    call register_model(instance%model%model_id)
     call glissade_config(instance%model, config, config_fileunit)
 
     ! GLAD supports only the Glissade dycore

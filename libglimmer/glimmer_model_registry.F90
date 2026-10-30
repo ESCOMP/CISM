@@ -1,6 +1,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
-!   glide_model_registry.F90 - part of the Community Ice Sheet Model (CISM)
+!   glimmer_model_registry.F90 - part of the Community Ice Sheet Model (CISM)
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
@@ -28,24 +28,26 @@
 #include "config.inc"
 #endif
 
-module glide_model_registry
+module glimmer_model_registry
 
   use glimmer_log
-  use glide_types
 
   implicit none
   private
 
   !> module for counting and registering all models (i.e., model instances for different
   !> ice sheets) included in this run
+  !>
+  !> The registry assigns each model a model_id (1..N); it does not depend on the
+  !> model type, so it can be used by any dycore.
 
   ! Usage is as follows:
   !
   ! Required:
-  ! - Call register_model for each model in initialization (this should be called
-  !   relatively early in initialization, so that model%model_id is set before it's
-  !   needed)
-  ! - Call deregister_model for each model in finalization
+  ! - Call register_model(model%model_id) for each model in initialization (this should
+  !   be called relatively early in initialization, so that model%model_id is set before
+  !   it's needed)
+  ! - Call deregister_model(model%model_id) for each model in finalization
   !
   ! Optional:
   ! - Call set_max_models once in initialization. If this is called, it should be called
@@ -61,15 +63,6 @@ module glide_model_registry
   integer, parameter :: default_max_models = 8
   integer :: max_models = default_max_models
   integer :: num_models = 0  ! number of models actually registered so far
-
-  type pmodel_type
-     !> Contains a pointer to a model
-     !> This is a hack to get around Fortran's lack of arrays of pointers
-     type(glide_global_type), pointer :: p => null()
-  end type pmodel_type
-
-  !> Pointers to all registered models
-  type(pmodel_type), allocatable, public, save :: registered_models(:)
 
   public :: set_max_models
   public :: register_model
@@ -97,27 +90,14 @@ contains
     max_models = max_models_in
   end subroutine set_max_models
 
-  subroutine register_model(model)
-    !> Registers a model, setting model%model_id and ensuring that it is finalised in the
-    !> case of an error.
+  subroutine register_model(model_id)
+    !> Registers a model, setting its model_id.
     !>
-    !> This should be called relatively early in initialization so that model%model_id is
+    !> This should be called relatively early in initialization so that model_id is
     !> set before it's needed.
-    type(glide_global_type), target :: model
+    integer, intent(out) :: model_id  !> identifier of this model instance (1..N)
 
     num_models = num_models + 1
-
-    ! num_models == 1 indicates that this is the first time register_model is being
-    ! called. This implies that registered_models is not yet allocated, so we need to
-    ! allocate it.
-    if (num_models == 1) then
-       if (allocated(registered_models)) then
-          ! This most likely indicates a programming error, not a user error
-          call write_log("Somehow registered_models is already allocated", GM_FATAL)
-       end if
-
-       allocate(registered_models(max_models))
-    end if
 
     if (num_models > max_models) then
        ! This can happen if set_max_models gave the wrong number, or (probably more
@@ -126,14 +106,8 @@ contains
        ! set_max_models, or the hard-coded default_max_models should be increased.
        call write_log("Attempt to instantiate too many instances", GM_FATAL)
     end if
-    if (associated(registered_models(num_models)%p)) then
-       ! This most likely indicates a programming error, not a user error
-       call write_log("Somehow we are attempting to register an already-registered model", &
-            GM_FATAL)
-    end if
 
-    registered_models(num_models)%p => model
-    model%model_id = num_models
+    model_id = num_models
   end subroutine
 
   subroutine check_num_models()
@@ -151,20 +125,19 @@ contains
     end if
   end subroutine check_num_models
 
-  subroutine deregister_model(model)
-    !> Removes a model from the registry. Normally this should only be done when
-    !> glide_finalise is called on the model, and is done automatically by that function.
+  subroutine deregister_model(model_id)
+    !> Removes a model from the registry, resetting its model_id to 0. Normally this is
+    !> done only when the model is finalised (in glide_finalise or glissade_finalise).
     !>
     !> This does NOT decrement num_models, so weird behavior could arise if trying to use
     !> num_models, call register_model, etc. after calling deregister_model. As long as
     !> deregister_model is only called at the end of the run, this shouldn't be a problem.
-    type(glide_global_type) :: model
+    integer, intent(inout) :: model_id  !> identifier of this model instance (1..N)
 
-    if (model%model_id < 1 .or. model%model_id > num_models) then
+    if (model_id < 1 .or. model_id > num_models) then
         call write_log("Attempting to deregister a non-allocated model", GM_WARNING)
     else
-        registered_models(model%model_id)%p => null()
-        model%model_id = 0
+        model_id = 0
     end if
   end subroutine
 
@@ -185,4 +158,4 @@ contains
     get_max_models = max_models
   end function get_max_models
 
-end module glide_model_registry
+end module glimmer_model_registry

@@ -96,7 +96,6 @@ contains
             !WHL - itol = 2 does not work for simple test problems 
 
         else 
-            !call glide_finalise_all(.true.)
             call write_log("Invalid sparse matrix option", GM_FATAL)
 
         end if
@@ -429,8 +428,6 @@ contains
         end if
 
         write(*,*)message
-
-        !call glide_finalise_all(.true.)
 
         if (present(error_file) .and. present(error_line)) then
             call write_log(trim(errdesc), GM_FATAL, error_file, error_line)

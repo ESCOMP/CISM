@@ -39,7 +39,7 @@ subroutine cism_init_dycore(model)
 
   use glimmer_global, only: dp, wall_start_time, wall_stop_time
   use glimmer_paramets, only: iulog
-  use glide_model_registry, only : register_model
+  use glimmer_model_registry, only : register_model
   use glide
   use glissade
   use glissade_setup, only: glissade_config
@@ -106,7 +106,7 @@ subroutine cism_init_dycore(model)
   ! initialise GLIDE
   call t_startf('initialization')
 
-  call register_model(model)
+  call register_model(model%model_id)
 
   ! Read the dycore option, then read the rest of the configuration with the
   !  config reader for that dycore

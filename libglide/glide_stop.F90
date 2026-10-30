@@ -30,44 +30,14 @@
 
 module glide_stop
 
-  use glide_model_registry, only : get_num_models, registered_models, deregister_model
+  use glimmer_model_registry, only : deregister_model
 
   implicit none
 
   !> module containing finalisation of glide
   !> this subroutine had to be split out from glide.f90 to avoid circular dependencies
 
-  !> Updated by Tim Bocek to allow for several models to be
-  !> registered and finalized with a single call without needing
-  !> the model at call time
-
 contains
-
-  !Note: Currently, glide_finalise_all is never called.
-  !      glide_finalise is called from cism_driver and glissade)
-
-  subroutine glide_finalise_all(forcewrite_arg)
-
-    !> Finalises all models in the model registry
-    logical, optional, intent(in) :: forcewrite_arg
-
-    logical :: forcewrite         !> if true, then force a write to output files
-    integer :: i
-
-    forcewrite = .false.
-
-    if (present(forcewrite_arg)) then
-        forcewrite = forcewrite_arg
-    end if
-
-    do i = 1, get_num_models()
-        if (associated(registered_models(i)%p)) then
-           call glide_finalise(registered_models(i)%p, forcewrite_arg=forcewrite)
-        end if
-    end do
-
-  end subroutine glide_finalise_all
-
 
   subroutine glide_finalise(model,forcewrite_arg)
 
@@ -103,7 +73,7 @@ contains
     call closeall_out(model%funits)
 
     call glide_deallocarr(model)
-    call deregister_model(model)
+    call deregister_model(model%model_id)
 
     ! write some statistics
     call write_log('Some Stats')

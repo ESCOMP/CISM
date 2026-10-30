@@ -43,7 +43,7 @@ module glad_main
   use glimmer_filenames, only : process_path
   use glad_input_averages, only : get_av_start_time, accumulate_averages, &
        calculate_averages, reset_glad_input_averages, averages_okay_to_restart
-  use glide_model_registry, only : set_max_models, check_num_models
+  use glimmer_model_registry, only : set_max_models, check_num_models
   use glimmer_paramets, only: iulog, GLC_DEBUG, unphys_val
   use cism_parallel, only: main_task, this_rank
 
