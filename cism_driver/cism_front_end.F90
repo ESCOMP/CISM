@@ -47,6 +47,7 @@ subroutine cism_init_dycore(model)
   use glimmer_log
   use glimmer_config
   use glide_nc_custom, only: glide_nc_fillall
+  use glissade_nc_custom, only: glissade_nc_fillall
   use glimmer_commandline
   use glimmer_writestats
   use glimmer_filenames, only : filenames_init
@@ -136,7 +137,11 @@ subroutine cism_init_dycore(model)
   call CheckSections(config)
 
   ! fill dimension variables on output files
-  call glide_nc_fillall(model)
+  if (model%options%whichdycore == DYCORE_GLIDE) then
+     call glide_nc_fillall(model)
+  else
+     call glissade_nc_fillall(model)
+  endif
 
   time = model%numerics%tstart
   model%numerics%time = time    ! MJH added 1/10/13 - the initial diagnostic glissade solve won't know 

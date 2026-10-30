@@ -21,6 +21,8 @@ datatype: glide_global_type
 datamod:  glissade_types
 # path to parallel derived type
 datapath: data
+# dycore prefix of the model type (DYCORE_PREFIX_global_type) and nc_custom module used
+dycore_prefix: glissade
 
 [x0]
 dimensions:    x0
