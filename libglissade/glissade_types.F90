@@ -30,10 +30,13 @@ module glissade_types
   !
   ! For now, this module re-exports everything in glide_types, so that
   !  libglissade modules can use glissade_types instead of glide_types.
+  ! It also makes glide_global_type available as glissade_global_type, the
+  !  name used by Glissade-specific code generated from ncdf_template.F90.in.
   ! The Glissade types will be defined here when Glissade gets its own
   !  model instance type.
 
   use glide_types
+  use glide_types, only: glide_global_type, glissade_global_type => glide_global_type
 
   implicit none
 

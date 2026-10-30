@@ -65,7 +65,7 @@ contains
     use glad_io          , only: glad_io_createall     , glad_io_writeall
     use glad_mbal_io     , only: glad_mbal_io_createall, glad_mbal_io_writeall
     use glimmer_ncio
-    use glide_nc_custom   , only: glide_nc_fillall
+    use glissade_nc_custom, only: glissade_nc_fillall
     use glimmer_model_registry, only : register_model
     use glide
     use glissade
@@ -179,8 +179,8 @@ contains
     call glad_mbal_io_createall(instance%model, data=instance, outfiles=instance%out_first)
 
     ! fill dimension variables
-    call glide_nc_fillall(instance%model)
-    call glide_nc_fillall(instance%model, outfiles=instance%out_first)
+    call glissade_nc_fillall(instance%model)
+    call glissade_nc_fillall(instance%model, outfiles=instance%out_first)
 
     ! Check we've used all the config sections
 
