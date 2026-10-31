@@ -43,9 +43,6 @@ module glissade_types
   !> Note that this \emph{is} now where the defaults are defined for these
   !> variables.
 
-!TODO - Clean up the glissade_global type so it holds fewer subtypes?
-!       For example, we could replace some work types (tempwk, velowk) with local arrays and parameters.
-
   use glimmer_global, only: sp, dp, fname_length
   use glimmer_physcon, only: rhoi, rhoo, coni
   use glimmer_paramets, only: unphys_val
@@ -2536,75 +2533,6 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_velowk_type
-    real(dp),dimension(:),  pointer :: depth    => null()
-    real(dp),dimension(:),  pointer :: dupsw    => null()
-    real(dp),dimension(:),  pointer :: depthw   => null()
-    real(dp),dimension(:),  pointer :: suvel    => null()
-    real(dp),dimension(:),  pointer :: svvel    => null()
-    real(dp),dimension(:,:),pointer :: fslip    => null()
-    real(dp),dimension(:,:),pointer :: dintflwa => null()
-    real(dp),dimension(:),  pointer :: dups     => null()
-    real(dp),dimension(4) :: fact
-    real(dp),dimension(4) :: c = 0.d0
-    real(dp) :: watwd  = 3.0d0
-    real(dp) :: watct  = 10.0d0
-!!    real(dp) :: trc0   = 0.d0
-    real(dp) :: trcmin = 0.0d0
-    real(dp) :: marine = 1.0d0
-    real(dp) :: trcmax = 10.0d0
-  end type glissade_velowk_type
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-  type glissade_thckwk_type
-     real(dp),dimension(:,:),  pointer :: oldthck   => null()
-     real(dp),dimension(:,:),  pointer :: oldthck2  => null()
-     real(dp),dimension(:,:,:),pointer :: olds      => null()
-     integer  :: nwhich  = 2
-     real(dp) :: oldtime = 0.d0
-     
-     ! next four are for ADI evolution only
-     real(dp), dimension(:), pointer :: alpha => null()
-     real(dp), dimension(:), pointer :: beta  => null()
-     real(dp), dimension(:), pointer :: gamma => null()
-     real(dp), dimension(:), pointer :: delta => null()
-
-  end type glissade_thckwk_type
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-  type glissade_tempwk_type
-    real(dp),dimension(:,:,:),pointer :: inittemp => null()
-    real(dp),dimension(:,:,:),pointer :: compheat => null()
-    real(dp),dimension(:,:,:),pointer :: initadvt => null()
-    real(dp),dimension(:),    pointer :: dupa     => null()
-    real(dp),dimension(:),    pointer :: dupb     => null()
-    real(dp),dimension(:),    pointer :: dupc     => null()
-    real(dp),dimension(:),    pointer :: c1       => null()
-    real(dp),dimension(:,:),  pointer :: dups     => null()
-    real(dp),dimension(:,:),  pointer :: wphi     => null()
-    real(dp),dimension(:,:),  pointer :: smth     => null()
-    real(dp),dimension(:,:,:),pointer :: hadv_u   => null()
-    real(dp),dimension(:,:,:),pointer :: hadv_v   => null()
-
-    !*sfp** added space to the next 2 (cons, f) for use w/ HO and SSA dissip. calc. 
-    real(dp),dimension(5)             :: cons     = 0.d0
-    real(dp),dimension(5)             :: f        = 0.d0
-    real(dp),dimension(8)             :: c        = 0.d0
-    real(dp),dimension(2)             :: slide_f
-    real(dp) :: noflow      = -1
-    real(dp),dimension(2) :: advconst = 0.d0
-    real(dp) :: zbed        = 0.d0
-    real(dp) :: dupn        = 0.d0
-    real(dp) :: wmax        = 0.d0
-    real(dp) :: dt_wat      = 0.d0
-    real(dp) :: watvel      = 0.d0
-    integer  :: nwat        = 0
-  end type glissade_tempwk_type
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
   !TODO - Move these parameters to types associated with a certain kind of physics
   !TODO - Change default geot to 0.0, so that idealized tests by default have no mass loss
   type glissade_paramets_type
@@ -2650,78 +2578,6 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  !TODO - Remove the basalproc type?  Not currently used.
-!!  type glissade_basalproc_type
-    !Tuneables, set in the config file 
-!    real(dp):: fric=0.45d0                   ! Till coeff of internal friction: ND
-!    real(dp):: etillo=0.7d0                  ! Till void ratio at No
-!    real(dp):: No=1000.d0                    ! Reference value of till effective stress
-!    real(dp):: Comp=0.12d0                   ! Till coeff of compressibility: ND
-!    real(dp):: Cv = 1.0d-8                   ! Till hydraulic diffusivity: m2/s
-!    real(dp):: Kh = 1.0d-10                  !Till hydraulic conductivity: m/s
-!    real(dp):: Zs = 3.0d0                    ! Solid till thickness: m
-!    real(dp):: aconst=994000000d0            ! Constant in till strength eq. (Pa)
-!    real(dp):: bconst=21.7d0                 ! Constant in till strength eq. (ND)
-!    integer:: till_hot = 0
-!    integer:: tnodes = 5
-
-!    real(dp), dimension (:) , pointer :: till_dz => null()  !holds inital till layer spacing - 
-    
-    !Model variables that will be passed to other subroutines
-!    real(dp),dimension(:,:)  ,pointer :: Hwater  => null() !Water available from till layer (m)
-    !Model variables necessary for restart
-!    real(dp),dimension(:,:,:)  ,pointer :: u => null()     !Till excess pore pressure (Pa)
-!    real(dp),dimension(:,:,:)  ,pointer :: etill  => null()  !Till void ratio (ND)  
-    
-!  end type glissade_basalproc_type
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-  type glissade_prof_type
-     integer :: geomderv
-     integer :: hvelos
-     integer :: ice_mask1
-     integer :: temperature
-     integer :: ice_evo
-     integer :: ice_mask2
-     integer :: isos_water
-     integer :: isos
-  end type glissade_prof_type
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-!TODO - Remove the glissade_phaml_type type?  Commented out for now
-!!  type glissade_phaml_type
-!!    real(dp),dimension(:,:),pointer :: uphaml => null()
-!!    real(dp),dimension(:,:),pointer :: init_phaml => null()
-!!    real(dp),dimension(:,:),pointer :: rs_phaml => null()
-!!    !maybe put the x/y vectors here too just for simplicity
-!!  end type glissade_phaml_type
-  
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-  ! for the Glide thickness solver
-  type, public :: glissade_solver_type
-
-    integer ,dimension(:,:) ,allocatable :: ui 
-    integer ,dimension(:,:) ,allocatable :: um 
-    real(dp) ,dimension(:,:) ,allocatable :: d2thckcross
-    real(dp) ,dimension(:,:) ,allocatable :: d2usrfcross
-    integer ,dimension(2) :: pcgsize
-    integer ,dimension(:) ,allocatable :: gxf
-    real(dp)  :: L2norm
-    type(sparse_matrix_type)  :: matrix
-    type(sparse_matrix_type)  :: matrixA
-    type(sparse_matrix_type)  :: matrixC
-    real(dp),dimension(:),pointer :: rhsd    => null()
-    real(dp),dimension(:),pointer :: answ    => null()
-    integer :: ct     = 0
-
-    !TODO - KJE - Remove ewn/nsn from glissade_solver_type type once new glissade_global_type is working and we can use those ewn/nsn
-    integer :: ewn
-    integer :: nsn
-
-  end type glissade_solver_type
 
        
   type glissade_global_type    ! type containing all of the above for an ice sheet model instance
@@ -2748,18 +2604,11 @@ module glissade_types
     type(glissade_lithot_type)  :: lithot
     type(glimmer_funits) :: funits
     type(glissade_numerics_type) :: numerics
-    type(glissade_velowk_type)   :: velowk
-    type(glissade_thckwk_type)   :: thckwk
-    type(glissade_tempwk_type)   :: tempwk
     type(glissade_paramets_type) :: paramets
     type(glimmap_proj)   :: projection
     type(profile_type)   :: profile
-    type(glissade_prof_type):: glissade_prof
     type(isostasy_type)  :: isostasy
-    type(glissade_solver_type):: solver_data
     type(parallel_type)  :: parallel  !WHL - new derived type to hold information about parallel communication
-!!    type(glissade_basalproc_type):: basalproc
-!!    type(glissade_phaml_type)    :: phaml
 
   end type glissade_global_type
 
@@ -2891,11 +2740,6 @@ contains
     !> \item \texttt{lower_cell_temp(ewn,nsn))}
     !> \end{itemize}
 
-    !> In \texttt{model\%thckwk}:
-    !> \begin{itemize}
-    !> \item \texttt{olds(ewn,nsn,thckwk\%nwhich))}
-    !> \end{itemize}
-
     !> In \texttt{model\%numerics}:
     !> \begin{itemize}
     !> \item \texttt{sigma(upn))}
@@ -2908,7 +2752,6 @@ contains
 
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
-    use glimmer_sparse_type, only: new_sparse_matrix
 
     implicit none
 
@@ -2964,26 +2807,17 @@ contains
 
     ! temperature arrays
 
-    !NOTE: In the glide dycore (whichdycore = DYCORE_GLIDE), the temperature and 
-    !       flow factor live on the unstaggered vertical grid, and extra rows and columns 
-    !       (with indices 0:ewn+1, 0:nsn+1) are needed.
-    !      In the Glissade dycore, the temperature and flow factor live on
+    !NOTE: The temperature and flow factor live on
     !       the staggered vertical grid, with temp and flwa defined at the
     !       center of each layer k = 1:upn-1.  The temperature (but not flwa)
     !       is defined at the upper surface (k = 0) and lower surface (k = upn).
 
-    if (model%options%whichdycore == DYCORE_GLIDE) then
-       allocate(model%temper%temp(upn,0:ewn+1,0:nsn+1))
-       call coordsystem_allocate(model%general%ice_grid, upn, model%temper%flwa)
-       call coordsystem_allocate(model%general%ice_grid, upn, model%temper%dissip)
-    else    ! glissade dycore
-       allocate(model%temper%temp(0:upn,1:ewn,1:nsn))
-       ! tempunstag has the same horizontal grid as the glissade temp, but a
-       ! vertical axis like the glide temp
-       allocate(model%temper%tempunstag(upn,1:ewn,1:nsn))
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%flwa)
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%dissip)
-    endif
+    allocate(model%temper%temp(0:upn,1:ewn,1:nsn))
+    ! tempunstag has the same horizontal grid as temp, but is defined
+    ! on the unstaggered vertical grid (levels 1:upn)
+    allocate(model%temper%tempunstag(upn,1:ewn,1:nsn))
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%flwa)
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%dissip)
 
     ! MJH - Set temp and flwa to physically unrealistic values so we can tell later if 
     !       arrays were initialized correctly
@@ -3013,17 +2847,15 @@ contains
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%grad_head)
     endif
 
-    if (model%options%whichdycore == DYCORE_GLISSADE) then   ! glissade only
-       call coordsystem_allocate(model%general%ice_grid, model%temper%bfricflx)
-       call coordsystem_allocate(model%general%ice_grid, model%temper%bhydroflx)
-       call coordsystem_allocate(model%general%ice_grid, model%temper%lcondflx)
-       call coordsystem_allocate(model%general%ice_grid, model%temper%dissipcol)
-       ! water fraction and enthalpy live at the midpoint of each layer (with temp and flwa)
-       ! enthalpy (like temp) is defined at the upper and lower surfaces as well
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%waterfrac)
-       allocate(model%temper%enthalpy(0:upn,1:ewn,1:nsn))
-       model%temper%enthalpy(:,:,:) = 0.d0
-    endif
+    call coordsystem_allocate(model%general%ice_grid, model%temper%bfricflx)
+    call coordsystem_allocate(model%general%ice_grid, model%temper%bhydroflx)
+    call coordsystem_allocate(model%general%ice_grid, model%temper%lcondflx)
+    call coordsystem_allocate(model%general%ice_grid, model%temper%dissipcol)
+    ! water fraction and enthalpy live at the midpoint of each layer (with temp and flwa)
+    ! enthalpy (like temp) is defined at the upper and lower surfaces as well
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%waterfrac)
+    allocate(model%temper%enthalpy(0:upn,1:ewn,1:nsn))
+    model%temper%enthalpy(:,:,:) = 0.d0
 
     ! velocity arrays
 
@@ -3053,57 +2885,43 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%velocity%uvel_2d_extend)
     call coordsystem_allocate(model%general%ice_grid,  model%velocity%vvel_2d_extend)
 
-    if (model%options%whichdycore == DYCORE_GLIDE) then
-       call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%wgrd)
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%ubas)
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%vbas)
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%diffu)
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%diffu_x)
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%diffu_y)
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%total_diffu)
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%tau_x)
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%tau_y)
-    else   ! glissade dycore
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%beta)
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%beta_internal)
-       call coordsystem_allocate(model%general%ice_grid, model%velocity%unstagbeta)
-       ! Set beta and unstagbeta to physically unrealistic values so we can tell later 
-       ! if these fields were read correctly from an input file
-       model%velocity%beta(:,:) = unphys_val   ! large negative number
-       model%velocity%unstagbeta(:,:) = unphys_val
+    call coordsystem_allocate(model%general%velo_grid, model%velocity%beta)
+    call coordsystem_allocate(model%general%velo_grid, model%velocity%beta_internal)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%unstagbeta)
+    ! Set beta and unstagbeta to physically unrealistic values so we can tell later 
+    ! if these fields were read correctly from an input file
+    model%velocity%beta(:,:) = unphys_val   ! large negative number
+    model%velocity%unstagbeta(:,:) = unphys_val
 
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%kinbcmask)
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%umask_no_penetration)
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%vmask_no_penetration)
-       call coordsystem_allocate(model%general%ice_grid, model%velocity%divu)
-       call coordsystem_allocate(model%general%ice_grid, model%velocity%shear)
-    endif
+    call coordsystem_allocate(model%general%velo_grid, model%velocity%kinbcmask)
+    call coordsystem_allocate(model%general%velo_grid, model%velocity%umask_no_penetration)
+    call coordsystem_allocate(model%general%velo_grid, model%velocity%vmask_no_penetration)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%divu)
+    call coordsystem_allocate(model%general%ice_grid, model%velocity%shear)
 
     ! higher-order stress arrays
 
-    if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glissade dycore
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%efvs)
-       call coordsystem_allocate(model%general%ice_grid, model%stress%efvs_vertavg)
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%scalar) 
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xz)
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%yz)
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xx)
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%yy)
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xy)
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%scalar) 
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xz)
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%yz)
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xx)
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%yy)
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xy)
-       call coordsystem_allocate(model%general%velo_grid, model%stress%btractx)
-       call coordsystem_allocate(model%general%velo_grid, model%stress%btracty)
-       call coordsystem_allocate(model%general%velo_grid, model%stress%btract)
-       call coordsystem_allocate(model%general%ice_grid, model%stress%btractx_extend)
-       call coordsystem_allocate(model%general%ice_grid, model%stress%btracty_extend)
-       call coordsystem_allocate(model%general%velo_grid, model%stress%taudx)
-       call coordsystem_allocate(model%general%velo_grid, model%stress%taudy)
-    endif
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%efvs)
+    call coordsystem_allocate(model%general%ice_grid, model%stress%efvs_vertavg)
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%scalar) 
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xz)
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%yz)
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xx)
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%yy)
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xy)
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%scalar) 
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xz)
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%yz)
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xx)
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%yy)
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xy)
+    call coordsystem_allocate(model%general%velo_grid, model%stress%btractx)
+    call coordsystem_allocate(model%general%velo_grid, model%stress%btracty)
+    call coordsystem_allocate(model%general%velo_grid, model%stress%btract)
+    call coordsystem_allocate(model%general%ice_grid, model%stress%btractx_extend)
+    call coordsystem_allocate(model%general%ice_grid, model%stress%btracty_extend)
+    call coordsystem_allocate(model%general%velo_grid, model%stress%taudx)
+    call coordsystem_allocate(model%general%velo_grid, model%stress%taudy)
 
     ! geometry arrays
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thck)
@@ -3158,44 +2976,34 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%mass_flux%gl_flux)
     call coordsystem_allocate(model%general%ice_grid, model%mass_flux%gl_flux_tavg)
 
-    if (model%options%whichdycore == DYCORE_GLIDE) then
-       call coordsystem_allocate(model%general%ice_grid, model%geometry%thck_index)
-       call coordsystem_allocate(model%general%ice_grid,  model%geomderv%dthckdtm)
-       call coordsystem_allocate(model%general%ice_grid,  model%geomderv%dusrfdtm)
-       allocate(model%thckwk%olds(ewn,nsn,model%thckwk%nwhich))
-       model%thckwk%olds = 0.0d0
-       call coordsystem_allocate(model%general%ice_grid, model%thckwk%oldthck)
-       call coordsystem_allocate(model%general%ice_grid, model%thckwk%oldthck2)
-    else   ! glissade dycore
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%geometry%ice_age)
-       call coordsystem_allocate(model%general%ice_grid,  model%geometry%thck_old)
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc_obs)
-       call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc)
-       call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
-       call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
-       call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_ground_cell)
-       call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdew)
-       call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdns)
-       call coordsystem_allocate(model%general%velo_grid, model%geomderv%staglsrf)
-       call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagusrf)
-       call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagtopg)
+    call coordsystem_allocate(model%general%ice_grid, upn-1, model%geometry%ice_age)
+    call coordsystem_allocate(model%general%ice_grid,  model%geometry%thck_old)
+    call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc_obs)
+    call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc)
+    call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
+    call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
+    call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_ground_cell)
+    call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdew)
+    call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdns)
+    call coordsystem_allocate(model%general%velo_grid, model%geomderv%staglsrf)
+    call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagusrf)
+    call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagtopg)
 
-       ! Basal Physics
-       !WHL - Since the number of basal BC options has proliferated, simplify the logic by allocating the following arrays
-       !      whenever running glissade
+    ! Basal Physics
+    !WHL - Since the number of basal BC options has proliferated, simplify the logic by allocating the following arrays
+    !      whenever running glissade
 !!       if ( (model%options%which_ho_babc == HO_BABC_POWERLAW) .or. &
 !!            (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) .or. &
 !!            (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF) .or. &
 !!            (model%options%whichbwat == BWATER_OCEAN_PENETRATION)     ) then
-       call coordsystem_allocate(model%general%velo_grid, model%basal_physics%bpmp_mask)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
-       call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
-       call coordsystem_allocate(model%general%velo_grid, model%basal_physics%tau_c)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%c_space_factor)
-       call coordsystem_allocate(model%general%velo_grid, model%basal_physics%c_space_factor_stag)
-       call coordsystem_allocate(model%general%velo_grid, model%basal_physics%mintauf)
+    call coordsystem_allocate(model%general%velo_grid, model%basal_physics%bpmp_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
+    call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
+    call coordsystem_allocate(model%general%velo_grid, model%basal_physics%tau_c)
+    call coordsystem_allocate(model%general%ice_grid, model%basal_physics%c_space_factor)
+    call coordsystem_allocate(model%general%velo_grid, model%basal_physics%c_space_factor_stag)
+    call coordsystem_allocate(model%general%velo_grid, model%basal_physics%mintauf)
 !!       endif
-    endif  ! glissade
 
     ! bmlt arrays
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt)
@@ -3203,26 +3011,24 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_tavg)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_ground)
 
-    if (model%options%whichdycore == DYCORE_GLISSADE) then
-       call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_anomaly)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_melt%warm_ocean_mask)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_target)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_melt%thermal_forcing_mask)
-       ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
-       call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
-                                 model%ocean_data%thermal_forcing)
-       call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
-       call coordsystem_allocate(model%general%ice_grid, model%ocean_data%bmb_float)
-       call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
-       allocate(model%ocean_data%deltaT_ocn_basin(model%ocean_data%nbasin))
-       if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
-          call coordsystem_allocate(model%general%ice_grid, model%plume%T_ambient)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
-       endif
-    endif  ! Glissade
+    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)
+    call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float)
+    call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_anomaly)
+    call coordsystem_allocate(model%general%ice_grid, model%basal_melt%warm_ocean_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_target)
+    call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
+    call coordsystem_allocate(model%general%ice_grid, model%basal_melt%thermal_forcing_mask)
+    ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
+    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+                              model%ocean_data%thermal_forcing)
+    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
+    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%bmb_float)
+    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
+    allocate(model%ocean_data%deltaT_ocn_basin(model%ocean_data%nbasin))
+    if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
+       call coordsystem_allocate(model%general%ice_grid, model%plume%T_ambient)
+       call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
+    endif
 
     ! glacier options (Glissade only)
     if (model%options%enable_glaciers) then
@@ -3413,12 +3219,6 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_front_mask)
     endif
 
-    ! matrix solver arrays
-    allocate (model%solver_data%rhsd(ewn*nsn))
-    allocate (model%solver_data%answ(ewn*nsn))
-
-    call new_sparse_matrix(ewn*nsn, 5*ewn*nsn, model%solver_data%matrix)
-
     !TODO - In model%lithot%temp, put the vertical index 3rd as in model%temper%temp?
 
     ! lithosphere arrays
@@ -3436,29 +3236,6 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load)
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load_factors)
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%tau_relax)
-    endif
-
-    ! The remaining arrays are not currently used
-    ! phaml arrays
-!!    call coordsystem_allocate(model%general%ice_grid, model%phaml%init_phaml)
-!!    call coordsystem_allocate(model%general%ice_grid, model%phaml%rs_phaml)
-!!    call coordsystem_allocate(model%general%ice_grid, model%phaml%uphaml)
-
-    ! grounding line arrays (not currently supported)
-
-!!    if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glissade dycore
-!!       allocate (model%ground%gl_ew(ewn-1,nsn))
-!!       allocate (model%ground%gl_ns(ewn,nsn-1))
-!!       allocate (model%ground%gline_flux(ewn,nsn)) 
-!!    endif
-
-    ! basal process arrays
-    ! not currently supported
-
-    if (model%options%whichdycore /= DYCORE_GLIDE) then   ! glissade dycore
-!!       call coordsystem_allocate(model%general%ice_grid, model%basalproc%Hwater)
-!!       allocate(model%basalproc%u (ewn-1,nsn-1,model%basalproc%tnodes)); model%basalproc%u=41.0d3
-!!       allocate(model%basalproc%etill (ewn-1,nsn-1,model%basalproc%tnodes));model%basalproc%etill=0.5d0
     endif
 
   end subroutine glissade_allocarr
@@ -3971,12 +3748,6 @@ contains
         deallocate(model%geomderv%dthckdtm)
     if (associated(model%geomderv%dusrfdtm)) &
         deallocate(model%geomderv%dusrfdtm)
-    if (associated(model%thckwk%olds)) &
-        deallocate(model%thckwk%olds)
-    if (associated(model%thckwk%oldthck)) &
-        deallocate(model%thckwk%oldthck)
-    if (associated(model%thckwk%oldthck2)) &
-        deallocate(model%thckwk%oldthck2)
 
     if (associated(model%geometry%ice_age)) &
         deallocate(model%geometry%ice_age)
@@ -4116,13 +3887,6 @@ contains
     if (associated(model%lateral_melt%melt_front_mask)) &
         deallocate(model%lateral_melt%melt_front_mask)
 
-    ! matrix solver arrays
-
-    if (associated(model%solver_data%rhsd))  &  
-        deallocate(model%solver_data%rhsd)
-    if (associated(model%solver_data%answ))  &
-        deallocate(model%solver_data%answ)
-
     ! lithosphere arrays
 
     if (associated(model%lithot%temp)) &
@@ -4147,35 +3911,6 @@ contains
           deallocate(model%projection%stere%area_factor)
        endif
     endif
-
-    ! The remaining arrays are not currently used
-    ! phaml arrays
-
-!!    if (associated(model%phaml%init_phaml)) &
-!!       deallocate(model%phaml%init_phaml)
-!!    if (associated(model%phaml%rs_phaml)) &
-!!       deallocate(model%phaml%rs_phaml)    
-!!    if (associated(model%phaml%uphaml)) &
-!!       deallocate(model%phaml%uphaml)
-
-    ! grounding line arrays (not currently supported)
-
-!!    if (associated(model%ground%gl_ns)) &
-!!        deallocate(model%ground%gl_ns)
-!!    if (associated(model%ground%gl_ew)) &
-!!        deallocate(model%ground%gl_ew)
-!!    if (associated(model%ground%gline_flux)) &
-!!        deallocate(model%ground%gline_flux)
-
-    ! basal process arrays
-    ! not currently supported
-
-!!    if (associated(model%basalproc%Hwater)) &
-!!       deallocate(model%basalproc%Hwater)
-!!    if (associated(model%basalproc%u)) &
-!!       deallocate(model%basalproc%u)
-!!    if (associated(model%basalproc%etill)) &
-!!       deallocate(model%basalproc%etill)
 
   end subroutine glissade_deallocarr
 
