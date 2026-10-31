@@ -576,121 +576,117 @@
 
     endif   ! nbasin > 1
 
-    ! For Glissade only, compute a global mass budget and check mass conservation
+    ! Compute a global mass budget and check mass conservation
 
-    if (model%options%whichdycore == DYCORE_GLISSADE) then
+    ! total surface accumulation/ablation rate (m^3/yr ice)
+    tot_acab = parallel_global_sum(model%climate%acab_applied*cell_area, parallel)
+    tot_acab = tot_acab * scyr                ! convert from m^3/s to m^3/yr
 
-       ! total surface accumulation/ablation rate (m^3/yr ice)
-       tot_acab = parallel_global_sum(model%climate%acab_applied*cell_area, parallel)
-       tot_acab = tot_acab * scyr                ! convert from m^3/s to m^3/yr
+    ! total surface mass balance flux (kg/s)
+    tot_smb_flux = tot_acab * rhoi / scyr     ! convert m^3/yr to kg/s
 
-       ! total surface mass balance flux (kg/s)
-       tot_smb_flux = tot_acab * rhoi / scyr     ! convert m^3/yr to kg/s
+    ! mean accumulation/ablation rate (m/yr)
+    ! Note: This will be only approximate if some ice has melted completely during the time step
+    if (tot_area > eps) then
+       mean_acab = tot_acab/tot_area    ! divide by total area to get m/yr
+    else
+       mean_acab = 0.d0
+    endif
 
-       ! mean accumulation/ablation rate (m/yr)
-       ! Note: This will be only approximate if some ice has melted completely during the time step
-       if (tot_area > eps) then
-          mean_acab = tot_acab/tot_area    ! divide by total area to get m/yr
-       else
-          mean_acab = 0.d0
-       endif
+    ! total basal melting rate (positive for ice loss)
+    tot_bmlt = parallel_global_sum(model%basal_melt%bmlt_applied*cell_area, parallel)
+    tot_bmlt = tot_bmlt * scyr                ! convert from m^3/s to m^3/yr
 
-       ! total basal melting rate (positive for ice loss)
-       tot_bmlt = parallel_global_sum(model%basal_melt%bmlt_applied*cell_area, parallel)
-       tot_bmlt = tot_bmlt * scyr                ! convert from m^3/s to m^3/yr
+    ! total basal mass balance (kg/s, positive for freeze-on, negative for melt)
+    tot_bmb_flux = -tot_bmlt * rhoi / scyr   ! convert m^3/yr to kg/s
 
-       ! total basal mass balance (kg/s, positive for freeze-on, negative for melt)
-       tot_bmb_flux = -tot_bmlt * rhoi / scyr   ! convert m^3/yr to kg/s
+    ! mean basal melt rate (m/yr)
+    ! Note: This will be only approximate if some ice has melted completely during the time step
+    if (tot_area > eps) then
+       mean_bmlt = tot_bmlt/tot_area    ! divide by total area to get m/yr
+    else
+       mean_bmlt = 0.d0
+    endif
 
-       ! mean basal melt rate (m/yr)
-       ! Note: This will be only approximate if some ice has melted completely during the time step
-       if (tot_area > eps) then
-          mean_bmlt = tot_bmlt/tot_area    ! divide by total area to get m/yr
-       else
-          mean_bmlt = 0.d0
-       endif
+    ! total calving rate (m^3/yr ice)
+    ! Note: calving%calving_rate has units of m/yr ice
+    tot_calving = parallel_global_sum(model%calving%calving_rate*cell_area, parallel)
 
-       ! total calving rate (m^3/yr ice)
-       ! Note: calving%calving_rate has units of m/yr ice
-       tot_calving = parallel_global_sum(model%calving%calving_rate*cell_area, parallel)
+    ! total calving mass balance flux (kg/s, negative for ice loss by calving)
+    tot_calving_flux = -tot_calving * rhoi / scyr   ! convert m^3/yr to kg/s
 
-       ! total calving mass balance flux (kg/s, negative for ice loss by calving)
-       tot_calving_flux = -tot_calving * rhoi / scyr   ! convert m^3/yr to kg/s
+    ! mean calving rate (m/yr)
+    ! Note: This will be only approximate if some ice has calved completely during the time step
+    if (tot_area > eps) then
+       mean_calving = tot_calving/tot_area    ! divide by total area to get m/yr
+    else
+       mean_calving = 0.d0
+    endif
 
-       ! mean calving rate (m/yr)
-       ! Note: This will be only approximate if some ice has calved completely during the time step
-       if (tot_area > eps) then
-          mean_calving = tot_calving/tot_area    ! divide by total area to get m/yr
-       else
-          mean_calving = 0.d0
-       endif
+    ! total lateral melt rate (m^3/yr ice)
+    ! Note: latmelt_rate has units of m/yr ice
+    tot_latmelt = parallel_global_sum(model%lateral_melt%latmelt_rate*cell_area, parallel)
 
-       ! total lateral melt rate (m^3/yr ice)
-       ! Note: latmelt_rate has units of m/yr ice
-       tot_latmelt = parallel_global_sum(model%lateral_melt%latmelt_rate*cell_area, parallel)
+    ! total lateral melt mass balance flux (kg/s, negative for ice loss by melting)
+    tot_latmelt_flux = -tot_latmelt * rhoi/scyr    ! convert m^3/yr to kg/s
 
-       ! total lateral melt mass balance flux (kg/s, negative for ice loss by melting)
-       tot_latmelt_flux = -tot_latmelt * rhoi/scyr    ! convert m^3/yr to kg/s
+    ! mean lateral melt rate (m/yr)
+    ! Note: This will be only approximate if some ice has melted completely during the time step
+    if (tot_area > eps) then
+       mean_latmelt = tot_latmelt/tot_area    ! divide by total area to get m/yr
+    else
+       mean_latmelt = 0.d0
+    endif
 
-       ! mean lateral melt rate (m/yr)
-       ! Note: This will be only approximate if some ice has melted completely during the time step
-       if (tot_area > eps) then
-          mean_latmelt = tot_latmelt/tot_area    ! divide by total area to get m/yr
-       else
-          mean_latmelt = 0.d0
-       endif
+    ! total ice removal rate (m^3/yr ice)
+    ! Note: geometry%removal_rate has units of m/yr ice
+    tot_removal = parallel_global_sum(model%geometry%removal_rate*cell_area, parallel)
 
-       ! total ice removal rate (m^3/yr ice)
-       ! Note: geometry%removal_rate has units of m/yr ice
-       tot_removal = parallel_global_sum(model%geometry%removal_rate*cell_area, parallel)
+    ! total removal mass balance flux (kg/s, negative for ice removed)
+    tot_removal_flux = -tot_removal * rhoi / scyr   ! convert m^3/yr to kg/s
 
-       ! total removal mass balance flux (kg/s, negative for ice removed)
-       tot_removal_flux = -tot_removal * rhoi / scyr   ! convert m^3/yr to kg/s
+    ! mean removal rate (m/yr)
+    if (tot_area > eps) then
+       mean_removal = tot_removal/tot_area    ! divide by total area to get m/yr
+    else
+       mean_removal = 0.d0
+    endif
 
-       ! mean removal rate (m/yr)
-       if (tot_area > eps) then
-          mean_removal = tot_removal/tot_area    ! divide by total area to get m/yr
-       else
-          mean_removal = 0.d0
-       endif
+    ! total grounding line mass balance flux (< 0 by definition)
+    ! Note: At this point, gl_flux_east and gl_flux_north are already dimensionalized in kg/m/s,
+    !       so tot_gl_flux will have units of kg/s
+    tot_gl_flux = parallel_global_sum(abs(model%mass_flux%gl_flux_east)  * model%numerics%dns  &
+                                    + abs(model%mass_flux%gl_flux_north) * model%numerics%dew, &
+                                    parallel)
+    tot_gl_flux = (-1.0d0)*tot_gl_flux   ! negative by definition
 
-       ! total grounding line mass balance flux (< 0 by definition)
-       ! Note: At this point, gl_flux_east and gl_flux_north are already dimensionalized in kg/m/s,
-       !       so tot_gl_flux will have units of kg/s
-       tot_gl_flux = parallel_global_sum(abs(model%mass_flux%gl_flux_east)  * model%numerics%dns  &
-                                       + abs(model%mass_flux%gl_flux_north) * model%numerics%dew, &
-                                       parallel)
-       tot_gl_flux = (-1.0d0)*tot_gl_flux   ! negative by definition
+    ! total rate of change of ice mass (kg/s)
+    ! Note: dthck_dt has units of m/s
+    !TODO: Change this calculation to use the total mass of ice in the global domain
+    !       in successive time steps, instead of summing over dthck_dt.
+    !      Note that dthck_dt does not account for global outflow fluxes (i.e., removal of ice
+    !       near the global boundary in halo updates).
+    tot_dmass_dt = parallel_global_sum(model%geometry%dthck_dt*cell_area, parallel)
+    tot_dmass_dt = tot_dmass_dt * rhoi              ! convert to kg/s
 
-       ! total rate of change of ice mass (kg/s)
-       ! Note: dthck_dt has units of m/s
-       !TODO: Change this calculation to use the total mass of ice in the global domain
-       !       in successive time steps, instead of summing over dthck_dt.
-       !      Note that dthck_dt does not account for global outflow fluxes (i.e., removal of ice
-       !       near the global boundary in halo updates).
-       tot_dmass_dt = parallel_global_sum(model%geometry%dthck_dt*cell_area, parallel)
-       tot_dmass_dt = tot_dmass_dt * rhoi              ! convert to kg/s
+    ! mass conservation error
+    ! Note: For most runs, this should be close to zero.
 
-       ! mass conservation error
-       ! Note: For most runs, this should be close to zero.
+    err_dmass_dt = tot_dmass_dt - &
+         (tot_smb_flux + tot_bmb_flux + tot_calving_flux + tot_latmelt_flux + tot_removal_flux)
 
-       err_dmass_dt = tot_dmass_dt - &
-            (tot_smb_flux + tot_bmb_flux + tot_calving_flux + tot_latmelt_flux + tot_removal_flux)
+    ! copy some global scalars to the mass_flux derived type
+    ! Note: These have SI units (e.g, m^2 for area, m^3 for volume)
+    model%mass_flux%total_smb_flux = tot_smb_flux
+    model%mass_flux%total_bmb_flux = tot_bmb_flux
+    model%mass_flux%total_calving_flux = tot_calving_flux
+    model%mass_flux%total_latmelt_flux = tot_latmelt_flux
+    model%mass_flux%total_removal_flux = tot_removal_flux
 
-       ! copy some global scalars to the mass_flux derived type
-       ! Note: These have SI units (e.g, m^2 for area, m^3 for volume)
-       model%mass_flux%total_smb_flux = tot_smb_flux
-       model%mass_flux%total_bmb_flux = tot_bmb_flux
-       model%mass_flux%total_calving_flux = tot_calving_flux
-       model%mass_flux%total_latmelt_flux = tot_latmelt_flux
-       model%mass_flux%total_removal_flux = tot_removal_flux
-
-       ! Note: The total mass budget consists of the five terms above.
-       !       The GL flux is not part of the mass budget, since any ice fluxed across the GL
-       !        is not added or lost, but simply changes from grounded to floating.
-       model%mass_flux%total_gl_flux = tot_gl_flux
-
-    endif  ! Glissade dycore
+    ! Note: The total mass budget consists of the five terms above.
+    !       The GL flux is not part of the mass budget, since any ice fluxed across the GL
+    !        is not added or lost, but simply changes from grounded to floating.
+    model%mass_flux%total_gl_flux = tot_gl_flux
 
     ! write global sums and means to log file
 
@@ -749,91 +745,89 @@
        call write_log(trim(message), type = GM_DIAGNOSTIC)
     endif
 
-    if (model%options%whichdycore == DYCORE_GLISSADE) then
+    if (model%options%dm_dt_diag == DM_DT_DIAG_KG_S) then
 
-       if (model%options%dm_dt_diag == DM_DT_DIAG_KG_S) then
+       write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-          write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
+       write(message,'(a25,e24.16)') 'Total BMB flux (kg/s)    ', tot_bmb_flux
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       if (abs(tot_latmelt_flux) > eps11) then
+          write(message,'(a25,e24.16)') 'Total latmelt flux (kg/s)', tot_latmelt_flux
           call write_log(trim(message), type = GM_DIAGNOSTIC)
+       endif
 
-          write(message,'(a25,e24.16)') 'Total BMB flux (kg/s)    ', tot_bmb_flux
+       if (abs(tot_removal_flux) > eps11) then
+          write(message,'(a25,e24.16)') 'Total removal flux (kg/s)', tot_removal_flux
           call write_log(trim(message), type = GM_DIAGNOSTIC)
+       endif
 
-          write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
+       if (tot_bmlt_float > eps11) then
+          write(message,'(a25,e24.16)') 'Total bmlt_float (kg/s)  ', tot_bmlt_float
           call write_log(trim(message), type = GM_DIAGNOSTIC)
+       endif
 
-          if (abs(tot_latmelt_flux) > eps11) then
-             write(message,'(a25,e24.16)') 'Total latmelt flux (kg/s)', tot_latmelt_flux
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          if (abs(tot_removal_flux) > eps11) then
-             write(message,'(a25,e24.16)') 'Total removal flux (kg/s)', tot_removal_flux
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          if (tot_bmlt_float > eps11) then
-             write(message,'(a25,e24.16)') 'Total bmlt_float (kg/s)  ', tot_bmlt_float
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          if (tot_bmlt_float_target > eps11) then
-             write(message,'(a25,e24.16)') 'Target bmlt_float (kg/s)', tot_bmlt_float_target
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          write(message,'(a25,e24.16)') 'Total dmass/dt (kg/s)    ', tot_dmass_dt
+       if (tot_bmlt_float_target > eps11) then
+          write(message,'(a25,e24.16)') 'Target bmlt_float (kg/s)', tot_bmlt_float_target
           call write_log(trim(message), type = GM_DIAGNOSTIC)
+       endif
 
-          write(message,'(a25,e24.16)') 'dmass/dt error (kg/s)    ', err_dmass_dt
+       write(message,'(a25,e24.16)') 'Total dmass/dt (kg/s)    ', tot_dmass_dt
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'dmass/dt error (kg/s)    ', err_dmass_dt
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_Y) then
+
+       factor = scyr / 1.0d12
+
+       write(message,'(a25,e24.16)') 'Total SMB flux (Gt/y)    ', tot_smb_flux * factor
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'Total BMB flux (Gt/y)    ', tot_bmb_flux * factor
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'Total calving flux (Gt/y)', tot_calving_flux * factor
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       if (abs(tot_latmelt_flux) > eps11) then
+          write(message,'(a25,e24.16)') 'Total latmelt flux (Gt/y)', tot_latmelt_flux * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
+       endif
 
-          write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
+       if (abs(tot_removal_flux) > eps11) then
+          write(message,'(a25,e24.16)') 'Total removal flux (Gt/y)', tot_removal_flux * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
+       endif
 
-       elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_Y) then
-
-          factor = scyr / 1.0d12
-
-          write(message,'(a25,e24.16)') 'Total SMB flux (Gt/y)    ', tot_smb_flux * factor
+       if (tot_bmlt_float > eps11) then
+          write(message,'(a25,e24.16)') 'Total bmlt_float (Gt/y)  ', tot_bmlt_float * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
+       endif
 
-          write(message,'(a25,e24.16)') 'Total BMB flux (Gt/y)    ', tot_bmb_flux * factor
+       if (tot_bmlt_float_target > eps11) then
+          write(message,'(a25,e24.16)') 'Target bmlt_float (Gt/y) ', tot_bmlt_float_target * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
+       endif
 
-          write(message,'(a25,e24.16)') 'Total calving flux (Gt/y)', tot_calving_flux * factor
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
+       write(message,'(a25,e24.16)') 'Total dmass/dt (Gt/y)    ', tot_dmass_dt * factor
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-          if (abs(tot_latmelt_flux) > eps11) then
-             write(message,'(a25,e24.16)') 'Total latmelt flux (Gt/y)', tot_latmelt_flux * factor
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
+       write(message,'(a25,e24.16)') 'dmass/dt error (Gt/y)    ', err_dmass_dt * factor
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-          if (abs(tot_removal_flux) > eps11) then
-             write(message,'(a25,e24.16)') 'Total removal flux (Gt/y)', tot_removal_flux * factor
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
+       write(message,'(a25,e24.16)') 'Total gr line flux (Gt/y)', tot_gl_flux * factor
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-          if (tot_bmlt_float > eps11) then
-             write(message,'(a25,e24.16)') 'Total bmlt_float (Gt/y)  ', tot_bmlt_float * factor
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          if (tot_bmlt_float_target > eps11) then
-             write(message,'(a25,e24.16)') 'Target bmlt_float (Gt/y) ', tot_bmlt_float_target * factor
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          write(message,'(a25,e24.16)') 'Total dmass/dt (Gt/y)    ', tot_dmass_dt * factor
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a25,e24.16)') 'dmass/dt error (Gt/y)    ', err_dmass_dt * factor
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a25,e24.16)') 'Total gr line flux (Gt/y)', tot_gl_flux * factor
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       endif   ! dm_dt_diag
+    endif   ! dm_dt_diag
 
 !       write(message,'(a25,e24.16)') 'Mean accum/ablat (m/yr)  ', mean_acab
 !       call write_log(trim(message), type = GM_DIAGNOSTIC)
@@ -849,8 +843,6 @@
 
 !       write(message,'(a25,e24.16)') 'Mean removal (m/yr)      ', mean_removal
 !       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-    endif  ! Glissade dycore
 
     write(message,'(a25,f24.16)') 'Mean thickness (m)       ', mean_thck
     call write_log(trim(message), type = GM_DIAGNOSTIC)
