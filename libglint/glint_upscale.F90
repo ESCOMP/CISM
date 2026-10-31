@@ -517,21 +517,15 @@ contains
                    * rhoi / model%numerics%dt
 
     !--------------------------------------------------------------------
-    ! Accumulate liquid runoff (basal melting and lateral/submarine melting)
-    ! Note: Lateral melt (glissade_lateral_melt) represents submarine melting at marine
-    !       ice fronts, which converts ice directly to liquid water, so it is added here
-    !       to the liquid runoff rather than to the solid ice runoff.
+    ! Accumulate liquid runoff (basal melting)
     !--------------------------------------------------------------------
     !TODO - Add internal melting for enthalpy case
 
     ! Note on units: model%basal_melt%bmlt has units of m/s ice
     !                Multiply by rhoi to convert to kg/m^2/s water equiv.
-    !                model%lateral_melt%latmelt_thck has units of m of ice;
-    !                multiply by rhoi and divide by dt to convert to kg/m^2/s.
 
     ! Convert to kg/m^2/s
-    rofl_tavg(:,:) = rofl_tavg(:,:)  + model%basal_melt%bmlt(:,:) * rhoi &
-                   + model%lateral_melt%latmelt_thck(:,:) * rhoi / model%numerics%dt
+    rofl_tavg(:,:) = rofl_tavg(:,:)  + model%basal_melt%bmlt(:,:) * rhoi
 
     !--------------------------------------------------------------------
     ! Accumulate basal heat flux

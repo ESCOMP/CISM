@@ -246,12 +246,6 @@ units:         meter
 long_name:     thickness of calving ice
 data:          data%calving%calving_thck
 
-[latmelt_thck]
-dimensions:    time, y1, x1
-units:         meter
-long_name:     thickness of ice melting laterally
-data:          data%lateral_melt%latmelt_thck
-
 [area_factor]
 dimensions:    time, y1, x1
 units:         unitless
@@ -401,13 +395,6 @@ dimensions:    time, y1, x1
 units:         meter
 long_name:     local basal water depth
 data:          data%basal_hydro%bwat
-load:          1
-
-[bwat_diag]
-dimensions:    time, y1, x1
-units:         meter
-long_name:     basal water depth diagnosed from flux routing
-data:          data%basal_hydro%bwat_diag
 load:          1
 
 [bwatflx]
