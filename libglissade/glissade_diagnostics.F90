@@ -40,7 +40,6 @@
     ! This module contains several subroutines for computing diagnostic quantities.
     ! Some are called at the end of each timestep, while others are called for specific MIPs,
     !  such as calvingMIP.
-    ! TODO: Move the contents of glide_diagnostics to this module.
 
     use glimmer_global, only: dp
     use glimmer_paramets, only: iulog, eps11
@@ -347,15 +346,8 @@
     cell_area = model%geometry%cell_area
 
 
-    if (uhalo > 0) then
-       velo_ns_ubound = nsn-uhalo
-       velo_ew_ubound = ewn-uhalo
-    else
-       ! for uhalo==0 (as is the case for the glide dycore), the velocity grid has one less
-       ! point than the main grid, so we need to subtract one to avoid out-of-bounds problems
-       velo_ns_ubound = nsn-uhalo-1
-       velo_ew_ubound = ewn-uhalo-1
-    end if
+    velo_ns_ubound = nsn-uhalo
+    velo_ew_ubound = ewn-uhalo
 
     ! Set the minimum ice thickness for including cells in diagnostics
     if (model%options%diag_minthck == DIAG_MINTHCK_ZERO) then

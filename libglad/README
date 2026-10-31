@@ -6,7 +6,7 @@ CISM. It is responsible for:
 (1) Handling time stepping and temporal averaging
 
 (2) Providing a simpler interface to the climate model, rather than requiring
-the climate model to make detailed calls to things like glide_tstep_p1, etc.
+the climate model to make detailed calls to the Glissade dycore (glissade_tstep, etc.).
 
 (3) Translating inputs and outputs into appropriate quantities
 

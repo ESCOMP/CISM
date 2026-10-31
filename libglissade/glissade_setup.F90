@@ -32,8 +32,7 @@ module glissade_setup
 
   ! general routines for initialisation, etc, called from top-level glimmer subroutines
   !
-  ! Glissade copy of glide_setup, used by the Glissade dycore and by GLAD.
-  ! For now this is a verbatim copy; Glide-only options will be removed later.
+  ! Configuration for the Glissade dycore, used in standalone runs and by GLAD.
 
   use glimmer_global, only: dp
   use glimmer_paramets, only : iulog
@@ -94,7 +93,7 @@ contains
     ! optionally, read zatm levels from config file, if present
     call glissade_get_zatm(model,config)
 
-    !WHL - Moved isostasy configuration to glide_setup
+    !WHL - Moved isostasy configuration to glissade_setup
 !    call isos_readconfig(model%isos,config)
 !    call isos_printconfig(model%isos)
 
@@ -3571,7 +3570,7 @@ contains
 
     ! Please comment thoroughly the reasons why a particular variable needs to be a restart variable for a given config.
     ! Note: This subroutine assumes that any restart variables you add are loadable.
-    !       Check glide_vars.def to make sure any added variables have 'load: 1'
+    !       Check glissade_vars.def to make sure any added variables have 'load: 1'
 
     use glissade_types
     use glissade_io, only: glissade_add_to_restart_variable_list
@@ -3605,7 +3604,7 @@ contains
     ! topg - needed to reconstruct all other geometry fields
     ! thk - prognostic variable
     ! temp - prognostic variable
-    ! Note: the conversion from temp/flwa to tempstag/flwastag (if necessary) happens in glide_io.F90
+    ! Note: the conversion from temp/flwa to tempstag/flwastag (if necessary) happens in glissade_io.F90
     ! bheatflx, artm, acab - boundary conditions.  Of course if these fields are 0 they don't need 
     !        to be in the restart file, but without adding a check for that we cannot assume any of them are.
     !        There are some options where artm would not be needed.  Logic could be added to make that distinction.

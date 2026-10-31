@@ -639,9 +639,9 @@ module glissade_types
     !> \item[1] Set thickness to zero if floating
     !> \item[2] Lose a fraction of floating ice at marine margin
     !> \item[3] Set thickness to zero if relaxed bedrock is more than a
-    !>          certain water depth (variable "marine_limit" in glide_types)  
+    !>          certain water depth (variable "marine_limit" in glissade_types)  
     !> \item[4] Set thickness to zero if present bedrock topography lies below
-    !>          a certain water depth (variable "marine_limit" in glide_types)  
+    !>          a certain water depth (variable "marine_limit" in glissade_types)  
     !> \item[5] Calve based on grid location using a prescribed mask
     !>          (field 'calving_mask' or 'subgrid_calving_mask')
     !> \item[6] Prescribe the rate of calving front advance or retreat
@@ -1616,10 +1616,8 @@ module glissade_types
 
     !> Holds fields relating to temperature.
 
-    !Note: In the Glide dycore, temp, flwa and dissip live on the unstaggered vertical grid
-    !       at layer interfaces and have vertical dimension (1:upn).
-    !      In the Glissade dycore, with remapping advection of temperature, 
-    !       temp, flwa and dissip live on the staggered vertical grid at layer midpoints.  
+    !Note: With remapping advection of temperature, temp, flwa and dissip live on the
+    !       staggered vertical grid at layer midpoints.
     !       The vertical dimensions are (0:upn) for temp and (1:upn-1) for flwa and dissip.
     !
     !      bheatflx and ucondflx are defined as positive down,
@@ -1727,9 +1725,6 @@ module glissade_types
   type glissade_basal_melt_type
 
      !> Holds fields and parameters relating to basal melting
-
-     !Note: In the Glide dycore, the only active field in this type is bmlt.
-     !      The other fields are used in Glissade only.
 
      ! bmlt fields for grounded and floating ice
 

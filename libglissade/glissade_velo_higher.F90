@@ -7013,7 +7013,7 @@
     case(HO_EFVS_CONSTANT)
 
        ! Steve Price recommends 10^6 to 10^7 Pa yr
-       ! ISMIP-HOM Test F requires 2336041.42829 Pa yr; this is the default value set in glide_types.F90
+       ! ISMIP-HOM Test F requires 2336041.42829 Pa yr; this is the default value set in glissade_types.F90
        efvs = efvs_constant
 
        if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest) then
@@ -7225,7 +7225,7 @@
     case(HO_EFVS_CONSTANT)
 
        ! Steve Price recommends 10^6 to 10^7 Pa yr
-       ! ISMIP-HOM Test F requires 2336041.42829 Pa yr; this is the default value set in glide_types.F90
+       ! ISMIP-HOM Test F requires 2336041.42829 Pa yr; this is the default value set in glissade_types.F90
        efvs(:) = efvs_constant
 
        if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest) then
@@ -7480,7 +7480,7 @@
     case(HO_EFVS_CONSTANT)
 
        ! Steve Price recommends 10^6 to 10^7 Pa yr
-       ! ISMIP-HOM Test F requires 2336041.42829 Pa yr; this is the default value set in glide_types.F90
+       ! ISMIP-HOM Test F requires 2336041.42829 Pa yr; this is the default value set in glissade_types.F90
        efvs(:) = efvs_constant
 
        if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest) then

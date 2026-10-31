@@ -40,7 +40,7 @@
   !
   ! However, the units are Pa if beta is treated as a till yield stress.
   !
-  ! See glide_types.F90 for the meaning of the various options.
+  ! See glissade_types.F90 for the meaning of the various options.
   !
   !-----------------------------------------------------------------------------
 
