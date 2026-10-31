@@ -209,4 +209,28 @@ contains
 
   end subroutine glissade_nc_filldvars
 
+  !-----------------------------------------------------------------------------
+
+  subroutine glissade_nc_set_custom_dims(nc, model)
+
+    ! Set the sizes of dimensions specific to Glissade, used when reading and writing
+    !  fields with these dimensions. Called from NAME_set_nc_dims in the generated I/O module.
+
+    use glissade_types
+    use glimmer_ncdf, only: glimmer_nc_stat
+    implicit none
+
+    type(glimmer_nc_stat), intent(inout) :: nc
+    type(glissade_global_type), intent(in) :: model
+
+    ! Note: The following dimension lengths are set to 1 by default,
+    !       but can be increased depending on the config options.
+    nc%nzocn = model%ocean_data%nzocn      ! vertical coordinate for ocean data
+    nc%nzatm = model%climate%nzatm         ! vertical coordinate for atmosphere data
+    nc%nglacier = model%glacier%nglacier   ! glacier ID coordinate for glacier data
+    nc%nbasin = model%ocean_data%nbasin    ! basin coordinate for basin data
+    nc%naxis = model%calving%naxis         ! coordinate for calvingMIP axis data
+
+  end subroutine glissade_nc_set_custom_dims
+
 end module glissade_nc_custom
