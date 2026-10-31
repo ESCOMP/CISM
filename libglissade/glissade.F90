@@ -730,14 +730,8 @@ contains
                              model%temper%temp,                                     & ! deg C
                              model%temper%tempunstag)                                 ! deg C
 
-    ! Dycore-specific velocity solver initialization
-    select case (model%options%whichdycore)
-
-    case ( DYCORE_GLISSADE )   ! glissade finite-element
-
-       call glissade_velo_higher_init
-
-    end select
+    ! Velocity solver initialization
+    call glissade_velo_higher_init
 
     !TODO - Add halo updates of state variables here?
 
@@ -2521,17 +2515,11 @@ contains
           call staggered_parallel_halo_extrapolate(model%basal_physics%mintauf, parallel)
        endif
 
-       ! Call the appropriate velocity solver
+       ! Call the velocity solver
 
-       select case (model%options%whichdycore)
-
-       case ( DYCORE_GLISSADE )   ! glissade finite-element
-
-          call t_startf('glissade_velo_driver')
-          call glissade_velo_driver(model)
-          call t_stopf('glissade_velo_driver')
-
-       end select
+       call t_startf('glissade_velo_driver')
+       call glissade_velo_driver(model)
+       call t_stopf('glissade_velo_driver')
 
        ! Compute internal heat dissipation
        ! This is used in the prognostic temperature calculation during the next time step.
