@@ -33,9 +33,9 @@ module isostasy
   !-------------------------------------------------------------------------
   ! Some notes on the isostasy calculation (WHL, May 2017; updated July 2026):
   !
-  ! The isostasy calculation has been parallelized since the original Glimmer release,
-  !  but otherwise the physical is similar. The most common configuration is ELRA =
-  !  elastic lithosphere, relaxing asthenosphere.
+  ! The isostasy calculation is similar to the one in the original Glimmer release.
+  ! Glide runs on a single task; Glissade has its own parallel isostasy modules.
+  ! The most common configuration is ELRA = elastic lithosphere, relaxing asthenosphere.
   !
   ! The following config settings are relevant to the isostasy.
   ! All of these are set in the [isostasy] section unless otherwise specified.
@@ -234,7 +234,6 @@ contains
             model%isostasy%rbel,  &
             load_factors,         &
             load,                 &
-            model%parallel,       &
             model%numerics%idiag, &
             model%numerics%jdiag, &
             itest, jtest, rtest)
