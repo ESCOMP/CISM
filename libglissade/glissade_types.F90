@@ -110,12 +110,6 @@ module glissade_types
   integer, parameter :: BTRC_LINEAR_BMLT = 4
   integer, parameter :: BTRC_TANH_BWAT = 5
 
-  ! Old Glimmer basal water options
-  integer, parameter :: BWATER_NONE  = 0
-  integer, parameter :: BWATER_LOCAL = 1
-  integer, parameter :: BWATER_FLUX  = 2
-  integer, parameter :: BWATER_CONST = 3
-
   integer, parameter :: BMLT_FLOAT_NONE = 0
   integer, parameter :: BMLT_FLOAT_MISMIP = 1
   integer, parameter :: BMLT_FLOAT_CONSTANT = 2
@@ -211,9 +205,6 @@ module glissade_types
   integer, parameter :: FORCE_RETREAT_NONE = 0
   integer, parameter :: FORCE_RETREAT_ALL_ICE = 1
   integer, parameter :: FORCE_RETREAT_FLOATING_ICE = 2
-
-  integer, parameter :: VERTINT_STANDARD = 0
-  integer, parameter :: VERTINT_KINEMATIC_BC = 1
 
   integer, parameter :: DT_IN_YEARS = 0
   integer, parameter :: DT_STEPS_PER_YEAR = 1
@@ -520,16 +511,6 @@ module glissade_types
     !> \item[5] \texttt{tanh} function of basal water depth 
     !> \end{description}
 
-    integer :: whichbwat = 0
-
-    !> Basal water depth: 
-    !> \begin{description} 
-    !> \item[0] Set to zero everywhere 
-    !> \item[1] Compute from local basal water balance 
-    !> \item[2] Compute the basal water flux, then find depth via calculation
-    !> \item[3] Set to constant (10 m) everywhere, to force T = Tpmp.
-    !> \end{description}
-
     integer :: whichbmlt_float = 0
 
     !> basal melt rate for floating ice:
@@ -722,10 +703,6 @@ module glissade_types
     !> These are narrow bridges connecting two regions of floating ice.
     !> False by default, but may need to be true for the FORCE_RETREAT_FLOATING_ICE option.
 
-    logical :: expand_calving_mask = .false.
-    !> if true, then expand the calving mask to include all ice that is floating at initialization
-    !> Note: By default, this is done for a hardwired set of ISMIP6 basins, excluding large shelves
-
     logical :: limit_marine_cliffs = .false.
     !> if true, then thin marine-based cliffs based on a thickness threshold
 
@@ -768,14 +745,6 @@ module glissade_types
     !> \item[1] Include cells with H > thklim in global diagnostics
     !> \end{description}
 
-    integer :: whichwvel = 0
-
-    !> Vertical velocities: 
-    !> \begin{description}
-    !> \item[0] Usual vertical integration 
-    !> \item[1] Vertical integration constrained to obey upper kinematic BC
-    !> \end{description}
-
     integer :: which_sigma = 0
 
     !> \begin{description}
@@ -804,18 +773,6 @@ module glissade_types
     !> \item[0] write uvel and vvel to restart file on standard staggered mesh
     !> \item[1] write uvel_extend and vvel_extend to restart file on extended staggered mesh
     !>          (required if restart velocities are nonzero on global boundaries)
-    !> \end{description}
-
-    logical :: forcewrite_restart = .false.
-    !> flag that indicates whether to force writing of output on restart
-
-    ! This is a Glimmer serial option
-    ! The parallel code enforces periodic EW and NS boundary conditions by default
-    logical :: periodic_ew = .false.
-
-    !> \begin{description}
-    !> \item[0] no periodic EW boundary conditions
-    !> \item[1] periodic EW boundary conditions
     !> \end{description}
 
     !-----------------------------------------------------------------------
@@ -1599,8 +1556,6 @@ module glissade_types
      real(dp) :: lateral_rate_min = 0.0d0        !> minimum lateral retreat rate at CF (m/yr)
      real(dp) :: effec_stress_min = 0.0d0        !> minimum effective stress for calving at CF (Pa)
      real(dp) :: length_scale = 4000.d0          !> length scale (m) for calving events (CALVING_STRESS_STOCHASTIC)
-     real(dp) :: damage_threshold = 0.0d0        !> threshold at which ice column is sufficiently damaged to calve
-                                                 !> 0 = no damage, 1 = total damage (whichcalving = CALVING_DAMAGE)
      real(dp) :: damage_constant = 1.e5          !> damage scaling term with units of Pa * yr
 !     real(dp) :: damage_constant1 = 0.0d0        !> damage constant that multiplies tau_eigen1 (yr^-1)
 !     real(dp) :: damage_constant2 = 0.0d0        !> damage constant that multiplies tau_eigen2 (yr^-1)
@@ -2427,7 +2382,6 @@ module glissade_types
     real(dp), dimension(:,:), pointer :: dups => null()      !> vertical grid quantities related to sigma and stagsigma
 
 
-    integer :: profile_period = 100            ! profile frequency
 
     real(dp) :: dt_diag = 0.d0     ! diagnostic interval (write diagnostic output every dt_diag years)
                                    ! dt_diag = 0 => never write diagnostic output
@@ -2452,18 +2406,13 @@ module glissade_types
   !TODO - Move these parameters to types associated with a certain kind of physics
   !TODO - Change default geot to 0.0, so that idealized tests by default have no mass loss
   type glissade_paramets_type
-    real(dp),dimension(5) :: bpar = (/ 0.2d0, 0.5d0, 0.0d0 ,1.0d-2, 1.0d0/)
     real(dp) :: btrac_const = 0.d0     ! m yr^{-1} Pa^{-1} (gets scaled during init)
-    real(dp) :: btrac_slope = 0.d0     ! Pa^{-1} (gets scaled during init)
-    real(dp) :: btrac_max = 0.d0       ! m yr^{-1} Pa^{-1} (gets scaled during init)
     real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down  !TODO - Change default to 0.0?
     real(dp) :: flow_enhancement_factor_ground = 1.0d0   ! flow enhancement parameter for the Arrhenius relationship;
                                                          ! grounded ice only; typically > 1 for SIA models to speed up the ice
     real(dp) :: flow_enhancement_factor_float = 1.0d0    ! flow enhancement parameter for floating ice
                                                          ! Default is 1.0, but for marine simulations a smaller value
                                                          !  is often needed to match observed shelf speeds
-    real(dp) :: hydtim = 1000.0d0      ! years, converted to s^{-1} and scaled
-                                       ! 0 if no drainage
 
     !TODO - Move the following higher-order velocity parameters to a different type?
     real(dp) :: default_flwa = 1.0d-16 ! Glen's A to use in isothermal case, in units Pa^{-n} yr^{-1} 
