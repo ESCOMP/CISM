@@ -156,7 +156,7 @@ contains
 
     instance%ice_tstep = get_tinc(instance%model)*nint(years2hours)
 
-    instance%glide_time = instance%model%numerics%tstart
+    instance%glissade_time = instance%model%numerics%tstart
 
     ! Construct the list of necessary restart variables based on the config options 
     ! selected by the user in the config file (specific to glad - other configs,

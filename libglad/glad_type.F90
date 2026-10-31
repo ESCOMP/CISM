@@ -78,7 +78,7 @@ module glad_type
                                                             !> (defaults to ice time-step)
      integer                          :: ice_tstep_multiply=1 !> Ice time multiplier (non-dimensional)
      integer                          :: n_icetstep         !> Number of ice time-steps per mass-balance accumulation
-     real(dp)                         :: glide_time         !> Time as seen by glide (years)
+     real(dp)                         :: glissade_time         !> Time as seen by Glissade (years)
      integer                          :: next_time          !> The next time we expect to be called (hours)
 
      ! History settings, for history managed by the host ESM. GLAD (and the rest of CISM)
