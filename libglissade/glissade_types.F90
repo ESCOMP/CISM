@@ -1174,9 +1174,6 @@ module glissade_types
     real(dp),dimension(:,:,:), pointer :: tracers_lsrf => null()
     !> value at lower surface for all tracers
 
-    integer, dimension(:,:),pointer :: thkmask => null()
-    !> see glide_mask.f90 for possible values
-
     !TODO - Move masks to a mask derived type?
     integer, dimension(:,:),pointer :: ice_mask => null()        !> = 1 where ice is present, else = 0
     integer, dimension(:,:),pointer :: ice_mask_stag => null()   !> = 1 where ice is present on staggered grid, else = 0
@@ -1297,10 +1294,6 @@ module glissade_types
     real(dp),dimension(:,:),pointer :: dthckdns => null() !> N-S derivative of thickness.
     real(dp),dimension(:,:),pointer :: dusrfdns => null() !> N-S derivative of upper surface elevation.
 
-    !Time derivatives
-    real(dp),dimension(:,:),pointer :: dthckdtm => null() !> Temporal derivative of thickness.
-    real(dp),dimension(:,:),pointer :: dusrfdtm => null() !> Temporal derivative of upper surface elevation.
-
   end type glissade_geomderv_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1323,10 +1316,6 @@ module glissade_types
     real(dp),dimension(:,:,:),pointer :: vvel  => null()   !> 3D $y$-velocity.
     real(dp),dimension(:,:,:),pointer :: velnorm => null() ! horizontal ice speed
     real(dp),dimension(:,:,:),pointer :: wvel  => null()   !> 3D $z$-velocity.
-    real(dp),dimension(:,:,:),pointer :: wgrd  => null()   !> 3D grid vertical velocity.
-    real(dp),dimension(:,:)  ,pointer :: uflx  => null()   !> 
-    real(dp),dimension(:,:)  ,pointer :: vflx  => null()   !> 
-    real(dp),dimension(:,:)  ,pointer :: diffu => null()   !> 
 
     ! Note: DIVA solves for uvel_2d and vvel_2d; these are typically (but not necessarily) the vertical average
     !       Velocities have units of m/s within the code.
@@ -1354,8 +1343,6 @@ module glissade_types
     real(dp),dimension(:,:)  ,pointer :: beta  => null()        !> basal shear coefficient on velo grid (Pa yr/m)
     real(dp),dimension(:,:)  ,pointer :: beta_internal => null()!> beta weighted by f_ground or otherwise adjusted (glissade only)
     real(dp),dimension(:,:)  ,pointer :: unstagbeta  => null()  !> basal shear coefficient on ice grid (Pa yr/m)
-    real(dp),dimension(:,:)  ,pointer :: tau_x => null()        !> SIA basal shear stress, x-dir
-    real(dp),dimension(:,:)  ,pointer :: tau_y => null()        !> SIA basal shear stress, y-dir
 
     !> mask that specifies where the velocity being read in should be held constant as a dirichlet condition
     integer, dimension(:,:), pointer  :: kinbcmask => null()    
@@ -1530,7 +1517,6 @@ module glissade_types
                                                                    !> these cells not allowed to fill until upstream neighbors are full
      real(dp),dimension(:,:),  pointer :: thck_effective => null() !> effective thickness for calving (m)
      real(dp),dimension(:,:),  pointer :: effective_areafrac => null() !> effective fractional area, < 1 for partial CF cells (m)
-     real(dp),dimension(:,:),  pointer :: lateral_rate => null()   !> lateral calving rate (m/yr, not scaled)
      real(dp),dimension(:,:),  pointer :: tau_eigen1 => null()     !> first eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: tau_eigen2 => null()     !> second eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: eps_eigen1 => null()     !> first eigenvalue of 2D horizontal strain rate tensor (s^-1)
@@ -2020,7 +2006,6 @@ module glissade_types
                                               !> based on cism_glacier_id_init and used for inversion
 
      real(dp), dimension(:,:), pointer :: &
-          area_factor => null(),            & !> area scaling factor based on latitude
           dthck_dt_annmean => null(),       & !> annual mean dthck_dt (m/yr)
           snow_annmean => null(),           & !> annual mean snowfall (mm/yr w.e.)
           Tpos_annmean => null(),           & !> annual mean max(artm - tmlt,0) (deg C)
@@ -2193,7 +2178,6 @@ module glissade_types
      real(dp), dimension(:,:), pointer :: c_space_factor => null()      !> spatial factor for basal shear stress (no dimension)
      real(dp), dimension(:,:), pointer :: c_space_factor_stag => null() !> spatial factor for basal shear stress on staggered grid
 
-     real(dp), dimension(:,:), pointer :: tau_c => null()               !> yield stress for plastic sliding (Pa)
 
      ! parameters for the Zoet-Iverson sliding law
      ! tau_b = N * tan(phi) * [u_b / (u_b + u_t)]^(1/m), Eq. 3 in ZI(2020)
@@ -2542,10 +2526,6 @@ contains
     !> \item \texttt{uvel(upn,ewn-1,nsn-1))}
     !> \item \texttt{vvel(upn,ewn-1,nsn-1))}
     !> \item \texttt{wvel(upn,ewn,nsn))}
-    !> \item \texttt{wgrd(upn,ewn,nsn))}
-    !> \item \texttt{uflx(ewn-1,nsn-1))}
-    !> \item \texttt{vflx(ewn-1,nsn-1))}
-    !> \item \texttt{diffu(ewn,nsn))}
     !> \item \texttt{btrc(ewn-1,nsn-1))}
     !> \item \texttt{usfc_obs(ewn-1,nsn-1))}
     !> \item \texttt{vsfc_obs(ewn-1,nsn-1))}
@@ -2565,8 +2545,6 @@ contains
     !> \item \texttt{dusrfdew(ewn,nsn))}
     !> \item \texttt{dthckdns(ewn,nsn))}
     !> \item \texttt{dusrfdns(ewn,nsn))}
-    !> \item \texttt{dthckdtm(ewn,nsn))}
-    !> \item \texttt{dusrfdtm(ewn,nsn))}
     !> \end{itemize}
   
     !> In \texttt{model\%geometry}:
@@ -2715,8 +2693,6 @@ contains
     call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%uvel)
     call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%vvel)
     call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%velnorm)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%uflx)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%vflx)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%btrc)
     call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%resid_u)
     call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%resid_v)
@@ -2785,7 +2761,6 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt_obs)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt_obs_basin)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
 
     !Note: model%geometry%tracers and related arrays are allocated later, in glissade_transport_setup_tracers,
@@ -2843,7 +2818,6 @@ contains
     call coordsystem_allocate(model%general%velo_grid, model%basal_physics%bpmp_mask)
     call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
     call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
-    call coordsystem_allocate(model%general%velo_grid, model%basal_physics%tau_c)
     call coordsystem_allocate(model%general%ice_grid, model%basal_physics%c_space_factor)
     call coordsystem_allocate(model%general%velo_grid, model%basal_physics%c_space_factor_stag)
     call coordsystem_allocate(model%general%velo_grid, model%basal_physics%mintauf)
@@ -2881,7 +2855,6 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%glacier%cism_glacier_id_init)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_glacier_id)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_glacier_id_init)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%area_factor)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%dthck_dt_annmean)
        call coordsystem_allocate(model%general%velo_grid, model%glacier%boundary_mask)
 
@@ -3025,7 +2998,6 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%beyond_cf_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%thck_effective)
     call coordsystem_allocate(model%general%ice_grid, model%calving%effective_areafrac)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%lateral_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen1)
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen2)
     call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen1)
@@ -3166,10 +3138,6 @@ contains
         deallocate(model%velocity%velnorm)
     if (associated(model%velocity%wvel)) &
         deallocate(model%velocity%wvel)
-    if (associated(model%velocity%uflx)) &
-        deallocate(model%velocity%uflx)
-    if (associated(model%velocity%vflx)) &
-        deallocate(model%velocity%vflx)
     if (associated(model%velocity%btrc)) &
         deallocate(model%velocity%btrc)
     if (associated(model%velocity%resid_u)) &
@@ -3202,14 +3170,6 @@ contains
         deallocate(model%velocity%velo_sfc_obs)
     if (associated(model%velocity%velo_sfc)) &
         deallocate(model%velocity%velo_sfc)
-    if (associated(model%velocity%wgrd)) &
-        deallocate(model%velocity%wgrd)
-    if (associated(model%velocity%diffu)) &
-        deallocate(model%velocity%diffu)
-    if (associated(model%velocity%tau_x)) &
-        deallocate(model%velocity%tau_x)
-    if (associated(model%velocity%tau_y)) &
-        deallocate(model%velocity%tau_y)
 
 !!    if (associated(model%velocity%velmask)) &   ! no longer used
 !!       deallocate(model%velocity%velmask) 
@@ -3297,8 +3257,6 @@ contains
         deallocate(model%basal_physics%effecpress)
     if (associated(model%basal_physics%effecpress_stag)) &
         deallocate(model%basal_physics%effecpress_stag)
-    if (associated(model%basal_physics%tau_c)) &
-        deallocate(model%basal_physics%tau_c)
     if (associated(model%basal_physics%c_space_factor)) &
         deallocate(model%basal_physics%c_space_factor)
     if (associated(model%basal_physics%c_space_factor_stag)) &
@@ -3356,8 +3314,6 @@ contains
         deallocate(model%glacier%smb_glacier_id_init)
     if (associated(model%glacier%cism_to_rgi_glacier_id)) &
         deallocate(model%glacier%cism_to_rgi_glacier_id)
-    if (associated(model%glacier%area_factor)) &
-        deallocate(model%glacier%area_factor)
     if (associated(model%glacier%dthck_dt_annmean)) &
         deallocate(model%glacier%dthck_dt_annmean)
     if (associated(model%glacier%snow_annmean)) &
@@ -3451,8 +3407,6 @@ contains
         deallocate(model%geometry%dthck_dt_obs)
     if (associated(model%geometry%dthck_dt_obs_basin)) &
         deallocate(model%geometry%dthck_dt_obs_basin)
-    if (associated(model%geometry%thkmask)) &
-        deallocate(model%geometry%thkmask)
     if (associated(model%geomderv%dthckdew)) &
         deallocate(model%geomderv%dthckdew)
     if (associated(model%geomderv%dthckdns)) &
@@ -3548,10 +3502,6 @@ contains
     if (associated(model%scalars%bmlt_float_target_basin)) &
          deallocate(model%scalars%bmlt_float_target_basin)
 
-    if (associated(model%geomderv%dthckdtm)) &
-        deallocate(model%geomderv%dthckdtm)
-    if (associated(model%geomderv%dusrfdtm)) &
-        deallocate(model%geomderv%dusrfdtm)
 
     if (associated(model%geometry%ice_age)) &
         deallocate(model%geometry%ice_age)
@@ -3638,8 +3588,6 @@ contains
         deallocate(model%calving%thck_effective)
     if (associated(model%calving%effective_areafrac)) &
         deallocate(model%calving%effective_areafrac)
-    if (associated(model%calving%lateral_rate)) &
-        deallocate(model%calving%lateral_rate)
     if (associated(model%calving%tau_eigen1)) &
         deallocate(model%calving%tau_eigen1)
     if (associated(model%calving%tau_eigen2)) &
