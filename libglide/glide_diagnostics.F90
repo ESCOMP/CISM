@@ -39,7 +39,7 @@ module glide_diagnostics
   use cism_parallel, only: this_rank, main_task, lhalo, uhalo, nhalo, &
        parallel_type, broadcast, &
        parallel_localindex, parallel_globalindex, &
-       parallel_global_sum, parallel_global_sum_patch, &
+       parallel_global_sum, &
        parallel_reduce_max, parallel_reduce_maxloc, parallel_reduce_minloc, &
        parallel_is_zero
 
@@ -189,10 +189,6 @@ contains
          tot_volume_above_flotation,    &    ! total ice volume above flotation (m^3)
          tot_mass,                      &    ! total ice mass (kg)
          tot_mass_above_flotation,      &    ! total ice mass above flotation (kg)
-         tot_area_ice_caps,             &    ! total area of disconnected ice caps (m^2)
-         tot_vol_ice_caps,              &    ! total volume of disconnected ice caps (m^3)
-         tot_bmlt_float,                &    ! total basal melt rate for floating ice (kg/s)
-         tot_bmlt_float_target,         &    ! total target basal melt rate for floating ice (kg/s)
          thck_floating,                 &    ! thickness of floating ice
          thck_above_flotation,          &    ! thickness above flotation
          tot_energy,                    &    ! total ice energy (J)
@@ -214,14 +210,12 @@ contains
          artm_diag, acab_diag,          &
          bmlt_diag, bwat_diag,          &
          bheatflx_diag,                 &
-         top_age_diag, bot_age_diag,    &
          level
 
     integer, dimension(model%general%ewn,model%general%nsn) ::  &
          ice_mask,                 & ! = 1 where ice is present with thck > minthck, else = 0
          floating_mask,            & ! = 1 where ice is present and floating, else = 0
-         grounded_mask,            & ! = 1 where ice is present and grounded, else = 0
-         ice_cap_mask                ! = 1 where an ice cap is present, else = 0
+         grounded_mask               ! = 1 where ice is present and grounded, else = 0
 
     integer, dimension(model%general%ewn-1,model%general%nsn-1) ::  &
          stag_ice_mask               ! staggered mask; = 1 if ice_mask = 1 for any of the four neighbors
@@ -231,14 +225,11 @@ contains
                                              !       (use artm instead)
          spd_diag                            ! speed (m/yr)
 
-    real(dp), dimension(model%general%upn-1) ::  &
-         age_diag                            ! ice age (yr)
-
     real(dp), dimension(model%lithot%nlayer) ::  &
          lithtemp_diag                       ! lithosphere column diagnostics
 
     integer :: &
-         i, j, k, nb,                       &
+         i, j, k,                       &
          ktop, kbed,                        &
          imax, imin,                        &
          jmax, jmin,                        &
@@ -342,8 +333,6 @@ contains
        enddo
     enddo
 
-    ice_cap_mask = model%geometry%ice_cap_mask
-
     !-----------------------------------------------------------------
     ! Compute and write global diagnostics
     !-----------------------------------------------------------------
@@ -385,52 +374,27 @@ contains
     ! total ice mass above flotation (kg)
     tot_mass_above_flotation = tot_volume_above_flotation * rhoi
 
-    ! ice cap area and volume
-    tot_area_ice_caps = parallel_global_sum(cell_area, parallel, ice_cap_mask)
-    tot_vol_ice_caps = parallel_global_sum(model%geometry%thck*cell_area, parallel, ice_cap_mask)
-
-    ! basal melting for floating ice (kg/s)
-    tot_bmlt_float = &
-         parallel_global_sum(model%basal_melt%bmlt_float*rhoi*cell_area, parallel)
-    tot_bmlt_float_target = &
-         parallel_global_sum(model%basal_melt%bmlt_float_target*rhoi*cell_area, parallel)
-
     ! total ice energy relative to T = 0 deg C (J)
     local_energy = 0.0d0
-    if (size(model%temper%temp,1) == upn+1) then  ! temps are staggered in vertical, located at layer centers
-       ! in this case, the data in the upn layer remains = 0
-       do j = 1, nsn
-          do i = 1, ewn
-             if (ice_mask(i,j) == 1) then
-                do k = 1, upn-1   ! (upn-1) layers
-                   local_energy(k,i,j) = &
-                        model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)   &
-                        * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
-                enddo
-             endif
-          enddo
-       enddo
-    else   ! temps are unstaggered in vertical, located at layer interfaces
-       do j = 1, nsn
-          do i = 1, ewn
-             if (ice_mask(i,j) == 1) then
-                k = 1   ! top interface; assign this temperature to the top half layer
-                local_energy(k,i,j) = &
-                     model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)    &
-                     * 0.5d0 * model%numerics%sigma(k+1)
-                do k = 2, upn-1   ! interior layers
-                   local_energy(k,i,j) = &
-                        model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)  &
-                        * 0.5d0*(model%numerics%sigma(k+1) - model%numerics%sigma(k-1))
-                enddo
-                k = upn   ! bottom interface; assign this temperature to the bottom half layer
+    do j = 1, nsn
+       do i = 1, ewn
+          if (ice_mask(i,j) == 1) then
+             k = 1   ! top interface; assign this temperature to the top half layer
+             local_energy(k,i,j) = &
+                  model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)    &
+                  * 0.5d0 * model%numerics%sigma(k+1)
+             do k = 2, upn-1   ! interior layers
                 local_energy(k,i,j) = &
                      model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)  &
-                     * 0.5d0 * (1.0d0 - model%numerics%sigma(k-1))
-             endif
-          enddo
+                     * 0.5d0*(model%numerics%sigma(k+1) - model%numerics%sigma(k-1))
+             enddo
+             k = upn   ! bottom interface; assign this temperature to the bottom half layer
+             local_energy(k,i,j) = &
+                  model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)  &
+                  * 0.5d0 * (1.0d0 - model%numerics%sigma(k-1))
+          endif
        enddo
-    endif
+    enddo
     local_energy = local_energy * rhoi * shci
     tot_energy = parallel_global_sum(local_energy, parallel, ice_mask)
 
@@ -458,57 +422,6 @@ contains
     model%scalars%ivol_above_flotation = tot_volume_above_flotation
     model%scalars%imass  = tot_mass
     model%scalars%imass_above_flotation = tot_mass_above_flotation
-    model%scalars%icap_area  = tot_area_ice_caps
-    model%scalars%icap_vol  = tot_vol_ice_caps
-    model%scalars%total_bmlt_float = tot_bmlt_float
-    model%scalars%total_bmlt_float_target = tot_bmlt_float_target
-
-    ! Optionally, compute some basin-scale scalars, also written to the scalars derived type
-
-    if (model%ocean_data%nbasin > 1) then
-       model%scalars%iarea_basin(:)  = &
-            parallel_global_sum_patch(cell_area*ice_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-       model%scalars%iareag_basin(:) = &
-            parallel_global_sum_patch(cell_area*grounded_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-       model%scalars%iareaf_basin(:) = &
-            parallel_global_sum_patch(cell_area*floating_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-       model%scalars%ivol_basin(:)   = &
-            parallel_global_sum_patch(cell_area*ice_mask*model%geometry%thck, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-       model%scalars%ivol_above_flotation_basin(:) = &
-            parallel_global_sum_patch(volume_above_flotation, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-       model%scalars%imass_basin(:) = model%scalars%ivol_basin(:)*rhoi
-       model%scalars%imass_above_flotation_basin(:) = model%scalars%ivol_above_flotation_basin(:)*rhoi
-       model%scalars%icap_area_basin(:)  = &
-            parallel_global_sum_patch(cell_area*ice_cap_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-       model%scalars%icap_vol_basin(:)  = &
-            parallel_global_sum_patch(cell_area*ice_cap_mask*model%geometry%thck, &
-            model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-       model%scalars%bmlt_float_basin(:)  = &
-            parallel_global_sum_patch(model%basal_melt%bmlt_float*rhoi*cell_area, &
-            model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-       model%scalars%bmlt_float_target_basin(:)  = &
-            parallel_global_sum_patch(model%basal_melt%bmlt_float_target*rhoi*cell_area, &
-            model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-
-       ! Optionally, write output to a specific basin with an applied thermal forcing anomaly
-       if (main_task) then
-          nb = model%ocean_data%thermal_forcing_anomaly_basin
-          if (nb >= 1 .and. nb <= model%ocean_data%nbasin) then
-             write(iulog,*) 'Diagnostics for basin', nb
-             write(iulog,*) 'iarea, iareag, iareaf (km^2):', &
-                  model%scalars%iarea_basin(nb)/1.0d6, model%scalars%iareag_basin(nb)/1.0d6, model%scalars%iareaf_basin(nb)/1.0d6
-             write(iulog,*) 'ivol, ivol_above_flotation (km^3):', &
-                  model%scalars%ivol_basin(nb)/1.0d9, model%scalars%ivol_above_flotation_basin(nb)/1.0d9
-             write(iulog,*) 'imass, imass_above_flotation (Gt):', &
-                  model%scalars%imass_basin(nb)/1.0d12, model%scalars%imass_above_flotation_basin(nb)/1.0d12
-             if (.not.model%options%remove_ice_caps)  then
-                write(iulog,*) '   ice cap area (km^2):', model%scalars%icap_area_basin(nb)/1.0d6
-                write(iulog,*) '   ice cap vol  (km^3):', model%scalars%icap_vol_basin(nb)/1.0d9
-             endif
-          endif
-       endif
-
-    endif   ! nbasin > 1
 
     ! write global sums and means to log file
 
@@ -557,15 +470,6 @@ contains
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     endif  ! dm_dt_diag
-
-    if (.not.model%options%remove_ice_caps .and. .not.model%options%enable_glaciers) then
-       write(message,'(a25,e24.16)') 'Ice cap area (km^2)       ',   &
-                                      tot_area_ice_caps*1.0d-6  ! convert to km^2
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-       write(message,'(a25,e24.16)') 'Ice cap volume (km^3)     ',   &
-                                      tot_vol_ice_caps*1.0d-9   ! convert to km^3
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-    endif
 
     write(message,'(a25,f24.16)') 'Mean thickness (m)       ', mean_thck
     call write_log(trim(message), type = GM_DIAGNOSTIC)
@@ -792,11 +696,8 @@ contains
     bmlt_diag     = unphys_val
     bwat_diag     = unphys_val
     bheatflx_diag = unphys_val
-    top_age_diag  = unphys_val
-    bot_age_diag  = unphys_val
     temp_diag(:)  = unphys_val
     spd_diag(:)   = unphys_val
-    age_diag(:)   = unphys_val
     lithtemp_diag(:) = unphys_val    
 
     ! Set local diagnostic values, and communicate them to main_task
@@ -819,21 +720,11 @@ contains
           artm_diag = model%climate%artm_corrected(i,j)  ! artm_corrected = artm + artm_anomaly
           acab_diag = model%climate%acab_applied(i,j) * scyr
           bmlt_diag = model%basal_melt%bmlt_applied(i,j) * scyr
-          if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
-             bwat_diag = model%basal_hydro%bwat_diag(i,j)
-          else
-             bwat_diag = model%basal_hydro%bwat(i,j)
-          endif
+          bwat_diag = model%basal_hydro%bwat(i,j)
           bheatflx_diag = model%temper%bheatflx(i,j)
-          if (associated(model%geometry%ice_age)) then
-             top_age_diag = model%geometry%ice_age(1,i,j)       ! age of top ice layer
-             bot_age_diag = model%geometry%ice_age(upn-1,i,j)   ! age of bottom ice layer
-          endif
           temp_diag(:) = model%temper%temp(1:upn,i,j)          
           spd_diag(:) = sqrt(model%velocity%uvel(1:upn,i,j)**2   &
                            + model%velocity%vvel(1:upn,i,j)**2) * scyr
-          if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) &
-               age_diag(:) = model%geometry%ice_age(:,i,j)/scyr
           if (model%options%gthf == GTHF_COMPUTE) &
                lithtemp_diag(:) = model%lithot%temp(i,j,:)
        endif
@@ -850,16 +741,9 @@ contains
        bmlt_diag = parallel_reduce_max(bmlt_diag)
        bwat_diag = parallel_reduce_max(bwat_diag)
        bheatflx_diag = parallel_reduce_max(bheatflx_diag)
-       if (associated(model%geometry%ice_age)) then
-          top_age_diag = parallel_reduce_max(top_age_diag)
-          bot_age_diag = parallel_reduce_max(bot_age_diag)
-       endif
        do k = 1, upn
           temp_diag(k) = parallel_reduce_max(temp_diag(k))
           spd_diag(k)  = parallel_reduce_max(spd_diag(k))
-       enddo
-       do k = 1, upn-1
-          age_diag(k)  = parallel_reduce_max(age_diag(k))
        enddo
        do k = 1, nlith
           lithtemp_diag(k) = parallel_reduce_max(lithtemp_diag(k))
@@ -905,59 +789,17 @@ contains
        write(message,'(a25,f24.16)') 'Basal heat flux (W/m^2)  ', bheatflx_diag
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       ! Commented out, since we are writing the age in every column below
-!       if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
-!          write(message,'(a25,f24.16)') 'Age of top layer (yr)    ', top_age_diag/scyr
-!          call write_log(trim(message), type = GM_DIAGNOSTIC)
-!          write(message,'(a25,f24.16)') 'Age of bottom layer (yr) ', bot_age_diag/scyr
-!          call write_log(trim(message), type = GM_DIAGNOSTIC)
-!       endif
-
        ! Vertical profile of ice speed and temperature
 
        call write_log(' ')
-       write(message,'(a74)') ' Sigma       Ice speed (m/yr)      Ice temperature (C)        Ice age (yr)'
+       write(message,'(a)') ' Sigma       Ice speed (m/yr)      Ice temperature (C)'
        call write_log(trim(message), type = GM_DIAGNOSTIC)
- 
-       if (size(model%temper%temp,1) == upn+1) then   ! temperatures staggered in vertical
-                                                      ! (at layer midpoints)
 
-           ! upper surface 
-           write (message,'(f6.3,2f24.16)') model%numerics%sigma(1), spd_diag(1), artm_diag
-           call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-           ! internal
-           do k = 1, upn-1
-
-              ! speed at top of layer
-              if (k > 1) then
-                 write (message,'(f6.3,f24.16)') model%numerics%sigma(k), spd_diag(k)
-                 call write_log(trim(message), type = GM_DIAGNOSTIC)
-              endif
-
-              ! temp (and optionally age) at layer midpoint
-              if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
-                 write (message,'(f6.3,24x,f24.16,f18.6)') model%numerics%stagsigma(k), temp_diag(k), age_diag(k)
-                 call write_log(trim(message), type = GM_DIAGNOSTIC)
-              else
-                 write (message,'(f6.3,24x,f24.16)') model%numerics%stagsigma(k), temp_diag(k)
-                 call write_log(trim(message), type = GM_DIAGNOSTIC)
-              endif
-
-           enddo
-
-           ! lower surface
-           write (message,'(f6.3,2f24.16)') model%numerics%sigma(upn), spd_diag(upn), temp_diag(upn)
-           call write_log(trim(message), type = GM_DIAGNOSTIC)
-           
-       else    ! temperatures unstaggered in vertical (at layer interfaces)
- 
-           do k = 1, upn
-             write (message,'(f6.3,2f24.16)') model%numerics%sigma(k), spd_diag(k), temp_diag(k)
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          enddo
-
-       endif  ! temps staggered
+       ! temperatures are at layer interfaces, with speeds
+       do k = 1, upn
+          write (message,'(f6.3,2f24.16)') model%numerics%sigma(k), spd_diag(k), temp_diag(k)
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+       enddo
 
        ! Vertical profile of upper lithosphere temperature
 

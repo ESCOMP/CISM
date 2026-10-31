@@ -90,13 +90,6 @@ units:         meter
 long_name:     vertical coordinate of lithosphere layer
 dimlen:        model%lithot%nlayer
 
-[basin]
-dimensions:    basin
-units:         1
-long_name:     basin coordinate for basin-specific output
-data:          data%ocean_data%basin
-dimlen:        model%ocean_data%nbasin
-
 [lat]
 dimensions:    time, y1, x1
 units:         degreeN
@@ -217,28 +210,6 @@ data:          data%velocity%wvel(data%general%upn,1:data%general%ewn,1:data%gen
 factor:        scyr
 standard_name: land_ice_basal_z_velocity
 
-[bmlt_float]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     basal melt rate for floating ice
-data:          data%basal_melt%bmlt_float
-factor:        scyr
-
-[bmlt_float_target]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     basal melt rate target for floating ice
-data:          data%basal_melt%bmlt_float_target
-factor:        scyr
-
-[basin_number]
-dimensions:    time, y1, x1
-units:         1
-long_name:     basin_number
-data:          data%ocean_data%basin_number
-load:          1
-type:          int
-
 [taux]
 dimensions:    time, y0, x0
 units:         kilopascal
@@ -329,73 +300,6 @@ units:         kg
 long_name:     ice mass above flotation
 data:          data%scalars%imass_above_flotation
 
-[total_bmlt_float]
-dimensions:    time
-units:         kg/s
-long_name:     basal melt rate for floating ice
-data:          data%scalars%total_bmlt_float
-
-[total_bmlt_float_target]
-dimensions:    time
-units:         kg/yr
-long_name:     target basal melt rate for floating ice
-scale_factor:  scyr
-data:          data%scalars%total_bmlt_float_target
-
-[iarea_basin]
-dimensions:    time, basin
-units:         m2
-long_name:     area covered by ice per basin
-data:          data%scalars%iarea_basin
-
-[iareag_basin]
-dimensions:    time, basin
-units:         m2
-long_name:     area covered by grounded ice per basin
-data:          data%scalars%iareag_basin
-
-[iareaf_basin]
-dimensions:    time, basin
-units:         m2
-long_name:     area covered by floating ice per basin
-data:          data%scalars%iareaf_basin
-
-[ivol_basin]
-dimensions:    time, basin
-units:         m3
-long_name:     ice volume per basin
-data:          data%scalars%ivol_basin
-
-[ivol_above_flotation_basin]
-dimensions:    time, basin
-units:         m3
-long_name:     ice volume above flotation per basin
-data:          data%scalars%ivol_above_flotation_basin
-
-[imass_basin]
-dimensions:    time, basin
-units:         kg
-long_name:     ice mass per basin
-data:          data%scalars%imass_basin
-
-[imass_above_flotation_basin]
-dimensions:    time, basin
-units:         kg
-long_name:     ice mass above flotation per basin
-data:          data%scalars%imass_above_flotation_basin
-
-[bmlt_float_basin]
-dimensions:    time, basin
-units:         kg/s
-long_name:     basal melt rate for floating ice per basin
-data:          data%scalars%bmlt_float_basin
-
-[bmlt_float_target_basin]
-dimensions:    time, basin
-units:         kg/s
-long_name:     target basal melt rate for floating ice per basin
-data:          data%scalars%bmlt_float_target_basin
-
 [thkmask]
 dimensions:    time, y1, x1
 long_name:     mask
@@ -432,13 +336,6 @@ units:         1
 long_name:     mask for where ice is potentially present and active
 data:          data%general%ice_domain_mask
 load:          1
-
-[ice_cap_mask]
-dimensions:    time, y1, x1
-units:         1
-long_name:     mask for disconnected ice caps
-data:          data%geometry%ice_cap_mask
-type:          int
 
 [acab]
 dimensions:    time, y1, x1
