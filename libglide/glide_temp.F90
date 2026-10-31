@@ -78,12 +78,12 @@ contains
   subroutine glide_init_temp(model)
 
     !> initialise temperature module
-    use glimmer_physcon, only : rhoi, shci, coni, scyr, grav, gn, lhci, rhow, trpt
+    use glimmer_physcon, only : rhoi, shci, coni, scyr, grav, n_glen, lhci, rhow, trpt
     use cism_parallel, only: lhalo, uhalo
 
     type(glide_global_type), intent(inout) :: model       ! model instance
 
-    integer, parameter :: p1 = gn + 1  
+    real(dp) :: p1
     integer :: up, ns, ew
     character(len=200) :: message
 
@@ -136,6 +136,7 @@ contains
          0.d0 /)   !WHL - last term no longer needed
          !*sfp* added last term to vector above for use in HO & SSA dissip. cacl
 
+    p1 = n_glen + 1.0d0
     model%tempwk%c1 = STRAIN_HEAT *(model%numerics%sigma * rhoi * grav)**p1 * &
          2.0d0 * model%numerics%dttem / (16.0d0 * rhoi * shci)
 
@@ -1056,13 +1057,13 @@ contains
     ! Note also that dissip and flwa must have the same vertical dimension 
     !  (1:upn on an unstaggered vertical grid, or 1:upn-1 on a staggered vertical grid).
     
-    use glimmer_physcon, only : gn
+    use glimmer_physcon, only : n_glen
 
     type(glide_global_type) :: model
     real(dp), dimension(:,:), intent(in) :: thck, stagthck, dusrfdew, dusrfdns
     real(dp), dimension(:,:,:), intent(in) :: flwa
 
-    integer, parameter :: p1 = gn + 1
+    real(dp) :: p1
     integer :: ew, ns
 
     real(dp) :: c2 
@@ -1077,6 +1078,8 @@ contains
     ! 1. find dissipation at u-pts and then average
     ! 2. find dissipation at H-pts by averaging quantities from u-pts
     ! 2. works best for eismint divide (symmetry) but 1 likely to be better for full expts
+
+    p1 = n_glen + 1.0d0
 
     model%temper%dissip(:,:,:) = 0.0d0
 

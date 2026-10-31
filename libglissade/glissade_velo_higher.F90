@@ -1669,7 +1669,7 @@
 
     do j = 1+nhalo, ny-nhalo+1
        do i = 1+nhalo, nx-nhalo+1
-          ! gn = exponent in Glen's flow law (= 3 by default)
+          ! n_glen = exponent in Glen's flow law (= 3 by default)
           do k = 1, nz-1
              if (flwa(k,i,j) > 0.0d0) then
                 flwafact(k,i,j) = 0.5d0 * flwa(k,i,j)**(-1.d0/n_glen)

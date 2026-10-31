@@ -2642,7 +2642,7 @@ module glissade_therm
     end select
 
     ! Optionally, increase flwa (i.e., make the ice softer) where damage > 0
-    ! Note: Sun et al. (2017) increase flwa by a factor of 1/(1 - d)^gn, where gn is the Glen exponent.
+    ! Note: Sun et al. (2017) increase flwa by a factor of 1/(1 - d)^n_glen, where n_glen is the Glen exponent.
     !       For simplicity, we assume a linear relationship here.
 
     if (present(damage) .and. present(damage_flwa_feedback)) then
