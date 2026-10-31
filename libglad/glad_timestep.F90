@@ -242,13 +242,13 @@ contains
              instance%acab = -thck_temp
           end where
 
-          instance%glide_time = instance%glide_time + instance%model%numerics%tinc
+          instance%glissade_time = instance%glissade_time + instance%model%numerics%tinc
 
           ! call the dynamic ice sheet model (provided the ice is allowed to evolve)
 
           if (instance%evolve_ice == EVOLVE_ICE_TRUE) then
 
-             call glissade_tstep(instance%model, instance%glide_time)
+             call glissade_tstep(instance%model, instance%glissade_time)
 
           else  ! EVOLVE_ICE_FALSE
 
