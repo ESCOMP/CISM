@@ -76,11 +76,6 @@ standard_name: land_ice_stag_sigma_coordinate_with_bnd
 positive:      down
 dimlen:        model%general%upn+1
 
-[lithoz]
-dimensions:    lithoz
-units:         meter
-long_name:     vertical coordinate of lithosphere layer
-dimlen:        model%lithot%nlayer
 # ------------------------------------------------------------------
 
 [instant_acab]

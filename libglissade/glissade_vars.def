@@ -100,12 +100,6 @@ data:          data%climate%zatm
 positive:      up
 dimlen:        model%climate%nzatm
 
-[lithoz]
-dimensions:    lithoz
-units:         meter
-long_name:     vertical coordinate of lithosphere layer
-dimlen:        model%lithot%nlayer
-
 [glacierid]
 dimensions:    glacierid
 units:         1
@@ -1659,13 +1653,6 @@ units:         degree_Celsius
 long_name:     basal pressure melting point temperature
 data:          data%temper%bpmp
 standard_name: pressure_melting_point_temperature
-
-[litho_temp]
-dimensions:    time, lithoz, y1, x1
-units:         degree_Celsius
-long_name:     lithosphere temperature
-data:          data%lithot%temp
-load:          1
 
 [ice_age]
 dimensions:    time, staglevel, y1, x1

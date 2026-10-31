@@ -263,7 +263,6 @@
          bmlt_diag, bwat_diag,          &
          bheatflx_diag,                 &
          top_age_diag, bot_age_diag,    &
-         level,                         &
          rmse_thck, rmse_velo,          &    ! rms errors for ice thickness (m) and surface speed (m/yr)
          factor                              ! unit conversion factor
 
@@ -284,9 +283,6 @@
 
     real(dp), dimension(model%general%upn-1) ::  &
          age_diag                            ! ice age (yr)
-
-    real(dp), dimension(model%lithot%nlayer) ::  &
-         lithtemp_diag                       ! lithosphere column diagnostics
 
     ! glacier diagnostics
     real(dp) :: &
@@ -313,7 +309,6 @@
          kmax_global, kmin_global,          &
          procnum,                           &
          ewn, nsn, upn,                     &    ! model%numerics%ewn, etc.
-         nlith,                             &    ! model%lithot%nlayer
          velo_ew_ubound, velo_ns_ubound          ! upper bounds for velocity variables
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
@@ -354,7 +349,6 @@
     !        Horizontal transport conserves mass only under the assumption of rectangular grid cells.
     cell_area = model%geometry%cell_area
 
-    nlith = model%lithot%nlayer
 
     if (uhalo > 0) then
        velo_ns_ubound = nsn-uhalo
@@ -1152,7 +1146,6 @@
     temp_diag(:)  = unphys_val
     spd_diag(:)   = unphys_val
     age_diag(:)   = unphys_val
-    lithtemp_diag(:) = unphys_val    
 
     ! Set local diagnostic values, and communicate them to main_task
        
@@ -1189,8 +1182,6 @@
                            + model%velocity%vvel(1:upn,i,j)**2) * scyr
           if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) &
                age_diag(:) = model%geometry%ice_age(:,i,j)/scyr
-          if (model%options%gthf == GTHF_COMPUTE) &
-               lithtemp_diag(:) = model%lithot%temp(i,j,:)
        endif
 
        usrf_diag = parallel_reduce_max(usrf_diag)
@@ -1215,9 +1206,6 @@
        enddo
        do k = 1, upn-1
           age_diag(k)  = parallel_reduce_max(age_diag(k))
-       enddo
-       do k = 1, nlith
-          lithtemp_diag(k) = parallel_reduce_max(lithtemp_diag(k))
        enddo
 
        call write_log(' ')
@@ -1313,23 +1301,6 @@
           enddo
 
        endif  ! temps staggered
-
-       ! Vertical profile of upper lithosphere temperature
-
-       if (model%options%gthf == GTHF_COMPUTE) then
-
-          call write_log(' ')
-          write(message,'(a41)') '  Level (m)          Lithosphere temp (C)'
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          level = 0.d0
-          do k = 1, nlith
-             level = level + model%lithot%deltaz(nlith)
-             write (message,'(f10.0,6x,f24.16)') level, lithtemp_diag(k)
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          enddo
-
-       endif  ! gthf_compute
 
     endif     ! idiag_local and jdiag_local in bounds
 
