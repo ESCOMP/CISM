@@ -189,8 +189,8 @@ contains
 
     subroutine glissade_wvelintg(uvel,  vvel,      &
                                  geomderv, numerics, &
-                                 wgrd,  thck,  bmlt, &
-                                 wvel)
+                                 wgrd,  thck,  stagthck, &
+                                 bmlt,  wvel)
 
       ! Calculate the vertical velocity field, wvel, by integrating
       !
@@ -208,8 +208,7 @@ contains
            uvel, vvel                ! horizontal velocity components on the staggered grid
 
       type(glissade_geomderv_type), intent(in) :: &
-           geomderv                  ! horizontal derivatives of thickness and upper surface,
-                                     ! and thickness on the staggered grid
+           geomderv                  ! horizontal derivatives of thickness and upper surface
 
       type(glissade_numerics_type), intent(in) :: &
            numerics                  ! numerical parameters, including sigma values
@@ -217,6 +216,7 @@ contains
       real(dp), dimension(:,:), intent(in) :: &
            wgrd,                   & ! grid vertical velocity at the lowest model level
            thck,                   & ! ice thickness (m)
+           stagthck,               & ! ice thickness on the staggered grid (m)
            bmlt                      ! basal melt rate; see Payne and Dongelmans, equation 14
 
       real(dp), dimension(:,:,:), intent(out) :: &
@@ -254,7 +254,7 @@ contains
                cons(2) = sum(geomderv%dthckdew(ew-1:ew,ns-1:ns)) / 16.0d0
                cons(3) = sum(geomderv%dusrfdns(ew-1:ew,ns-1:ns)) / 16.0d0
                cons(4) = sum(geomderv%dthckdns(ew-1:ew,ns-1:ns)) / 16.0d0
-               cons(5) = sum(geomderv%stagthck(ew-1:ew,ns-1:ns))
+               cons(5) = sum(stagthck(ew-1:ew,ns-1:ns))
                cons(6) = cons(5)*dns16
                cons(5) = cons(5)*dew16
 

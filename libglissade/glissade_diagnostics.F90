@@ -1046,7 +1046,7 @@
        do i = lhalo+1, velo_ew_ubound
           spd = sqrt(model%velocity%uvel(1,i,j)**2   &
                    + model%velocity%vvel(1,i,j)**2)
-          if (model%geomderv%stagthck(i,j) > minthck .and. spd > max_spd_sfc) then
+          if (model%geometry%stagthck(i,j) > minthck .and. spd > max_spd_sfc) then
              max_spd_sfc = spd
              imax = i
              jmax = j
@@ -1072,7 +1072,7 @@
        do i = lhalo+1, velo_ew_ubound
           spd = sqrt(model%velocity%uvel(upn,i,j)**2   &
                    + model%velocity%vvel(upn,i,j)**2)
-          if (model%geomderv%stagthck(i,j) > minthck  .and. spd > max_spd_bas) then
+          if (model%geometry%stagthck(i,j) > minthck  .and. spd > max_spd_bas) then
              max_spd_bas = spd
              imax = i
              jmax = j
