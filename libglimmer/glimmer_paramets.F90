@@ -40,15 +40,6 @@ module glimmer_paramets
   !TODO - Clean up and remove most of the parameters.
   !       Maybe put the rest in a single module, cism_constants.
 
-  !WHL - logical parameter for code testing
-!      If oldglide = T, the glide dycore will reproduce
-!      (within roundoff error) the results
-!      of Glimmer 1.0.18 for the dome and EISMINT-2 test cases.
-
-  !TODO - Remove oldglide parameter when comparisons to old Glide are no longer desired
-  logical, parameter :: oldglide = .false.
-!  logical, parameter :: oldglide = .true.
-
 !TODO - redundant output units (stdout and glimmer_unit) 
 !           It is redundant to define both stdout (which is public) and 
 !            glimmer_unit (which is private to glimmer_log.F90).

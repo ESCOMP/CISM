@@ -53,7 +53,7 @@ module glide
   use glimmer_config
   use glimmer_global, only: dp
 
-  use glimmer_paramets, only: iulog, oldglide
+  use glimmer_paramets, only: iulog
 
   implicit none
 
@@ -361,17 +361,6 @@ contains
        call init_lithot(model)
     end if
 
-!WHL - This call will set the ice column temperature to artm as in old glide,
-!       regardless of the value of model%options%temp_init
-!      Commented out at least for now.  To reproduce results of old_glide, make sure
-!       model%options%temp_init = TEMP_INIT_ARTM.
-!!  if (oldglide) then
-!!    if (model%options%is_restart.ne.1) then
-!!       ! initialise Glen's flow parameter A using an isothermal temperature distribution
-!!       call glide_temp_driver(model,0)
-!!    endif
-!!  endif  ! oldglide
-    
 !WHL - This option is disabled for now.
     ! *mb* added; initialization of basal proc. module
 !!    if (model%options%which_bproc == BAS_PROC_FULLCALC .or. &
@@ -782,13 +771,6 @@ contains
 
        call glide_prof_start(model,model%glide_prof%temperature)
 
-       if (oldglide) then   ! compute vertical velocity in glide_tstep_p1 
-                          ! In new glide, this is called in glide_tstep_p3
-         
-          call glide_velo_vertical(model)
-
-       endif   ! oldglide = T
-
        ! temperature advection, vertical conduction, and internal dissipation
 
        call glide_temp_driver(model, model%options%whichtemp)
@@ -912,12 +894,10 @@ contains
     ! Recalculate the mask following calving
     ! Note - This call to glide_set_mask is not in old Glide, but should have been.
 
- if (.not. oldglide) then   ! recalculate the thickness mask after calving
     call glide_set_mask(model%numerics,                                &
                         model%geometry%thck,  model%geometry%topg,     &
                         model%general%ewn,    model%general%nsn,       &
                         model%climate%eus,    model%geometry%thkmask)
- endif   ! oldglide = F
 
     ! ------------------------------------------------------------------------
     ! update ice/water load if necessary
@@ -1039,13 +1019,9 @@ contains
     ! For exact restart, compute wgrd here and write it to the restart file.
     ! (This is easier than writing thckwk quantities to the restart file.)
 
- if (.not. oldglide) then  ! compute vertical velocity in glide_tstep_p3
-
     ! compute vertical velocity
-         
-    call glide_velo_vertical(model)
 
- endif  ! oldglide = F
+    call glide_velo_vertical(model)
 
  !WHL - Moved netCDF output to simple_glide
  !!       call glide_io_writeall(model,model)

@@ -92,7 +92,7 @@ contains
   !TODO: Determine whether beta should be limited to a max value, e.g. 1.d8.
   !      Earlier comments suggested that very high values might be numerically unstable.
 
-  use glimmer_physcon, only: gn, pi
+  use glimmer_physcon, only: pi
   use glissade_grid_operators, only: glissade_stagger
 
   implicit none

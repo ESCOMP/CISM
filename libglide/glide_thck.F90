@@ -48,9 +48,6 @@ module glide_thck
   !DEBUG only
 !!  use xls
 
-  !TODO - Remove oldglide when code comparisons are complete
-  use glimmer_paramets, only: oldglide
-
   implicit none
 
   private
@@ -358,13 +355,7 @@ contains
        ! This will change answers very slightly (to within the Picard convergence tolerance)
        ! relative to older versions of the code.   --MJH 1/9/13
 
-!WHL - oldglide does not update the diffusivity here
-!      By skipping this update, I get the same velocities as oldglide on the 
-!       first timestep of the dome test case (within double-precision roundoff).  
-!      Including this update, velocites agree only to ~4 sig digits.
-!       
-
-     if (.not. oldglide) then  ! update the diffusivity before computing the final velocity
+       ! update the diffusivity before computing the final velocity
 
        call glide_geometry_derivs(model)   ! stagvarb, geomders as in old Glide code
 
@@ -379,8 +370,6 @@ contains
        call velo_calc_diffu(model%velowk,            model%geomderv%stagthck,  &
                             model%geomderv%dusrfdew, model%geomderv%dusrfdns,  &
                             model%velocity%diffu)
-
-     endif   ! oldglide = F
 
        ! calculate horizontal velocity field
 
