@@ -54,7 +54,6 @@ contains
 subroutine cism_init_glide(model)
 
   use glimmer_global, only: dp
-  use glimmer_paramets, only: oldglide
   use glimmer_model_registry, only : register_model
   use glide
   use eismint_forcing, only: eismint_initialise
@@ -135,11 +134,7 @@ subroutine cism_init_glide(model)
      call t_adj_detailf(+10)
   endif
 
-  ! Don't call glide_init_state_diagnostic when running old glide
-  ! Instead, start with zero velocity
-  if (.not. oldglide) then
-     call glide_init_state_diagnostic(model)
-  endif
+  call glide_init_state_diagnostic(model)
 
   if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
      ! restore profiling to normal settings

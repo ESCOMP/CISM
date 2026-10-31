@@ -66,9 +66,6 @@ module glide_temp
   use glimmer_paramets, only: iulog
   use glimmer_log
 
-  !TODO - Remove 'oldglide' logic when comparisons are complete  
-  use glimmer_paramets, only : oldglide
-
   implicit none
 
   private
@@ -598,16 +595,11 @@ contains
 
              if (GLIDE_IS_THIN(model%geometry%thkmask(ew,ns))) then
 
-               !TODO - Remove 'oldglide' logic when comparisons are complete
-               if (oldglide) then
-                model%temper%temp(:,ew,ns) = min(0.0d0,dble(model%climate%artm(ew,ns)))
-               else
-                call glide_init_temp_column(model%options%temp_init,         &
-                                            model%numerics%sigma(:),         &
-                                            dble(model%climate%artm(ew,ns)), &
-                                            model%geometry%thck(ew,ns),      &
-                                            model%temper%temp(:,ew,ns) )
-               endif
+               call glide_init_temp_column(model%options%temp_init,         &
+                                           model%numerics%sigma(:),         &
+                                           dble(model%climate%artm(ew,ns)), &
+                                           model%geometry%thck(ew,ns),      &
+                                           model%temper%temp(:,ew,ns) )
 
              else if (GLIDE_NO_ICE(model%geometry%thkmask(ew,ns))) then
 
