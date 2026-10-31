@@ -36,17 +36,14 @@ module glide_velo
 
   use glide_types
   use glimmer_global, only : dp
-  use glimmer_physcon, only : rhoi, grav, gn
+  use glimmer_physcon, only : rhoi, grav, n_glen
 
   implicit none
 
   private vertintg
 
-  ! some private parameters
-  integer, private, parameter :: p1 = gn+1
-  integer, private, parameter :: p2 = gn-1
-  integer, private, parameter :: p3 = 2*gn+1
-  integer, private, parameter :: p4 = gn+2
+  ! exponents based on n_glen; set in init_velo
+  real(dp), private :: p1, p2, p4
 
   real(dp), private :: cflow
 
@@ -75,7 +72,11 @@ contains
     allocate(model%velowk%depth(upn))
     allocate(model%velowk%dintflwa(ewn-1,nsn-1))
 
-    model%velowk%depth = (/ (((model%numerics%sigma(up+1)+model%numerics%sigma(up))/2.0d0)**gn &
+    p1 = n_glen + 1.0d0
+    p2 = n_glen - 1.0d0
+    p4 = n_glen + 2.0d0
+
+    model%velowk%depth = (/ (((model%numerics%sigma(up+1)+model%numerics%sigma(up))/2.0d0)**n_glen &
          *(model%numerics%sigma(up+1)-model%numerics%sigma(up)),up=1,upn-1),0.0d0 /)
 
     allocate(model%velowk%dups(upn)) 
@@ -111,7 +112,7 @@ contains
 
     ! Note: cflow < 0 is used in several equations below.
     !       Signs in this module can be tricky, so comments are added to help keep track.
-    cflow = -2.0d0*(rhoi*grav)**gn / 8.0d0
+    cflow = -2.0d0*(rhoi*grav)**n_glen / 8.0d0
 
   end subroutine init_velo
 
