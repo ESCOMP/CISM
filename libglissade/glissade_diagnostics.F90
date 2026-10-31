@@ -460,40 +460,18 @@
 
     ! total ice energy relative to T = 0 deg C (J)
     local_energy = 0.0d0
-    if (size(model%temper%temp,1) == upn+1) then  ! temps are staggered in vertical, located at layer centers
-       ! in this case, the data in the upn layer remains = 0
-       do j = 1, nsn
-          do i = 1, ewn
-             if (ice_mask(i,j) == 1) then
-                do k = 1, upn-1   ! (upn-1) layers
-                   local_energy(k,i,j) = &
-                        model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)   &
-                        * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
-                enddo
-             endif
-          enddo
-       enddo
-    else   ! temps are unstaggered in vertical, located at layer interfaces
-       do j = 1, nsn
-          do i = 1, ewn
-             if (ice_mask(i,j) == 1) then
-                k = 1   ! top interface; assign this temperature to the top half layer
+    ! temperatures are at layer midpoints (k = 1:upn-1); the data in the upn layer remains = 0
+    do j = 1, nsn
+       do i = 1, ewn
+          if (ice_mask(i,j) == 1) then
+             do k = 1, upn-1   ! (upn-1) layers
                 local_energy(k,i,j) = &
-                     model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)    &
-                     * 0.5d0 * model%numerics%sigma(k+1)
-                do k = 2, upn-1   ! interior layers
-                   local_energy(k,i,j) = &
-                        model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)  &
-                        * 0.5d0*(model%numerics%sigma(k+1) - model%numerics%sigma(k-1))
-                enddo
-                k = upn   ! bottom interface; assign this temperature to the bottom half layer
-                local_energy(k,i,j) = &
-                     model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)  &
-                     * 0.5d0 * (1.0d0 - model%numerics%sigma(k-1))
-             endif
-          enddo
+                     model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)   &
+                     * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
+             enddo
+          endif
        enddo
-    endif
+    enddo
     local_energy = local_energy * rhoi * shci
     tot_energy = parallel_global_sum(local_energy, parallel, ice_mask)
 
@@ -1261,46 +1239,36 @@
        call write_log(' ')
        write(message,'(a74)') ' Sigma       Ice speed (m/yr)      Ice temperature (C)        Ice age (yr)'
        call write_log(trim(message), type = GM_DIAGNOSTIC)
- 
-       if (size(model%temper%temp,1) == upn+1) then   ! temperatures staggered in vertical
-                                                      ! (at layer midpoints)
 
-           ! upper surface 
-           write (message,'(f6.3,2f24.16)') model%numerics%sigma(1), spd_diag(1), artm_diag
-           call write_log(trim(message), type = GM_DIAGNOSTIC)
+       ! temperatures are at layer midpoints; speeds are at layer interfaces
 
-           ! internal
-           do k = 1, upn-1
+       ! upper surface 
+       write (message,'(f6.3,2f24.16)') model%numerics%sigma(1), spd_diag(1), artm_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-              ! speed at top of layer
-              if (k > 1) then
-                 write (message,'(f6.3,f24.16)') model%numerics%sigma(k), spd_diag(k)
-                 call write_log(trim(message), type = GM_DIAGNOSTIC)
-              endif
+       ! internal
+       do k = 1, upn-1
 
-              ! temp (and optionally age) at layer midpoint
-              if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
-                 write (message,'(f6.3,24x,f24.16,f18.6)') model%numerics%stagsigma(k), temp_diag(k), age_diag(k)
-                 call write_log(trim(message), type = GM_DIAGNOSTIC)
-              else
-                 write (message,'(f6.3,24x,f24.16)') model%numerics%stagsigma(k), temp_diag(k)
-                 call write_log(trim(message), type = GM_DIAGNOSTIC)
-              endif
-
-           enddo
-
-           ! lower surface
-           write (message,'(f6.3,2f24.16)') model%numerics%sigma(upn), spd_diag(upn), temp_diag(upn)
-           call write_log(trim(message), type = GM_DIAGNOSTIC)
-           
-       else    ! temperatures unstaggered in vertical (at layer interfaces)
- 
-           do k = 1, upn
-             write (message,'(f6.3,2f24.16)') model%numerics%sigma(k), spd_diag(k), temp_diag(k)
+          ! speed at top of layer
+          if (k > 1) then
+             write (message,'(f6.3,f24.16)') model%numerics%sigma(k), spd_diag(k)
              call write_log(trim(message), type = GM_DIAGNOSTIC)
-          enddo
+          endif
 
-       endif  ! temps staggered
+          ! temp (and optionally age) at layer midpoint
+          if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+             write (message,'(f6.3,24x,f24.16,f18.6)') model%numerics%stagsigma(k), temp_diag(k), age_diag(k)
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          else
+             write (message,'(f6.3,24x,f24.16)') model%numerics%stagsigma(k), temp_diag(k)
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+       enddo
+
+       ! lower surface
+       write (message,'(f6.3,2f24.16)') model%numerics%sigma(upn), spd_diag(upn), temp_diag(upn)
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     endif     ! idiag_local and jdiag_local in bounds
 
