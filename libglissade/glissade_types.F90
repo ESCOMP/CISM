@@ -1171,6 +1171,9 @@ module glissade_types
     real(dp),dimension(:,:),pointer :: thck => null()
     !> ice thickness (m)
 
+    real(dp),dimension(:,:),pointer :: stagthck => null()
+    !> ice thickness averaged onto the staggered grid (m)
+
     real(dp),dimension(:,:),pointer :: usrf => null()
     ! elevation of the upper ice surface (m)
 
@@ -1217,12 +1220,7 @@ module glissade_types
     integer, dimension(:,:),pointer :: thkmask => null()
     !> see glide_mask.f90 for possible values
 
-    integer, dimension(:,:),pointer :: stagmask => null()
-    !> see glide_mask.f90 for possible values
-
     !TODO - Move masks to a mask derived type?
-    real(dp),dimension(:,:),pointer :: lower_cell_loc => null()  !> z-location of the center of the lowest ice cell center
-    real(dp),dimension(:,:),pointer :: lower_cell_temp => null() !> temperature in the cell located at lower_cell_loc
     integer, dimension(:,:),pointer :: ice_mask => null()        !> = 1 where ice is present, else = 0
     integer, dimension(:,:),pointer :: ice_mask_stag => null()   !> = 1 where ice is present on staggered grid, else = 0
     integer, dimension(:,:),pointer :: floating_mask => null()   !> = 1 where ice is present and floating, else = 0
@@ -1245,14 +1243,6 @@ module glissade_types
     real(dp),dimension(:,:),pointer :: removal_thck => null()        !> thickness loss of ice removed in grid cell
     real(dp),dimension(:,:),pointer :: removal_rate => null()        !> rate of ice removal (m/yr ice)
     real(dp),dimension(:,:),pointer :: removal_rate_tavg => null()   !> rate of ice removal (m/yr ice, time average)
-
-    integer, dimension(:,:),pointer :: thck_index => null()
-    ! Set to nonzero integer for ice-covered cells (thck > 0), cells adjacent to ice-covered cells,
-    !  and cells with acab > 0.  The non-zero points are numbered in sequence from the bottom left 
-    !  to the top right, going along the rows.
-
-    integer :: totpts = 0       ! total number of points with nonzero thck_index
-    logical :: empty = .true.   ! true if totpts = 0
 
   end type glissade_geometry_type
 
@@ -1349,20 +1339,10 @@ module glissade_types
     real(dp),dimension(:,:),pointer :: dusrfdew => null() !> E-W derivative of upper surface elevation.
     real(dp),dimension(:,:),pointer :: dthckdns => null() !> N-S derivative of thickness.
     real(dp),dimension(:,:),pointer :: dusrfdns => null() !> N-S derivative of upper surface elevation.
-    real(dp),dimension(:,:),pointer :: dlsrfdew => null() !*tb* added
-    real(dp),dimension(:,:),pointer :: dlsrfdns => null() !*tb* added
 
     !Time derivatives
     real(dp),dimension(:,:),pointer :: dthckdtm => null() !> Temporal derivative of thickness.
     real(dp),dimension(:,:),pointer :: dusrfdtm => null() !> Temporal derivative of upper surface elevation.
-
-    !TODO - Move staggered variables from glissade_geomderv_type type to glissade_geometry_type?
-
-    !Staggered grid versions of geometry variables
-    real(dp),dimension(:,:),pointer :: stagthck => null() !> Thickness averaged onto the staggered grid.
-    real(dp),dimension(:,:),pointer :: stagusrf => null() !> Upper surface averaged onto the staggered grid
-    real(dp),dimension(:,:),pointer :: staglsrf => null() !> Lower surface averaged onto the staggered grid
-    real(dp),dimension(:,:),pointer :: stagtopg => null() !> Bedrock topography averaged onto the staggered grid
 
   end type glissade_geomderv_type
 
@@ -1389,12 +1369,7 @@ module glissade_types
     real(dp),dimension(:,:,:),pointer :: wgrd  => null()   !> 3D grid vertical velocity.
     real(dp),dimension(:,:)  ,pointer :: uflx  => null()   !> 
     real(dp),dimension(:,:)  ,pointer :: vflx  => null()   !> 
-    real(dp),dimension(:,:)  ,pointer :: ubas  => null()   !> basal $x$-velocity at cell vertices (Glide only)
-    real(dp),dimension(:,:)  ,pointer :: vbas  => null()   !> basal $y$-velocity at cell vertices (Glide only)
     real(dp),dimension(:,:)  ,pointer :: diffu => null()   !> 
-    real(dp),dimension(:,:)  ,pointer :: diffu_x => null() !*sfp* moved from velocity_hom deriv type
-    real(dp),dimension(:,:)  ,pointer :: diffu_y => null() 
-    real(dp),dimension(:,:)  ,pointer :: total_diffu => null() !> total diffusivity
 
     ! Note: DIVA solves for uvel_2d and vvel_2d; these are typically (but not necessarily) the vertical average
     !       Velocities have units of m/s within the code.
@@ -1419,7 +1394,6 @@ module glissade_types
     real(dp),dimension(:,:)  ,pointer :: vvel_2d_extend => null()  !> 2D $y$-velocity on extended staggered grid
 
     real(dp),dimension(:,:)  ,pointer :: btrc  => null()        !> basal traction (scalar field)
-    real(dp),dimension(:,:,:),pointer :: btraction => null()    !> x(1,:,:) and y(2,:,:) "consistent" basal traction fields 
     real(dp),dimension(:,:)  ,pointer :: beta  => null()        !> basal shear coefficient on velo grid (Pa yr/m)
     real(dp),dimension(:,:)  ,pointer :: beta_internal => null()!> beta weighted by f_ground or otherwise adjusted (glissade only)
     real(dp),dimension(:,:)  ,pointer :: unstagbeta  => null()  !> basal shear coefficient on ice grid (Pa yr/m)
@@ -1475,17 +1449,17 @@ module glissade_types
   !       acab has units of m/yr ice for I/O, and SI units in most of the code.
   !       Terms with a prefix 'smb_' or 'acab_' follow the same units convention.
 
-  ! Note on acab_tavg: This is the average value of acab over an output interval.
-  !                    If 'average = 1' in the acab entry of glide_vars.def, then acab_tavg is automatically
+  ! Note on acab_applied_tavg: This is the average value of acab_applied over an output interval.
+  !                    If 'average = 1' in the acab_applied entry of glissade_vars.def, then acab_applied_tavg is automatically
   !                     accumulated and averaged during runtime, without any additional code needed.
   !                    Other variables with a '_tavg' suffix are handled similarly.
-  !                    Between writes, the array acab_tavg holds the running sum of acab*tinc, not the average.
-  !                    The sum is divided by the total time only when the output variable acab_tavg is written,
+  !                    Between writes, the array acab_applied_tavg holds the running sum of acab_applied*tinc, not the average.
+  !                    The sum is divided by the total time only when the output variable acab_applied_tavg is written,
   !                     and then the array is reset to zero (see NAME_avg_accumulate and NAME_avg_reset
   !                     in ncdf_template.F90.in).
   !                    For exact restart in the middle of an averaging interval, the same array is also written
-  !                     to restart files, without dividing by the total time, as the output variable acab_tavg_sum.
-  !                     On a standard restart, acab_tavg_sum is read back into the array acab_tavg.
+  !                     to restart files, without dividing by the total time, as the output variable acab_applied_tavg_sum.
+  !                     On a standard restart, acab_applied_tavg_sum is read back into the array acab_applied_tavg.
   !                    The '_tavg_sum' variables are generated automatically (generate_ncvars.py) and added
   !                     automatically to the restart variable list for each '_tavg' field in an output file;
   !                     there is no separate '_tavg_sum' array, and users should not list them in output files.
@@ -1500,7 +1474,6 @@ module glissade_types
   type glissade_climate_type
      !> Holds fields used to drive the model
      real(dp),dimension(:,:),pointer :: acab            => null() !> Surface mass balance (m/yr ice for I/O, m/s ice in code)
-     real(dp),dimension(:,:),pointer :: acab_tavg       => null() !> Surface mass balance (time average).
      real(dp),dimension(:,:),pointer :: acab_applied    => null() !> Surface mass balance applied to ice (m/yr ice)
                                                                   !>    = 0 for ice-free cells with acab < 0
      real(dp),dimension(:,:),pointer :: acab_applied_tavg => null() !> Surface mass balance applied to ice (m/yr ice, time average)
@@ -1708,9 +1681,9 @@ module glissade_types
     !       temp, flwa and dissip live on the staggered vertical grid at layer midpoints.  
     !       The vertical dimensions are (0:upn) for temp and (1:upn-1) for flwa and dissip.
     !
-    !      bheatflx, ucondflx, and lcondflx are defined as positive down,
+    !      bheatflx and ucondflx are defined as positive down,
     !       so they will often be < 0.  
-    !      However, bfricflx, bhydroflx and dissipcol are defined to be >= 0.
+    !      However, bfricflx and bhydroflx are defined to be >= 0.
     !
     !      If bheatflx is read from a data file, be careful about the sign!
     !      In input data, the geothermal heat flux may be defined as positive upward,
@@ -1725,19 +1698,15 @@ module glissade_types
     ! Note: With a basal temperature GLP, a grid cell can have different basal temps for grounded and floating ice
     real(dp),dimension(:,:),  pointer :: btemp_ground => null() !> Basal temperature for grounded ice
     real(dp),dimension(:,:),  pointer :: btemp_float => null()  !> Basal temperature for floating ice
-    real(dp),dimension(:,:),  pointer :: stagbtemp => null() !> Basal temperature on velo grid
     real(dp),dimension(:,:),  pointer :: bpmp => null()      !> Basal pressure melting point temperature
-    real(dp),dimension(:,:),  pointer :: stagbpmp => null()  !> Basal pressure melting point temperature on velo grid
     real(dp),dimension(:,:),  pointer :: bfricflx => null()  !> basal heat flux (W/m^2) from friction (>= 0)
     real(dp),dimension(:,:),  pointer :: bhydroflx => null() !> basal heat flux (W/m^2) from refreezing meltwater (>= 0)
     real(dp),dimension(:,:,:),pointer :: waterfrac => null() !> fractional water content in layer (0 <= waterfrac <= 1)
     real(dp),dimension(:,:,:),pointer :: enthalpy => null()  !> specific enthalpy in layer (J m-3)
                                                              !> = rhoi * Ci * T for cold ice
-    !TODO - Remove ucondflx, lcondflx, dissipcol and make these local to glissade_therm?
-    !       Probably cannot remove ucondflx because it may be needed for coupling.
+    !TODO - Make ucondflx local to glissade_therm?
+    !       Probably not, because it may be needed for coupling.
     real(dp),dimension(:,:),  pointer :: ucondflx => null()  !> conductive heat flux (W/m^2) at upper sfc (positive down)
-    real(dp),dimension(:,:),  pointer :: lcondflx => null()  !> conductive heat flux (W/m^2) at lower sfc (positive down)
-    real(dp),dimension(:,:),  pointer :: dissipcol => null() !> total heat dissipation rate (W/m^2) in column (>= 0)
 
     real(dp),dimension(:,:),  pointer :: flow_enhancement_factor => null()  !> flow enhancement factor E (unitless)
 
@@ -1746,11 +1715,6 @@ module glissade_types
 
     !TODO - Remove some of the following from the derived type
     integer  :: niter   = 0   
-    real(dp) :: perturb = 0.d0
-    real(dp) :: grid    = 0.d0 
-    integer  :: tpt     = 0      !> Pointer to time series data
-    logical  :: first1  = .true. !>
-    logical  :: newtemps = .false. !> new temperatures
 
   end type glissade_temper_type
 
@@ -2154,7 +2118,6 @@ module glissade_types
                                          !> value of 2.2e-2 suggested by Asay-Davis et al. as an initial guess
      real(dp) :: gammaS = 2.2d-2/35.d0   !> nondimensional salt transfer coefficient
                                          !> for MISOMIP, should be set to gammaT/35 
-     real(dp) :: zbed_deep = -720.d0     !> min sea floor elevation (m)
 
   end type glissade_plume_type
 
@@ -2199,7 +2162,6 @@ module glissade_types
      ! Note: Ideally, bwat should have MKS units (m), but currently is scaled.
      !       bwat_diag has units of m; not scaled
      real(dp),dimension(:,:),  pointer :: bwat => null()        !> Local basal water depth
-     real(dp),dimension(:,:),  pointer :: stagbwat => null()    !> Basal water depth on velo grid
      real(dp),dimension(:,:),  pointer :: bwatflx => null()     !> Basal water flux through a cell per unit cell area (m/s)
      real(dp),dimension(:,:),  pointer :: bmlt_hydro => null()  !> Meltwater source at bed for hydrology (m/s);
                                                                 !> sum of local bmlt and englacial/surface meltwater source
@@ -2323,7 +2285,6 @@ module glissade_types
      real(dp) :: powerlaw_m = 3.d0               !> exponent in power law (unitless)
      real(dp) :: powerlaw_c_max = 1.0d5          !> max value of powerlaw_c, Pa (m/yr)^(-1/3)
      real(dp) :: powerlaw_c_min = 1.0d2          !> min value of powerlaw_c, Pa (m/yr)^(-1/3)
-     real(dp) :: powerlaw_c_basin_relax          !> relax the basin-scale powerlaw_c toward this value
 
      ! parameters for Coulomb basal friction law
      ! Notes: coulomb_c_max = 1.0 to cap effecpress at overburden
@@ -2485,8 +2446,6 @@ module glissade_types
     real(dp) :: time   =     0.d0 !> main loop counter in years
     real(dp) :: tinc   =     1.d0 !> time step of main loop in years 
     real(dp) :: ntem   =     1.d0 !> multiplier of main time step; allows longer temperature time step
-    real(dp) :: alpha  =    0.5d0 !> richard suggests 1.5 - was a parameter in original
-    real(dp) :: alphas =    0.5d0 !> was a parameter in the original
     real(dp) :: thklim =   100.d0 !> min thickness for computing ice dynamics (m) 
     real(dp) :: thklim_temp = 1.d0    !> min thickness for computing vertical temperature (m) (higher-order only)
     real(dp) :: thck_gradient_ramp = 0.d0 !> thickness scale over which gradients increase from zero to full value (HO only)
@@ -2496,7 +2455,6 @@ module glissade_types
     real(dp) :: dttem  =     0.d0     !> temperature timestep
     integer  :: nsteps_per_year = 0   !> number of time steps per year (for dt_option = STEPS_PER_YEAR)
     real(dp) :: dt_transport = 0.d0   !> timestep for subcycling transport within the dynamics timestep dt
-    real(dp) :: nshlf  =     0.d0          !TODO - not currently used; remove?
     integer  :: subcyc =     1
     real(dp) :: periodic_offset_ew = 0.d0 !> optional periodic_offsets for ismip-hom and similar tests;
     real(dp) :: periodic_offset_ns = 0.d0 !> may be needed to ensure continuous ice geometry at edges of the global domain
@@ -2546,10 +2504,8 @@ module glissade_types
     real(dp) :: flow_enhancement_factor_float = 1.0d0    ! flow enhancement parameter for floating ice
                                                          ! Default is 1.0, but for marine simulations a smaller value
                                                          !  is often needed to match observed shelf speeds
-    real(dp) :: slip_ratio = 1.0d0     ! Slip ratio, used only in higher order code when the slip ratio beta computation is requested
     real(dp) :: hydtim = 1000.0d0      ! years, converted to s^{-1} and scaled
                                        ! 0 if no drainage
-    real(dp) :: bwat_smooth = 0.01d0   ! basal water field smoothing strength
 
     !TODO - Move the following higher-order velocity parameters to a different type?
     real(dp) :: default_flwa = 1.0d-16 ! Glen's A to use in isothermal case, in units Pa^{-n} yr^{-1} 
@@ -2630,8 +2586,6 @@ contains
     !> \item \texttt{bfricflx(ewn,nsn)}
     !> \item \texttt{bhydroflx(ewn,nsn)}
     !> \item \texttt{ucondflx(ewn,nsn)}
-    !> \item \texttt{lcondflx(ewn,nsn)}
-    !> \item \texttt{dissipcol(ewn,nsn)}
     !> \item \texttt{waterfrac(upn-1,ewn,nsn)}
     !> \item \texttt{enthalpy(0:upn,ewn,nsn)}
     !> \end{itemize}
@@ -2707,12 +2661,12 @@ contains
     !> \item \texttt{dusrfdns(ewn,nsn))}
     !> \item \texttt{dthckdtm(ewn,nsn))}
     !> \item \texttt{dusrfdtm(ewn,nsn))}
-    !> \item \texttt{stagthck(ewn-1,nsn-1))}
     !> \end{itemize}
   
     !> In \texttt{model\%geometry}:
     !> \begin{itemize}
     !> \item \texttt{thck(ewn,nsn))}
+    !> \item \texttt{stagthck(ewn-1,nsn-1))}
     !> \item \texttt{usrf(ewn,nsn))}
     !> \item \texttt{lsrf(ewn,nsn))}
     !> \item \texttt{topg(ewn,nsn))}
@@ -2727,7 +2681,7 @@ contains
     !> \item \texttt{f_flotation(ewn,nsn)}
     !> \item \texttt{f_ground(ewn-1,nsn-1)}
     !> \item \texttt{f_ground_cell(ewn-1,nsn-1)}
-    !* (DFM) added floating_mask, ice_mask, lower_cell_loc, and lower_cell_temp
+    !* (DFM) added floating_mask and ice_mask
     !> \item \texttt{ice_mask(ewn,nsn))}
     !> \item \texttt{floating_mask(ewn,nsn))}
     !> \item \texttt{grounded_mask(ewn,nsn))}
@@ -2736,8 +2690,6 @@ contains
     !> \item \texttt{ice_cap_mask(ewn,nsn))}
     !> \item \texttt{ice_fraction_retreat_mask(ewn,nsn))}
     !> \item \texttt{reference_thck(ewn,nsn))}
-    !> \item \texttt{lower_cell_loc(ewn,nsn))}
-    !> \item \texttt{lower_cell_temp(ewn,nsn))}
     !> \end{itemize}
 
     !> In \texttt{model\%numerics}:
@@ -2829,16 +2781,13 @@ contains
 
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bheatflx)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%bpmp)
-    call coordsystem_allocate(model%general%velo_grid, model%temper%stagbpmp)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%btemp)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%btemp_ground)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%btemp_float)
-    call coordsystem_allocate(model%general%velo_grid, model%temper%stagbtemp)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%ucondflx)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%flow_enhancement_factor)
 
     call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwat)
-    call coordsystem_allocate(model%general%velo_grid, model%basal_hydro%stagbwat)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwatflx)
     if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bmlt_hydro)
@@ -2849,8 +2798,6 @@ contains
 
     call coordsystem_allocate(model%general%ice_grid, model%temper%bfricflx)
     call coordsystem_allocate(model%general%ice_grid, model%temper%bhydroflx)
-    call coordsystem_allocate(model%general%ice_grid, model%temper%lcondflx)
-    call coordsystem_allocate(model%general%ice_grid, model%temper%dissipcol)
     ! water fraction and enthalpy live at the midpoint of each layer (with temp and flwa)
     ! enthalpy (like temp) is defined at the upper and lower surfaces as well
     call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%waterfrac)
@@ -2865,7 +2812,6 @@ contains
     call coordsystem_allocate(model%general%velo_grid, model%velocity%uflx)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%vflx)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%btrc)
-    call coordsystem_allocate(model%general%velo_grid, 2, model%velocity%btraction)
     call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%resid_u)
     call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%resid_v)
     call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%rhs_u)
@@ -2925,6 +2871,7 @@ contains
 
     ! geometry arrays
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thck)
+    call coordsystem_allocate(model%general%velo_grid, model%geometry%stagthck)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lsrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%topg)
@@ -2933,13 +2880,11 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt_obs)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt_obs_basin)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
-    call coordsystem_allocate(model%general%velo_grid, model%geometry%stagmask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
 
     !Note: model%geometry%tracers and related arrays are allocated later, in glissade_transport_setup_tracers,
     !      once we know model%geometry%ntracers
 
-    call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagthck)
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dthckdew)
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dthckdns)
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dusrfdew)
@@ -2957,8 +2902,6 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%removal_rate)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%removal_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%reference_thck)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%lower_cell_loc)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%lower_cell_temp)
 
     ! mass flux arrays
     call coordsystem_allocate(model%general%ice_grid, model%mass_flux%sfc_mbal_flux)
@@ -2983,11 +2926,6 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
     call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
     call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_ground_cell)
-    call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdew)
-    call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdns)
-    call coordsystem_allocate(model%general%velo_grid, model%geomderv%staglsrf)
-    call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagusrf)
-    call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagtopg)
 
     ! Basal Physics
     !WHL - Since the number of basal BC options has proliferated, simplify the logic by allocating the following arrays
@@ -3120,7 +3058,6 @@ contains
 
     ! climate arrays
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
@@ -3295,26 +3232,18 @@ contains
         deallocate(model%temper%bheatflx)
     if (associated(model%temper%bpmp)) &
         deallocate(model%temper%bpmp)
-    if (associated(model%temper%stagbpmp)) &
-        deallocate(model%temper%stagbpmp)
     if (associated(model%temper%btemp)) &
         deallocate(model%temper%btemp)
     if (associated(model%temper%btemp_ground)) &
         deallocate(model%temper%btemp_ground)
     if (associated(model%temper%btemp_float)) &
         deallocate(model%temper%btemp_float)
-    if (associated(model%temper%stagbtemp)) &
-        deallocate(model%temper%stagbtemp)
     if (associated(model%temper%bfricflx)) &
         deallocate(model%temper%bfricflx)
     if (associated(model%temper%bhydroflx)) &
         deallocate(model%temper%bhydroflx)
     if (associated(model%temper%ucondflx)) &
         deallocate(model%temper%ucondflx)
-    if (associated(model%temper%lcondflx)) &
-        deallocate(model%temper%lcondflx)
-    if (associated(model%temper%dissipcol)) &
-        deallocate(model%temper%dissipcol)
     if (associated(model%temper%waterfrac)) &
         deallocate(model%temper%waterfrac)
     if (associated(model%temper%enthalpy)) &
@@ -3346,8 +3275,6 @@ contains
         deallocate(model%velocity%vflx)
     if (associated(model%velocity%btrc)) &
         deallocate(model%velocity%btrc)
-    if (associated(model%velocity%btraction)) &
-        deallocate(model%velocity%btraction)
     if (associated(model%velocity%resid_u)) &
         deallocate(model%velocity%resid_u)
     if (associated(model%velocity%resid_v)) &
@@ -3380,18 +3307,8 @@ contains
         deallocate(model%velocity%velo_sfc)
     if (associated(model%velocity%wgrd)) &
         deallocate(model%velocity%wgrd)
-    if (associated(model%velocity%ubas)) &
-        deallocate(model%velocity%ubas)
-    if (associated(model%velocity%vbas)) &
-        deallocate(model%velocity%vbas)
     if (associated(model%velocity%diffu)) &
         deallocate(model%velocity%diffu)
-    if (associated(model%velocity%diffu_x)) &
-        deallocate(model%velocity%diffu_x)
-    if (associated(model%velocity%diffu_y)) &
-        deallocate(model%velocity%diffu_y)
-    if (associated(model%velocity%total_diffu)) &
-        deallocate(model%velocity%total_diffu)
     if (associated(model%velocity%tau_x)) &
         deallocate(model%velocity%tau_x)
     if (associated(model%velocity%tau_y)) &
@@ -3465,8 +3382,6 @@ contains
     ! basal hydrology arrays
     if (associated(model%basal_hydro%bwat)) &
         deallocate(model%basal_hydro%bwat)
-    if (associated(model%basal_hydro%stagbwat)) &
-        deallocate(model%basal_hydro%stagbwat)
     if (associated(model%basal_hydro%bwatflx)) &
         deallocate(model%basal_hydro%bwatflx)
     if (associated(model%basal_hydro%bmlt_hydro)) &
@@ -3623,6 +3538,8 @@ contains
 
     if (associated(model%geometry%thck)) &
         deallocate(model%geometry%thck)
+    if (associated(model%geometry%stagthck)) &
+        deallocate(model%geometry%stagthck)
     if (associated(model%geometry%usrf)) &
         deallocate(model%geometry%usrf)
     if (associated(model%geometry%lsrf)) &
@@ -3639,10 +3556,6 @@ contains
         deallocate(model%geometry%dthck_dt_obs_basin)
     if (associated(model%geometry%thkmask)) &
         deallocate(model%geometry%thkmask)
-    if (associated(model%geometry%stagmask)) &
-        deallocate(model%geometry%stagmask)
-    if (associated(model%geomderv%stagthck)) &
-        deallocate(model%geomderv%stagthck)
     if (associated(model%geomderv%dthckdew)) &
         deallocate(model%geomderv%dthckdew)
     if (associated(model%geomderv%dthckdns)) &
@@ -3714,10 +3627,6 @@ contains
        deallocate(model%geometry%removal_rate_tavg)
     if (associated(model%geometry%reference_thck)) &
        deallocate(model%geometry%reference_thck)
-    if (associated(model%geometry%lower_cell_loc)) &
-       deallocate(model%geometry%lower_cell_loc)
-    if (associated(model%geometry%lower_cell_temp)) &
-       deallocate(model%geometry%lower_cell_temp)
 
     if (associated(model%scalars%iarea_basin)) &
          deallocate(model%scalars%iarea_basin)
@@ -3742,8 +3651,6 @@ contains
     if (associated(model%scalars%bmlt_float_target_basin)) &
          deallocate(model%scalars%bmlt_float_target_basin)
 
-    if (associated(model%geometry%thck_index)) &
-        deallocate(model%geometry%thck_index)
     if (associated(model%geomderv%dthckdtm)) &
         deallocate(model%geomderv%dthckdtm)
     if (associated(model%geomderv%dusrfdtm)) &
@@ -3761,23 +3668,11 @@ contains
         deallocate(model%geometry%f_ground)
     if (associated(model%geometry%f_ground_cell)) &
         deallocate(model%geometry%f_ground_cell)
-    if (associated(model%geomderv%dlsrfdew)) &
-        deallocate(model%geomderv%dlsrfdew)
-    if (associated(model%geomderv%dlsrfdns)) &
-        deallocate(model%geomderv%dlsrfdns)
-    if (associated(model%geomderv%staglsrf)) &
-        deallocate(model%geomderv%staglsrf)
-    if (associated(model%geomderv%stagusrf)) &
-        deallocate(model%geomderv%stagusrf)
-    if (associated(model%geomderv%stagtopg)) &
-        deallocate(model%geomderv%stagtopg)
 
     ! climate arrays
 
     if (associated(model%climate%acab)) &
         deallocate(model%climate%acab)
-    if (associated(model%climate%acab_tavg)) &
-        deallocate(model%climate%acab_tavg)
     if (associated(model%climate%acab_applied)) &
         deallocate(model%climate%acab_applied)
     if (associated(model%climate%acab_applied_tavg)) &

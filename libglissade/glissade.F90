@@ -1858,7 +1858,7 @@ contains
        call glissade_check_cfl(ewn,                nsn,                upn-1,                    &
                                model%numerics%dew, model%numerics%dns, model%numerics%sigma,             &
                                parallel,                                                                       &
-                               model%geomderv%stagthck,                                                        &
+                               model%geometry%stagthck,                                                        &
                                model%geomderv%dusrfdew,           model%geomderv%dusrfdns,                     &
                                model%velocity%uvel * scyr,        model%velocity%vvel * scyr,                  & ! m/yr
                                model%numerics%dt_transport / scyr,                                             & ! yr
@@ -2161,7 +2161,7 @@ contains
     ! ------------------------------------------------------------------------
 
     call glissade_stagger(ewn,                 nsn,  &
-                          model%geometry%thck, model%geomderv%stagthck)
+                          model%geometry%thck, model%geometry%stagthck)
 
     call glissade_gradient(ewn,                     nsn,       &
                            model%numerics%dew,      model%numerics%dns,      &
@@ -2534,7 +2534,7 @@ contains
           call glissade_interior_dissipation_sia(ewn,  nsn,    upn,              &
                                                  model%numerics%stagsigma(:),    &
                                                  ice_mask,                       &
-                                                 model%geomderv%stagthck,        & ! m
+                                                 model%geometry%stagthck,        & ! m
                                                  model%temper%flwa,              & ! Pa^{-n} s^{-1}
                                                  model%geomderv%dusrfdew,        & ! m/m
                                                  model%geomderv%dusrfdns,        & ! m/m
@@ -2578,6 +2578,7 @@ contains
                            model%numerics,                    &
                            model%geometry%thck * 0.0d0,       &  ! Just need a 2d array of all 0's for wgrd
                            model%geometry%thck,               &
+                           model%geometry%stagthck,           &
                            model%basal_melt%bmlt,             &
                            model%velocity%wvel)
     ! Note: halos may be wrong for wvel, but since it is currently only used as an output diagnostic variable, that is OK.

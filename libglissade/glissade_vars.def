@@ -511,7 +511,7 @@ standard_name: land_ice_thickness
 dimensions:    time, y0, x0
 units:         meter
 long_name:     staggered ice thickness
-data:          data%geomderv%stagthck
+data:          data%geometry%stagthck
 standard_name: stag_land_ice_thickness
 load:          0
 
@@ -646,6 +646,7 @@ dimensions:    time, y1, x1
 units:         meter/year
 long_name:     rate of ice removal
 data:          data%geometry%removal_rate
+average:       1
 
 [effective_areafrac]
 dimensions:    time, y1, x1
