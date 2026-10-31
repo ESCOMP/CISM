@@ -173,14 +173,6 @@ contains
        call handle_parameters(section, model)
     end if
 
-    ! read geothermal heat flux
-    ! NOTE: The [GTHF] section is ignored unless model%options%gthf = GTHF_COMPUTE
-    if (model%options%gthf == GTHF_COMPUTE) then
-       call GetSection(config,section,'GTHF')
-       if (associated(section)) then
-          call handle_gthf(section, model)
-       end if
-    endif
 
     ! read isostasy
     ! NOTE: The [isostasy] section is ignored unless model%options%isostasy = ISOSTASY_COMPUTE
@@ -242,7 +234,6 @@ contains
     call print_time(model)
     call print_options(model)
     call print_parameters(model)
-    call print_gthf(model)
     call print_lateral_melt(model)
     call print_isostasy(model)
     call print_basal_hydro(model)
@@ -3255,63 +3246,6 @@ contains
 
 !--------------------------------------------------------------------------------
 
-  ! geothermal heat flux calculations
-  subroutine handle_gthf(section, model)
-    use glimmer_config
-    use glissade_types
-    implicit none
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)  :: model
-
-    call GetValue(section,'num_dim',model%lithot%num_dim)
-    call GetValue(section,'nlayer',model%lithot%nlayer)
-    call GetValue(section,'surft',model%lithot%surft)
-    call GetValue(section,'rock_base',model%lithot%rock_base)
-    call GetValue(section,'numt',model%lithot%numt)
-    call GetValue(section,'rho',model%lithot%rho_r)
-    call GetValue(section,'shc',model%lithot%shc_r)
-    call GetValue(section,'con',model%lithot%con_r)
-  end subroutine handle_gthf
-
-!--------------------------------------------------------------------------------
-
-  subroutine print_gthf(model)
-    use glissade_types
-    use glimmer_log
-    implicit none
-    type(glissade_global_type)  :: model
-    character(len=100) :: message
-    
-    if (model%options%gthf == GTHF_COMPUTE) then
-       call write_log('Geothermal heat flux configuration')
-       call write_log('----------------------------------')
-       if (model%lithot%num_dim==1) then
-          call write_log('solve 1D diffusion equation')
-       else if (model%lithot%num_dim==3) then          
-          call write_log('solve 3D diffusion equation')
-       else
-          call write_log('Wrong number of dimensions.',GM_FATAL,__FILE__,__LINE__)
-       end if
-       write(message,*) 'number of layers                     : ',model%lithot%nlayer
-       call write_log(message)
-       write(message,*) 'initial surface temperature          : ',model%lithot%surft
-       call write_log(message)
-       write(message,*) 'rock base                            : ',model%lithot%rock_base
-       call write_log(message)
-       write(message,*) 'density of rock layer                : ',model%lithot%rho_r
-       call write_log(message)
-       write(message,*) 'specific heat capacity of rock layer : ',model%lithot%shc_r
-       call write_log(message)
-       write(message,*) 'thermal conductivity of rock layer   : ',model%lithot%con_r
-       call write_log(message)
-       write(message,*) 'number of time steps for spin-up     : ',model%lithot%numt
-       call write_log(message)
-       call write_log('')
-    end if
-  end subroutine print_gthf
-
-!--------------------------------------------------------------------------------
-
   subroutine handle_isostasy(section, model)
     use glimmer_config
     use glissade_types
@@ -4279,15 +4213,6 @@ contains
     if (options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
        call glissade_add_to_restart_variable_list('velo_sfc', model_id)
     endif
-
-    ! geothermal heat flux option
-    select case (options%gthf)
-      case(GTHF_COMPUTE)
-         ! restart needs to know lithosphere temperature
-         call glissade_add_to_restart_variable_list('litho_temp', model_id)
-      case default
-         ! no restart variables needed
-    end select
 
     select case (options%isostasy)
       case(ISOSTASY_COMPUTE)

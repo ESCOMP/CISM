@@ -51,7 +51,7 @@ module glissade_types
   use profile, only: profile_type
   use glimmer_coordinates, only: coordsystem_type
   use glimmer_map_types, only: glimmap_proj
-  use glimmer_sparse_type, only: sparse_matrix_type, &
+  use glimmer_sparse_type, only: &
        HO_SPARSE_PCG_INCH, HO_SPARSE_BICG, HO_SPARSE_GMRES, &
        HO_SPARSE_PCG_STANDARD, HO_SPARSE_PCG_CHRONGEAR
   use cism_parallel, only: parallel_type
@@ -2341,48 +2341,6 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_lithot_type
-     !> holds variables for temperature calculations in the lithosphere
-
-     real(dp),dimension(:,:,:),pointer :: temp => null()    !> Three-dimensional temperature field.
-     logical, dimension(:,:), pointer :: mask => null()     !> whether the point has been ice covered at some time
-
-     integer :: num_dim = 1                                 !> either 1 or 3 for 1D/3D calculations
-
-     ! The sparse matrix and linearised arrays
-     type(sparse_matrix_type) :: fd_coeff, fd_coeff_slap
-     integer :: all_bar_top
-     real(dp), dimension(:), pointer :: rhs => null()
-     real(dp), dimension(:), pointer :: answer => null()
-     real(dp), dimension(:), pointer :: supd => null(), diag => null(), subd => null()
-
-     ! work arrays for solver
-     real(dp), dimension(:), pointer :: rwork => null()
-     integer, dimension(:), pointer :: iwork => null()
-     integer mxnelt
-
-     real(dp), dimension(:), pointer :: deltaz => null()    !> array holding grid spacing in z
-     real(dp), dimension(:,:), pointer :: zfactors => null()!> array holding factors for finite differences of vertical diffu
-     real(dp) :: xfactor,yfactor !> factors for finite differences of horizontal diffu
-
-
-     real(dp) :: surft = 2.d0          !> surface temperature, used for calculating initial temperature distribution
-     real(dp) :: mart  = 2.d0          !> sea floor temperature 
-     integer  :: nlayer = 20           !> number of layers in lithosphere
-     real(dp) :: rock_base = -5000.d0  !> depth below sea-level at which geothermal heat gradient is applied
-     
-     integer :: numt = 0        !> number time steps for spinning up GTHF calculations
-
-     real(dp) :: rho_r = 3300.0d0 !> The density of lithosphere (kg m$^{-3}$)
-     real(dp) :: shc_r = 1000.0d0 !> specific heat capcity of lithosphere (J kg$^{-1}$ K$^{-1}$)
-     real(dp) :: con_r = 3.3d0    !> thermal conductivity of lithosphere (W m$^{-1}$ K$^{-1}$)
-
-     real(dp) :: diffu = 0. !> diffusion coefficient
-
-  end type glissade_lithot_type
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
   type isos_elastic_type
      !> Holds data used by isostatic adjustment calculations
 
@@ -2557,7 +2515,6 @@ module glissade_types
     type(glissade_glacier_type)  :: glacier
     type(glissade_inversion_type):: inversion
     type(glissade_plume_type)    :: plume
-    type(glissade_lithot_type)  :: lithot
     type(glimmer_funits) :: funits
     type(glissade_numerics_type) :: numerics
     type(glissade_paramets_type) :: paramets
@@ -3154,15 +3111,6 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%runoff_applied)
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%thermal_forcing_applied)
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_front_mask)
-    endif
-
-    !TODO - In model%lithot%temp, put the vertical index 3rd as in model%temper%temp?
-
-    ! lithosphere arrays
-
-    if (model%options%gthf == GTHF_COMPUTE) then
-       allocate(model%lithot%temp(1:ewn,1:nsn,model%lithot%nlayer)); model%lithot%temp = 0.d0
-       call coordsystem_allocate(model%general%ice_grid, model%lithot%mask)
     endif
 
     ! isostasy arrays
@@ -3781,13 +3729,6 @@ contains
         deallocate(model%lateral_melt%latmelt_rate_tavg)
     if (associated(model%lateral_melt%melt_front_mask)) &
         deallocate(model%lateral_melt%melt_front_mask)
-
-    ! lithosphere arrays
-
-    if (associated(model%lithot%temp)) &
-        deallocate(model%lithot%temp)
-    if (associated(model%lithot%mask)) &
-        deallocate(model%lithot%mask)
 
     ! isostasy arrays
 
