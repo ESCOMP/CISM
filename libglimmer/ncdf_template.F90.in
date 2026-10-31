@@ -369,6 +369,7 @@ contains
     ! Set the sizes of the vertical and other non-horizontal dimensions,
     !  used when reading and writing fields with these dimensions
 
+    use DYCORE_PREFIX_nc_custom, only: DYCORE_PREFIX_nc_set_custom_dims
     implicit none
     type(glimmer_nc_stat) :: nc
     type(DYCORE_PREFIX_global_type) :: model
@@ -378,13 +379,8 @@ contains
     nc%nstaglevel = model%general%upn-1
     nc%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
 
-    ! Note: The following dimension lengths are set to 1 by default,
-    !       but can be increased depending on the config options.
-    nc%nzocn = model%ocean_data%nzocn      ! vertical coordinate for ocean data
-    nc%nzatm = model%climate%nzatm         ! vertical coordinate for atmosphere data
-    nc%nglacier = model%glacier%nglacier   ! glacier ID coordinate for glacier data
-    nc%nbasin = model%ocean_data%nbasin    ! basin coordinate for basin data
-    nc%naxis = model%calving%naxis         ! coordinate for calvingMIP axis data
+    ! dimensions that depend on the dycore (e.g., ocean levels, glaciers, basins)
+    call DYCORE_PREFIX_nc_set_custom_dims(nc, model)
 
   end subroutine NAME_set_nc_dims
 

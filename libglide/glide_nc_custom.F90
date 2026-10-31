@@ -177,4 +177,22 @@ contains
 
   end subroutine glide_nc_filldvars
 
+  !-----------------------------------------------------------------------------
+
+  subroutine glide_nc_set_custom_dims(nc, model)
+
+    ! Set the sizes of dimensions specific to Glide, used when reading and writing
+    !  fields with these dimensions. Called from NAME_set_nc_dims in the generated I/O module.
+    ! Glide has no such dimensions (the ocean, atmosphere, glacier, basin and axis
+    !  dimensions are used only by Glissade), so there is nothing to set.
+
+    use glide_types
+    use glimmer_ncdf, only: glimmer_nc_stat
+    implicit none
+
+    type(glimmer_nc_stat), intent(inout) :: nc
+    type(glide_global_type), intent(in) :: model
+
+  end subroutine glide_nc_set_custom_dims
+
 end module glide_nc_custom
