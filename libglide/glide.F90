@@ -170,10 +170,17 @@ contains
     ! Note: nhalo = 0 is included in call to distributed_grid to set other halo
     !  variables (lhalo, uhalo, etc.) to 0 instead of default values
 
-!WHL - distributed_grid is not in old Glide
-      
-!    call distributed_grid(model%general%ewn, model%general%nsn,  &
-!                          nhalo_in=my_nhalo)
+    ! Glide is a serial code, but it uses the parallel infrastructure in cism_parallel
+    !  in a trivial form, with one task and no halo cells (nhalo = 0).
+    ! The main reason is that Glide shares the netCDF I/O layer with Glissade:
+    !  the libglimmer I/O routines and the generated glide_io module are written
+    !  in terms of model%parallel (parallel_type) and the parallel_* netCDF wrappers.
+    !  This call to distributed_grid sets up model%parallel for a single block.
+    ! Glide also calls some parallel routines that are trivial on one task, mainly
+    !  global sums and reductions in glide_diagnostics. These could be replaced by
+    !  serial code, but they are cheap and give correct results.
+    ! Note: distributed_grid is called without the global_bc_in argument, so the
+    !  default (periodic) applies; Glide does not use the global_bc config option.
     call distributed_grid(model%general%ewn, model%general%nsn,  &
                           model%parallel,    nhalo_in=my_nhalo)
 

@@ -32,12 +32,9 @@ module isostasy_elastic
 
   !> handle elastic lithosphere
 
-  !> NOTE: The elastic lithosphere calculation is done on a single task.
-  !>       For parallel runs, data are gathered onto the main task for the computation,
-  !>        then scattered back to local processors.
-  !>       This procedure is manageable on a 4 km mesh, but may be too expensive and/or
-  !>        memory-intensive at higher resolutions. A more scalable approach is a priority
-  !>        for future development.
+  !> NOTE: Glide runs on a single task with no halo cells, so the elastic lithosphere
+  !>       calculation is done directly on the (global) model arrays.
+  !>       Glissade has its own parallel isostasy modules.
 
   use glimmer_global, only : dp
   use glimmer_paramets, only: iulog
@@ -127,17 +124,13 @@ contains
 
   subroutine calc_elastic(&
        rbel,  load_factors,  load,  &
-       parallel,                    &
        idiag, jdiag,                &
        idiag_local, jdiag_local, rdiag_local)
 
     !> Calculate surface loading effect using elastic lithosphere approximation.
     !> Functionally equivalent to subroutine calc_elastic from Glimmer's original isostasy model.
-    !> The main difference is that this subroutine uses a global gather and scatter to compute
-    !>  the load for simulations on more than one task.
 
-    use cism_parallel, only: this_rank, main_task, &
-         parallel_type, gather_var, scatter_var, parallel_halo
+    use cism_parallel, only: this_rank, main_task
 
     implicit none
 
@@ -145,7 +138,6 @@ contains
     real(dp), dimension(:,:), intent(in)  :: load_factors  !> load mass divided by mantle density
     real(dp), dimension(:,:), intent(out) :: load          !> loading effect due to load_factors
 
-    type(parallel_type), intent(in) :: parallel            !> info for parallel communication
 
     ! The following are needed only for diagnostic prints
     integer, intent(in) :: &
@@ -155,68 +147,39 @@ contains
 
     ! local variables
 
-    integer :: ewn, nsn    !> grid dimensions on the local task; includes halo cells
-    integer :: global_ewn, global_nsn     !> global grid dimensions
+    integer :: ewn, nsn    !> grid dimensions
 
     integer :: i, j, n, m
-
-    real(dp), dimension(:,:), allocatable :: &
-         load_global,             & !> global version of the output 'load' array
-         load_factors_global        !> global version of the input 'load_factors' array
-
-    real(dp) :: local_sum_load, global_sum_load   !> diagnostic sums
 
     ! initialize
 
     ewn = size(load,1)
     nsn = size(load,2)
-    global_ewn = parallel%global_ewn
-    global_nsn = parallel%global_nsn
 
     load(:,:) = 0.0d0
 
     if (verbose_elastic .and. main_task) then
        write(iulog,*) 'ISOSTASY: calc_elastic'
-       write(iulog,*) 'local ewn/nsn =', ewn, nsn
-       write(iulog,*) 'global_ewn/nsn =', global_ewn, global_nsn
+       write(iulog,*) 'ewn/nsn =', ewn, nsn
     endif
 
-    ! Gather the local load_factors arrays onto the main task
-    ! Note: global arrays are allocated in the subroutine
-    call gather_var(load_factors, load_factors_global, parallel)
+    do j = 1, nsn
 
-    allocate(load_global(global_ewn,global_nsn))
-    load_global(:,:) = 0.0d0
+       if (verbose_elastic .and. main_task) then
+          if (mod(j,100) == 0) write(iulog,*) 'j =', j   ! to see how fast the calculation is going
+       endif
 
-    if (main_task) then
-       do j = 1, global_nsn
+       do i = 1, ewn
 
-          if (verbose_elastic .and. main_task) then
-             if (mod(j,100) == 0) write(iulog,*) 'j =', j   ! to see how fast the calculation is going
-          endif
-          
-          do i = 1, global_ewn
-
-             ! Compute load terms by summing over cells in the radius of influence
-             do n = max(1,j-rbel%wsize), min(global_nsn,j+rbel%wsize)
-                do m = max(1,i-rbel%wsize), min(global_ewn,i+rbel%wsize)
-                   load_global(i,j) = load_global(i,j) + load_factors_global(m,n) * rbel%w(abs(m-i),abs(n-j))
-                end do
+          ! Compute load terms by summing over cells in the radius of influence
+          do n = max(1,j-rbel%wsize), min(nsn,j+rbel%wsize)
+             do m = max(1,i-rbel%wsize), min(ewn,i+rbel%wsize)
+                load(i,j) = load(i,j) + load_factors(m,n) * rbel%w(abs(m-i),abs(n-j))
              end do
+          end do
 
-          end do  ! i
-       end do  ! j
-    endif  ! main_task
-
-    ! Scatter the load values back to local arrays
-    ! Note: The global array is deallocated in the subroutine
-    call scatter_var(load, load_global, parallel)
-
-    ! scatter_var does not update the halo, so do an update here
-    call parallel_halo(load, parallel)
-
-    ! Deallocate the other global array (which is intent(in) and does not need to be scattered)
-    deallocate(load_factors_global)
+       end do  ! i
+    end do  ! j
 
     if (verbose_elastic .and. main_task) then
 
