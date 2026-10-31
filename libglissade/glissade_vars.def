@@ -173,27 +173,6 @@ long_name:     global average sea level
 data:          data%climate%eus
 standard_name: global_average_sea_level_change
 
-[uflx]
-dimensions:    time, y0, x0
-units:         meter2/year
-long_name:     flux in x direction (NOTE: Glide only)
-data:          data%velocity%uflx
-factor:        scyr
-
-[vflx]
-dimensions:    time, y0, x0
-units:         meter2/year
-long_name:     flux in x direction (NOTE: Glide only)
-data:          data%velocity%vflx
-factor:        scyr
-
-[diffu]
-dimensions:    time, y0, x0
-units:         meter2/year
-long_name:     apparent diffusivity
-data:          data%velocity%diffu
-factor:        scyr
-
 [btrc]
 dimensions:    time, y0, x0
 units:         m/yr/Pa
@@ -472,27 +451,6 @@ long_name:     driving stress (y-direction comp)
 data:          data%stress%taudy(:,:)
 load:          1
 
-[taux]
-dimensions:    time, y0, x0
-units:         kilopascal
-long_name:     basal shear stress in x direction (NOTE: Glide only)
-data:          data%velocity%tau_x
-factor:        1e-3
-
-[tauy]
-dimensions:    time, y0, x0
-units:         kilopascal
-long_name:     basal shear stress in y direction
-data:          data%velocity%tau_y
-factor:        1e-3
-
-[tau_c]
-dimensions:    time, y0, x0
-units:         kilopascal
-long_name:     yield stress for plastic sliding
-data:          data%basal_physics%tau_c
-factor:        1e-3
-
 [thk]
 dimensions:    time, y1, x1
 units:         meter
@@ -594,13 +552,6 @@ units:         1
 long_name:     calving front mask
 data:          data%calving%calving_front_mask
 type:          int
-
-[calving_lateral]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     lateral calving rate
-data:          data%calving%lateral_rate
-factor:        scyr
 
 [latmelt_thck]
 dimensions:    time, y1, x1
@@ -868,14 +819,6 @@ long_name:     calving-front velocity, v component
 units:         m/year
 data:          data%calving%cf_vvel
 factor:        scyr
-
-[thkmask]
-dimensions:    time, y1, x1
-long_name:     mask
-units:         1
-data:          data%geometry%thkmask
-type:          int
-load:          1
 
 [usurf]
 dimensions:    time, y1, x1
@@ -1300,20 +1243,6 @@ long_name:     basal ice temperature for floating ice
 data:          data%temper%btemp_float
 standard_name: land_ice_temperature_float
 
-[dusrfdtm]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     rate of upper ice surface elevation change (NOTE: Glide only)
-data:          data%geomderv%dusrfdtm
-factor:        scyr
-
-[dthckdtm]
-dimensions:    time, y1,x1
-units:         meter/year
-long_name:     tendency of ice thickness (NOTE: Glide only)
-data:          data%geomderv%dthckdtm
-factor:        scyr
-
 [uvel]
 dimensions:    time, level, y0, x0
 units:         meter/year
@@ -1570,14 +1499,6 @@ dimensions:    time, level, y1, x1
 units:         meter/year
 long_name:     vertical ice velocity
 data:          data%velocity%wvel(up,:,:)
-factor:        scyr
-load:          1
-
-[wgrd]
-dimensions:    time, level, y1, x1
-units:         meter/year
-long_name:     Vertical grid velocity 
-data:          data%velocity%wgrd(up,:,:)
 factor:        scyr
 load:          1
 
@@ -1874,13 +1795,6 @@ dimensions:    time, glacierid
 units:         1
 long_name:     RGI glacier ID corresponding to CISM ID
 data:          data%glacier%cism_to_rgi_glacier_id
-load:          1
-
-[glacier_area_factor]
-dimensions:    time, y1, x1
-units:         1
-long_name:     glacier area scale factor
-data:          data%glacier%area_factor
 load:          1
 
 [glacier_area]
