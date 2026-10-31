@@ -143,7 +143,7 @@ module glissade_therm
 
     ! Precompute some grid quantities used in the vertical temperature solve
  
-!!    allocate(dups(upn+1,2))   ! now allocated in glide_types
+!!    allocate(dups(upn+1,2))   ! now allocated in glissade_types
     dups(:,:) = 0.0d0
 
     up = 1

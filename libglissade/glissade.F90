@@ -185,7 +185,7 @@ contains
        model%general%ice_domain_mask = 0
 
        ! Read ice_domain_mask from the input or restart file
-       ! Note: In general, input arrays are read from subroutine glide_io_readall (called below) in glide_io.F90.
+       ! Note: In general, input arrays are read from subroutine glissade_io_readall (called below) in glissade_io.F90.
        !       However, ice_domain_mask is needed now to identify active blocks.
 
        infile => model%funits%in_first   ! assume ice_domain_mask is in the input or restart file

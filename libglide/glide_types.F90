@@ -213,7 +213,7 @@ module glide_types
     ! standard options
     !-----------------------------------------------------------------------
 
-    integer :: whichdycore = 2
+    integer :: whichdycore = 0
 
     ! Choice of two dycores:
     !> \begin{description} 
