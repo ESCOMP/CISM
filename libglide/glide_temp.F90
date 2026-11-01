@@ -132,9 +132,7 @@ contains
     model%tempwk%cons = (/ 2.0d0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci), &
          model%numerics%dttem / 2.0d0, &
          VERT_DIFF*2.0d0 * model%numerics%dttem / (rhoi * shci), &
-         VERT_ADV * model%numerics%dttem / coni, &
-         0.d0 /)   !WHL - last term no longer needed
-         !*sfp* added last term to vector above for use in HO & SSA dissip. cacl
+         VERT_ADV * model%numerics%dttem / coni /)
 
     p1 = n_glen + 1.0d0
     model%tempwk%c1 = STRAIN_HEAT *(model%numerics%sigma * rhoi * grav)**p1 * &
@@ -160,9 +158,7 @@ contains
     model%tempwk%f = (/ coni / (lhci * rhoi), &
          1.d0 / (lhci * rhoi), &
          rhoi * shci /  (model%numerics%dttem * lhci * rhoi), &
-         grav * rhoi / (4.0d0 * rhoi * lhci), &
-         0.d0 /)   !WHL - last term no longer needed
-         !*sfp* added the last term in the vect above for HO and SSA dissip. calc. 
+         grav * rhoi / (4.0d0 * rhoi * lhci) /)
 
     ! setting up some factors for sliding contrib to basal heat flux
     model%tempwk%slide_f = (/ VERT_DIFF * grav * model%numerics%dttem/ shci, & ! vert diffusion
@@ -437,7 +433,7 @@ contains
 
        call glide_finddisp(model,          &
                            model%geometry%thck,     &
-                           model%geomderv%stagthck, &
+                           model%geometry%stagthck, &
                            model%geomderv%dusrfdew, &
                            model%geomderv%dusrfdns, &
                            model%temper%flwa)
@@ -623,7 +619,7 @@ contains
        call glide_calcbmlt(model, &
                            model%temper%temp, &
                            model%geometry%thck, &
-                           model%geomderv%stagthck, &
+                           model%geometry%stagthck, &
                            model%geomderv%dusrfdew, &
                            model%geomderv%dusrfdns, &
                            model%velocity%ubas, &

@@ -68,7 +68,6 @@ subroutine cism_init_glide(model)
 
   type(glide_global_type) :: model        ! model instance
   type(ConfigSection), pointer :: config  ! configuration stuff
-  type(ConfigSection), pointer :: section ! a section of the configuration
   real(kind=dp) :: time                   ! model time in years
 
   ! read the configuration
@@ -83,12 +82,6 @@ subroutine cism_init_glide(model)
   call t_startf('initialization')
 
   call register_model(model%model_id)
-
-  ! Read the dycore option, then read the rest of the configuration
-  call GetSection(config, section, 'options')
-  if (associated(section)) then
-     call GetValue(section, 'dycore', model%options%whichdycore)
-  endif
 
   call glide_config(model,config)
 
@@ -312,7 +305,6 @@ subroutine cism_init_glissade(model)
 
   type(glissade_global_type) :: model     ! model instance
   type(ConfigSection), pointer :: config  ! configuration stuff
-  type(ConfigSection), pointer :: section ! a section of the configuration
   real(kind=dp) :: time                   ! model time in years
 
   ! read the configuration
@@ -326,12 +318,6 @@ subroutine cism_init_glissade(model)
   call t_startf('initialization')
 
   call register_model(model%model_id)
-
-  ! Read the dycore option, then read the rest of the configuration
-  call GetSection(config, section, 'options')
-  if (associated(section)) then
-     call GetValue(section, 'dycore', model%options%whichdycore)
-  endif
 
   call glissade_config(model,config)
 

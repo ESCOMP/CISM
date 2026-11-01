@@ -379,6 +379,8 @@ module glide_types
 
     real(dp),dimension(:,:),pointer :: topg => null()               !> elevation of the bed topography (m)
 
+    real(dp),dimension(:,:),pointer :: stagthck => null()           !> ice thickness averaged onto the staggered grid (m)
+
     real(dp),dimension(:,:),pointer :: cell_area => null()          !> grid cell area (m^2)
 
     integer, dimension(:,:),pointer :: thkmask => null()            !> see glide_mask.f90 for possible values
@@ -415,7 +417,7 @@ module glide_types
   type glide_geomderv
 
     !> Holds the horizontal and temporal derivatives of the thickness and
-    !> upper surface elevation, as well as the thickness on the staggered grid.
+    !> upper surface elevation.
 
     !First derivatives on a staggered grid
     real(dp),dimension(:,:),pointer :: dthckdew => null() !> E-W derivative of thickness.
@@ -426,11 +428,6 @@ module glide_types
     !Time derivatives
     real(dp),dimension(:,:),pointer :: dthckdtm => null() !> Temporal derivative of thickness.
     real(dp),dimension(:,:),pointer :: dusrfdtm => null() !> Temporal derivative of upper surface elevation.
-
-    !WHL TODO - Move stagthck from glide_geomderv to glide_geometry
-    !           Do this as part of the next Glide cleanup
-    !Staggered grid versions of geometry variables
-    real(dp),dimension(:,:),pointer :: stagthck => null() !> Thickness averaged onto the staggered grid.
 
   end type glide_geomderv
 
@@ -616,8 +613,7 @@ module glide_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  !WHL TODO - Change to glide_isos_elastic
-  type isos_elastic
+  type glide_isos_elastic
 
      !> Holds data used by isostatic adjustment calculations
 
@@ -628,10 +624,9 @@ module glide_types
      real(dp), dimension(:,:), pointer :: w => null() !> matrix operator for lithosphere deformation
      integer :: wsize                       !> size of operator (0:rbel_wsize, 0:rbel_wsize), operator is axis symmetric
 
-  end type isos_elastic
+  end type glide_isos_elastic
 
-  !WHL TODO - Change to glide_isostasy_type
-  type isostasy_type
+  type glide_isostasy_type
      !> contains isostasy configuration
 
      integer :: lithosphere = 1
@@ -661,14 +656,14 @@ module glide_types
      real(dp) :: load_update_interval = 10.d0 ! update interval for elastic load (yr)
      integer :: nlith                         ! update lithosphere every nlith time steps; tinc * nlith = lithosphere_period
      logical :: new_load = .false.            ! set to true if there is a new surface load
-     type(isos_elastic) :: rbel               ! structure holding elastic lithosphere setup
+     type(glide_isos_elastic) :: rbel               ! structure holding elastic lithosphere setup
 
      real(dp),dimension(:,:),pointer :: relx => null()  ! elevation of relaxed topography (m)
      real(dp),dimension(:,:),pointer :: load => null()  ! deflection due to applied load on lithosphere (m)
                                                         ! defined as positive for downward deflection
      real(dp),dimension(:,:),pointer :: load_factors => null() ! temporary used for load calculation
 
-  end type isostasy_type
+  end type glide_isostasy_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -764,11 +759,8 @@ module glide_types
     real(dp),dimension(:,:,:),pointer :: hadv_u   => null()
     real(dp),dimension(:,:,:),pointer :: hadv_v   => null()
 
-    !*sfp** added space to the next 2 (cons, f) for use w/ HO and SSA dissip. calc. 
-    !WHL TODO - Switch cons and f from dimension 5 to 4?
-    !           Glide does not do the HO and SSA dissip calcs mentioned by sfp.
-    real(dp),dimension(5)             :: cons     = 0.d0
-    real(dp),dimension(5)             :: f        = 0.d0
+    real(dp),dimension(4)             :: cons     = 0.d0
+    real(dp),dimension(4)             :: f        = 0.d0
     real(dp),dimension(8)             :: c        = 0.d0
     real(dp),dimension(2)             :: slide_f
     real(dp),dimension(2) :: advconst = 0.d0
@@ -822,11 +814,6 @@ module glide_types
     real(dp),dimension(:),pointer :: rhsd    => null()
     real(dp),dimension(:),pointer :: answ    => null()
 
-    !TODO - KJE - Remove ewn/nsn from glide_solver type once new glide_global_type is working and we can use those ewn/nsn
-    !WHL TODO - Not sure if the above comment still applies; do we still need ewn and nsn in the glide_solver type?
-    integer :: ewn
-    integer :: nsn
-
   end type glide_solver
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -854,7 +841,7 @@ module glide_types
     type(glimmap_proj)   :: projection
     type(profile_type)   :: profile
     type(glide_prof_type):: glide_prof
-    type(isostasy_type)  :: isostasy
+    type(glide_isostasy_type)  :: isostasy
     type(glide_solver):: solver_data
     type(parallel_type)  :: parallel
 
@@ -914,7 +901,6 @@ contains
     !> \item \texttt{dusrfdns(ewn,nsn))}
     !> \item \texttt{dthckdtm(ewn,nsn))}
     !> \item \texttt{dusrfdtm(ewn,nsn))}
-    !> \item \texttt{stagthck(ewn-1,nsn-1))}
     !> \end{itemize}
   
     !> In \texttt{model\%geometry}:
@@ -923,6 +909,7 @@ contains
     !> \item \texttt{usrf(ewn,nsn))}
     !> \item \texttt{lsrf(ewn,nsn))}
     !> \item \texttt{topg(ewn,nsn))}
+    !> \item \texttt{stagthck(ewn-1,nsn-1))}
     !> \item \texttt{mask(ewn,nsn))}
     !> \end{itemize}
 
@@ -1043,7 +1030,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
 
-    call coordsystem_allocate(model%general%velo_grid, model%geomderv%stagthck)
+    call coordsystem_allocate(model%general%velo_grid, model%geometry%stagthck)
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dthckdew)
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dthckdns)
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dusrfdew)
@@ -1101,7 +1088,8 @@ contains
   subroutine glide_deallocarr(model)
 
     !> deallocate model arrays
-    !WHL TODO - Check that all arrays allocated above are deallocated here.
+
+    use glimmer_sparse_type, only: del_sparse_matrix
 
     implicit none
     type(glide_global_type),intent(inout) :: model
@@ -1137,6 +1125,8 @@ contains
         deallocate(model%numerics%stagsigma)
     if (associated(model%numerics%stagwbndsigma)) &
         deallocate(model%numerics%stagwbndsigma)
+    if (associated(model%numerics%dups)) &
+        deallocate(model%numerics%dups)
 
     ! temperature arrays
 
@@ -1223,8 +1213,8 @@ contains
         deallocate(model%geometry%topg)
     if (associated(model%geometry%thkmask)) &
         deallocate(model%geometry%thkmask)
-    if (associated(model%geomderv%stagthck)) &
-        deallocate(model%geomderv%stagthck)
+    if (associated(model%geometry%stagthck)) &
+        deallocate(model%geometry%stagthck)
     if (associated(model%geomderv%dthckdew)) &
         deallocate(model%geomderv%dthckdew)
     if (associated(model%geomderv%dthckdns)) &
@@ -1273,6 +1263,7 @@ contains
         deallocate(model%solver_data%rhsd)
     if (associated(model%solver_data%answ))  &
         deallocate(model%solver_data%answ)
+    call del_sparse_matrix(model%solver_data%matrix)
 
     ! lithosphere arrays
 

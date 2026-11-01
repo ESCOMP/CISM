@@ -545,7 +545,7 @@ contains
 
        if (verbose_glide) then
           call point_diag(model%geometry%thck, 'Geometry calcs: thck (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%geomderv%stagthck, 'stagthck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%stagthck, 'stagthck (m)', itest, jtest, rtest, 7, 7)
           call point_diag(model%geomderv%dusrfdew, 'dusrfdew (m/m)', itest, jtest, rtest, 7, 7)
           call point_diag(model%geomderv%dusrfdns, 'dusrfdns (m/m)', itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
@@ -558,13 +558,13 @@ contains
        ! calculate the part of the vertically averaged velocity field which solely depends on the temperature
 
         call velo_integrate_flwa(model%velowk,             &
-                                 model%geomderv%stagthck,  &
+                                 model%geometry%stagthck,  &
                                  model%temper%flwa)
 
         ! Calculate diffusivity
 
        call velo_calc_diffu(model%velowk,              &
-                            model%geomderv%stagthck,   &
+                            model%geometry%stagthck,   &
                             model%geomderv%dusrfdew,   &
                             model%geomderv%dusrfdns,   &
                             model%velocity%diffu)
@@ -588,7 +588,7 @@ contains
           call glide_calcbmlt(model, &
                               model%temper%temp, &
                               model%geometry%thck, &
-                              model%geomderv%stagthck, &
+                              model%geometry%stagthck, &
                               model%geomderv%dusrfdew, &
                               model%geomderv%dusrfdns, &
                               model%velocity%ubas, &
@@ -639,7 +639,7 @@ contains
 
        do j = 1, model%general%nsn-1
           do i = 1, model%general%ewn-1
-             if (model%geomderv%stagthck(i,j) < 1000.d0) then
+             if (model%geometry%stagthck(i,j) < 1000.d0) then
                 model%temper%stagbtemp(i,j) = model%temper%stagbpmp(i,j)
              else
                 model%temper%stagbtemp(i,j) = -20.d0
@@ -666,7 +666,7 @@ contains
        endif  ! verbose_glide
 
        ! Calculate velocity
-       call velo_calc_velo(model%velowk,            model%geomderv%stagthck,  &
+       call velo_calc_velo(model%velowk,            model%geometry%stagthck,  &
                            model%geomderv%dusrfdew, model%geomderv%dusrfdns,  &
                            model%temper%flwa,       model%velocity%diffu,     &
                            model%velocity%ubas,     model%velocity%vbas,      &
@@ -695,7 +695,7 @@ contains
     ! basal shear stress calculation
     ! ------------------------------------------------------------------------
 
-    call calc_basal_shear(model%geomderv%stagthck,                          &
+    call calc_basal_shear(model%geometry%stagthck,                          &
                           model%geomderv%dusrfdew, model%geomderv%dusrfdns, &
                           model%velocity%tau_x,    model%velocity%tau_y)
 
@@ -932,7 +932,7 @@ contains
 
 ! Old glide just passes 'model'
 
-    call calc_basal_shear(model%geomderv%stagthck,                          &
+    call calc_basal_shear(model%geometry%stagthck,                          &
                           model%geomderv%dusrfdew, model%geomderv%dusrfdns, &
                           model%velocity%tau_x,    model%velocity%tau_y)
 

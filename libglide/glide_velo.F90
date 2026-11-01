@@ -335,9 +335,9 @@ contains
       !      Alternatively, we could compute ubas and vbas for all vertices of cells with stagthck > thklim.
       !      To be tested at some point.
 
-      where (model%geomderv%stagthck >= model%numerics%thklim)
-        ubas = -btrc * rhoi * grav * model%geomderv%stagthck * model%geomderv%dusrfdew
-        vbas = -btrc * rhoi * grav * model%geomderv%stagthck * model%geomderv%dusrfdns
+      where (model%geometry%stagthck >= model%numerics%thklim)
+        ubas = -btrc * rhoi * grav * model%geometry%stagthck * model%geomderv%dusrfdew
+        vbas = -btrc * rhoi * grav * model%geometry%stagthck * model%geomderv%dusrfdns
       elsewhere
         ubas = 0.0d0
         vbas = 0.0d0
@@ -360,8 +360,8 @@ contains
       !Note: Since fslip < 0, we have ubas < 0.
       !      Need the minus sign to match the sign convention for the interior diffu0
 
-      where (model%geomderv%stagthck >= model%numerics%thklim)
-        ubas = model%velowk%fslip * model%geomderv%stagthck**2
+      where (model%geometry%stagthck >= model%numerics%thklim)
+        ubas = model%velowk%fslip * model%geometry%stagthck**2
       elsewhere
         ubas = 0.0d0
       end where
@@ -375,9 +375,9 @@ contains
       !      Since the rhs ubas < 0, the final (ubas, vbas) are directed
       !       opposite the surface elevation gradient, as expected.
 
-      where (model%geomderv%stagthck >= model%numerics%thklim)
-        vbas = ubas *  model%geomderv%dusrfdns / model%geomderv%stagthck
-        ubas = ubas *  model%geomderv%dusrfdew / model%geomderv%stagthck
+      where (model%geometry%stagthck >= model%numerics%thklim)
+        vbas = ubas *  model%geomderv%dusrfdns / model%geometry%stagthck
+        ubas = ubas *  model%geomderv%dusrfdew / model%geometry%stagthck
       elsewhere
         ubas = 0.0d0
         vbas = 0.0d0
@@ -631,6 +631,7 @@ contains
                       model%velowk,                               &
                       model%velocity%wgrd(model%general%upn,:,:), &
                       model%geometry%thck,                        &
+                      model%geometry%stagthck,                    &
                       model%basal_melt%bmlt,                      &
                       model%velocity%wvel)
 
@@ -643,6 +644,7 @@ contains
                       model%velowk,                               &
                       model%velocity%wgrd(model%general%upn,:,:), &
                       model%geometry%thck,                        &
+                      model%geometry%stagthck,                    &
                       model%basal_melt%bmlt,                      &
                       model%velocity%wvel)
 
@@ -774,7 +776,7 @@ contains
 
 !------------------------------------------------------------------------------------------
 
-  subroutine wvelintg(uvel,vvel,geomderv,numerics,velowk,wgrd,thck,bmlt,wvel)
+  subroutine wvelintg(uvel,vvel,geomderv,numerics,velowk,wgrd,thck,stagthck,bmlt,wvel)
 
     !> Calculates the vertical velocity field, which is returned in \texttt{wvel}.
     !> This is found by doing this integration:
@@ -797,6 +799,7 @@ contains
     real(dp),dimension(:,:,:), intent(in)    :: vvel      !> The $y$-velocity on the
                                                           !> staggered grid (scaled)
     real(dp),dimension(:,:),   intent(in)    :: thck      !> The ice thickness (m)
+    real(dp),dimension(:,:),   intent(in)    :: stagthck  !> The ice thickness on the staggered grid (m)
    type(glide_geomderv),    intent(in)    :: geomderv  !> Derived type holding the
                                                           !> horizontal and temporal derivatives
                                                           !> of the thickness and upper surface
@@ -853,7 +856,7 @@ contains
           cons(2) = sum(geomderv%dthckdew(ew-1:ew,ns-1:ns)) / 16.0d0
           cons(3) = sum(geomderv%dusrfdns(ew-1:ew,ns-1:ns)) / 16.0d0
           cons(4) = sum(geomderv%dthckdns(ew-1:ew,ns-1:ns)) / 16.0d0
-          cons(5) = sum(geomderv%stagthck(ew-1:ew,ns-1:ns))
+          cons(5) = sum(stagthck(ew-1:ew,ns-1:ns))
           cons(6) = cons(5)*dns16
           cons(5) = cons(5)*dew16
           ! * better? (an alternative from TP's original code)
@@ -1132,7 +1135,7 @@ contains
     type(glide_global_type) :: model        !> model instance
 
 
-    model%velocity%tau_x = -rhoi*grav*model%geomderv%stagthck
+    model%velocity%tau_x = -rhoi*grav*model%geometry%stagthck
     model%velocity%tau_y = model%velocity%tau_x * model%geomderv%dusrfdns
     model%velocity%tau_x = model%velocity%tau_x * model%geomderv%dusrfdew
   end subroutine calc_basal_shear
@@ -1154,7 +1157,7 @@ contains
     tau_x(:,:) = tau_x * dusrfdew(:,:)
 
     !JEFF Are these replaced by the three lines above? They are not compiling.  7/28/11 
-    ! model%stress%tau_x = -rhoi*grav*model%geomderv%stagthck
+    ! model%stress%tau_x = -rhoi*grav*model%geometry%stagthck
     ! model%stress%tau_y = model%stress%tau_x * model%geomderv%dusrfdns
     ! model%stress%tau_x = model%stress%tau_x * model%geomderv%dusrfdew
 
