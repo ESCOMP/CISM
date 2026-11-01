@@ -421,8 +421,7 @@ long_name:     flow enhancement factor
 data:          data%temper%flow_enhancement_factor
 load:          1
 
-#WHL - Fields for a future MISOMIP option
-
+#WHL - T_ambient and S_ambient are for a future MISOMIP option
 [T_ambient]
 dimensions:    time, y1, x1
 units:         degree_Celsius
@@ -1289,13 +1288,13 @@ standard_name: land_ice_vertical_mean_y_velocity
 [resid_u]
 dimensions:     time, level, y0, x0
 units:          Pa/m          
-long_name:      u component of residual Ax - b (NOTE: Glissade only)
+long_name:      u component of residual Ax - b
 data:           data%velocity%resid_u(up,:,:)
 
 [resid_v]
 dimensions:     time, level, y0, x0
 units:          Pa/m          
-long_name:      v component of residual Ax - b (NOTE: Glissade only)
+long_name:      v component of residual Ax - b
 data:           data%velocity%resid_v(up,:,:)
 
 [rhs_u]

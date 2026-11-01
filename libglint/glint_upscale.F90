@@ -499,22 +499,16 @@ contains
     av_count_output = av_count_output + 1
 
     !--------------------------------------------------------------------
-    ! Accumulate solid runoff (calving and other ice removal)
-    ! Note: Ice removed as icebergs/isthmuses, by forced retreat, or by tiny-thickness
-    !       cleanup is tracked separately from calving_thck as removal_thck (not explicitly
-    !       calved), but the ice is still lost to the ocean as solid ice, so it is included
-    !       here in the solid ice runoff along with calving_thck.
+    ! Accumulate solid runoff (calving)
     !--------------------------------------------------------------------
 
-    ! Note on units: model%calving%calving_thck and model%geometry%removal_thck
-    !                have units of m of ice.
+    ! Note on units: model%calving%calving_thck has units of m of ice.
     !                Multiply by rhoi to convert to kg/m^2 water equiv.
     !                Divide by dt to convert to kg/m^2/s
 
     ! Convert to kg/m^2/s
     rofi_tavg(:,:) = rofi_tavg(:,:)  &
-                   + (model%calving%calving_thck(:,:) + model%geometry%removal_thck(:,:)) &
-                   * rhoi / model%numerics%dt
+                   + model%calving%calving_thck(:,:) * rhoi / model%numerics%dt
 
     !--------------------------------------------------------------------
     ! Accumulate liquid runoff (basal melting)

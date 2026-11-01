@@ -24,8 +24,6 @@
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-!TODO - Support Jesse's water-routing code (or something similar) in parallel?  Currently serial only.
-
 module glide_bwater
 
    use glimmer_global, only: dp
@@ -78,7 +76,7 @@ contains
 
   end subroutine bwater_init
 
-
+!==============================================================
 
   subroutine calcbwat(model, which, bmlt, bwat, bwatflx, thck, topg, btem, floater, wphi)
     ! Driver for updating basal hydrology
@@ -216,6 +214,8 @@ contains
     end subroutine smooth_bwat
 
   end subroutine calcbwat
+
+!==============================================================
   
   subroutine find_dt_wat(dttem,estimate,dt_wat,nwat)
     
@@ -230,7 +230,7 @@ contains
 
   end subroutine find_dt_wat
 
-  ! Note: This routing is supported in serial code only.
+!==============================================================
 
   subroutine route_basal_water(wphi,melt,dx,dy,flux,lakes)
     !> Routes water from melt field to its destination, recording flux
@@ -675,4 +675,8 @@ contains
 
   end subroutine q_sort_index
 
+!==============================================================
+
 end module glide_bwater
+
+!==============================================================

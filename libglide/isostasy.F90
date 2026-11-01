@@ -193,7 +193,7 @@ contains
     end if
 
     ! update bedrock if the mantle is relaxing
-    if (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_CONST) then
+    if (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING) then
        call relaxing_mantle(model)
     end if
 

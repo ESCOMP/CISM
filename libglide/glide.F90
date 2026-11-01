@@ -455,8 +455,7 @@ contains
        l_evolve_ice = .true.
     end if
 
-    !TODO - I don't think a hybrid restart has been tested for Glide. Not sure it needs to be supported.
-
+    !TODO - Test hybrid restart for Glide
     if (model%options%is_restart == STANDARD_RESTART .or. &
         model%options%is_restart == HYBRID_RESTART) then
        ! On a restart, just assign the basal velocity from uvel/vvel (which are restart variables)
@@ -473,8 +472,8 @@ contains
 
        if (l_evolve_ice .and. model%options%calving_init == CALVING_INIT_ON) then
 
-          !WHL - debug
-          write(iulog,*) 'Calving at initialization, whichcalving =', model%options%whichcalving
+          if (verbose_glide) &
+               write(iulog,*) 'Calving at initialization, whichcalving =', model%options%whichcalving
 
           ! ------------------------------------------------------------------------ 
           ! Remove ice which should calve, depending on the value of whichcalving

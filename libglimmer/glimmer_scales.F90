@@ -1,3 +1,4 @@
+!WHL TODO - Remove this module
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
 !   glimmer_scales.F90 - part of the Community Ice Sheet Model (CISM)  
