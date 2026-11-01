@@ -236,7 +236,7 @@ standard_name: land_ice_thickness
 dimensions:    time, y0, x0
 units:         meter
 long_name:     staggered ice thickness
-data:          data%geomderv%stagthck
+data:          data%geometry%stagthck
 standard_name: stag_land_ice_thickness
 load:          0
 

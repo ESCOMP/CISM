@@ -143,7 +143,7 @@ contains
 
           ! calculate Glen's A if necessary
           call velo_integrate_flwa(model%velowk,  &
-                                   model%geomderv%stagthck,   &
+                                   model%geometry%stagthck,   &
                                    model%temper%flwa)
 
        end if   ! newtemps
@@ -156,7 +156,7 @@ contains
 
        ! calculate diffusivity
 
-       call velo_calc_diffu(model%velowk,            model%geomderv%stagthck,  &
+       call velo_calc_diffu(model%velowk,            model%geometry%stagthck,  &
                             model%geomderv%dusrfdew, model%geomderv%dusrfdns,  &
                             model%velocity%diffu)
 
@@ -175,7 +175,7 @@ contains
 !*       ! Update geometry information for new thickness before calculating velocity
 !*       model%geometry%usrf = model%geometry%lsrf + model%geometry%thck  ! usrf needed for slope calculations in geometry_derivs
 !*       call geometry_derivs(model)  !this updates stagthck and the slopes
-!*       call velo_calc_diffu(model%velowk,model%geomderv%stagthck,model%geomderv%dusrfdew, &
+!*       call velo_calc_diffu(model%velowk,model%geometry%stagthck,model%geomderv%dusrfdew, &
 !*            model%geomderv%dusrfdns,model%velocity%diffu)
 !*       call slipvelo(model,                &
 !*            0,                             &
@@ -194,7 +194,7 @@ contains
                      model%velocity%ubas,           &
                      model%velocity%vbas)
 
-       call velo_calc_velo(model%velowk,            model%geomderv%stagthck,   &
+       call velo_calc_velo(model%velowk,            model%geometry%stagthck,   &
                            model%geomderv%dusrfdew, model%geomderv%dusrfdns,   &
                            model%temper%flwa,       model%velocity%diffu,      &
                            model%velocity%ubas,     model%velocity%vbas,       &
@@ -274,7 +274,7 @@ contains
 
           ! calculate Glen's A if necessary
           call velo_integrate_flwa(model%velowk,             &
-                                   model%geomderv%stagthck,  &
+                                   model%geometry%stagthck,  &
                                    model%temper%flwa)
 
        end if
@@ -301,7 +301,7 @@ contains
                         model%velocity%vbas)
 
           ! calculate diffusivity
-          call velo_calc_diffu(model%velowk,            model%geomderv%stagthck,  &
+          call velo_calc_diffu(model%velowk,            model%geometry%stagthck,  &
                                model%geomderv%dusrfdew, model%geomderv%dusrfdns,  &
                                model%velocity%diffu)
 
@@ -367,7 +367,7 @@ contains
                      model%velocity%vbas)
 
        ! calculate diffusivity
-       call velo_calc_diffu(model%velowk,            model%geomderv%stagthck,  &
+       call velo_calc_diffu(model%velowk,            model%geometry%stagthck,  &
                             model%geomderv%dusrfdew, model%geomderv%dusrfdns,  &
                             model%velocity%diffu)
 
@@ -381,7 +381,7 @@ contains
                      model%velocity%ubas,           &
                      model%velocity%vbas)
 
-       call velo_calc_velo(model%velowk,            model%geomderv%stagthck,   &
+       call velo_calc_velo(model%velowk,            model%geometry%stagthck,   &
                            model%geomderv%dusrfdew, model%geomderv%dusrfdns,   &
                            model%temper%flwa,       model%velocity%diffu,      &
                            model%velocity%ubas,     model%velocity%vbas,       &
@@ -868,7 +868,7 @@ contains
                model%velocity% vbas)
 
           ! calculate Glen's A if necessary
-          call velo_integrate_flwa(model%velowk,model%geomderv%stagthck,model%temper%flwa)
+          call velo_integrate_flwa(model%velowk,model%geometry%stagthck,model%temper%flwa)
        end if
 
        call slipvelo(model,                &
@@ -879,7 +879,7 @@ contains
 
        ! calculate diffusivity
 
-       call velo_calc_diffu(model%velowk,            model%geomderv%stagthck,  &
+       call velo_calc_diffu(model%velowk,            model%geometry%stagthck,  &
                             model%geomderv%dusrfdew, model%geomderv%dusrfdns,  &
                             model%velocity%diffu)
 
@@ -959,7 +959,7 @@ contains
             model%velocity%ubas,           &
             model%velocity%vbas)
 
-       call velo_calc_velo(model%velowk,            model%geomderv%stagthck,  &
+       call velo_calc_velo(model%velowk,            model%geometry%stagthck,  &
                            model%geomderv%dusrfdew, model%geomderv%dusrfdns,  &
                            model%temper%flwa,       model%velocity%diffu,     &
                            model%velocity%ubas,     model%velocity%vbas,      &

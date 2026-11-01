@@ -2249,8 +2249,7 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  !WHL TODO - Insert 'glissade_' prefix in type names for isos_elastic_type and isostasy_type
-  type isos_elastic_type
+  type glissade_isos_elastic_type
      !> Holds data used by isostatic adjustment calculations
 
      real(dp) :: d = 0.24d25                !> flexural rigidity (N m)
@@ -2259,9 +2258,9 @@ module glissade_types
      real(dp) :: c1,c2,cd3,cd4              !> coefficients
      real(dp), dimension(:,:), pointer :: w => null() !> matrix operator for lithosphere deformation
      integer :: wsize                       !> size of operator (0:rbel_wsize, 0:rbel_wsize), operator is axis symmetric
-  end type isos_elastic_type
+  end type glissade_isos_elastic_type
 
-  type isostasy_type
+  type glissade_isostasy_type
      !> contains isostasy configuration
 
      integer :: lithosphere = 1
@@ -2292,7 +2291,7 @@ module glissade_types
      real(dp) :: load_update_interval = 10.d0 ! update interval for elastic load (yr)
      integer :: nlith                         ! update lithosphere every nlith time steps; tinc * nlith = lithosphere_period
      logical :: new_load = .false.            ! set to true if there is a new surface load
-     type(isos_elastic_type) :: rbel               ! structure holding elastic lithosphere setup
+     type(glissade_isos_elastic_type) :: rbel               ! structure holding elastic lithosphere setup
 
      real(dp),dimension(:,:),pointer :: relx => null()  ! elevation of relaxed topography (m)
      real(dp),dimension(:,:),pointer :: load => null()  ! deflection due to applied load on lithosphere (m)
@@ -2300,7 +2299,7 @@ module glissade_types
      real(dp),dimension(:,:),pointer :: load_factors => null() ! temporary used for load calculation
      real(dp),dimension(:,:),pointer :: tau_relax => null()    ! 2D mantle relaxation timescale (yr)
 
-  end type isostasy_type
+  end type glissade_isostasy_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -2422,7 +2421,7 @@ module glissade_types
     type(glissade_paramets_type) :: paramets
     type(glimmap_proj)   :: projection
     type(profile_type)   :: profile
-    type(isostasy_type)  :: isostasy
+    type(glissade_isostasy_type)  :: isostasy
     type(parallel_type)  :: parallel
 
   end type glissade_global_type

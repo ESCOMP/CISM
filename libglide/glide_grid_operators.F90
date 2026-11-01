@@ -59,7 +59,7 @@ contains
     ! Interpolate ice thickness to velocity points
  
     call stagvarb(model%geometry% thck, &
-                  model%geomderv% stagthck,      &
+                  model%geometry% stagthck,      &
                   model%general%  ewn,           &
                   model%general%  nsn)
 
@@ -67,18 +67,18 @@ contains
 
     call geomders(model%numerics, &
                   model%geometry% usrf, &
-                  model%geomderv% stagthck,&
+                  model%geometry% stagthck,&
                   model%geomderv% dusrfdew, &
                   model%geomderv% dusrfdns)
 
     call geomders(model%numerics, &
                   model%geometry% thck, &
-                  model%geomderv% stagthck,&
+                  model%geometry% stagthck,&
                   model%geomderv% dthckdew, &
                   model%geomderv% dthckdns)
 
     !NOTE: The following commented-out code is included in stagthickness.
-!     where (model%geomderv%stagthck == 0.d0)
+!     where (model%geometry%stagthck == 0.d0)
 !            model%geomderv%dusrfdew = 0.d0
 !            model%geomderv%dusrfdns = 0.d0
 !            model%geomderv%dthckdew = 0.d0

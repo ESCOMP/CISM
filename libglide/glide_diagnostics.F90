@@ -24,7 +24,6 @@
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-!WHL TODO - Remove parallel broadcasts; unnecessary for 1-processor Glide
 module glide_diagnostics
 
   ! subroutines for computing various useful diagnostics
@@ -34,18 +33,15 @@ module glide_diagnostics
   use glimmer_paramets, only: iulog, eps11
   use glimmer_log
   use glide_types
-  ! Note: This module calls parallel functions since it was once shared by Glide and Glissade.
-  !       Some could be removed, but they are inexpensive and do no harm.
-  use cism_parallel, only: this_rank, main_task, lhalo, uhalo, nhalo, &
-       parallel_type, broadcast, &
-       parallel_localindex, parallel_globalindex, &
-       parallel_global_sum, &
-       parallel_reduce_max, parallel_reduce_maxloc, parallel_reduce_minloc, &
-       parallel_is_zero
+
+  ! Note: Glide runs on a single task with no halo cells, so these diagnostics
+  !       do not need parallel reductions or broadcasts.
 
   implicit none
 
-  logical, parameter :: verbose_diagnostics = .false.
+  private :: masked_sum_2d, masked_sum_3d
+
+  logical :: verbose_diagnostics = .false.
 
 contains
 
@@ -66,7 +62,7 @@ contains
     ! local arguments
 
     ! debug
-    if (main_task .and. verbose_diagnostics) then
+    if (verbose_diagnostics) then
        write(iulog,*) '	'
        write(iulog,*) 'In glide_write_diagnostics'
        write(iulog,*) 'time =', time
@@ -89,9 +85,9 @@ contains
 
   subroutine glide_init_diag (model)
 
-    ! Initialize model diagnostics for glide or glissade.
+    ! Initialize model diagnostics for Glide.
     ! (1) Set ndiag based on dt_diag.  (Diagnostics are written every ndiag steps.)
-    ! (2) Find the local rank and indices of the global diagnostic point
+    ! (2) Set the local indices and rank of the global diagnostic point
 
 
     implicit none
@@ -119,35 +115,32 @@ contains
     endif
 
     !-----------------------------------------------------------------
-    ! Find the local rank and indices of the global diagnostic point
+    ! Set the local indices and rank of the global diagnostic point.
+    ! Glide runs on a single task (rank 0) with no halo cells, so the local
+    ! indices are the same as the global indices.
+    ! Note: The global indices are checked in glide_setup (print_parameters).
     !-----------------------------------------------------------------
 
-    call parallel_localindex(model%numerics%idiag,       model%numerics%jdiag,       &
-                             model%numerics%idiag_local, model%numerics%jdiag_local, &
-                             model%numerics%rdiag_local, model%parallel)
+    model%numerics%idiag_local = model%numerics%idiag
+    model%numerics%jdiag_local = model%numerics%jdiag
+    model%numerics%rdiag_local = 0
 
-    if (main_task) then
-       write(iulog,'(a26,2i6)') ' Global idiag, jdiag:     ',   &
-                             model%numerics%idiag, model%numerics%jdiag
-       write(iulog,'(a26,3i6)') ' Local idiag, jdiag, task:',   &
-                             model%numerics%idiag_local,  &
-                             model%numerics%jdiag_local,  &
-                             model%numerics%rdiag_local
-    endif
+    write(iulog,'(a26,2i6)') ' Global idiag, jdiag:     ',   &
+                          model%numerics%idiag, model%numerics%jdiag
+    write(iulog,'(a26,3i6)') ' Local idiag, jdiag, task:',   &
+                          model%numerics%idiag_local,  &
+                          model%numerics%jdiag_local,  &
+                          model%numerics%rdiag_local
 
-    if (main_task) then
+    write(message,'(a25,2i6)') 'Global idiag, jdiag:     ',   &
+                                model%numerics%idiag, model%numerics%jdiag
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a25,2i6)') 'Global idiag, jdiag:     ',   &
-                                   model%numerics%idiag, model%numerics%jdiag
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a25,3i6)') 'Local idiag, jdiag, task:',   &
-                                   model%numerics%idiag_local,  &
-                                   model%numerics%jdiag_local,  &
-                                   model%numerics%rdiag_local
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-    endif  ! main_task
+    write(message,'(a25,3i6)') 'Local idiag, jdiag, task:',   &
+                                model%numerics%idiag_local,  &
+                                model%numerics%jdiag_local,  &
+                                model%numerics%rdiag_local
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
 
   end subroutine glide_init_diag
 
@@ -187,13 +180,12 @@ contains
          tot_energy,                    &    ! total ice energy (J)
          mean_thck,                     &    ! mean ice thickness (m)
          mean_temp,                     &    ! mean ice temperature (deg C)
-         max_thck, max_thck_global,     &    ! max ice thickness (m)
-         max_temp, max_temp_global,     &    ! max ice temperature (deg C)
-         min_temp, min_temp_global,     &    ! min ice temperature (deg C)
+         max_thck,                      &    ! max ice thickness (m)
+         max_temp,                      &    ! max ice temperature (deg C)
+         min_temp,                      &    ! min ice temperature (deg C)
          max_bmlt,                      &    ! max basal melt rate (m/yr)
-         max_bmlt_global,               &
-         max_spd_sfc, max_spd_sfc_global, &  ! max surface ice speed (m/yr)
-         max_spd_bas, max_spd_bas_global, &  ! max basal ice speed (m/yr)
+         max_spd_sfc,                   &    ! max surface ice speed (m/yr)
+         max_spd_bas,                   &    ! max basal ice speed (m/yr)
          spd,                           &    ! speed
          thck_diag, usrf_diag,          &    ! local column diagnostics
          topg_diag, relx_diag,          &    
@@ -225,13 +217,8 @@ contains
          imax, imin,                        &
          jmax, jmin,                        &
          kmax, kmin,                        &
-         imax_global, imin_global,          &
-         jmax_global, jmin_global,          &
-         kmax_global, kmin_global,          &
-         procnum,                           &
          ewn, nsn, upn,                     &    ! model%numerics%ewn, etc.
-         nlith,                             &    ! model%lithot%nlayer
-         velo_ew_ubound, velo_ns_ubound          ! upper bounds for velocity variables
+         nlith                                   ! model%lithot%nlayer
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          volume_above_flotation   ! ice volue above flotation (m^3)
@@ -249,9 +236,6 @@ contains
     real(dp), parameter ::   &
          eps = eps11             ! small threshold for diagnostics
 
-    type(parallel_type) :: parallel       ! info for parallel communication
-
-    parallel = model%parallel
     ewn = model%general%ewn
     nsn = model%general%nsn
     upn = model%general%upn
@@ -268,16 +252,6 @@ contains
     cell_area = model%geometry%cell_area
 
     nlith = model%lithot%nlayer
-
-    if (uhalo > 0) then
-       velo_ns_ubound = nsn-uhalo
-       velo_ew_ubound = ewn-uhalo
-    else
-       ! for uhalo==0 (as is the case for the glide dycore), the velocity grid has one less
-       ! point than the main grid, so we need to subtract one to avoid out-of-bounds problems
-       velo_ns_ubound = nsn-uhalo-1
-       velo_ew_ubound = ewn-uhalo-1
-    end if
 
     ! Set the minimum ice thickness for including cells in diagnostics
     if (model%options%diag_minthck == DIAG_MINTHCK_ZERO) then
@@ -335,12 +309,12 @@ contains
     call write_log(' ')
 
     ! total ice area (m^2)
-    tot_area = parallel_global_sum(cell_area, parallel, ice_mask)
-    tot_area_float = parallel_global_sum(cell_area, parallel, floating_mask)
-    tot_area_ground = parallel_global_sum(cell_area, parallel, grounded_mask)
+    tot_area = masked_sum_2d(cell_area, ice_mask)
+    tot_area_float = masked_sum_2d(cell_area, floating_mask)
+    tot_area_ground = masked_sum_2d(cell_area, grounded_mask)
 
     ! total ice volume (m^3)
-    tot_volume = parallel_global_sum(model%geometry%thck*cell_area, parallel, ice_mask)
+    tot_volume = masked_sum_2d(model%geometry%thck*cell_area, ice_mask)
 
     ! total ice mass (kg)
     tot_mass = tot_volume * rhoi
@@ -360,7 +334,7 @@ contains
        enddo
     enddo
 
-    tot_volume_above_flotation = parallel_global_sum(volume_above_flotation, parallel)
+    tot_volume_above_flotation = masked_sum_2d(volume_above_flotation)
 
     ! total ice mass above flotation (kg)
     tot_mass_above_flotation = tot_volume_above_flotation * rhoi
@@ -387,7 +361,7 @@ contains
        enddo
     enddo
     local_energy = local_energy * rhoi * shci
-    tot_energy = parallel_global_sum(local_energy, parallel, ice_mask)
+    tot_energy = masked_sum_3d(local_energy, ice_mask)
 
     ! mean thickness
     if (tot_area > eps) then
@@ -475,8 +449,8 @@ contains
     imax = 0
     jmax = 0
     max_thck = unphys_val   ! = an arbitrary large negative number
-    do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
+    do j = 1, nsn
+       do i = 1, ewn
           if (model%geometry%thck(i,j) > max_thck) then
              max_thck = model%geometry%thck(i,j)
              imax = i
@@ -485,18 +459,8 @@ contains
        enddo
     enddo
 
-    imax_global = 0
-    jmax_global = 0
-    max_thck_global = parallel_reduce_max(max_thck)
-    if (max_thck == max_thck_global) then  ! max_thck lives on this processor
-       imax_global = (imax - lhalo) + parallel%global_col_offset
-       jmax_global = (jmax - lhalo) + parallel%global_row_offset
-    endif
-    imax_global = parallel_reduce_max(imax_global)
-    jmax_global = parallel_reduce_max(jmax_global)
-
     write(message,'(a25,f24.16,2i6)') 'Max thickness (m), i, j  ',   &
-                                       max_thck_global, imax_global, jmax_global
+                                       max_thck, imax, jmax
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     ! max temperature
@@ -508,8 +472,8 @@ contains
     jmax = 0
     kmax = 0
     max_temp =  unphys_val
-    do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
+    do j = 1, nsn
+       do i = 1, ewn
           if (ice_mask(i,j) == 1) then
             do k = ktop, kbed
                 if (model%temper%temp(k,i,j) > max_temp) then
@@ -523,15 +487,8 @@ contains
        enddo
     enddo
 
-    call parallel_reduce_maxloc(xin=max_temp, xout=max_temp_global, xprocout=procnum)
-    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
-    kmax_global = kmax
-    call broadcast(imax_global, proc = procnum)
-    call broadcast(jmax_global, proc = procnum)
-    call broadcast(kmax_global, proc = procnum)
-
     write(message,'(a25,f24.16,3i6)') 'Max temperature, i, j, k ',   &
-                    max_temp_global, imax_global, jmax_global, kmax_global
+                    max_temp, imax, jmax, kmax
     call write_log(trim(message), type = GM_DIAGNOSTIC)
  
     ! min temperature
@@ -540,8 +497,8 @@ contains
     jmin = 0
     kmin = 0
     min_temp = 999.d0  ! arbitrary large positive number
-    do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
+    do j = 1, nsn
+       do i = 1, ewn
           if (ice_mask(i,j) == 1) then
              do k = ktop, kbed
                 if (model%temper%temp(k,i,j) < min_temp) then
@@ -555,15 +512,8 @@ contains
        enddo
     enddo
 
-    call parallel_reduce_minloc(xin=min_temp, xout=min_temp_global, xprocout=procnum)
-    call parallel_globalindex(imin, jmin, imin_global, jmin_global, parallel)
-    kmin_global = kmin
-    call broadcast(imin_global, proc = procnum)
-    call broadcast(jmin_global, proc = procnum)
-    call broadcast(kmin_global, proc = procnum)
-
     write(message,'(a25,f24.16,3i6)') 'Min temperature, i, j, k ',   &
-                    min_temp_global, imin_global, jmin_global, kmin_global
+                    min_temp, imin, jmin, kmin
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     ! max applied basal melt rate
@@ -572,8 +522,8 @@ contains
     jmax = 0
     max_bmlt = unphys_val
 
-    do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
+    do j = 1, nsn
+       do i = 1, ewn
           if (model%basal_melt%bmlt_applied(i,j) > max_bmlt) then
              max_bmlt = model%basal_melt%bmlt_applied(i,j)
              imax = i
@@ -582,16 +532,11 @@ contains
        enddo
     enddo
 
-    call parallel_reduce_maxloc(xin=max_bmlt, xout=max_bmlt_global, xprocout=procnum)
-    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
-    call broadcast(imax_global, proc = procnum)
-    call broadcast(jmax_global, proc = procnum)
-
     ! Write to diagnostics only if nonzero
 
-    if (abs(max_bmlt_global*scyr) > eps) then
+    if (abs(max_bmlt*scyr) > eps) then
        write(message,'(a25,f24.16,2i6)') 'Max bmlt (m/y), i, j     ',   &
-            max_bmlt_global*scyr, imax_global, jmax_global
+            max_bmlt*scyr, imax, jmax
        call write_log(trim(message), type = GM_DIAGNOSTIC)
     endif
 
@@ -600,11 +545,11 @@ contains
     jmax = 0
     max_spd_sfc = unphys_val
 
-    do j = lhalo+1, velo_ns_ubound
-       do i = lhalo+1, velo_ew_ubound
+    do j = 1, nsn-1          ! velocity grid
+       do i = 1, ewn-1
           spd = sqrt(model%velocity%uvel(1,i,j)**2   &
                    + model%velocity%vvel(1,i,j)**2)
-          if (model%geomderv%stagthck(i,j) > minthck .and. spd > max_spd_sfc) then
+          if (model%geometry%stagthck(i,j) > minthck .and. spd > max_spd_sfc) then
              max_spd_sfc = spd
              imax = i
              jmax = j
@@ -612,13 +557,8 @@ contains
        enddo
     enddo
 
-    call parallel_reduce_maxloc(xin=max_spd_sfc, xout=max_spd_sfc_global, xprocout=procnum)
-    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
-    call broadcast(imax_global, proc = procnum)
-    call broadcast(jmax_global, proc = procnum)
-
     write(message,'(a25,f24.16,2i6)') 'Max sfc spd (m/y), i, j  ',   &
-                    max_spd_sfc_global*scyr, imax_global, jmax_global
+                    max_spd_sfc*scyr, imax, jmax
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     ! max basal speed
@@ -626,11 +566,11 @@ contains
     imax = 0
     jmax = 0
     max_spd_bas = unphys_val
-    do j = lhalo+1, velo_ns_ubound
-       do i = lhalo+1, velo_ew_ubound
+    do j = 1, nsn-1          ! velocity grid
+       do i = 1, ewn-1
           spd = sqrt(model%velocity%uvel(upn,i,j)**2   &
                    + model%velocity%vvel(upn,i,j)**2)
-          if (model%geomderv%stagthck(i,j) > minthck  .and. spd > max_spd_bas) then
+          if (model%geometry%stagthck(i,j) > minthck  .and. spd > max_spd_bas) then
              max_spd_bas = spd
              imax = i
              jmax = j
@@ -638,12 +578,8 @@ contains
        enddo
     enddo
 
-    call parallel_reduce_maxloc(xin=max_spd_bas, xout=max_spd_bas_global, xprocout=procnum)
-    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
-    call broadcast(imax_global, proc = procnum)
-    call broadcast(jmax_global, proc = procnum)
     write(message,'(a25,f24.16,2i6)') 'Max base spd (m/y), i, j ',   &
-                    max_spd_bas_global*scyr, imax_global, jmax_global
+                    max_spd_bas*scyr, imax, jmax
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     ! local diagnostics
@@ -663,54 +599,31 @@ contains
     spd_diag(:)   = unphys_val
     lithtemp_diag(:) = unphys_val    
 
-    ! Set local diagnostic values, and communicate them to main_task
-       
+    ! Set local diagnostic values
+
     if (model%numerics%idiag_local >= 1 .and. model%numerics%idiag_local <= ewn  &
                                         .and.                                    &
         model%numerics%jdiag_local >= 1 .and. model%numerics%jdiag_local <= nsn) then
 
-       if (this_rank == model%numerics%rdiag_local) then
-
-          i = model%numerics%idiag_local
-          j = model%numerics%jdiag_local
-          usrf_diag = model%geometry%usrf(i,j)
-          thck_diag = model%geometry%thck(i,j)
-          topg_diag = model%geometry%topg(i,j)
-          if (model%options%isostasy == ISOSTASY_COMPUTE) then
-             relx_diag = model%isostasy%relx(i,j)
-             load_diag = model%isostasy%load(i,j)
-          endif
-          artm_diag = model%climate%artm(i,j)
-          acab_diag = model%climate%acab_applied(i,j) * scyr
-          bmlt_diag = model%basal_melt%bmlt_applied(i,j) * scyr
-          bwat_diag = model%basal_hydro%bwat(i,j)
-          bheatflx_diag = model%temper%bheatflx(i,j)
-          temp_diag(:) = model%temper%temp(1:upn,i,j)          
-          spd_diag(:) = sqrt(model%velocity%uvel(1:upn,i,j)**2   &
-                           + model%velocity%vvel(1:upn,i,j)**2) * scyr
-          if (model%options%gthf == GTHF_COMPUTE) &
-               lithtemp_diag(:) = model%lithot%temp(i,j,:)
-       endif
-
-       usrf_diag = parallel_reduce_max(usrf_diag)
-       thck_diag = parallel_reduce_max(thck_diag)
-       topg_diag = parallel_reduce_max(topg_diag)
+       i = model%numerics%idiag_local
+       j = model%numerics%jdiag_local
+       usrf_diag = model%geometry%usrf(i,j)
+       thck_diag = model%geometry%thck(i,j)
+       topg_diag = model%geometry%topg(i,j)
        if (model%options%isostasy == ISOSTASY_COMPUTE) then
-          relx_diag = parallel_reduce_max(relx_diag)
-          load_diag = parallel_reduce_max(load_diag)
+          relx_diag = model%isostasy%relx(i,j)
+          load_diag = model%isostasy%load(i,j)
        endif
-       artm_diag = parallel_reduce_max(artm_diag)
-       acab_diag = parallel_reduce_max(acab_diag)
-       bmlt_diag = parallel_reduce_max(bmlt_diag)
-       bwat_diag = parallel_reduce_max(bwat_diag)
-       bheatflx_diag = parallel_reduce_max(bheatflx_diag)
-       do k = 1, upn
-          temp_diag(k) = parallel_reduce_max(temp_diag(k))
-          spd_diag(k)  = parallel_reduce_max(spd_diag(k))
-       enddo
-       do k = 1, nlith
-          lithtemp_diag(k) = parallel_reduce_max(lithtemp_diag(k))
-       enddo
+       artm_diag = model%climate%artm(i,j)
+       acab_diag = model%climate%acab_applied(i,j) * scyr
+       bmlt_diag = model%basal_melt%bmlt_applied(i,j) * scyr
+       bwat_diag = model%basal_hydro%bwat(i,j)
+       bheatflx_diag = model%temper%bheatflx(i,j)
+       temp_diag(:) = model%temper%temp(1:upn,i,j)
+       spd_diag(:) = sqrt(model%velocity%uvel(1:upn,i,j)**2   &
+                        + model%velocity%vvel(1:upn,i,j)**2) * scyr
+       if (model%options%gthf == GTHF_COMPUTE) &
+            lithtemp_diag(:) = model%lithot%temp(i,j,:)
 
        call write_log(' ')
        write(message,'(a39,2i6)')  &
@@ -786,7 +699,60 @@ contains
     call write_log(' ')
 
   end subroutine glide_write_diag
-     
+
+!==============================================================
+
+  function masked_sum_2d(a, mask)
+
+    ! Sum of a 2D field over cells with mask = 1 (all cells if mask is absent).
+    ! Note: The loop order matches parallel_global_sum (without reprosum),
+    !       which these diagnostics used before.
+
+    real(dp), dimension(:,:), intent(in) :: a
+    integer, dimension(:,:), intent(in), optional :: mask
+    real(dp) :: masked_sum_2d
+
+    integer :: i, j
+
+    masked_sum_2d = 0.0d0
+    do j = 1, size(a,2)
+       do i = 1, size(a,1)
+          if (present(mask)) then
+             if (mask(i,j) /= 1) cycle
+          endif
+          masked_sum_2d = masked_sum_2d + a(i,j)
+       enddo
+    enddo
+
+  end function masked_sum_2d
+
+!==============================================================
+
+  function masked_sum_3d(a, mask)
+
+    ! Sum of a 3D field a(k,i,j) over columns with mask(i,j) = 1.
+    ! Note: The loop order matches parallel_global_sum (without reprosum),
+    !       which these diagnostics used before.
+
+    real(dp), dimension(:,:,:), intent(in) :: a
+    integer, dimension(:,:), intent(in) :: mask
+    real(dp) :: masked_sum_3d
+
+    integer :: i, j, k
+
+    masked_sum_3d = 0.0d0
+    do j = 1, size(a,3)
+       do i = 1, size(a,2)
+          if (mask(i,j) == 1) then
+             do k = 1, size(a,1)
+                masked_sum_3d = masked_sum_3d + a(k,i,j)
+             enddo
+          endif
+       enddo
+    enddo
+
+  end function masked_sum_3d
+
 !==============================================================
 
 end module glide_diagnostics
