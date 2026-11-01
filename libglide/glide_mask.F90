@@ -86,7 +86,7 @@ contains
 ! glide_is_land (land + no_ice; change to glide_land_icefree or remove?)
 ! glide_is_ground (land + has_ice)
 ! glide_is_float (ocean + has_ice)
-! glide_is_grounding_line (just inside or just outside? Used only in glide_ground)
+! glide_is_grounding_line (just inside or just outside? Used only in glide_calve)
 ! glide_is_margin
 ! glide_is_land_margin (margin + land + has_ice)
 ! glide_is_calving (margin + ocean + has_ice; change the name to is_marine_margin?)

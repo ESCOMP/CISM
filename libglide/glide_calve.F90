@@ -1,6 +1,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
-!   glide_ground.F90 - part of the Community Ice Sheet Model (CISM)  
+!   glide_calve.F90 - part of the Community Ice Sheet Model (CISM)   
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
@@ -24,14 +24,12 @@
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-!WHL TODO - Change module and file names from glide_ground to glide_calving
-
 #ifdef HAVE_CONFIG_H
 #include "config.inc"
 #endif
 
 #include "glide_mask.inc"
-module glide_ground
+module glide_calve
 
   use glide_types
   use glimmer_global, only: dp
@@ -143,6 +141,6 @@ contains
 !      (Associated with unsupporting calving cases)
 !-------------------------------------------------------------------------
 
-end module glide_ground
+end module glide_calve
 
 !---------------------------------------------------------------------------

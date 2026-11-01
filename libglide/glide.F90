@@ -428,7 +428,7 @@ contains
     use glide_mask
     use glimmer_physcon, only: scyr, rhoi, rhow
     use glimmer_utils, only: point_diag, calc_lsrf_usrf
-    use glide_ground, only: glide_calve_ice
+    use glide_calve, only: glide_calve_ice
     use glide_bwater, only: calcbwat
     use glide_temp, only: glide_calcbmlt, glide_calcbpmp
     use glide_grid_operators
@@ -827,7 +827,7 @@ contains
     use glide_temp
     use glide_mask
     use isostasy, only: isos_icewaterload
-    use glide_ground, only: glide_calve_ice
+    use glide_calve, only: glide_calve_ice
 
     type(glide_global_type), intent(inout) :: model    ! model instance
 
