@@ -554,10 +554,8 @@ contains
 
     ! basic Glide/Glimmer options
 
-    !WHL TODO - Remove the Glam option
-    character(len=*), dimension(0:1), parameter :: dycore = (/ &
-         'glide              ', &  ! Glimmer SIA
-         'glam               ' /)  ! Payne-Price finite difference; no longer supported
+    ! Glide is the only dycore option here (dycore = 0)
+    character(len=*), parameter :: dycore = 'glide              '  ! Glimmer SIA
 
     character(len=*), dimension(0:2), parameter :: evolution = (/ &
          'pseudo-diffusion         ', &
@@ -648,16 +646,11 @@ contains
     write(message,*) 'I/O parameter file      : ',trim(model%funits%ncfile)
     call write_log(message)
 
-    if (model%options%whichdycore < 0 .or. model%options%whichdycore >= size(dycore)) then
-       call write_log('Error, dycore option out of range',GM_FATAL)
+    if (model%options%whichdycore /= DYCORE_GLIDE) then
+       call write_log('Error, the Glide dycore requires dycore = 0',GM_FATAL)
     end if
-    write(message,*) 'Dycore                  : ',model%options%whichdycore,dycore(model%options%whichdycore)
+    write(message,*) 'Dycore                  : ',model%options%whichdycore,dycore
     call write_log(message)
-
-    ! unsupported dycore options
-    if (model%options%whichdycore == DYCORE_GLAM) then
-      call write_log('ERROR: The Glam dycore is no longer supported', GM_FATAL)
-    endif
 
     if (tasks > 1) then
        call write_log('Error, Glide dycore not supported for runs with more than one processor', GM_FATAL)

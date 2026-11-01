@@ -984,10 +984,8 @@ contains
 
     ! basic Glide/Glimmer options
 
-    character(len=*), dimension(0:2), parameter :: dycore = (/ &
-         'glide              ', &  ! Glimmer SIA
-         'glam               ', &  ! Payne-Price finite difference; no longer supported
-         'glissade           ' /)  ! prototype finite element
+    ! Glissade is the only dycore option here (dycore = 2)
+    character(len=*), parameter :: dycore = 'glissade           '  ! finite element
 
     character(len=*), dimension(0:2), parameter :: compute_blocks = (/ &
          'compute on all blocks              ', &
@@ -1307,16 +1305,11 @@ contains
     write(message,*) 'I/O parameter file      : ',trim(model%funits%ncfile)
     call write_log(message)
 
-    if (model%options%whichdycore < 0 .or. model%options%whichdycore >= size(dycore)) then
-       call write_log('Error, dycore option out of range',GM_FATAL)
+    if (model%options%whichdycore /= DYCORE_GLISSADE) then
+       call write_log('Error, the Glissade dycore requires dycore = 2',GM_FATAL)
     end if
-    write(message,*) 'Dycore                  : ',model%options%whichdycore,dycore(model%options%whichdycore)
+    write(message,*) 'Dycore                  : ',model%options%whichdycore,dycore
     call write_log(message)
-
-    ! unsupported dycore options
-    if (model%options%whichdycore == DYCORE_GLAM) then
-      call write_log('ERROR: The Glam dycore is no longer supported', GM_FATAL)
-    endif
 
     ! Forbidden options for running in parallel
     if (tasks > 1 .and. (model%options%which_ho_sparse==HO_SPARSE_BICG  .or.  &

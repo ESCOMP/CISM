@@ -24,11 +24,6 @@
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-! from glide_types.F90:
-!  integer, parameter :: DYCORE_GLIDE = 0     ! old shallow-ice dycore from Glimmer
-!  integer, parameter :: DYCORE_GLAM = 1      ! Payne-Price finite-difference solver
-!  integer, parameter :: DYCORE_GLISSADE = 2  ! finite-element solver
-
 module gcm_cism_interface
 
   use glint_commandline
@@ -40,6 +35,8 @@ module gcm_cism_interface
   use gcm_to_cism_glint
 
   use glimmer_paramets, only: iulog
+  use glimmer_log, only: write_log, GM_FATAL
+  use glissade_types, only: DYCORE_GLISSADE
 
   ! Note: Options 0 and 1 used to be called GCM_MINIMAL_MODEL AND GCM_DATA_MODEL.
   !       'BASIC' refers to standalone CISM with a single input data file.
@@ -98,6 +95,9 @@ subroutine gci_init_interface(which_gcm,g2c)
   call GetSection(config,section,'options')
   call GetValue(section,'dycore',g2c%whichdycore)
   if (main_task) write(iulog,*) 'CISM dycore type (0=Glide, 2=Glissade) = ', g2c%whichdycore
+  if (g2c%whichdycore /= DYCORE_GLIDE .and. g2c%whichdycore /= DYCORE_GLISSADE) then
+     call write_log('Error, dycore must be 0 (Glide) or 2 (Glissade)', GM_FATAL)
+  endif
 
   ! Check to see if running basic GCM or glint GCM.  Still need to add CESM GCM:
   call GetSection(config,section,'GLINT climate')
