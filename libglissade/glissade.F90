@@ -2876,11 +2876,6 @@ contains
     call glissade_deallocarr(model)
     call deregister_model(model%model_id)
 
-    ! write some statistics
-    call write_log('Some Stats')
-    write(message,*) 'Maximum temperature iterations: ',model%temper%niter
-    call write_log(message)
-
     ! close profile
 #if (defined PROFILING || defined CCSMCOUPLED || defined CESMTIMERS)
     call profile_close(model%profile)

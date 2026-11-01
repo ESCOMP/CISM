@@ -994,10 +994,8 @@ contains
          'compute on active blocks only      ', &
          'inquire the number of active blocks'/)
 
-    character(len=*), dimension(0:5), parameter :: evolution = (/ &
-         'pseudo-diffusion                      ', &
-         'ADI scheme                            ', &
-         'iterated diffusion                    ', &
+    !WHL TODO - Renumber during the config reorg
+    character(len=*), dimension(3:5), parameter :: evolution = (/ &
          'incremental remapping                 ', &   
          '1st order upwind                      ', &
          'thickness fixed at initial value      '  /)
@@ -1082,18 +1080,17 @@ contains
     ! NOTE: Set gthf = 1 in the config file to read the geothermal heat flux from an input file.
     !       Otherwise it will be overwritten, even if the 'bheatflx' field is present.
 
-    character(len=*), dimension(0:2), parameter :: gthf = (/ &
+    character(len=*), dimension(0:1), parameter :: gthf = (/ &
          'uniform geothermal flux         ', &
-         'read flux from file, if present ', &
-         'compute flux from diffusion eqn ' /)
+         'read flux from file, if present ' /)
 
     ! NOTE: This option has replaced the old do_isos option
     character(len=*), dimension(0:1), parameter :: isostasy = (/ &
          'no isostasy calculation         ', &
          'compute isostasy with model     ' /)
 
-    !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
-    character(len=*), dimension(0:12), parameter :: marine_margin = (/ &
+    !WHL TODO - During the config reorg, change 'marine_margin' to 'which_calving' or something similar
+    character(len=*), dimension(0:11), parameter :: marine_margin = (/ &
          'no calving law                    ', &
          'remove all floating ice           ', &
          'remove fraction of floating ice   ', &
@@ -1105,8 +1102,7 @@ contains
          'deterministic stress-based calving', &
          'stochastic stress-based calving   ', &
          'damage-based calving scheme       ', &
-         'strain-rate (eigencalving)        ', &
-         'Huybrechts calving                '/)
+         'strain-rate (eigencalving)        ' /)
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
          'no calving at initialization    ', &
@@ -1141,6 +1137,7 @@ contains
          'vertical thermal solve after transport     ', &
          'vertical thermal solve split into two parts' /)
 
+    !WHL TODO - Remove option 3 (and maybe others) during the config reorg
     character(len=*), dimension(0:14), parameter :: ho_whichbabc = (/ &
          'constant beta                                    ', &
          'beta depends on basal temp (melting or frozen)   ', &
@@ -1321,13 +1318,6 @@ contains
       call write_log('ERROR: The Glam dycore is no longer supported', GM_FATAL)
     endif
 
-    ! Glide thickness evolution options are not supported
-    if (model%options%whichevol == EVOL_PSEUDO_DIFF .or.  &
-        model%options%whichevol == EVOL_ADI         .or.  &
-        model%options%whichevol == EVOL_DIFFUSION) then
-       call write_log('Error, Glide thickness evolution options cannot be used with Glissade dycore', GM_FATAL)
-    endif
-
     ! Forbidden options for running in parallel
     if (tasks > 1 .and. (model%options%which_ho_sparse==HO_SPARSE_BICG  .or.  &
                          model%options%which_ho_sparse==HO_SPARSE_GMRES .or.  &
@@ -1491,7 +1481,9 @@ contains
        end if
     endif
 
-    if (model%options%whichevol < 0 .or. model%options%whichevol >= size(evolution)) then
+    !WHL TODO: Renumber during the config reorg and restore the following commented-out line
+!!    if (model%options%whichevol < 0 .or. model%options%whichevol >= size(evolution)) then
+    if (model%options%whichevol < EVOL_INC_REMAP .or. model%options%whichevol > EVOL_NO_THICKNESS) then
        call write_log('Error, evolution out of range',GM_FATAL)
     end if
 
@@ -1622,10 +1614,6 @@ contains
 
     if (model%options%gthf < 0 .or. model%options%gthf >= size(gthf)) then
        call write_log('Error, geothermal flux option out of range',GM_FATAL)
-    end if
-
-    if (model%options%gthf == GTHF_COMPUTE) then
-       call write_log('Error, gthf = 2 (computed flux) is supported only for Glide', GM_FATAL)
     end if
 
     write(message,*) 'geothermal heat flux    : ',model%options%gthf,gthf(model%options%gthf)
@@ -2175,9 +2163,7 @@ contains
     call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
 
     ! NOTE: btrac_const is used for several slip_coeff options in the local SIA solver
-
     call GetValue(section,'basal_tract_const', model%paramets%btrac_const)
-
 
     call GetValue(section,'beta_grounded_min', model%basal_physics%beta_grounded_min)
     call GetValue(section,'ho_beta_const', model%basal_physics%ho_beta_const)
@@ -2214,7 +2200,7 @@ contains
     ! pseudo-plastic parameters
     call GetValue(section, 'pseudo_plastic_q', model%basal_physics%pseudo_plastic_q)
     call GetValue(section, 'pseudo_plastic_u0', model%basal_physics%pseudo_plastic_u0)
-    !TODO - next four to be removed in favor of coulomb_c_const_hi, coulomb_c_bed_hi, etc.
+    !WHL TODO - During the config reorg, the next four should be removed
     call GetValue(section, 'pseudo_plastic_phimin', model%basal_physics%pseudo_plastic_phimin)
     call GetValue(section, 'pseudo_plastic_phimax', model%basal_physics%pseudo_plastic_phimax)
     call GetValue(section, 'pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin)
@@ -3952,9 +3938,6 @@ contains
          ! no new restart variables needed
     end select
 
-    !WHL - added ice_age option
-    !      Note: Ice age is a diagnostic field, not part of the prognostic ice state.
-    !      Omitting it from restart will only break the diagnostic.
     select case (options%which_ho_ice_age)
        case(HO_ICE_AGE_COMPUTE)
           call glissade_add_to_restart_variable_list('ice_age', model_id)
@@ -3992,27 +3975,11 @@ contains
        call glissade_add_to_restart_variable_list('glacier_area_init', model_id)
     endif
 
-    ! basal processes module - requires tauf for a restart
-!!    if (options%which_bproc /= BAS_PROC_DISABLED ) then
-!!        call glissade_add_to_restart_variable_list('tauf', model_id)
-!!    endif
-
-    ! TODO bmlt was set as a restart variable, but I'm not sure when or if it is needed.
-
-    ! TODO age should be a restart variable if it is an input variable.  
-    ! Same goes for b.c. (bheatflxm, artm, acab) and any other tracers that get introduced.
-    ! These could be included all the time (as I have down above for b.c.), or 
-    ! we could add logic to only include them when they were in the input file.
-    ! To do this, this subroutine would have to be moved to after where input files are read,
-    ! glide_io_readall(), but before the output files are created, glide_io_createall()
-
-    ! TODO lat is only needed for some climate drivers.  It is not needed for cism_driver.
-    ! Need to add logic that will add it only when those drivers are used.
-
   end subroutine define_glissade_restart_variables
 
 !--------------------------------------------------------------------------------
 
+!WHL TODO - Move the check_fill_values subroutines to libglimmer to avoid code duplication
 ! The following subroutines check an input field for fill values.
 ! By default, the fill value is given by netcdf_fill_value in glimmer_paramets,
 !  and fill values are replaced by zeroes.

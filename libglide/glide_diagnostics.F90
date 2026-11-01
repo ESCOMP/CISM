@@ -24,18 +24,18 @@
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-!TODO - Calculations of iarea, iareaf and areag in calc_iareaf_iareag() and glide_set_mask() could be replaced by values computed here.  
-!       These could be saved to the scalars derived type (model%scalars%iarea, etc.) for output.
-
+!WHL TODO - Remove parallel broadcasts; unnecessary for 1-processor Glide
 module glide_diagnostics
 
   ! subroutines for computing various useful diagnostics
-  ! Author: William Lipscomb, LANL 
- 
+  ! Author: William Lipscomb
+
   use glimmer_global, only: dp
   use glimmer_paramets, only: iulog, eps11
   use glimmer_log
   use glide_types
+  ! Note: This module calls parallel functions since it was once shared by Glide and Glissade.
+  !       Some could be removed, but they are inexpensive and do no harm.
   use cism_parallel, only: this_rank, main_task, lhalo, uhalo, nhalo, &
        parallel_type, broadcast, &
        parallel_localindex, parallel_globalindex, &
@@ -49,11 +49,10 @@ module glide_diagnostics
 
 contains
 
-  subroutine glide_write_diagnostics (model,  time,    &
-                                      tstep_count)
+  subroutine glide_write_diagnostics (model, time, tstep_count)
 
     ! Short driver subroutine to decide whether it's time to write diagnostics.
-    ! If so, it calls glide_write_diag.   
+    ! If so, it calls glide_write_diag.
 
     ! input/output arguments
 
@@ -150,17 +149,11 @@ contains
 
     endif  ! main_task
 
-    ! Broadcast from main task to all processors
-    !TODO - Uncomment and make sure this does not cause problems
-!    call broadcast(model%numerics%idiag_local)
-!    call broadcast(model%numerics%jdiag_local)
-!    call broadcast(model%numerics%rdiag_local)
-
   end subroutine glide_init_diag
 
 !--------------------------------------------------------------------------
 
-  subroutine glide_write_diag (model,       time)
+  subroutine glide_write_diag (model, time)
 
     ! Write global diagnostics
     ! Also write local diagnostics for a selected grid cell
@@ -199,8 +192,6 @@ contains
          min_temp, min_temp_global,     &    ! min ice temperature (deg C)
          max_bmlt,                      &    ! max basal melt rate (m/yr)
          max_bmlt_global,               &
-         max_bmlt_ground,               &    ! max basal melt rate, grounded ice (m/yr)
-         max_bmlt_ground_global,        &
          max_spd_sfc, max_spd_sfc_global, &  ! max surface ice speed (m/yr)
          max_spd_bas, max_spd_bas_global, &  ! max basal ice speed (m/yr)
          spd,                           &    ! speed
@@ -604,34 +595,6 @@ contains
        call write_log(trim(message), type = GM_DIAGNOSTIC)
     endif
 
-    ! max basal melt rate for grounded ice
-    imax = 0
-    jmax = 0
-    max_bmlt_ground = unphys_val
-
-    do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
-          if (model%basal_melt%bmlt_ground(i,j) > max_bmlt_ground) then
-             max_bmlt_ground = model%basal_melt%bmlt_ground(i,j)
-             imax = i
-             jmax = j
-          endif
-       enddo
-    enddo
-
-    call parallel_reduce_maxloc(xin=max_bmlt_ground, xout=max_bmlt_ground_global, xprocout=procnum)
-    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
-    call broadcast(imax_global, proc = procnum)
-    call broadcast(jmax_global, proc = procnum)
-
-    ! Write to diagnostics only if nonzero
-
-    if (abs(max_bmlt_global*scyr) > eps) then
-       write(message,'(a25,f24.16,2i6)') 'Max bmlt grnd (m/y), i, j',   &
-            max_bmlt_ground_global*scyr, imax_global, jmax_global
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-    endif
-
     ! max surface speed
     imax = 0
     jmax = 0
@@ -717,7 +680,7 @@ contains
              relx_diag = model%isostasy%relx(i,j)
              load_diag = model%isostasy%load(i,j)
           endif
-          artm_diag = model%climate%artm_corrected(i,j)  ! artm_corrected = artm + artm_anomaly
+          artm_diag = model%climate%artm(i,j)
           acab_diag = model%climate%acab_applied(i,j) * scyr
           bmlt_diag = model%basal_melt%bmlt_applied(i,j) * scyr
           bwat_diag = model%basal_hydro%bwat(i,j)

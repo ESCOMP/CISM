@@ -50,15 +50,13 @@ module glimmer_sparse
   end type
 
     ! The first three options use the SLAP solver and work only on one processor.
-    integer, parameter :: SPARSE_SOLVER_PCG_INCH = HO_SPARSE_PCG_INCH     ! SLAP PCG with incomplete Cholesky preconditioner
-    integer, parameter :: SPARSE_SOLVER_BICG = HO_SPARSE_BICG          ! SLAP biconjugate gradient
-    integer, parameter :: SPARSE_SOLVER_GMRES = HO_SPARSE_GMRES         ! SLAP GMRES
+    integer, parameter :: SPARSE_SOLVER_PCG_INCH = HO_SPARSE_PCG_INCH          ! SLAP PCG with incomplete Cholesky preconditioner
+    integer, parameter :: SPARSE_SOLVER_BICG = HO_SPARSE_BICG                  ! SLAP biconjugate gradient
+    integer, parameter :: SPARSE_SOLVER_GMRES = HO_SPARSE_GMRES                ! SLAP GMRES
     integer, parameter :: STANDALONE_PCG_STANDARD = HO_SPARSE_PCG_STANDARD     ! Native PCG, parallel-enabled, standard solver
-    integer, parameter :: STANDALONE_PCG_CHRONGEAR = HO_SPARSE_PCG_CHRONGEAR    ! Native PCG, parallel-enabled, Chronopoulos-Gear solver
+    integer, parameter :: STANDALONE_PCG_CHRONGEAR = HO_SPARSE_PCG_CHRONGEAR   ! Native PCG, parallel-enabled, Chronopoulos-Gear solver
 
 contains
-
-
 
     subroutine sparse_solver_default_options(method, opt)
 
@@ -326,7 +324,7 @@ contains
         if (verbose_slap) then
            write(iulog,*) ' '
            write(iulog,*) 'In sparse_easy_solve'
-           write(iulog,*) 'method (0=BiCG, 1=GMRES, 2=PCG_INCH) =', method
+           write(iulog,*) 'method (0=BiCG, 1=GMRES, -1=PCG_INCH) =', method
            write(iulog,*) 'matrix%order =', matrix%order
            write(iulog,*) 'matrix%nonzeros =', matrix%nonzeros
            write(iulog,*) 'size(rhs) =', size(rhs)

@@ -540,8 +540,6 @@ contains
 
 !--------------------------------------------------------------------------------
 
-  !Higher order options
-
   subroutine print_options(model)
 
     use glide_types
@@ -556,36 +554,25 @@ contains
 
     ! basic Glide/Glimmer options
 
-    character(len=*), dimension(0:2), parameter :: dycore = (/ &
+    !WHL TODO - Remove the Glam option
+    character(len=*), dimension(0:1), parameter :: dycore = (/ &
          'glide              ', &  ! Glimmer SIA
-         'glam               ', &  ! Payne-Price finite difference; no longer supported
-         'glissade           ' /)  ! prototype finite element
+         'glam               ' /)  ! Payne-Price finite difference; no longer supported
 
-    character(len=*), dimension(0:2), parameter :: compute_blocks = (/ &
-         'compute on all blocks              ', &
-         'compute on active blocks only      ', &
-         'inquire the number of active blocks'/)
+    character(len=*), dimension(0:2), parameter :: evolution = (/ &
+         'pseudo-diffusion         ', &
+         'ADI scheme               ', &
+         'iterated diffusion       ' /)
 
-    character(len=*), dimension(0:5), parameter :: evolution = (/ &
-         'pseudo-diffusion                      ', &
-         'ADI scheme                            ', &
-         'iterated diffusion                    ', &
-         'incremental remapping                 ', &   
-         '1st order upwind                      ', &
-         'thickness fixed at initial value      '  /)
-
-    character(len=*), dimension(0:3), parameter :: temperature = (/ &
+    character(len=*), dimension(0:2), parameter :: temperature = (/ &
          'isothermal            ', &
          'prognostic temperature', &
-         'constant in time      ', &
-         'prognostic enthalpy   ' /)
+         'constant in time      ' /)
 
-    character(len=*), dimension(0:4), parameter :: temp_init = (/ &
+    character(len=*), dimension(0:2), parameter :: temp_init = (/ &
          'set to 0 C                  ', &
          'set to surface air temp     ', &
-         'linear vertical profile     ', &
-         'advective-diffusive balance ',&
-         'temp from external file     ' /)
+         'linear vertical profile     ' /)
 
     character(len=*), dimension(0:2), parameter :: flow_law = (/ &
          'uniform factor flwa         ', &
@@ -623,25 +610,16 @@ contains
          'read flux from file, if present ', &
          'compute flux from diffusion eqn ' /)
 
-    ! NOTE: This option has replaced the old do_isos option
     character(len=*), dimension(0:1), parameter :: isostasy = (/ &
          'no isostasy calculation         ', &
          'compute isostasy with model     ' /)
 
-    !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
-    character(len=*), dimension(0:12), parameter :: marine_margin = (/ &
+    character(len=*), dimension(0:5), parameter :: marine_margin = (/ &
          'no calving law                    ', &
          'remove all floating ice           ', &
          'remove fraction of floating ice   ', &
          'relaxed bedrock threshold         ', &
          'present bedrock threshold         ', &
-         'calving based on grid location    ', &
-         'prescribe CF advance/retreat rate ', &
-         'ice thickness threshold           ', &
-         'deterministic stress-based calving', &
-         'stochastic stress-based calving   ', &
-         'damage-based calving scheme       ', &
-         'strain-rate (eigencalving)        ', &
          'Huybrechts calving                '/)
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
@@ -681,17 +659,6 @@ contains
       call write_log('ERROR: The Glam dycore is no longer supported', GM_FATAL)
     endif
 
-    ! Forbidden options associated with the Glide dycore
-    if (model%options%whichevol == EVOL_INC_REMAP     .or.  &
-        model%options%whichevol == EVOL_UPWIND        .or.  &
-        model%options%whichevol == EVOL_NO_THICKNESS) then
-       call write_log('Error, Glissade thickness evolution options cannot be used with Glide dycore', GM_FATAL)
-    endif
-
-    if (model%options%whichtemp == TEMP_ENTHALPY) then
-       call write_log('Error, Enthalpy scheme cannot be used with Glide dycore', GM_FATAL)
-    endif
-
     if (tasks > 1) then
        call write_log('Error, Glide dycore not supported for runs with more than one processor', GM_FATAL)
     end if
@@ -700,29 +667,11 @@ contains
        call write_log('WARNING: exact restarts are not currently possible with ADI evolution', GM_WARNING)
     endif
 
-    ! Forbidden options for running in parallel
-
-    if (tasks > 1 .and. model%options%whichbwat==BWATER_FLUX) then
-       call write_log('Error, flux-based basal water option not yet supported for more than one processor', GM_FATAL)
-    endif
-
-    ! Forbidden options associated with Glissade dycore
-   
-
-    !NOTE : Old option 3 (TEMP_REMAP_ADV) has been removed.
-    ! If this has been set, then change to option 1 (TEMP_PROGNOSTIC), which applies to any dycore.
-
     if (model%options%whichtemp < 0 .or. model%options%whichtemp >= size(temperature)) then
        call write_log('Error, temperature option out of range',GM_FATAL)
     end if
     write(message,*) 'temperature calculation : ',model%options%whichtemp,temperature(model%options%whichtemp)
     call write_log(message)
-
-    ! unsupported temperature options
-    if (model%options%whichtemp == TEMP_ENTHALPY) then
-      call write_log('WARNING: Enthalpy-based formulation for solving temperature evolution is not currently &
-           &scientifically supported. USE AT YOUR OWN RISK.', GM_WARNING)
-    endif
 
     if (model%options%temp_init < 0 .or. model%options%temp_init >= size(temp_init)) then
        call write_log('Error, temp_init option out of range',GM_FATAL)
@@ -761,26 +710,12 @@ contains
     write(message,*) 'calving_init            : ', model%options%calving_init, init_calving(model%options%calving_init)
     call write_log(message)
 
-    ! dycore-dependent options; most of these are supported for Glissade only
-
-    if (model%options%whichcalving == CALVING_GRID_MASK .or. &
-        model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
-        model%options%whichcalving == CF_ADVANCE_RETREAT_RATE .or. &
-        model%options%whichcalving == CALVING_STRESS .or. &
-        model%options%whichcalving == EIGEN_CALVING .or. &
-        model%options%whichcalving == CALVING_STRESS_STOCHASTIC .or. &
-        model%options%whichcalving == CALVING_DAMAGE) then
-       call write_log('Error, this calving option is supported for Glissade dycore only', GM_FATAL)
-    endif
-
     if (model%options%whichbtrc < 0 .or. model%options%whichbtrc >= size(slip_coeff)) then
        call write_log('Error, slip_coeff out of range',GM_FATAL)
     end if
 
     write(message,*) 'slip_coeff              : ', model%options%whichbtrc, slip_coeff(model%options%whichbtrc)
     call write_log(message)
-
-    !Note: Not all basal traction options are supported for the Glissade SIA solver
 
     if (model%options%whichevol < 0 .or. model%options%whichevol >= size(evolution)) then
        call write_log('Error, evolution out of range',GM_FATAL)
@@ -857,8 +792,6 @@ contains
        call write_log('Hybrid restart from a previous run')
     end if
 
-    !TODO - Add more Glide checks here?
-
   end subroutine print_options
 
 !--------------------------------------------------------------------------------
@@ -877,16 +810,11 @@ contains
     real(dp), pointer, dimension(:) :: tempvar => NULL()
     integer :: loglevel
 
-    !TODO - Reorganize parameters into sections based on relevant physics
     !Note: The following physical constants have default values in glimmer_physcon.F90.
-    !      Some test cases (e.g., MISMIP) specify different values. The default values
+    !      Some test cases might specify different values. The default values
     !       can therefore be overridden by the user in the config file.
-    !      For coupled CESM runs, however, CISM uses the values in CESM's shr_const_mod,
-    !       which cannot be overridden.
-    !      These constants are *not* part of the model derived type.
-    !      If running multiple instances, the user should either use the default values
-    !       or specify identical values in each config file.  Otherwise, the run will use
-    !       whatever values are specified in the last config file to be read.
+    !      Glide is not run in CESM, but this file is compiled there. With CCSMCOUPLED,
+    !       these constants are shr_const_mod parameters and cannot be passed to GetValue.
 #ifndef CCSMCOUPLED
     call GetValue(section,'rhoi', rhoi)
     call GetValue(section,'rhoo', rhoo)
@@ -905,7 +833,6 @@ contains
     call GetValue(section,'ice_limit',          model%numerics%thklim)
     call GetValue(section,'geothermal',         model%paramets%geot)
     call GetValue(section,'flow_factor_ground', model%paramets%flow_enhancement_factor_ground)
-    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     call GetValue(section,'default_flwa',       model%paramets%default_flwa)
     call GetValue(section,'hydro_time',         model%paramets%hydtim)
 
@@ -918,46 +845,14 @@ contains
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
     !       btrac_const is used for several options
-
     call GetValue(section,'basal_tract_const', model%paramets%btrac_const)
     call GetValue(section,'basal_tract_max',   model%paramets%btrac_max)
     call GetValue(section,'basal_tract_slope', model%paramets%btrac_slope)
-
-    !WHL - Changed this so that bpar can be read correctly from config file.
-    !      This parameter is now called 'basal_tract_tanh' instead of 'basal_tract'.
     call GetValue(section,'basal_tract_tanh',  tempvar, 5)
     if (associated(tempvar)) then
        model%paramets%bpar(:) = tempvar(:)
        deallocate(tempvar)
     end if
-
-    ! basal friction parameters
-
-    ! ocean_p parameters
-    !TODO - Move to the basal hydro section?
-
-    ! pseudo-plastic parameters
-    !TODO - next four to be removed in favor of coulomb_c_const_hi, coulomb_c_bed_hi, etc.
-
-    ! ocean data parameters
-
-    ! parameters to adjust input topography
-
-    ! inversion parameters
-    !TODO - Put inversion parameters in a separate section
-
-    ! ISMIP-HOM parameters
-
-    ! parameters for acab/artm anomaly and overwrite options
-
-    ! basal melting parameters
-
-    ! MISMIP+ basal melting parameters
-
-    ! depth-dependent basal melting parameters
-
-    ! MISOMIP plume parameters
-    !TODO - Put MISMIP+ and MISOMIP parameters in their own section
 
   end subroutine handle_parameters
 
@@ -979,10 +874,6 @@ contains
     write(message,*) 'thickness limit for dynamically active ice (m) : ', model%numerics%thklim
     call write_log(message)
 
-    !Note: The Glissade dycore is known to crash for thklim = 0, but has not
-    !      been extensively tested for small values of thklim.
-    !      Values smaller than 1 mm may be OK, but no guarantees.
-
     ! calving options
 
     if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
@@ -994,26 +885,6 @@ contains
         model%options%whichcalving == CALVING_TOPG_THRESHOLD) then
        write(message,*) 'marine depth limit (m)        : ', model%calving%marine_limit
        call write_log(message)
-    endif
-
-    if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE    .or.  &
-        model%options%whichcalving == CALVING_THCK_THRESHOLD     .or.  &
-        model%options%whichcalving == CALVING_STRESS             .or.  &
-        model%options%whichcalving == CALVING_STRESS_STOCHASTIC  .or.  &
-        model%options%whichcalving == EIGEN_CALVING              .or.  &
-        model%options%whichcalving == CALVING_DAMAGE) then
-
-       if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-       elseif (model%options%whichcalving == EIGEN_CALVING) then
-       elseif (model%options%whichcalving == CALVING_STRESS) then
-       elseif (model%options%whichcalving == CALVING_STRESS_STOCHASTIC) then
-       elseif (model%options%whichcalving == CALVING_DAMAGE) then
-       elseif (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
-       endif
-
-    endif   ! calving options: thck_threshold, eigencalving, stress-based, etc.
-
-    if (model%options%whichcalving == CALVING_GRID_MASK) then
     endif
 
     write(message,*) 'ice density (kg/m^3)          : ', rhoi
@@ -1079,29 +950,11 @@ contains
        call write_log(message)
     end if
 
-    ! Coulomb elevation parameters
-
-    ! inversion parameters
-
-    ! Make sure the user isn't trying to invert for powerlaw_c and coulomb_c independently.
-    ! We can invert for both at once only if the two coefficients have a specified functional relationship.
-
-    ! ocean_p parameters
-    !TODO - Move these to basal_hydro?
-
     if (model%numerics%idiag < 1 .or. model%numerics%idiag > model%general%ewn     &
                                         .or.                                                     &
         model%numerics%jdiag < 1 .or. model%numerics%jdiag > model%general%nsn) then
         call write_log('Error, global diagnostic point (idiag, jdiag) is out of bounds', GM_FATAL)
     endif
-
-    ! ISMIP-HOM parameters
-
-    ! initMIP parameters
-
-    ! parameters for artm anomaly option
-
-    ! parameters for basal melting of floating ice (including MISMIP+ and MISOMIP)
 
   end subroutine print_parameters
 
@@ -1238,10 +1091,9 @@ contains
          'local lithosphere         ', &
          'elastic lithosphere       ' /)
 
-    character(len=*), dimension(0:2), parameter :: asthenosphere = (/ &
+    character(len=*), dimension(0:1), parameter :: asthenosphere = (/ &
          'fluid asthenosphere                ', &
-         'relaxing with constant timescale   ', &
-         'relaxing with lat varying timescale' /)
+         'relaxing with constant timescale   ' /)
 
     character(len=*), dimension(0:2), parameter :: which_relaxed = (/ &
          'read both topg and relx from input file', &
@@ -1284,11 +1136,9 @@ contains
           call write_log(message)
        endif
 
-       if (model%isostasy%asthenosphere==ASTHENOSPHERE_RELAXING_CONST) then
+       if (model%isostasy%asthenosphere==ASTHENOSPHERE_RELAXING) then
           write(message,*) 'relaxation constant (yr)    : ', model%isostasy%tau_relax_const
           call write_log(message)
-       else if (model%isostasy%asthenosphere==ASTHENOSPHERE_RELAXING_LATVAR) then
-          call write_log('laterally varying relaxation time is supported for Glissade only', GM_FATAL)
        endif
 
     endif   ! compute isostasy
@@ -1296,8 +1146,6 @@ contains
   end subroutine print_isostasy
 
 !--------------------------------------------------------------------------------
-
-  !--------------------------------------------------------------------------------
 
   subroutine define_glide_restart_variables(model, model_id)
 
@@ -1358,86 +1206,33 @@ contains
     end select  ! smb_input
 
     ! add Glide velocity and thermal restart variables
-     ! thkmask - TODO is this needed?
-     ! wgrd & wvel - temp driver calculates weff = f(wgrd, wvel) so both are needed by temp code.
-     !               It looks possible to calculate wvel on a restart from wgrd because wvel does not 
-     !               appear to require a time derivative (see subroutine wvelintg).  
-     !               wgrd does require time derivatives and therefore should be
-     !               calculated at the end of each time step and stored as a restart variable
-     !               so that the time derivatives do not need to be restart variables.
-     !               For now I am calculating wvel at the same time (end of glide time step) 
-     !               and then saving both as restart variables.  This has the advantage of
-     !               them being on consistent time levels in the output file.  
-     !               (If we waited to calculate wvel in the temp driver, we would not need to
-     !                add it as a restart variable, been then in the output wgrd and wvel would
-     !                be based on different time levels.)
-     ! flwa - in principal this could be reconstructed from temp.  However in the current 
-     !        implementation of glide the flwa calculation occurs after temp evolution but 
-     !        before thk evolution.  This means flwa is calculated from the current temp and 
-     !        the old thk.  The old thk is not available on a restart (just the current thk).
-     !        (thk is needed to calculate flwa for 1) a mask for where ice is, 2) correction for pmp.)
-      call glide_add_to_restart_variable_list('thkmask wgrd wvel flwa uvel vvel', model_id)
-    
-     ! slip option for SIA
-     select case (options%whichbtrc)
-       case (0)
-         ! no restart variable needed when no-slip is chosen
-       case default
-         ! when a slip option is chosen, ubas & vbas are needed by the temperature solver
-         ! for calculating basal heating prior to the first calculation of velocity.
-         ! Rather than recalculate the sliding field on restart, it is easier and 
-         ! less error-prone to have them be restart variables.  
-         ! This could either be done by making ubas, vbas restart variables or
-         ! having them assigned from the bottom level of uvel,vvel on init
-         ! Note that btrc and soft are not needed as restart variables because
-         ! their current implementation is as a scalar ('basal_tract_const' config parameter).
-         ! If they are ever implemented as 2-d fields, then they (probably just one of them)
-         ! should become restart variables.
-         
-         ! Nothing needs to happen because ubas,vbas are assigned from uvel,vel in glide_init_state_diagnostic()
-     end select
+    ! wgrd & wvel - temp driver calculates weff = f(wgrd, wvel) so both are needed by temp code.
+    !               It looks possible to calculate wvel on a restart from wgrd because wvel does not 
+    !               appear to require a time derivative (see subroutine wvelintg).  
+    !               wgrd does require time derivatives and therefore should be
+    !               calculated at the end of each time step and stored as a restart variable
+    !               so that the time derivatives do not need to be restart variables.
+    !               For now I am calculating wvel at the same time (end of glide time step) 
+    !               and then saving both as restart variables.  This has the advantage of
+    !               them being on consistent time levels in the output file.  
+    !               (If we waited to calculate wvel in the temp driver, we would not need to
+    !                add it as a restart variable, been then in the output wgrd and wvel would
+    !                be based on different time levels.)
+    ! flwa - in principal this could be reconstructed from temp.  However in the current 
+    !        implementation of glide the flwa calculation occurs after temp evolution but 
+    !        before thk evolution.  This means flwa is calculated from the current temp and 
+    !        the old thk.  The old thk is not available on a restart (just the current thk).
+    !        (thk is needed to calculate flwa for 1) a mask for where ice is, 2) correction for pmp.)
+    call glide_add_to_restart_variable_list('thkmask wgrd wvel flwa uvel vvel', model_id)
 
-     ! basal water option for Glide
-     select case (options%whichbwat)
-     case (BWATER_NONE, BWATER_CONST)
-        ! no restart variables needed
-     case default
-        ! restart needs to know bwat value
-        call glide_add_to_restart_variable_list('bwat', model_id)
-     end select
-
-    ! ==== Other options ====
-    !TODO - Either separate Glissade from Glide options, or just assume the user is running Glissade.
-
-    ! internal water option (for enthalpy scheme)
-    select case (options%whichtemp)
-      case (TEMP_ENTHALPY)
-         ! restart needs to know internal water fraction
-         call glide_add_to_restart_variable_list('waterfrac', model_id)
-      case default
-         ! no restart variables needed
+    ! basal water option for Glide
+    select case (options%whichbwat)
+    case (BWATER_NONE, BWATER_CONST)
+       ! no restart variables needed
+    case default
+       ! restart needs to know bwat value
+       call glide_add_to_restart_variable_list('bwat', model_id)
     end select
-
-    ! basal sliding option
-
-    ! basal friction inversion options
-
-    ! If using the basin-scale inversion option for powerlaw_c or coulomb_c, we need a target thickness for grounded ice
-
-    ! inversion options for ocean temperature corrections
-
-    ! If using the basin-scale inversion option for deltaT_ocn, we need a target thickness for floating ice
-
-    ! fields needed for inversion options that try to match local thickness, elevation, and/or surface speed
-    ! Note: If usrf_obs is supplied, thck_obs will be computed at initialization.
-    ! Note: Some options do not need usrf_obs and/or velo_sfc_obs as targets,
-    !       but they can still be useful diagnostics.
-
-    ! fields needed for inversion options that try to match observed dthck_dt
-
-    ! inversion options for the flow enhancement factor E
-
-    ! if inverting for E, we need the modeled and observed surface speed
 
     ! geothermal heat flux option
     select case (options%gthf)
@@ -1460,34 +1255,9 @@ contains
          !      at a period set by isostasy%period. If we restart between two updates, we need to use the most
          !      recently computed load. If we recompute the load right after restarting, the restart may not be exact.
          call glide_add_to_restart_variable_list('load', model_id)
-         if (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_LATVAR) then
-            ! The relaxation timescale is a 2d field read at initialization and again on restart
-            call glide_add_to_restart_variable_list('tau_relax', model_id)
-         endif
-         case default
+      case default
          ! no new restart variables needed
     end select
-
-    !WHL - added ice_age option
-    !      Note: Ice age is a diagnostic field, not part of the prognostic ice state.
-    !      Omitting it from restart will only break the diagnostic.
-
-    ! basal processes module - requires tauf for a restart
-!!    if (options%which_bproc /= BAS_PROC_DISABLED ) then
-!!        call glide_add_to_restart_variable_list('tauf', model_id)
-!!    endif
-
-    ! TODO bmlt was set as a restart variable, but I'm not sure when or if it is needed.
-
-    ! TODO age should be a restart variable if it is an input variable.  
-    ! Same goes for b.c. (bheatflxm, artm, acab) and any other tracers that get introduced.
-    ! These could be included all the time (as I have down above for b.c.), or 
-    ! we could add logic to only include them when they were in the input file.
-    ! To do this, this subroutine would have to be moved to after where input files are read,
-    ! glide_io_readall(), but before the output files are created, glide_io_createall()
-
-    ! TODO lat is only needed for some climate drivers.  It is not needed for cism_driver.
-    ! Need to add logic that will add it only when those drivers are used.
 
   end subroutine define_glide_restart_variables
 
@@ -1546,6 +1316,8 @@ contains
 
 !--------------------------------------------------------------------------------
 
+  !WHL TODO - Move the check_fill_values subroutines to libglimmer (maybe glimmer_utils)
+  !           to avoid code duplication with glissade_setup.F90
   subroutine check_fill_values_real8_3d(&
        field,                   &
        fill_value_in,           &

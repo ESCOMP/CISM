@@ -27,11 +27,6 @@
 ! This module contains routines for computing various diagnostic quantities.
 !
 ! Author: William Lipscomb
-!         Los Alamos National Laboratory
-!         Group T-3, MS B216
-!         Los Alamos, NM 87545
-!         USA
-!         <lipscomb@lanl.gov>
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -44,7 +39,6 @@
     use glimmer_global, only: dp
     use glimmer_paramets, only: iulog, eps11
     use glimmer_physcon, only: scyr
-    !!    use glimmer_log
     use glimmer_utils, only: point_diag
     use glissade_types
     use cism_parallel, only: this_rank, main_task, nhalo
@@ -57,9 +51,8 @@
          glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues, &
          glissade_calvingmip_diag
 
+    logical :: verbose_diagnostics = .false.
     logical :: verbose_calvingmip = .false.
-
-    logical, parameter :: verbose_diagnostics = .false.
 
   contains
 
@@ -139,8 +132,7 @@
 
 !****************************************************************************
 
-  subroutine glissade_write_diagnostics (model,  time,    &
-                                      tstep_count)
+  subroutine glissade_write_diagnostics (model, time, tstep_count)
 
     ! Short driver subroutine to decide whether it's time to write diagnostics.
     ! If so, it calls glissade_write_diag.   
@@ -178,7 +170,7 @@
 
 !****************************************************************************
 
-  subroutine glissade_write_diag (model,       time)
+  subroutine glissade_write_diag (model, time)
 
     ! Write global diagnostics
     ! Also write local diagnostics for a selected grid cell
@@ -200,7 +192,7 @@
     ! Note: model is intent(inout) so that some global diagnostics can be computed here 
     type(glissade_global_type), intent(inout) :: model ! model instance
 
-    real(dp),  intent(in) :: time                   ! current time in years
+    real(dp), intent(in) :: time             ! current time in years
 
     ! local variables
 
@@ -347,7 +339,6 @@
     !        in the diagnostics, because horizontal transport does not account for area factors.
     !        Horizontal transport conserves mass only under the assumption of rectangular grid cells.
     cell_area = model%geometry%cell_area
-
 
     velo_ns_ubound = nsn-uhalo
     velo_ew_ubound = ewn-uhalo
@@ -1217,14 +1208,6 @@
 
        write(message,'(a25,f24.16)') 'Basal heat flux (W/m^2)  ', bheatflx_diag
        call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       ! Commented out, since we are writing the age in every column below
-!       if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
-!          write(message,'(a25,f24.16)') 'Age of top layer (yr)    ', top_age_diag/scyr
-!          call write_log(trim(message), type = GM_DIAGNOSTIC)
-!          write(message,'(a25,f24.16)') 'Age of bottom layer (yr) ', bot_age_diag/scyr
-!          call write_log(trim(message), type = GM_DIAGNOSTIC)
-!       endif
 
        ! Vertical profile of ice speed and temperature
 
@@ -2244,7 +2227,6 @@
     call broadcast(cf_uvel(axis), proc=procnum)
     call broadcast(cf_vvel(axis), proc=procnum)
 
-
     axis = 3  ! index for the positive x-axis (profile C)
     if (x_axis_thru_edges) then
        do j = nhalo+1, ny-nhalo
@@ -2336,7 +2318,6 @@
     call broadcast(cf_uvel(axis), proc=procnum)
     call broadcast(cf_vvel(axis), proc=procnum)
 
-
     axis = 7  ! index for the negative x-axis (profile G)
     if (x_axis_thru_edges) then
        do j = nhalo+1, ny-nhalo
@@ -2381,7 +2362,6 @@
     call broadcast(cf_thck(axis), proc=procnum)
     call broadcast(cf_uvel(axis), proc=procnum)
     call broadcast(cf_vvel(axis), proc=procnum)
-
 
     ! Compute diagnostics for the four profiles along the diagonals (y = x and y = -x)
 
@@ -2508,7 +2488,6 @@
     call broadcast(cf_uvel(axis), proc=procnum)
     call broadcast(cf_vvel(axis), proc=procnum)
 
-
     axis = 6  ! index for the line y = x in the negative x and y direction (profile F)
     do i = nhalo+1, nx-nhalo
        do j = nhalo+1, ny-nhalo
@@ -2569,7 +2548,6 @@
     call broadcast(cf_thck(axis), proc=procnum)
     call broadcast(cf_uvel(axis), proc=procnum)
     call broadcast(cf_vvel(axis), proc=procnum)
-
 
     axis = 8  ! index for the line y = -x in the negative x and positive y direction (profile H)
     do i = nhalo+1, nx-nhalo
@@ -2645,7 +2623,6 @@
   end subroutine locate_calving_front_circular
 
 !---------------------------------------------------------------------------
-
 
   subroutine locate_calving_front_thule(&
        nx,               ny,           &
@@ -2869,7 +2846,6 @@
     call broadcast(cf_uvel(axis), proc=procnum)
     call broadcast(cf_vvel(axis), proc=procnum)
 
-
     axis = 3  ! index for Caprona B
     x_intercept = 390.d3
     x_lim = 590.d3
@@ -2986,7 +2962,6 @@
     call broadcast(cf_thck(axis), proc=procnum)
     call broadcast(cf_uvel(axis), proc=procnum)
     call broadcast(cf_vvel(axis), proc=procnum)
-
 
     axis = 5  ! index for Caprona C
     x_intercept = -390.d3
@@ -3106,7 +3081,6 @@
     call broadcast(cf_uvel(axis), proc=procnum)
     call broadcast(cf_vvel(axis), proc=procnum)
        
-
     axis = 7  ! index for Caprona D
     x_intercept = 390.d3
     x_lim = 590.d3
@@ -3225,8 +3199,6 @@
     call broadcast(cf_uvel(axis), proc=procnum)
     call broadcast(cf_vvel(axis), proc=procnum)
 
-    
-
     ! Compute diagnostics for the four Halbrane profiles
     ! Find a point along each profile where the interpolated areafrac = 0.5
 
@@ -3296,7 +3268,6 @@
     call broadcast(cf_uvel(axis), proc=procnum)
     call broadcast(cf_vvel(axis), proc=procnum)
 
-
     axis = 4  ! index for Halbrane B (same as A except for positive x_intercept)
     x_intercept = 150.d3
 
@@ -3362,7 +3333,6 @@
     call broadcast(cf_thck(axis), proc=procnum)
     call broadcast(cf_uvel(axis), proc=procnum)
     call broadcast(cf_vvel(axis), proc=procnum)
-
     
     axis = 6  ! index for Halbrane C (same as A except in the negative y direction)
     x_intercept = -150.d3
@@ -3429,7 +3399,6 @@
     call broadcast(cf_thck(axis), proc=procnum)
     call broadcast(cf_uvel(axis), proc=procnum)
     call broadcast(cf_vvel(axis), proc=procnum)
-
     
     axis = 8  ! index for Halbrane D (same as C except for positive x_intercept)
     x_intercept = 150.d3

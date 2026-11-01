@@ -43,9 +43,6 @@ module glide_types
   !> Note that this \emph{is} now where the defaults are defined for these
   !> variables.
 
-!TODO - Clean up the glide_global type so it holds fewer subtypes?
-!       For example, we could replace some work types (tempwk, velowk) with local arrays and parameters.
-
   use glimmer_global, only: sp, dp, fname_length
   use glimmer_physcon, only: rhoi, rhoo, coni
   use glimmer_paramets, only: unphys_val
@@ -55,8 +52,7 @@ module glide_types
   use glimmer_coordinates, only: coordsystem_type
   use glimmer_map_types, only: glimmap_proj
   use glimmer_sparse_type, only: sparse_matrix_type, &
-       HO_SPARSE_PCG_INCH, HO_SPARSE_BICG, HO_SPARSE_GMRES, &
-       HO_SPARSE_PCG_STANDARD, HO_SPARSE_PCG_CHRONGEAR
+       HO_SPARSE_PCG_INCH, HO_SPARSE_BICG, HO_SPARSE_GMRES
   use cism_parallel, only: parallel_type
 
   implicit none
@@ -70,24 +66,15 @@ module glide_types
   ! basic Glimmer/Glide options
 
   integer, parameter :: DYCORE_GLIDE = 0        ! old shallow-ice dycore from Glimmer
-!WHL - The Glam dycore is no longer supported; choosing whichdycore = 1 will give a fatal error.
-!      Might repurpose the '1' slot for a future version of Glissade.
   integer, parameter :: DYCORE_GLAM = 1         ! Payne-Price finite-difference solver
 
   integer, parameter :: EVOL_PSEUDO_DIFF = 0    ! glide only
   integer, parameter :: EVOL_ADI = 1            ! glide only
   integer, parameter :: EVOL_DIFFUSION = 2      ! glide only
-  integer, parameter :: EVOL_INC_REMAP = 3      ! glissade only
-  integer, parameter :: EVOL_UPWIND = 4         ! glissade only
-  integer, parameter :: EVOL_NO_THICKNESS = 5   ! glissade only
-
-  !NOTE: Use option 1 for prognostic temperature with any dycore
-  !      Option 3 is under construction
 
   integer, parameter :: TEMP_SURFACE_AIR_TEMP = 0
   integer, parameter :: TEMP_PROGNOSTIC = 1
   integer, parameter :: TEMP_STEADY = 2
-  integer, parameter :: TEMP_ENTHALPY = 3
 
   integer, parameter :: TEMP_INIT_ZERO = 0
   integer, parameter :: TEMP_INIT_ARTM = 1
@@ -103,7 +90,6 @@ module glide_types
   integer, parameter :: BTRC_LINEAR_BMLT = 4
   integer, parameter :: BTRC_TANH_BWAT = 5
 
-  ! Old Glimmer basal water options
   integer, parameter :: BWATER_NONE  = 0
   integer, parameter :: BWATER_LOCAL = 1
   integer, parameter :: BWATER_FLUX  = 2
@@ -111,48 +97,40 @@ module glide_types
 
   integer, parameter :: BMLT_FLOAT_EXTERNAL = 4
 
-  !TODO - Deprecate the quadratic option?
-
   integer, parameter :: SMB_INPUT_MYR_ICE = 0     ! use 'acab' for input
   integer, parameter :: SMB_INPUT_MMYR_WE = 1     ! use 'smb' for input
 
- 
-
   integer, parameter :: GTHF_UNIFORM = 0
+  integer, parameter :: GTHF_PRESCRIBED_2D = 1
   integer, parameter :: GTHF_COMPUTE = 2
 
   integer, parameter :: RELAXED_TOPO_INPUT = 1    ! set relx to input topg
   integer, parameter :: RELAXED_TOPO_COMPUTE = 2  ! Input topo in isostatic equilibrium
                                                   ! compute relaxed topo
 
+  integer, parameter :: ISOSTASY_NONE = 0
   integer, parameter :: ISOSTASY_COMPUTE = 1
 
   integer, parameter :: LITHOSPHERE_LOCAL = 0
   integer, parameter :: LITHOSPHERE_ELASTIC = 1
 
   integer, parameter :: ASTHENOSPHERE_FLUID = 0
-  integer, parameter :: ASTHENOSPHERE_RELAXING_CONST = 1
-  integer, parameter :: ASTHENOSPHERE_RELAXING_LATVAR = 2
+  integer, parameter :: ASTHENOSPHERE_RELAXING = 1
 
   integer, parameter :: CALVING_NONE = 0
   integer, parameter :: CALVING_FLOAT_ZERO = 1
   integer, parameter :: CALVING_FLOAT_FRACTION = 2
   integer, parameter :: CALVING_RELX_THRESHOLD = 3
   integer, parameter :: CALVING_TOPG_THRESHOLD = 4
-  integer, parameter :: CALVING_GRID_MASK = 5
-  integer, parameter :: CF_ADVANCE_RETREAT_RATE = 6
-  integer, parameter :: CALVING_THCK_THRESHOLD = 7
-  integer, parameter :: CALVING_STRESS = 8
-  integer, parameter :: CALVING_STRESS_STOCHASTIC = 9
-  integer, parameter :: CALVING_DAMAGE = 10
-  integer, parameter :: EIGEN_CALVING = 11
-  integer, parameter :: CALVING_HUYBRECHTS = 12
+  integer, parameter :: CALVING_HUYBRECHTS = 5
 
+  integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
 
   integer, parameter :: VERTINT_STANDARD = 0
   integer, parameter :: VERTINT_KINEMATIC_BC = 1
 
+  integer, parameter :: DT_IN_YEARS = 0
   integer, parameter :: DT_STEPS_PER_YEAR = 1
 
   integer, parameter :: DM_DT_DIAG_KG_S = 0
@@ -166,7 +144,6 @@ module glide_types
   integer, parameter :: SIGMA_CONFIG = 2
   integer, parameter :: SIGMA_COMPUTE_EVEN = 3
   integer, parameter :: SIGMA_COMPUTE_PATTYN = 4
-
   
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -198,9 +175,6 @@ module glide_types
     real(dp), dimension(:,:),pointer :: lat => null()
     real(dp), dimension(:,:),pointer :: lon => null()
 
-    ! added to handle the active-blocks option
-    integer, dimension(:,:), pointer :: ice_domain_mask => null()  ! = 1 for cells that are potentially active
-
   end type glide_general
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -215,6 +189,7 @@ module glide_types
 
     integer :: whichdycore = 0
 
+    !TODO - Remove Glam and change Glissade to option 1
     ! Choice of two dycores:
     !> \begin{description} 
     !> \item[0] Glide dycore (SIA, serial (SLAP) only)
@@ -224,15 +199,11 @@ module glide_types
 
     integer :: whichevol = 0
 
-    !TODO: Break into two options: one set (0, 1, 2) for Glide and one set (3, 4, 5) for Glissade
     !> Thickness evolution method:
     !> \begin{description}
     !> \item[0] Pseudo-diffusion 
     !> \item[1] Alternating direction implicit (ADI)
     !> \item[2] Diffusion (also calculates velocities) 
-    !> \item[3] Incremental remapping
-    !> \item[4] 1st-order upwind scheme
-    !> \item[5] Temperature evolves but thickness does not
     !> \end{description}
 
     integer :: whichtemp = 1
@@ -242,7 +213,6 @@ module glide_types
     !> \item[0] Set column to surface air temperature
     !> \item[1] Prognostic temperature solution 
     !> \item[2] Do NOTHING - hold temperatures steady at initial value  
-    !> \item[3] Prognostic enthalpy solution
     !> \end{description}
 
     integer :: temp_init = 1
@@ -252,8 +222,6 @@ module glide_types
     !> \item[0] Initialize temperature to 0 C
     !> \item[1] Initialize temperature to surface air temperature
     !> \item[2] Initialize temperature with a linear profile in each column
-    !> \item[3] Initialize temperature with an advective-diffusive balance in each column
-    !> \item[4] Initialize temperature from external file
     !> \end{description}
 
     !> Method for calculating flow factor $A$:
@@ -306,7 +274,6 @@ module glide_types
     !> \item[1] SMB input in units of mm/yr water equivalent
     !> \end{description}
     
-
     integer :: gthf = 0
 
     !> geothermal heat flux:
@@ -335,16 +302,7 @@ module glide_types
     !>          certain water depth (variable "marine_limit" in glide_types)  
     !> \item[4] Set thickness to zero if present bedrock topography lies below
     !>          a certain water depth (variable "marine_limit" in glide_types)  
-    !> \item[5] Calve based on grid location using a prescribed mask
-    !>          (field 'calving_mask' or 'subgrid_calving_mask')
-    !> \item[6] Prescribe the rate of calving front advance or retreat
-    !> \item[7] Calve ice whose thickness is below a given threshold
-    !> \item[8] Deterministic calving based on eigenvalues of the horizontal stress tensor
-    !> \item[9] Stochastic calving based on eigenvalues of the horizontal stress tensor
-    !> \item[10] Calving based on stochastic internal damage
-    !> \item[11] Eigencalving following Levermann et al. (2012)
-    !> \item[12] Huybrechts calving
-    !TODO - Revise the numbering?
+    !> \item[5] Huybrechts calving
     !> \end{description}
 
     integer :: calving_init = 0
@@ -353,7 +311,6 @@ module glide_types
     !> \item[1] Calve at initialization
     !> \end{description}
 
-    !Note: This used to be called dt_option; renamed to avoid a naming conflict with CESM
     integer :: dt_input_option = 0
     !> \begin{description}
     !> \item[0] Input dt in years
@@ -402,13 +359,12 @@ module glide_types
     !> \item[2] hybrid restart; use restart from previous run as the input file, and reset the time
     !> \end{description}
 
-    ! This is a Glimmer serial option
-    ! The parallel code enforces periodic EW and NS boundary conditions by default
+    ! This is a Glide serial option; Glissade enforces periodic EW and NS boundary conditions by default
     logical :: periodic_ew = .false.
 
     !> \begin{description}
-    !> \item[0] no periodic EW boundary conditions
-    !> \item[1] periodic EW boundary conditions
+    !> \item[F] no periodic EW boundary conditions
+    !> \item[T] periodic EW boundary conditions
     !> \end{description}
 
   end type glide_options
@@ -419,28 +375,17 @@ module glide_types
 
     !> Holds fields and other information relating to the geometry of the ice sheet and bedrock.
 
-    real(dp),dimension(:,:),pointer :: thck => null()
-    !> ice thickness (m)
+    real(dp),dimension(:,:),pointer :: thck => null()               !> ice thickness (m)
 
-    real(dp),dimension(:,:),pointer :: usrf => null()
-    ! elevation of the upper ice surface (m)
+    real(dp),dimension(:,:),pointer :: usrf => null()               !> elevation of the upper ice surface (m)
 
-    real(dp),dimension(:,:),pointer :: lsrf => null() 
-    ! elevation of the lower ice surface (m)
+    real(dp),dimension(:,:),pointer :: lsrf => null()               !> elevation of the lower ice surface (m)
 
-    real(dp),dimension(:,:),pointer :: topg => null() 
-    !> elevation of the bed topography (m)
-
-    real(dp),dimension(:,:,:),pointer :: ice_age => null()
-    !> The age of a given ice layer; units are s internally, yr for I/O
+    real(dp),dimension(:,:),pointer :: topg => null()               !> elevation of the bed topography (m)
 
     real(dp),dimension(:,:),pointer :: cell_area => null()          !> grid cell area (m^2)
 
-    integer, dimension(:,:),pointer :: thkmask => null()
-    !> see glide_mask.f90 for possible values
-
-    ! fields for ice removal, e.g., removal of ice caps
-    real(dp),dimension(:,:),pointer :: removal_thck => null()        !> thickness loss of ice removed in grid cell
+    integer, dimension(:,:),pointer :: thkmask => null()            !> see glide_mask.f90 for possible values
 
     integer, dimension(:,:),pointer :: thck_index => null()
     ! Set to nonzero integer for ice-covered cells (thck > 0), cells adjacent to ice-covered cells,
@@ -486,8 +431,8 @@ module glide_types
     real(dp),dimension(:,:),pointer :: dthckdtm => null() !> Temporal derivative of thickness.
     real(dp),dimension(:,:),pointer :: dusrfdtm => null() !> Temporal derivative of upper surface elevation.
 
-    !TODO - Move staggered variables from glide_geomderv type to glide_geometry?
-
+    !WHL TODO - Move stagthck from glide_geomderv to glide_geometry
+    !           Do this as part of the next Glide cleanup
     !Staggered grid versions of geometry variables
     real(dp),dimension(:,:),pointer :: stagthck => null() !> Thickness averaged onto the staggered grid.
 
@@ -497,22 +442,21 @@ module glide_types
 
   type glide_velocity
 
-    !> Holds the velocity fields in 2D and 3D. Some of these fields are defined only in Glide.
-    real(dp),dimension(:,:,:),pointer :: uvel  => null()   !> 3D $x$-velocity.
-    real(dp),dimension(:,:,:),pointer :: vvel  => null()   !> 3D $y$-velocity.
-    real(dp),dimension(:,:,:),pointer :: velnorm => null() ! horizontal ice speed
-    real(dp),dimension(:,:,:),pointer :: wvel  => null()   !> 3D $z$-velocity.
-    real(dp),dimension(:,:,:),pointer :: wgrd  => null()   !> 3D grid vertical velocity.
-    real(dp),dimension(:,:)  ,pointer :: uflx  => null()   !> 
-    real(dp),dimension(:,:)  ,pointer :: vflx  => null()   !> 
-    real(dp),dimension(:,:)  ,pointer :: ubas  => null()   !> basal $x$-velocity at cell vertices (Glide only)
-    real(dp),dimension(:,:)  ,pointer :: vbas  => null()   !> basal $y$-velocity at cell vertices (Glide only)
-    real(dp),dimension(:,:)  ,pointer :: diffu => null()   !> 
-    real(dp),dimension(:,:)  ,pointer :: total_diffu => null() !> total diffusivity
-
+    !> Holds the velocity fields in 2D and 3D.
     ! Note: Velocities have units of m/s within the code.
     ! For I/O, velocities have units of m/yr, with a scale factor of 1/scyr
 
+    real(dp),dimension(:,:,:),pointer :: uvel  => null()        !> 3D $x$-velocity.
+    real(dp),dimension(:,:,:),pointer :: vvel  => null()        !> 3D $y$-velocity.
+    real(dp),dimension(:,:,:),pointer :: velnorm => null()      !> horizontal ice speed
+    real(dp),dimension(:,:,:),pointer :: wvel  => null()        !> 3D $z$-velocity.
+    real(dp),dimension(:,:,:),pointer :: wgrd  => null()        !> 3D grid vertical velocity.
+    real(dp),dimension(:,:)  ,pointer :: uflx  => null()        !> 
+    real(dp),dimension(:,:)  ,pointer :: vflx  => null()        !> 
+    real(dp),dimension(:,:)  ,pointer :: ubas  => null()        !> basal $x$-velocity at cell vertices
+    real(dp),dimension(:,:)  ,pointer :: vbas  => null()        !> basal $y$-velocity at cell vertices
+    real(dp),dimension(:,:)  ,pointer :: diffu => null()        !> 
+    real(dp),dimension(:,:)  ,pointer :: total_diffu => null()  !> total diffusivity
     real(dp),dimension(:,:)  ,pointer :: btrc  => null()        !> basal traction (scalar field)
     real(dp),dimension(:,:)  ,pointer :: beta  => null()        !> basal shear coefficient on velo grid (Pa yr/m)
     real(dp),dimension(:,:)  ,pointer :: tau_x => null()        !> SIA basal shear stress, x-dir
@@ -522,7 +466,7 @@ module glide_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  !TODO - Make eus a config file parameter.
+  !TODO - Make eus a config file parameter if we want to run Glide with time-varying sea level
   ! Note: smb and acab are both SMB variables, but they have different units.
   !       smb has units of kg/m^2/yr w.e. = mm/yr w.e.
   !       acab has units of m/yr ice for I/O, and SI units in most of the code.
@@ -542,13 +486,6 @@ module glide_types
   !                    The '_tavg_sum' variables are generated automatically (generate_ncvars.py) and added
   !                     automatically to the restart variable list for each '_tavg' field in an output file;
   !                     there is no separate '_tavg_sum' array, and users should not list them in output files.
-  !
-  ! Note on smb_corrected: Optionally, smb can be supplemented with an anomaly.
-  !                        The background field, smb, does not include the anomaly.
-  !                        Write smb_corrected to the output file to see the modified SMB field.
-  ! Note on artm_corrected: Optionally, artm can be supplemented with an anomaly.
-  !                         The background field, artm, does not include the anomaly.
-  !                         Write artm_corrected to the output file to see the modified artm field.
 
   type glide_climate
      !> Holds fields used to drive the model
@@ -558,10 +495,9 @@ module glide_types
                                                                   !>    = 0 for ice-free cells with acab < 0
      real(dp),dimension(:,:),pointer :: smb             => null() !> Surface mass balance (mm/yr water equivalent)
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
-     real(dp),dimension(:,:),pointer :: artm_corrected  => null() !> Annual mean air temperature with anomaly corrections (degC)
      real(dp),dimension(:,:),pointer :: precip          => null() !> precipitation rate (mm/yr w.e.)
 
-     real(dp) :: eus = 0.d0                         !> eustatic sea level
+     real(dp) :: eus = 0.d0                                       !> eustatic sea level (m)
 
   end type glide_climate
 
@@ -570,20 +506,11 @@ module glide_types
   type glide_calving
      !> holds fields and parameters related to calving
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving during one time step (m)
-                                                                         !> real instead of integer for use with subgrid calving parameterization
-                                                                   !> these cells not allowed to fill until upstream neighbors are full
   
      real(dp) :: marine_limit =  -200.d0         !> value of topg/relx at which floating ice calves (m)
                                                  !> (whichcalving = CALVING_RELX_THRESHOLD, CALVING_TOPG_THRESHOLD)
      real(dp) :: calving_fraction = 0.2d0        !> fractional thickness of floating ice that calves
                                                  !> (whichcalving = CALVING_FLOAT_FRACTION)
-                                                 !> WHL - previously defined as the fraction of floating ice that does not calve
-                                                 !> if calving_timescale = 0, then the full column calves at once
-                                                 !> if used, must be set to a nonzero value in the config file
-                                                 !> (whichcalving = CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_DAMAGE)
-                                                 !> 0 = no damage, 1 = total damage (whichcalving = CALVING_DAMAGE)
-!     real(dp) :: damage_constant1 = 0.0d0        !> damage constant that multiplies tau_eigen1 (yr^-1)
-!     real(dp) :: damage_constant2 = 0.0d0        !> damage constant that multiplies tau_eigen2 (yr^-1)
 
   end type glide_calving
 
@@ -609,14 +536,12 @@ module glide_types
     real(dp),dimension(:,:,:),pointer :: flwa => null()      !> Glen's flow factor $A$.
     real(dp),dimension(:,:,:),pointer :: dissip => null()    !> interior heat dissipation rate, divided by rhoi*Ci (deg/s)
     real(dp),dimension(:,:),  pointer :: btemp => null()     !> Basal temperature on ice grid; diagnosed from temp(upn)
-    ! Note: With a basal temperature GLP, a grid cell can have different basal temps for grounded and floating ice
     real(dp),dimension(:,:),  pointer :: stagbtemp => null() !> Basal temperature on velo grid
     real(dp),dimension(:,:),  pointer :: bpmp => null()      !> Basal pressure melting point temperature
     real(dp),dimension(:,:),  pointer :: stagbpmp => null()  !> Basal pressure melting point temperature on velo grid
                                                              !> = rhoi * Ci * T for cold ice
     real(dp),dimension(:,:),  pointer :: ucondflx => null()  !> conductive heat flux (W/m^2) at upper sfc (positive down)
 
-    !TODO - Remove some of the following from the derived type
     integer  :: niter   = 0   
     logical  :: newtemps = .false. !> new temperatures
 
@@ -631,12 +556,12 @@ module glide_types
      ! basal melt fields
 
      real(dp), dimension(:,:), pointer :: &
-          bmlt => null(),                         & !> basal melt rate (> 0 for melt, < 0 for freeze-on)
-                                                    !> (m/s); bmlt = bmlt_ground in Glide
+          bmlt => null(),                         & !> basal melt rate (m/s); (> 0 for melt, < 0 for freeze-on)
+                                                    !> bmlt = bmlt_ground in Glide
           bmlt_applied => null(),                 & !> basal melt rate applied to ice (m/s)
                                                     !>    = 0 for ice-free cells with bmlt > 0
           bmlt_applied_tavg => null(),            & !> basal melt rate applied to ice (m/s, time average)
-          bmlt_ground => null()                     !> basal melt rate for grounded ice
+          bmlt_ground => null()                     !> basal melt rate for grounded ice (m/s)
 
   end type glide_basal_melt
 
@@ -647,9 +572,8 @@ module glide_types
      !> Holds variables related to basal hydrology
      !> See glide_bwater.F90 for usage details
 
-     ! Note: Ideally, bwat should have MKS units (m), but currently is scaled.
-     real(dp),dimension(:,:),  pointer :: bwat => null()        !> Local basal water depth
-     real(dp),dimension(:,:),  pointer :: stagbwat => null()    !> Basal water depth on velo grid
+     real(dp),dimension(:,:),  pointer :: bwat => null()        !> Local basal water depth (m)
+     real(dp),dimension(:,:),  pointer :: stagbwat => null()    !> Basal water depth on velo grid (m)
      real(dp),dimension(:,:),  pointer :: bwatflx => null()     !> Basal water flux through a cell per unit cell area (m/s)
 
   end type glide_basal_hydro
@@ -672,12 +596,12 @@ module glide_types
 
      ! work arrays for solver
      real(dp), dimension(:), pointer :: rwork => null()
-     integer, dimension(:), pointer :: iwork => null()
+     integer, dimension(:), pointer  :: iwork => null()
      integer mxnelt
 
      real(dp), dimension(:), pointer :: deltaz => null()    !> array holding grid spacing in z
      real(dp), dimension(:,:), pointer :: zfactors => null()!> array holding factors for finite differences of vertical diffu
-     real(dp) :: xfactor,yfactor !> factors for finite differences of horizontal diffu
+     real(dp) :: xfactor, yfactor      !> factors for finite differences of horizontal diffu
 
      real(dp) :: surft = 2.d0          !> surface temperature, used for calculating initial temperature distribution
      real(dp) :: mart  = 2.d0          !> sea floor temperature 
@@ -696,7 +620,9 @@ module glide_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+  !WHL TODO - Change to glide_isos_elastic
   type isos_elastic
+
      !> Holds data used by isostatic adjustment calculations
 
      real(dp) :: d = 0.24d25                !> flexural rigidity (N m)
@@ -705,8 +631,10 @@ module glide_types
      real(dp) :: c1,c2,cd3,cd4              !> coefficients
      real(dp), dimension(:,:), pointer :: w => null() !> matrix operator for lithosphere deformation
      integer :: wsize                       !> size of operator (0:rbel_wsize, 0:rbel_wsize), operator is axis symmetric
+
   end type isos_elastic
 
+  !WHL TODO - Change to glide_isostasy_type
   type isostasy_type
      !> contains isostasy configuration
 
@@ -722,7 +650,6 @@ module glide_types
      !> \begin{description}
      !> \item[0] fluid mantle, isostatic adjustment happens instantaneously
      !> \item[1] relaxing mantle, exp adjust toward (relx - load), constant timescale
-     !> \item[2] relaxing mantle, exp adjust toward (relx - load), laterally varying timescale
      !> \end{description}
 
     integer :: which_relaxed = 0
@@ -752,25 +679,24 @@ module glide_types
   type glide_numerics
 
     !> Parameters relating to the model numerics
-    real(dp) :: tstart =     0.d0 !> starting time
-                                  !> Note: For restarts, tstart is set to the time the restart begins
-    real(dp) :: tend   =  1000.d0 !> end time
-    real(dp) :: time   =     0.d0 !> main loop counter in years
-    real(dp) :: tinc   =     1.d0 !> time step of main loop in years 
-    real(dp) :: ntem   =     1.d0 !> multiplier of main time step; allows longer temperature time step
-    real(dp) :: alpha  =    0.5d0 !> richard suggests 1.5 - was a parameter in original
-    real(dp) :: thklim =   100.d0 !> min thickness for computing ice dynamics (m) 
+    real(dp) :: tstart =     0.d0     !> starting time
+                                      !> Note: For restarts, tstart is set to the time the restart begins
+    real(dp) :: tend   =  1000.d0     !> end time
+    real(dp) :: time   =     0.d0     !> main loop counter in years
+    real(dp) :: tinc   =     1.d0     !> time step of main loop in years 
+    real(dp) :: ntem   =     1.d0     !> multiplier of main time step; allows longer temperature time step
+    real(dp) :: alpha  =    0.5d0     !> richard suggests 1.5 - was a parameter in original
+    real(dp) :: thklim =   100.d0     !> min thickness for computing ice dynamics (m) 
     real(dp) :: dew    =    20.d3     !> grid cell size in east-west direction
     real(dp) :: dns    =    20.d3     !> grid cell size in north-south direction
     real(dp) :: dt     =     0.d0     !> ice dynamics timestep
     real(dp) :: dttem  =     0.d0     !> temperature timestep
     integer  :: nsteps_per_year = 0   !> number of time steps per year (for dt_option = STEPS_PER_YEAR)
-    integer  :: tstep_count = 0   !> number of time steps since the start of the simulation
+    integer  :: tstep_count = 0       !> number of time steps since the start of the simulation
     
     ! Vertical coordinate ---------------------------------------------------
                                                                
-    real(dp),dimension(:),pointer :: sigma => null() !> Sigma values for vertical spacing of 
-                                                     !> model levels
+    real(dp),dimension(:),pointer :: sigma => null()         !> Sigma values for vertical spacing of model levels
     real(dp),dimension(:),pointer :: stagsigma => null()     !> Staggered values of sigma (layer midpts)
     real(dp),dimension(:),pointer :: stagwbndsigma => null() !> Staggered values of sigma (layer midpts) with boundaries
     real(dp), dimension(:,:), pointer :: dups => null()      !> vertical grid quantities related to sigma and stagsigma
@@ -786,10 +712,6 @@ module glide_types
     integer  :: idiag_local = 1    ! local grid indices for diagnostic point
     integer  :: jdiag_local = 1
     integer  :: rdiag_local = 0    ! task number for diagnostic point
-
-    ! CFL diagnostics and adaptive subcycling
-    real(dp) :: adv_cfl_dt = 0.0d0  ! maximum allowable dt (yrs) based on advective CFL (calculated by model for each time step)
-    real(dp) :: diff_cfl_dt = 0.0d0 ! maximum allowable dt (yrs) based on diffusive CFL (calculated by model for each time step)
 
   end type glide_numerics
 
@@ -808,7 +730,6 @@ module glide_types
     real(dp),dimension(4) :: c = 0.d0
     real(dp) :: watwd  = 3.0d0
     real(dp) :: watct  = 10.0d0
-!!    real(dp) :: trc0   = 0.d0
     real(dp) :: trcmin = 0.0d0
     real(dp) :: marine = 1.0d0
     real(dp) :: trcmax = 10.0d0
@@ -848,6 +769,8 @@ module glide_types
     real(dp),dimension(:,:,:),pointer :: hadv_v   => null()
 
     !*sfp** added space to the next 2 (cons, f) for use w/ HO and SSA dissip. calc. 
+    !WHL TODO - Switch cons and f from dimension 5 to 4?
+    !           Glide does not do the HO and SSA dissip calcs mentioned by sfp.
     real(dp),dimension(5)             :: cons     = 0.d0
     real(dp),dimension(5)             :: f        = 0.d0
     real(dp),dimension(8)             :: c        = 0.d0
@@ -863,7 +786,6 @@ module glide_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  !TODO - Move these parameters to types associated with a certain kind of physics
   !TODO - Change default geot to 0.0, so that idealized tests by default have no mass loss
   type glide_paramets
     real(dp),dimension(5) :: bpar = (/ 0.2d0, 0.5d0, 0.0d0 ,1.0d-2, 1.0d0/)
@@ -875,10 +797,8 @@ module glide_types
                                                          ! grounded ice only; typically > 1 for SIA models to speed up the ice
                                                          ! Default is 1.0, but for marine simulations a smaller value
                                                          !  is often needed to match observed shelf speeds
-    real(dp) :: hydtim = 1000.0d0      ! years, converted to s^{-1} and scaled
-                                       ! 0 if no drainage
+    real(dp) :: hydtim = 1000.0d0      ! years, converted to s^{-1} and scaled; = 0 if no drainage
     real(dp) :: bwat_smooth = 0.01d0   ! basal water field smoothing strength
-
     real(dp) :: default_flwa = 1.0d-16 ! Glen's A to use in isothermal case, in units Pa^{-n} yr^{-1} 
                                        ! (would change to e.g. 4.6e-18 in EISMINT-ROSS case)
 
@@ -907,11 +827,13 @@ module glide_types
     real(dp),dimension(:),pointer :: answ    => null()
 
     !TODO - KJE - Remove ewn/nsn from glide_solver type once new glide_global_type is working and we can use those ewn/nsn
+    !WHL TODO - Not sure if the above comment still applies; do we still need ewn and nsn in the glide_solver type?
     integer :: ewn
     integer :: nsn
 
   end type glide_solver
 
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
        
   type glide_global_type    ! type containing all of the above for an ice sheet model instance
     integer              :: model_id = 0 !> identifier of this model instance (1..N, where N is the number of ice sheets in this run)
@@ -938,7 +860,7 @@ module glide_types
     type(glide_prof_type):: glide_prof
     type(isostasy_type)  :: isostasy
     type(glide_solver):: solver_data
-    type(parallel_type)  :: parallel  !WHL - new derived type to hold information about parallel communication
+    type(parallel_type)  :: parallel
 
   end type glide_global_type
 
@@ -950,13 +872,16 @@ contains
     !> These are the arrays allocated, and their dimensions:
 
     !TODO - Make sure the itemized lists in subroutine glide_allocarr are complete.
-
+    !WHL TODO - Decide whether we should keep these itemized lists.
+    !           They tend to get out of date when fields are added above.
+    !           I don't remember how they are used; maybe for building the model documentation?
+    !           If so, there might be other ways to parse this file when building documentation.
     !> In \texttt{model\%temper}:
     !> \begin{itemize}
-    !> \item \texttt{temp(upn,0:ewn+1,0:nsn+1)}   !WHL - 2 choices
+    !> \item \texttt{temp(upn,0:ewn+1,0:nsn+1)}
     !> \item \texttt{bheatflx(ewn,nsn)}
-    !> \item \texttt{flwa(upn,ewn,nsn)}           !WHL - 2 choices
-    !> \item \texttt{dissip(upn,ewn,nsn)}         !WHL - 2 choices
+    !> \item \texttt{flwa(upn,ewn,nsn)}
+    !> \item \texttt{dissip(upn,ewn,nsn)}
     !> \item \texttt{ucondflx(ewn,nsn)}
     !> \end{itemize}
 
@@ -1003,7 +928,6 @@ contains
     !> \item \texttt{lsrf(ewn,nsn))}
     !> \item \texttt{topg(ewn,nsn))}
     !> \item \texttt{mask(ewn,nsn))}
-    !* (DFM) added floating_mask, ice_mask, lower_cell_loc, and lower_cell_temp
     !> \end{itemize}
 
     !> In \texttt{model\%thckwk}:
@@ -1071,9 +995,6 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%general%lat)
     call coordsystem_allocate(model%general%ice_grid, model%general%lon)
 
-    ! ice domain mask (to identify active blocks)
-    call coordsystem_allocate(model%general%ice_grid, model%general%ice_domain_mask)
-
     !NOTE: The temperature and flow factor live on the unstaggered vertical grid,
     !       and extra rows and columns (with indices 0:ewn+1, 0:nsn+1) are needed.
 
@@ -1132,8 +1053,6 @@ contains
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dusrfdew)
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dusrfdns)
 
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%removal_thck)
-
     ! mass flux arrays
 
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thck_index)
@@ -1156,15 +1075,10 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%artm_corrected)
     call coordsystem_allocate(model%general%ice_grid, model%climate%precip)
 
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
-    if (model%options%whichcalving == CALVING_DAMAGE) then
-    else
-       ! allocate with size 1, since they need to be allocated to be passed to calving subroutine
-    endif
 
     ! matrix solver arrays
     allocate (model%solver_data%rhsd(ewn*nsn))
@@ -1191,7 +1105,7 @@ contains
   subroutine glide_deallocarr(model)
 
     !> deallocate model arrays
-    !TODO - Check that all arrays allocated above are deallocated here.
+    !WHL TODO - Check that all arrays allocated above are deallocated here.
 
     implicit none
     type(glide_global_type),intent(inout) :: model
@@ -1218,8 +1132,6 @@ contains
         deallocate(model%general%lat)
     if (associated(model%general%lon)) &
         deallocate(model%general%lon)
-    if (associated(model%general%ice_domain_mask)) &
-        deallocate(model%general%ice_domain_mask)
 
     ! vertical sigma coordinates
 
@@ -1281,10 +1193,6 @@ contains
         deallocate(model%velocity%tau_x)
     if (associated(model%velocity%tau_y)) &
         deallocate(model%velocity%tau_y)
-
-!!    if (associated(model%velocity%velmask)) &   ! no longer used
-!!       deallocate(model%velocity%velmask) 
-
     if (associated(model%velocity%beta)) &
         deallocate(model%velocity%beta)
 
@@ -1331,10 +1239,6 @@ contains
         deallocate(model%geomderv%dusrfdns)
     if (associated(model%geometry%cell_area)) &
         deallocate(model%geometry%cell_area)
-
-    if (associated(model%geometry%removal_thck)) &
-       deallocate(model%geometry%removal_thck)
-
     if (associated(model%geometry%thck_index)) &
         deallocate(model%geometry%thck_index)
     if (associated(model%geomderv%dthckdtm)) &
@@ -1348,9 +1252,6 @@ contains
     if (associated(model%thckwk%oldthck2)) &
         deallocate(model%thckwk%oldthck2)
 
-    if (associated(model%geometry%ice_age)) &
-        deallocate(model%geometry%ice_age)
-
     ! climate arrays
 
     if (associated(model%climate%acab)) &
@@ -1363,8 +1264,6 @@ contains
         deallocate(model%climate%smb)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
-    if (associated(model%climate%artm_corrected)) &
-        deallocate(model%climate%artm_corrected)
     if (associated(model%climate%precip)) &
         deallocate(model%climate%precip)
 

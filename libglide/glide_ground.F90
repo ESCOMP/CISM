@@ -24,7 +24,7 @@
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-!TODO - Change module and file names to something more appropriate (glide_calving?)
+!WHL TODO - Change module and file names from glide_ground to glide_calving
 
 #ifdef HAVE_CONFIG_H
 #include "config.inc"
@@ -118,7 +118,7 @@ contains
 
     ! Huybrechts grounding line scheme for Greenland initialization
 
-    case(CALVING_HUYBRECHTS)   ! used to be case(7)
+    case(CALVING_HUYBRECHTS)
 
        if (eus > -80.d0) then
           where (relx <= 2.d0*eus)

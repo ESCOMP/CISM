@@ -30,18 +30,7 @@
 
 module glissade_types
 
-  !> Holds type definitions for the derived types used by each 
-  !> instance of the ice model. Originally, each of these types
-  !> was a module containing variables, which were used as containers
-  !> for global variables. However, the need to allow for multiple
-  !> ice model instances meant that the nested derived types were instituted
-  !> instead. However, there is probably one too many levels in this scheme. 
-  !> It would be better if the different types here were contained in the 
-  !> higher-level instance type (\texttt{glint\_instance}), rather than 
-  !> the intermediate model type (\texttt{glide\_global\_type}). 
-  !> 
-  !> Note that this \emph{is} now where the defaults are defined for these
-  !> variables.
+  !> Holds type definitions for the derived types used by each CISM instance.
 
   use glimmer_global, only: sp, dp, fname_length
   use glimmer_physcon, only: rhoi, rhoo, coni
@@ -73,21 +62,16 @@ module glissade_types
   integer, parameter :: GLOBAL_BC_NO_ICE = 3    ! no ice at global boundary; scalars set to zero adjacent to boundary
 
   integer, parameter :: DYCORE_GLIDE = 0        ! old shallow-ice dycore from Glimmer
-!WHL - The Glam dycore is no longer supported; choosing whichdycore = 1 will give a fatal error.
-!      Might repurpose the '1' slot for a future version of Glissade.
+  !WHL TODO - Remove DYCORE_GLAM, set DYCORE_GLISSADE = 1
   integer, parameter :: DYCORE_GLAM = 1         ! Payne-Price finite-difference solver
   integer, parameter :: DYCORE_GLISSADE = 2     ! prototype finite-element solver
 
-  integer, parameter :: EVOL_PSEUDO_DIFF = 0    ! glide only
-  integer, parameter :: EVOL_ADI = 1            ! glide only
-  integer, parameter :: EVOL_DIFFUSION = 2      ! glide only
+  !WHL TODO - Renumber the Glissade options as part of the config reorg
   integer, parameter :: EVOL_INC_REMAP = 3      ! glissade only
   integer, parameter :: EVOL_UPWIND = 4         ! glissade only
   integer, parameter :: EVOL_NO_THICKNESS = 5   ! glissade only
 
-  !NOTE: Use option 1 for prognostic temperature with any dycore
-  !      Option 3 is under construction
-
+  ! Option 3 is not scientifically supported
   integer, parameter :: TEMP_SURFACE_AIR_TEMP = 0
   integer, parameter :: TEMP_PROGNOSTIC = 1
   integer, parameter :: TEMP_STEADY = 2
@@ -154,12 +138,10 @@ module glissade_types
 
   integer, parameter :: GTHF_UNIFORM = 0
   integer, parameter :: GTHF_PRESCRIBED_2D = 1
-  integer, parameter :: GTHF_COMPUTE = 2
 
   integer, parameter :: RELAXED_TOPO_DEFAULT = 0  ! topo and relx are separate input fields
   integer, parameter :: RELAXED_TOPO_INPUT = 1    ! set relx to input topg
-  integer, parameter :: RELAXED_TOPO_COMPUTE = 2  ! Input topo in isostatic equilibrium
-                                                  ! compute relaxed topo
+  integer, parameter :: RELAXED_TOPO_COMPUTE = 2  ! Input topo in isostatic equilibrium; compute relaxed topo
 
   integer, parameter :: ISOSTASY_NONE = 0
   integer, parameter :: ISOSTASY_COMPUTE = 1
@@ -183,7 +165,6 @@ module glissade_types
   integer, parameter :: CALVING_STRESS_STOCHASTIC = 9
   integer, parameter :: CALVING_DAMAGE = 10
   integer, parameter :: EIGEN_CALVING = 11
-  integer, parameter :: CALVING_HUYBRECHTS = 12
 
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
@@ -224,11 +205,6 @@ module glissade_types
   integer, parameter :: RESTART_EXTEND_VELO_FALSE = 0
   integer, parameter :: RESTART_EXTEND_VELO_TRUE = 1
   
-  !basal proc option disabled for now
-  integer, parameter :: BAS_PROC_DISABLED = 0
-!!  integer, parameter :: BAS_PROC_FULLCALC = 1
-!!  integer, parameter :: BAS_PROC_FASTCALC = 2
-
   ! higher-order options
 
   integer, parameter :: ALL_BLOCKS = 0            ! compute on all blocks in the global domain
@@ -247,7 +223,8 @@ module glissade_types
   integer, parameter :: HO_THERMAL_AFTER_TRANSPORT = 1
   integer, parameter :: HO_THERMAL_SPLIT_TIMESTEP = 2
   
-  !TODO - Deprecate some little-used options?
+  !WHL TODO - Deprecate some little-used options during the config reorg
+  !           This would include HO_BABC_PSEUDO_PLASTIC_OLD
   integer, parameter :: HO_BABC_BETA_CONSTANT = 0
   integer, parameter :: HO_BABC_BETA_BPMP = 1
   integer, parameter :: HO_BABC_PSEUDO_PLASTIC = 2
@@ -447,6 +424,7 @@ module glissade_types
 
     integer :: whichdycore = 2
 
+    !WHL TODO - Remove GLAM, change Glissade to option 1, remove the Glide option here 
     ! Choice of two dycores:
     !> \begin{description} 
     !> \item[0] Glide dycore (SIA, serial (SLAP) only)
@@ -454,14 +432,11 @@ module glissade_types
     !> \item[2] Glissade dycore (1st-order, FEM, serial (SLAP) or parallel (F90 native PCG solver) )
     !> \end{description}
 
-    integer :: whichevol = 0
+    integer :: whichevol = 3
 
-    !TODO: Break into two options: one set (0, 1, 2) for Glide and one set (3, 4, 5) for Glissade
+    !WHL TODO - Renumber the remaining options during the config reorg
     !> Thickness evolution method:
     !> \begin{description}
-    !> \item[0] Pseudo-diffusion 
-    !> \item[1] Alternating direction implicit (ADI)
-    !> \item[2] Diffusion (also calculates velocities) 
     !> \item[3] Incremental remapping
     !> \item[4] 1st-order upwind scheme
     !> \item[5] Temperature evolves but thickness does not
@@ -561,7 +536,7 @@ module glissade_types
     !> \item[1] Basal mass balance included in continuity equation
     !> \end{description}
 
-    !TODO - Change name to smb_input_units?
+    !WHL TODO - During the config reorg, Change name to smb_input_units
     integer :: smb_input = 0
 
     !> units for SMB input:
@@ -620,7 +595,6 @@ module glissade_types
     !> \begin{description}
     !> \item[0] prescribed uniform geothermal heat flux
     !> \item[1] read 2D geothermal flux field from input file (if present)
-    !> \item[2] calculate geothermal flux using 3d diffusion
     !> \end{description}
 
     integer :: isostasy = 0
@@ -650,8 +624,6 @@ module glissade_types
     !> \item[9] Stochastic calving based on eigenvalues of the horizontal stress tensor
     !> \item[10] Calving based on stochastic internal damage
     !> \item[11] Eigencalving following Levermann et al. (2012)
-    !> \item[12] Huybrechts calving
-    !TODO - Revise the numbering?
     !> \end{description}
 
     integer :: calving_init = 0
@@ -669,13 +641,11 @@ module glissade_types
     logical :: apply_calving_mask = .false.
     !> if true, then apply a calving mask to prevent calving-front advance
 
-    !TODO - Make this a logical option in the calving derived type
     integer :: which_ho_calving_front = 0
     !> Flag that indicates whether to use a subgrid calving front parameterization
     !> \begin{description}
     !> \item[0] no subgrid calving front parameterization
     !> \item[1] subgrid parameterization with partial cells (floating only) at the CF
-    !> \item[2] subgrid parameterization with partial cells (floating and grounded) at the CF
     !> \end{description}
 
     integer :: which_ho_calvingmip_domain = 0
@@ -726,7 +696,6 @@ module glissade_types
     logical :: read_lat_lon = .false.
     !> if true, then read lat and lon fields from the input file and write to restarts
 
-    !Note: This used to be called dt_option; renamed to avoid a naming conflict with CESM
     integer :: dt_input_option = 0
     !> \begin{description}
     !> \item[0] Input dt in years
@@ -758,7 +727,7 @@ module glissade_types
     logical :: forcewrite_final = .false.
     !> if true, then force a write to output and restart files when the model finishes
 
-    !TODO - Change 'is_restart' to 'restart'
+    !WHL TODO - Change 'is_restart' to 'restart' during the config reorg
     integer :: is_restart = 0
     !> if the run is a restart of a previous run
     !> \begin{description}
@@ -804,6 +773,7 @@ module glissade_types
     !> \item[1] for first-order dissipation (Blatter-Pattyn)
     !> \end{description}
 
+    !WHL TODO - Remove this option during the config reorg
     integer :: which_ho_thermal_timestep = 0
     !> \begin{description}
     !> \item[0] vertical thermal solve before transport solve
@@ -813,6 +783,7 @@ module glissade_types
 
     integer :: which_ho_babc = 4
 
+    !WHL TODO - Option 3 to be removed during the config reorg
     !> Flag that describes basal boundary condition for HO dyn core: 
     !> \begin{description}
     !> \item[0] spatially uniform value of ho_beta_const
@@ -832,6 +803,8 @@ module glissade_types
     !> \item[14] treat beta value as a till yield stress (in Pa) using Picard iteration
     !> \end{description}
 
+    !WHL TODO - Remove this option during the config reorg?
+    !           (Check whether it's needed for tests such as MISMIP)
     logical :: use_c_space_factor = .false.
     !> Flag that indicates whether to multiply beta by a 2D scalar field
 
@@ -935,7 +908,7 @@ module glissade_types
     !> Flag that indicates which Stokes approximation to use with the glissade dycore.
     !> Not valid for other dycores 
     !> Compute Blatter-Pattyn HO momentum balance by default.
-    !> TODO: Change the default to DIVA
+    !WHL TODO - Change the default to DIVA during the config reorg
     !> Note: There are two SIA options:
     !>       Option -1 uses module glissade_velo_sia to compute local SIA velocities, similar to Glide
     !>       Option 0 uses module glissade_velo_higher to compute SIA velocities via an iterative solve
@@ -973,17 +946,14 @@ module glissade_types
     !> \item[2] Second-order accurate upstream gradient
     !> \end{description}
 
-    !WHL - Changed default from 1 to 3.
-    !      Option 3 is appropriate for ice sheets with both land and marine boundaries,
-    !       when a lateral spreading force is computed for marine ice cliffs.
-    !      This lateral force ensures spreading where the gradient is zero.
-
     integer :: which_ho_gradient_margin = 1
     !> Flag that indicates how to compute the gradient at the ice margin in the glissade dycore.
     !> Note: Gradients are always computed at edges with ice on both sides.
     !>       The methods differ in whether gradients are computed when an ice-covered cell
     !>        lies above an ice-free cell (land or ocean).
-    !> Not valid for other dycores
+    !        Option 1 is appropriate for ice sheets with both land and marine boundaries,
+    !         when a lateral spreading force is computed for marine ice cliffs.
+    !         This lateral force ensures spreading where the gradient is zero.
     !> \begin{description}
     !> \item[0] Compute edge gradient when either cell is ice-covered
     !> \item[1] Compute edge gradient for ice-covered cell above ice-free land (not ocean)
@@ -1023,7 +993,7 @@ module glissade_types
     !> \item[1] apply local value of beta*(u^2 + v^2) at each vertex
     !> \end{description}
 
-    !TODO - Change default to option 1?  Choosing 0 for now so as not to change answers.
+    !WHL TODO - Change default to option 1 during the config reorg
     integer :: which_ho_assemble_lateral = 0
 
     !> Flag that describes how lateral stress terms are assembled in the glissade finite-element calculation
@@ -1057,6 +1027,7 @@ module glissade_types
     !> \end{description}
 
     integer :: which_ho_flotation_function = 2
+    !WHL TODO - Remove option 3 during the config reorg
     !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore
     !> Not valid for other dycores
     !> \begin{description}
@@ -1090,7 +1061,7 @@ module glissade_types
     !> if true, then read glacier info at initialization and (optionally)
     !>  tune glacier parameters during the run
 
-    !TODO - Put the next few variables in a solver derived type
+    !WHL TODO - Put the next few variables in a solver derived type during the config reorg
     integer :: glissade_maxiter = 100    
     !> maximum number of nonlinear iterations to be used by the Glissade velocity solver
 
@@ -1106,16 +1077,6 @@ module glissade_types
     logical :: reproducible_sums = .false.
     !> if true, then compute reproducible global sums
     !> (independent of the number of tasks)
-
-    ! The remaining options are not currently supported
-
-    !integer :: which_bproc = 0
-    !Options for the basal processes code
-    !> \begin{description}
-    !> \item[0] Disabled
-    !> \item[1] Full calculation, with at least 3 nodes to represent the till layer
-    !> \item[2] Fast calculation, using Tulaczyk empirical parametrization
-    !> \end{description}
 
   end type glissade_options_type
 
@@ -1174,7 +1135,7 @@ module glissade_types
     real(dp),dimension(:,:,:), pointer :: tracers_lsrf => null()
     !> value at lower surface for all tracers
 
-    !TODO - Move masks to a mask derived type?
+    !WHL TODO - Move masks to a mask derived type (probably after the config reorg)
     integer, dimension(:,:),pointer :: ice_mask => null()        !> = 1 where ice is present, else = 0
     integer, dimension(:,:),pointer :: ice_mask_stag => null()   !> = 1 where ice is present on staggered grid, else = 0
     integer, dimension(:,:),pointer :: floating_mask => null()   !> = 1 where ice is present and floating, else = 0
@@ -1395,7 +1356,8 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  !TODO - Make eus a config file parameter.
+  !TODO - Make eus a config file parameter to support runs with time-varying sea level forcing
+
   ! Note: smb and acab are both SMB variables, but they have different units.
   !       smb has units of kg/m^2/yr w.e. = mm/yr w.e.
   !       acab has units of m/yr ice for I/O, and SI units in most of the code.
@@ -1662,17 +1624,12 @@ module glissade_types
     real(dp),dimension(:,:,:),pointer :: waterfrac => null() !> fractional water content in layer (0 <= waterfrac <= 1)
     real(dp),dimension(:,:,:),pointer :: enthalpy => null()  !> specific enthalpy in layer (J m-3)
                                                              !> = rhoi * Ci * T for cold ice
-    !TODO - Make ucondflx local to glissade_therm?
-    !       Probably not, because it may be needed for coupling.
     real(dp),dimension(:,:),  pointer :: ucondflx => null()  !> conductive heat flux (W/m^2) at upper sfc (positive down)
 
     real(dp),dimension(:,:),  pointer :: flow_enhancement_factor => null()  !> flow enhancement factor E (unitless)
 
     real(dp) :: pmp_offset = 5.0d0        ! offset of initial Tbed from pressure melting point temperature (deg C)
     real(dp) :: pmp_threshold = 1.0d-3    ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
-
-    !TODO - Remove some of the following from the derived type
-    integer  :: niter   = 0   
 
   end type glissade_temper_type
 
@@ -1729,7 +1686,7 @@ module glissade_types
           basin_number_mass_correction = 0       !> integer ID for the basin receiving the correction
 
      ! parameters for flow_enhancement_factor inversion
-     !TODO - Remove?
+     !WHL TODO - Remove flow_enhancement_factor inversion (maybe during the config reorg)
      real(dp) ::  &
           flow_enhancement_timescale = 200.d0,  & !> inversion timescale (yr)
           flow_enhancement_velo_scale = 100.d0, & !> inversion velocity scale (m/yr)
@@ -2187,8 +2144,8 @@ module glissade_types
      integer,  dimension(:,:), pointer :: bpmp_mask => null()   !> basal pressure melting point mask; = 1 where Tbed = bpmp, elsewhere = 0
                                                                 !> Note: Defined on velocity grid, whereas temp and bpmp are on ice grid
 
-
-     ! Note: c_space_factor supported for which_ho_babc = HO_BABC_COULOMB_FRICTION, *SCHOOF AND *TSAI
+     !WHL TODO - Remove c_space_factor during the config reorg?
+     !           Currently used for which_ho_babc = HO_BABC_COULOMB_FRICTION, *SCHOOF AND *TSAI
      real(dp), dimension(:,:), pointer :: c_space_factor => null()      !> spatial factor for basal shear stress (no dimension)
      real(dp), dimension(:,:), pointer :: c_space_factor_stag => null() !> spatial factor for basal shear stress on staggered grid
 
@@ -2287,13 +2244,13 @@ module glissade_types
      real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !> effective pressure on staggered grid (Pa)
 
      ! parameters for reducing the effective pressure where the bed is connected to the ocean
-     !TODO - Remove ocean_p_timescale
      real(dp) :: p_ocean_penetration = 0.0d0           !> p-exponent for ocean penetration; N weighted by (1-Hf/H)^p (0 <= p <= 1)
 
   end type glissade_basal_physics_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+  !WHL TODO - Insert 'glissade_' prefix in type names for isos_elastic_type and isostasy_type
   type isos_elastic_type
      !> Holds data used by isostatic adjustment calculations
 
@@ -2402,7 +2359,7 @@ module glissade_types
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   !TODO - Move these parameters to types associated with a certain kind of physics
-  !TODO - Change default geot to 0.0, so that idealized tests by default have no mass loss
+  !WHL TODO - During the config reorg, change default geot to 0.0, so that idealized tests by default have no mass loss
   type glissade_paramets_type
     real(dp) :: btrac_const = 0.d0     ! m yr^{-1} Pa^{-1} (gets scaled during init)
     real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down  !TODO - Change default to 0.0?
@@ -2423,6 +2380,7 @@ module glissade_types
                                        ! Note: It may be necessary to reduce max_slope to ~0.1 to prevent huge velocities
                                        !       in regions of rough coastal topography
 
+    !WHL TODO - Remove the adjust_input_topography option during the config reorg
     ! parameters for the adjust_input_topography option
     ! Note: Depending on the sign of (adjust_topg_max_adjust - adjust_topg_no_adjust), we will either
     !       (1) change high topography and leave low topography unchanged, or
@@ -2439,8 +2397,6 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-
-       
   type glissade_global_type    ! type containing all of the above for an ice sheet model instance
     integer              :: model_id = 0 !> identifier of this model instance (1..N, where N is the number of ice sheets in this run)
     type(glissade_general_type)  :: general
@@ -2468,7 +2424,7 @@ module glissade_types
     type(glimmap_proj)   :: projection
     type(profile_type)   :: profile
     type(isostasy_type)  :: isostasy
-    type(parallel_type)  :: parallel  !WHL - new derived type to hold information about parallel communication
+    type(parallel_type)  :: parallel
 
   end type glissade_global_type
 
@@ -2480,7 +2436,9 @@ contains
     !> These are the arrays allocated, and their dimensions:
 
     !TODO - Make sure the itemized lists in subroutine glissade_allocarr are complete.
-
+    !WHL TODO - Remove the itemized lists?
+    !           These list tend to get out of date as new fields are added.
+    !           I'm not sure what they are used for.
     !> In \texttt{model\%temper}:
     !> \begin{itemize}
     !> \item \texttt{temp(upn,0:ewn+1,0:nsn+1)}   !WHL - 2 choices
@@ -2823,19 +2781,12 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_ground_cell)
 
     ! Basal Physics
-    !WHL - Since the number of basal BC options has proliferated, simplify the logic by allocating the following arrays
-    !      whenever running glissade
-!!       if ( (model%options%which_ho_babc == HO_BABC_POWERLAW) .or. &
-!!            (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) .or. &
-!!            (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF) .or. &
-!!            (model%options%whichbwat == BWATER_OCEAN_PENETRATION)     ) then
     call coordsystem_allocate(model%general%velo_grid, model%basal_physics%bpmp_mask)
     call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
     call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
     call coordsystem_allocate(model%general%ice_grid, model%basal_physics%c_space_factor)
     call coordsystem_allocate(model%general%velo_grid, model%basal_physics%c_space_factor_stag)
     call coordsystem_allocate(model%general%velo_grid, model%basal_physics%mintauf)
-!!       endif
 
     ! bmlt arrays
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt)
@@ -2862,7 +2813,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
     endif
 
-    ! glacier options (Glissade only)
+    ! glacier options
     if (model%options%enable_glaciers) then
        call coordsystem_allocate(model%general%ice_grid, model%glacier%rgi_glacier_id)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%cism_glacier_id)
@@ -2909,7 +2860,7 @@ contains
        allocate(model%glacier%smb_obs(model%glacier%nglacier))
     endif
 
-    ! inversion and basal physics arrays (Glissade only)
+    ! inversion and basal physics arrays
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
 
@@ -3066,7 +3017,8 @@ contains
 
   end subroutine glissade_allocarr
 
-
+!=====================================================================
+  
   subroutine glissade_deallocarr(model)
 
     !> deallocate model arrays
@@ -3679,7 +3631,8 @@ contains
 
   end subroutine glissade_deallocarr
 
-
+!=====================================================================
+  
   ! some accessor functions
   function get_dew(model)
     !> return scaled x node spacing
@@ -3770,6 +3723,11 @@ contains
     real(dp) :: time
 
     model%numerics%time = time
+
   end subroutine set_time
 
+!=====================================================================  
+
 end module glissade_types
+
+!=====================================================================
