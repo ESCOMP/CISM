@@ -48,7 +48,6 @@ module NAME_io
   use glimmer_ncdf
   use glimmer_paramets
   use glimmer_physcon
-  use glimmer_scales
 
   implicit none
 

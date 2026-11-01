@@ -100,7 +100,7 @@ contains
     use glissade_mass_balance, only: glissade_mass_balance_init
     use glissade_basal_water, only: glissade_basal_water_init
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
-    use glimmer_scales
+    use glimmer_utils, only: check_fill_values
     use glimmer_physcon, only: scyr
     use glissade_isostasy, only: glissade_isostasy_init
     use glimmer_map_init
@@ -159,9 +159,6 @@ contains
     end if
 
     call write_log(trim(glimmer_version_char()))
-
-    ! initialise scales
-    call glimmer_init_scales
 
     ! scale parameters
     call glissade_scale_params(model)

@@ -43,12 +43,7 @@ module glissade_setup
   public :: glissade_config, &
             glissade_readconfig, glissade_printconfig, glissade_scale_params, &
             glissade_load_sigma, glissade_read_sigma, glissade_calc_sigma, &
-            glissade_get_zocn, glissade_get_zatm, check_fill_values
-
-  interface check_fill_values
-     module procedure check_fill_values_real8_2d
-     module procedure check_fill_values_real8_3d
-  end interface check_fill_values
+            glissade_get_zocn, glissade_get_zatm
 
 !-------------------------------------------------------------------------
 
@@ -3969,108 +3964,6 @@ contains
     endif
 
   end subroutine define_glissade_restart_variables
-
-!--------------------------------------------------------------------------------
-
-!WHL TODO - Move the check_fill_values subroutines to libglimmer to avoid code duplication
-! The following subroutines check an input field for fill values.
-! By default, the fill value is given by netcdf_fill_value in glimmer_paramets,
-!  and fill values are replaced by zeroes.
-! Optionally, the user can pass in a different fill value and replacement value.
-
-  subroutine check_fill_values_real8_2d(&
-       field,                     &
-       fill_value_in,             &
-       replacement_value_in,      &
-       scale_factor_in)
-
-    use glimmer_paramets, only: netcdf_fill_value
-
-    ! input-output arguments
-
-    real(dp), dimension(:,:), intent(inout) :: field
-    real(dp), intent(in), optional :: fill_value_in
-    real(dp), intent(in), optional :: replacement_value_in
-
-    ! A scale factor should be passed in, for instance, if the netCDF data have units
-    ! of 1/yr, but there is a scale factor of scyr converting the data to units of 1/s.
-    real(dp), intent(in), optional :: scale_factor_in
-
-    ! local variables
-    real(dp) :: fill_value, replacement_value, scale_factor
-
-    if (present(fill_value_in)) then
-       fill_value = fill_value_in
-    else
-       fill_value = netcdf_fill_value
-    endif
-
-    if (present(replacement_value_in)) then
-       replacement_value = replacement_value_in
-    else
-       replacement_value = 0.0d0
-    endif
-
-    if (present(scale_factor_in)) then
-       scale_factor = scale_factor_in
-    else
-       scale_factor = 1.0d0
-    endif
-
-    ! Overwrite any values whose magnitude is similar to or greater than fill_value.
-    where (abs(field)*scale_factor > 0.99d0 * fill_value)
-       field = replacement_value
-    endwhere
-
-  end subroutine check_fill_values_real8_2d
-
-!--------------------------------------------------------------------------------
-
-  subroutine check_fill_values_real8_3d(&
-       field,                   &
-       fill_value_in,           &
-       replacement_value_in,    &
-       scale_factor_in)
-
-    use glimmer_paramets, only: netcdf_fill_value
-
-    ! input-output arguments
-
-    real(dp), dimension(:,:,:), intent(inout) :: field
-    real(dp), intent(in), optional :: fill_value_in
-    real(dp), intent(in), optional :: replacement_value_in
-
-    ! A scale factor should be passed in, for instance, if the netCDF data have units
-    ! of 1/yr, but there is a scale factor of scyr converting the data to units of 1/s.
-    real(dp), intent(in), optional :: scale_factor_in
-
-    ! local variables
-    real(dp) :: fill_value, replacement_value, scale_factor
-
-    if (present(fill_value_in)) then
-       fill_value = fill_value_in
-    else
-       fill_value = netcdf_fill_value
-    endif
-
-    if (present(replacement_value_in)) then
-       replacement_value = replacement_value_in
-    else
-       replacement_value = 0.0d0
-    endif
-
-    if (present(scale_factor_in)) then
-       scale_factor = scale_factor_in
-    else
-       scale_factor = 1.0d0
-    endif
-
-    ! Overwrite any values whose magnitude is similar to or greater than fill_value.
-    where (abs(field)*scale_factor > 0.99d0 * fill_value)
-       field = replacement_value
-    endwhere
-
-  end subroutine check_fill_values_real8_3d
 
 !--------------------------------------------------------------------------------
 

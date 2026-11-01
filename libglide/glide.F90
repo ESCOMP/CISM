@@ -133,7 +133,6 @@ contains
     use glide_thck
     use glide_temp
     use glimmer_log
-    use glimmer_scales
     use glimmer_utils, only: calc_lsrf_usrf
     use glide_mask
     use isostasy, only: init_isostasy, isos_relaxed
@@ -158,9 +157,6 @@ contains
 !!!    call write_log(glimmer_version)  
 
     call write_log(trim(glimmer_version_char()))
-
-    ! initialise scales
-    call glimmer_init_scales
 
     ! scale parameters (some conversions to SI units)
     call glide_scale_params(model)
