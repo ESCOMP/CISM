@@ -806,8 +806,7 @@ module glissade_therm
        !      Now it is computed at the end of the previous time step, after solving for velocity.
        !
        !      Basal frictional heating also was calculated here.
-       !      Now it is computed in the velocity solver (for Glissade) or just after
-       !       the velocity solution (for Glam).
+       !      Now it is computed in the velocity solver.
 
        ! Set error flag
        lstop = .false.

@@ -61,10 +61,11 @@ module glissade_types
                                                        ! NOTE: The no-penetration option is supported for Glissade only
   integer, parameter :: GLOBAL_BC_NO_ICE = 3    ! no ice at global boundary; scalars set to zero adjacent to boundary
 
+  ! Note: DYCORE_GLIDE is not a Glissade option, but it is used in ncdf_template.F90.in,
+  !       from which both glide_io and glissade_io are generated.
   integer, parameter :: DYCORE_GLIDE = 0        ! old shallow-ice dycore from Glimmer
-  !WHL TODO - Remove DYCORE_GLAM, set DYCORE_GLISSADE = 1
-  integer, parameter :: DYCORE_GLAM = 1         ! Payne-Price finite-difference solver
-  integer, parameter :: DYCORE_GLISSADE = 2     ! prototype finite-element solver
+  !WHL TODO - Set DYCORE_GLISSADE = 1 during the config reorg
+  integer, parameter :: DYCORE_GLISSADE = 2     ! finite-element solver
 
   !WHL TODO - Renumber the Glissade options as part of the config reorg
   integer, parameter :: EVOL_INC_REMAP = 3      ! glissade only
@@ -424,11 +425,9 @@ module glissade_types
 
     integer :: whichdycore = 2
 
-    !WHL TODO - Remove GLAM, change Glissade to option 1, remove the Glide option here 
-    ! Choice of two dycores:
+    !WHL TODO - Change Glissade to option 1 during the config reorg
+    !> Dycore (must be 2 for Glissade):
     !> \begin{description} 
-    !> \item[0] Glide dycore (SIA, serial (SLAP) only)
-    !> \item[1] Glam dycore (no longer supported!)
     !> \item[2] Glissade dycore (1st-order, FEM, serial (SLAP) or parallel (F90 native PCG solver) )
     !> \end{description}
 

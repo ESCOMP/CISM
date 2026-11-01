@@ -66,7 +66,6 @@ module glide_types
   ! basic Glimmer/Glide options
 
   integer, parameter :: DYCORE_GLIDE = 0        ! old shallow-ice dycore from Glimmer
-  integer, parameter :: DYCORE_GLAM = 1         ! Payne-Price finite-difference solver
 
   integer, parameter :: EVOL_PSEUDO_DIFF = 0    ! glide only
   integer, parameter :: EVOL_ADI = 1            ! glide only
@@ -189,12 +188,9 @@ module glide_types
 
     integer :: whichdycore = 0
 
-    !TODO - Remove Glam and change Glissade to option 1
-    ! Choice of two dycores:
+    !> Dycore (must be 0 for Glide):
     !> \begin{description} 
     !> \item[0] Glide dycore (SIA, serial (SLAP) only)
-    !> \item[1] Glam dycore (no longer supported!)
-    !> \item[2] Glissade dycore (1st-order, FEM, serial (SLAP) or parallel (F90 native PCG solver) )
     !> \end{description}
 
     integer :: whichevol = 0
