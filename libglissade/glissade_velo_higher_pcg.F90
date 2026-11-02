@@ -46,7 +46,7 @@
     use glimmer_paramets, only: iulog
     use glissade_types   ! for preconditioning options
     use glimmer_log
-    use profile, only: t_startf, t_stopf
+    use cism_profile, only: t_startf, t_stopf
     use cism_parallel, only: this_rank, main_task, &
          parallel_type, staggered_parallel_halo, parallel_global_sum_stagger
 

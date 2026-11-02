@@ -60,7 +60,7 @@ module glissade
   use glimmer_config
   use glissade_test, only: &
        glissade_test_halo, glissade_test_transport
-  use profile, only: t_startf, t_stopf
+  use cism_profile, only: t_startf, t_stopf
   use cism_parallel, only: this_rank, main_task, comm, nhalo, parallel_test_comm_row_col
 
   implicit none
@@ -2845,7 +2845,7 @@ contains
     use glissade_types
     use glissade_io
     use glimmer_model_registry, only: deregister_model
-    use profile
+    use cism_profile
     implicit none
     type(glissade_global_type) :: model                 !> model instance
     logical, optional, intent(in) :: forcewrite_arg  !> if true, then force a write to output files

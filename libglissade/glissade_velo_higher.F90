@@ -669,7 +669,7 @@
 
     use glissade_basal_traction, only: glissade_calcbeta
     use glissade_therm, only: glissade_pressure_melting_point
-    use profile, only: t_startf, t_stopf
+    use cism_profile, only: t_startf, t_stopf
     use glimmer_utils, only: calc_lsrf_usrf
     use glissade_utils, only: write_array_to_file
 

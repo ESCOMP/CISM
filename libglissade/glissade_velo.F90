@@ -47,7 +47,7 @@ contains
       use glissade_types
       use glissade_velo_higher, only: glissade_velo_higher_solve
       use glissade_velo_sia, only: glissade_velo_sia_solve
-      use profile, only: t_startf, t_stopf
+      use cism_profile, only: t_startf, t_stopf
 
       type(glissade_global_type),intent(inout) :: model
 

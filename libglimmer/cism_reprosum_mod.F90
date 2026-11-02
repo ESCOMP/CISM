@@ -66,7 +66,7 @@ module cism_reprosum_mod
    use glimmer_global, only: r8 => dp
    use glimmer_global, only: i8
    use glimmer_paramets, only: iulog
-   use profile, only: t_startf, t_stopf
+   use cism_profile, only: t_startf, t_stopf
    ! end WHL mods
 
    ! Import MPI fcns/types
