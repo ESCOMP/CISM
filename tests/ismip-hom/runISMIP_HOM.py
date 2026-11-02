@@ -3,7 +3,7 @@
 """
 Script to run the Ice Sheet Model Intercomparison Project for Higher-Order
 Models (ISMIP-HOM) experiments. For more information, see the README and/or
-http://homepages.ulb.ac.be/~fpattyn/ismip/. 
+https://doi.org/10.5194/tc-2-95-2008.
 """
 
 # Authors
