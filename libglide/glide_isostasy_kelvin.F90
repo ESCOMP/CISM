@@ -1,6 +1,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
-!   isostasy_kelvin.F90 - part of the Community Ice Sheet Model (CISM)  
+!   glide_isostasy_kelvin.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
@@ -34,7 +34,7 @@
 !! \author Magnus Hagdorn
 !! \date June 2000
 
-module isostasy_kelvin
+module glide_isostasy_kelvin
 
   use glimmer_global, only: sp, dp
   use glimmer_physcon, only: pi
@@ -408,7 +408,7 @@ contains
     s_dkei = real(d_dkei(real(x,kind=dp)),kind=sp)
   end function s_dkei
 
-end module isostasy_kelvin
+end module glide_isostasy_kelvin
 
 
 
