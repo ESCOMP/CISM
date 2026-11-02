@@ -1,6 +1,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
-!   isostasy_elastic.F90 - part of the Community Ice Sheet Model (CISM)  
+!   glide_isostasy_elastic.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
@@ -28,7 +28,7 @@
 #include "config.inc"
 #endif
 
-module isostasy_elastic
+module glide_isostasy_elastic
 
   !> handle elastic lithosphere
 
@@ -214,7 +214,7 @@ contains
 
     !> initialise elastic lithosphere calculations
     use glimmer_physcon, only: rhom,grav
-    use isostasy_kelvin
+    use glide_isostasy_kelvin
     implicit none
     type(glide_isos_elastic) :: rbel        !> structure holding elastic litho data
     real(dp), intent(in) :: a         !> radius of disk
@@ -238,7 +238,7 @@ contains
 !-------------------------------------------------------------------------
 
   function rbel_ow(rbel,r)
-    use isostasy_kelvin
+    use glide_isostasy_kelvin
     !> calculating deflection outside disk
     implicit none
     real(dp) :: rbel_ow
@@ -251,7 +251,7 @@ contains
 !-------------------------------------------------------------------------
 
   function rbel_iw(rbel,r)
-    use isostasy_kelvin
+    use glide_isostasy_kelvin
     !> calculating deflection inside disk
     implicit none
     real(dp) :: rbel_iw
@@ -263,6 +263,6 @@ contains
 
 !-------------------------------------------------------------------------
 
-end module isostasy_elastic
+end module glide_isostasy_elastic
 
 !-------------------------------------------------------------------------

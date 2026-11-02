@@ -1,6 +1,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
-!   isostasy.F90 - part of the Community Ice Sheet Model (CISM)  
+!   glide_isostasy.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
@@ -28,7 +28,7 @@
 #include "config.inc"
 #endif
 
-module isostasy
+module glide_isostasy
 
   !-------------------------------------------------------------------------
   ! Some notes on the isostasy calculation (WHL, May 2017; updated July 2026):
@@ -94,7 +94,7 @@ contains
     !> initialise isostasy calculations
     use glide_types
     use glimmer_physcon,  only: scyr
-    use isostasy_elastic, only: init_elastic
+    use glide_isostasy_elastic, only: init_elastic
 
     implicit none
 
@@ -204,7 +204,7 @@ contains
   subroutine isos_lithosphere(model,load,load_factors)
 
     use glide_types
-    use isostasy_elastic, only: calc_elastic
+    use glide_isostasy_elastic, only: calc_elastic
     implicit none
 
     type(glide_global_type) :: model
@@ -317,6 +317,6 @@ contains
 
 !-------------------------------------------------------------------------
 
-end module isostasy
+end module glide_isostasy
 
 !-------------------------------------------------------------------------

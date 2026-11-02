@@ -135,7 +135,7 @@ contains
     use glimmer_log
     use glimmer_utils, only: calc_lsrf_usrf
     use glide_mask
-    use isostasy, only: init_isostasy, isos_relaxed
+    use glide_isostasy, only: init_isostasy, isos_relaxed
     use glimmer_map_init
     use glimmer_coordinates, only: coordsystem_new
     use glide_diagnostics, only: glide_init_diag
@@ -826,7 +826,7 @@ contains
     use glide_velo
     use glide_temp
     use glide_mask
-    use isostasy, only: isos_icewaterload
+    use glide_isostasy, only: isos_icewaterload
     use glide_calve, only: glide_calve_ice
 
     type(glide_global_type), intent(inout) :: model    ! model instance
@@ -972,7 +972,7 @@ contains
     ! Perform third part of time-step of an ice model instance:
     ! calculate isostatic adjustment and upper and lower ice surface
 
-    use isostasy, only: isos_compute
+    use glide_isostasy, only: isos_compute
     use glimmer_physcon, only: rhoi, rhow
     use glide_setup
     use glide_velo, only: glide_velo_vertical
