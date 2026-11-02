@@ -28,13 +28,13 @@
 #include "config.inc"
 #endif
 
-  ! This module and (profile.F90) is needed for both the Glimmer 1.x profiling functionality 
+  ! This module and (cism_profile.F90) is needed for both the Glimmer 1.x profiling functionality 
   ! and the newer GPTL profiling functionality added by Pat Worley during the SEACISM project.
   ! When GPTL profiling is enabled some of the below routines are used and others
   ! are ifdef'ed out to allow GPTL-enabled versions to be used instead.
   ! Currently, the old Glimmer 1.x profiling functionality does nothing more than
   ! print the total run time, and should eventually be deprecated, at which point
-  ! the glide_profile.F90 and profile.F90 modules could be cleaned up.
+  ! the glide_profile.F90 and cism_profile.F90 modules could be cleaned up.
 
 module glide_profile
 
@@ -47,7 +47,7 @@ contains
   subroutine glide_prof_init(model)
 
     ! initialise glide profiling
-    use profile
+    use cism_profile
     use glide_types
     implicit none
 
@@ -73,7 +73,7 @@ contains
   
   subroutine glide_prof_start(model,profn)
     !> start logging profile
-    use profile
+    use cism_profile
     use glide_types
     implicit none
     type(glide_global_type) :: model        !> model instance
@@ -84,7 +84,7 @@ contains
 
   subroutine glide_prof_stop(model,profn)
     !> write message to profile
-    use profile
+    use cism_profile
     use glide_types
     implicit none
     type(glide_global_type) :: model        !> model instance

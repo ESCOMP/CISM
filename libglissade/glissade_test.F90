@@ -242,7 +242,7 @@ contains
 
     do j = 1+lhalo, ny-uhalo
     do i = 1+lhalo, nx-uhalo
-       pgID(i,j) = parallel_globalID_scalar(i,j,nz,parallel)    ! function in parallel_mpi.F90
+       pgID(i,j) = parallel_globalID_scalar(i,j,nz,parallel)    ! function in cism_parallel.F90
     enddo
     enddo
 
@@ -285,7 +285,7 @@ contains
     do j = 1+lhalo, ny-uhalo
     do i = 1+lhalo, nx-uhalo
        do k = 1, nz
-          ! function in parallel_mpi.F90
+          ! function in cism_parallel.F90
           pgIDr8_3d(k,i,j) = real(parallel_globalID_scalar(i,j,nz,parallel),dp) + real(k,dp)
        enddo
     enddo
@@ -303,7 +303,7 @@ contains
 
     do j = 1+lhalo, ny-uhalo
     do i = 1+lhalo, nx-uhalo
-       pgIDstagi(i,j) = parallel_globalID_scalar(i,j,nz,parallel)    ! function in parallel_mpi.F90
+       pgIDstagi(i,j) = parallel_globalID_scalar(i,j,nz,parallel)    ! function in cism_parallel.F90
     enddo
     enddo
 
@@ -317,7 +317,7 @@ contains
 
     do j = 1+lhalo, ny-uhalo
     do i = 1+lhalo, nx-uhalo
-       pgIDstagr(i,j) = real(parallel_globalID_scalar(i,j,nz,parallel),dp)    ! function in parallel_mpi.F90
+       pgIDstagr(i,j) = real(parallel_globalID_scalar(i,j,nz,parallel),dp)    ! function in cism_parallel.F90
     enddo
     enddo
 
@@ -332,7 +332,7 @@ contains
     do j = 1+lhalo, ny-uhalo
     do i = 1+lhalo, nx-uhalo
        do k = 1, nz
-          ! function in parallel_mpi.F90
+          ! function in cism_parallel.F90
           pgIDstagr3(k,i,j) = real(parallel_globalID_scalar(i,j,nz,parallel),dp) + real(k,dp)
        enddo
     enddo
@@ -363,7 +363,7 @@ contains
     do k = 1, 2
        do j = 1+lhalo, ny-uhalo
        do i = 1+lhalo, nx-uhalo
-          ! function in parallel_mpi.F90
+          ! function in cism_parallel.F90
           tracers(i,j,:,k) = real(parallel_globalID_scalar(i,j,k,parallel),dp) + real(k,dp)
        enddo
        enddo

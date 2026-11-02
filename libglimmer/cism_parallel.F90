@@ -1,6 +1,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
-!   parallel_mpi.F90 - part of the Community Ice Sheet Model (CISM)  
+!   cism_parallel.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
@@ -76,7 +76,7 @@ module cism_parallel
 
   ! Information needed to carry out parallel operations (halo, broadcast, gather, scatter, etc.)
   !  for a particular ice sheet instance
-  ! Note: At one time, these were independent module-level variables in parallel_mpi.F90.
+  ! Note: At one time, these were independent module-level variables in this module.
   !       This works only for runs with a single ice sheet instance.
   !       With multiple instances, each instance requires its own grid and decomposition.
 
@@ -2970,7 +2970,7 @@ contains
     ! Do not include halo offsets in global calculations.
 
     ! Store critical value for creating global IDs.  Defines grid distribution.
-    !Note: Currently, ProcsEW is used only in profile.F90; could simply replace with ewtasks?
+    !Note: Currently, ProcsEW is used only in cism_profile.F90; could simply replace with ewtasks?
     ProcsEW = ewtasks
 
     ! Loop over blocks.  Note zero-based indexing.

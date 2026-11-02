@@ -47,7 +47,7 @@ contains
     use glimmer_log
     use glide_types
     use glide_io
-    use profile
+    use cism_profile
     implicit none
     type(glide_global_type) :: model                 !> model instance
     logical, optional, intent(in) :: forcewrite_arg  !> if true, then force a write to output files

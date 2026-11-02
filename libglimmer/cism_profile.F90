@@ -1,6 +1,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
-!   profile.F90 - part of the Community Ice Sheet Model (CISM)  
+!   cism_profile.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
@@ -31,7 +31,7 @@
 !> module for profiling programs
 !! \author Magnus Hagdorn
 !! \date January 2005
-module profile
+module cism_profile
 
 #if (defined CCSMCOUPLED || defined CESMTIMERS)
   use perf_mod
@@ -216,4 +216,4 @@ contains
    end subroutine t_adj_detailf
 #endif
 
-end module profile
+end module cism_profile

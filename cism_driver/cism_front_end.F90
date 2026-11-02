@@ -62,7 +62,7 @@ subroutine cism_init_glide(model)
   use glide_nc_custom, only: glide_nc_fillall
   use glide_io, only: glide_io_writeall
   use glide_diagnostics, only: glide_write_diagnostics
-  use profile, only: profile_init, t_startf, t_stopf, t_adj_detailf
+  use cism_profile, only: profile_init, t_startf, t_stopf, t_adj_detailf
 
   implicit none
 
@@ -164,7 +164,7 @@ subroutine cism_run_glide(model)
   use glide
   use glide_io, only: glide_io_writeall
   use glide_diagnostics, only: glide_write_diagnostics
-  use profile, only: t_startf, t_stopf
+  use cism_profile, only: t_startf, t_stopf
 
   implicit none
 
@@ -242,7 +242,7 @@ subroutine cism_finalize_glide(model)
   use glide_types, only: glide_global_type
   use glide_stop, only: glide_finalise
   use glimmer_log, only: close_log
-  use profile, only: t_stopf
+  use cism_profile, only: t_stopf
 
   implicit none
 
@@ -299,7 +299,7 @@ subroutine cism_init_glissade(model)
   use glissade_nc_custom, only: glissade_nc_fillall
   use glissade_io, only: glissade_io_writeall, glissade_read_forcing, glissade_read_forcing_once
   use glissade_diagnostics, only: glissade_write_diagnostics
-  use profile, only: profile_init, t_startf, t_stopf, t_adj_detailf
+  use cism_profile, only: profile_init, t_startf, t_stopf, t_adj_detailf
 
   implicit none
 
@@ -404,7 +404,7 @@ subroutine cism_run_glissade(model)
   use glissade, only: glissade_tstep
   use glissade_io, only: glissade_io_writeall, glissade_read_forcing, glissade_retrieve_forcing
   use glissade_diagnostics, only: glissade_write_diagnostics
-  use profile, only: t_startf, t_stopf
+  use cism_profile, only: t_startf, t_stopf
 
   implicit none
 
@@ -483,7 +483,7 @@ subroutine cism_finalize_glissade(model)
   use glissade_types
   use glissade, only: glissade_finalise
   use glimmer_log, only: close_log
-  use profile, only: t_stopf
+  use cism_profile, only: t_stopf
 
   implicit none
 

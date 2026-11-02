@@ -37,7 +37,7 @@ module glissade_types
   use glimmer_paramets, only: unphys_val
   use glimmer_ncdf, only: glimmer_nc_input, glimmer_nc_output, glimmer_funits, &
        NO_RESTART, STANDARD_RESTART, HYBRID_RESTART
-  use profile, only: profile_type
+  use cism_profile, only: profile_type
   use glimmer_coordinates, only: coordsystem_type
   use glimmer_map_types, only: glimmap_proj
   use glimmer_sparse_type, only: &
