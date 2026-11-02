@@ -5,10 +5,9 @@ Note: For setting up the experiments on an NCAR computing environment, follow th
 
 Ice Sheet Model Intercomparison Project for Higher-Order Models (ISMIP-HOM)
 prescribes a set of experiments meant to test the implementation of higher-order
-physics.  For more information, see
-<http://homepages.ulb.ac.be/~fpattyn/ismip/>.
-If the previous link does not work, try
-<http://homepages.vub.ac.be/~fpattyn/ismip/>
+physics.  For more information, see Pattyn et al. (2008), Benchmark experiments
+for higher-order and full-Stokes ice sheet models (ISMIP-HOM), The Cryosphere, 2,
+95-108, <https://doi.org/10.5194/tc-2-95-2008>.
 
 The python scripts provided here (`runISMIP_HOM.py` and `plotISMIP_HOM.py`,
 referred to in the following as the ISMIP-HOM scripts) were created to run the
@@ -27,12 +26,17 @@ the following Python modules installed:
 To plot the results (which is the usual way to view the output), the Python
 matplotlib library also must be installed.
 
-For comparison you need to download the ISMIP-HOM results from
-<http://homepages.ulb.ac.be/~fpattyn/ismip/tc-2-95-2008-supplement.zip> and
-unzip to a directory named `ismip_all`. (Make `ismip_all` a subdirectory of the
-directory containing the ISMIP-HOM scripts.)
-If the previous link does not work, try
-<http://homepages.vub.ac.be/~fpattyn/ismip/welcome.html/tc-2-95-2008-supplement.zip>
+For comparison you need the ISMIP-HOM results from other models, which are in the
+supplement to Pattyn et al. (2008):
+<https://tc.copernicus.org/articles/2/95/2008/tc-2-95-2008-supplement.zip>.
+This zip file contains another zip file, `tc-2007-0019-sp2.zip`, which unzips to a
+directory named `ismip_all`. Make `ismip_all` a subdirectory of the directory from
+which you run `plotISMIP_HOM.py`:
+
+```sh
+unzip tc-2-95-2008-supplement.zip tc-2007-0019-sp2.zip
+unzip tc-2007-0019-sp2.zip
+```
 
 You will need to either copy your executable into this directory, have the 
 executable in your path, or create a symbolic link to your executable, using:
