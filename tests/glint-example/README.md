@@ -25,17 +25,21 @@ and:
 
 <https://svn-ccsm-inputdata.cgd.ucar.edu/trunk/inputdata/glc/cism/glint_example/>
 
-To run a 5-km Greenland test case, you can download one of the files here:
-
-<http://websrv.cs.umt.edu/isis/index.php/Present_Day_Greenland>
-
-The default is `Greenland_5km_v1.1.nc`. 
-
-A 5-km file is also available in the CESM inputdata repo:
+To run the 5-km Greenland test case, you will also need the 5-km input file
+`gland5.input.nc`, available in the CESM inputdata repo:
 
 <https://svn-ccsm-inputdata.cgd.ucar.edu/trunk/inputdata/glc/cism/gland5.input.nc>
 
 The 5-km test case and 20-km test case use the same climate files.
+
+On Derecho, all of these files can be copied from the CESM inputdata directory
+(no svn checkout needed):
+
+```sh
+cp /glade/campaign/cesm/cesmdata/inputdata/glc/cism/gland20.input.nc .
+cp /glade/campaign/cesm/cesmdata/inputdata/glc/cism/gland5.input.nc .
+cp /glade/campaign/cesm/cesmdata/inputdata/glc/cism/glint_example/*.nc .
+```
 
 
 BUILDING AND RUNNING THE TEST CASES:
@@ -54,6 +58,8 @@ First, copy or link the executable to this test directory:
 ln -s ../../builds/mac-gnu/cism_driver/cism_driver
 ```
 
+(or `../../builds/derecho-intel/cism_driver/cism_driver` for an in-place build on Derecho).
+
 As of October 2014, the repo contains three Greenland config files:
 1. `greenland_20km.config.pdd`
 2. `greenland_5km.config.pdd`
@@ -62,8 +68,8 @@ As of October 2014, the repo contains three Greenland config files:
 These files have settings that are physically reasonable but not scientifically
 validated.
 
-Files 1 and 2 are basically identical except for the grid resolution and
-timestep.  Both these files use the native Glint positive-degree-day (PDD)
+Files 1 and 2 are basically identical except for the grid resolution,
+timestep and input file.  Both these files use the native Glint positive-degree-day (PDD)
 scheme to force the Glide dycore, which uses the shallow-ice approximation.
 
 Files 1 and 3 are identical except that file 3 has acab_mode = 0, which means
@@ -92,12 +98,15 @@ follows:
 ./cism_driver greenland_20km.config.smb glint_example.config.smb
 ```
 
-These are currently the only standard tests that exercise the Glint part of the
-code, which is required for coupling to a climate model.
+These are currently the only standard tests that exercise the Glint part of the code.
+
+Note (November 2026): The 5-km test case is currently unstable with
+`gland5.input.nc`: the initial velocity solve gives surface speeds of order
+10^5 m/yr, and the run fails when writing output at year 10.
+This was not investigated further; it may require a shorter timestep or other
+config changes. The two 20-km test cases run correctly and are used to test
+Glint.
 
 Diagnostic output is written to a file called `greenland_20km.config.smb.log` or
 something similar.  NetCDF output is written to various files at a frequency
 set in the Greenland config file.
-
-
-
