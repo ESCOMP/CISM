@@ -17,20 +17,20 @@ lightweight layer in place, because it does have some value.
 
 ----
 
-The main differences between the code here and the code in libglint are:
+The main differences between the code here and the code in glint are:
 
-(1) libglad does not do any upscaling / downscaling / interpolation
+(1) glad does not do any upscaling / downscaling / interpolation
 
-(2) libglad currently only works with SMB inputs - not PDD, etc.
+(2) glad currently only works with SMB inputs - not PDD, etc.
 
 ----
 
-Note that a few modules here are also used by libglint, including:
+Note that a few modules here are also used by glint, including:
 
 - glad_constants.F90
 
 - glad_restart_gcm.F90
 
-So those may contain a bit of code that is needed by libglint but not by
-libglad.
+So those may contain a bit of code that is needed by glint but not by
+glad.
 

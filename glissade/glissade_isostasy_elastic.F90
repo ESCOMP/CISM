@@ -29,7 +29,7 @@ module glissade_isostasy_elastic
   ! Code for an elastic lithosphere; typically combined with a relaxing asthenosphere
   !  Notes:
   !  * This module is based on the isostasy_elastic module from the old Glide code.
-  !    It was copied to libglissade, renamed and restructured in July 2026.
+  !    It was copied to glissade, renamed and restructured in July 2026.
   !  * The elastic lithosphere calculation is done on a single task.
   !    When running in parallel runs, data are gathered onto the main task for the computation,
   !    then scattered back to local processors.

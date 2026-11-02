@@ -17,12 +17,12 @@ CLEANFILES = $(BUILT_SOURCES) f90_dep.mak $(wildcard *.mod)
 libverif_la_SOURCES = verif.F90 verifBC.F90 verifD.F90 verif_io.F90
 libverif_la_LDFLAGS=-all-static
 verif_glide_SOURCES = verif_glide.F90 trickLibtool.cpp
-verif_glide_LDADD = $(top_builddir)/libglide/libglide.la $(top_builddir)/libglimmer-solve/libglimmer-solve.la \
+verif_glide_LDADD = $(top_builddir)/glide/glide.la $(top_builddir)/libglimmer-solve/libglimmer-solve.la \
                     $(top_builddir)/libglimmer/libglimmer-IO.la $(top_builddir)/libglimmer/libglimmer.la libverif.la \
                     $(NETCDF_LDFLAGS) $(HDF5_LDFLAGS) $(NETCDF_LIBS) $(BLAS_LIBS) $(LAPACK_LIBS) $(PARDISO_LIBS) $(UMFPACK_LIBS) \
                     $(TRILINOS_LIBS) $(FCLIBS) $(FLIBS)
 
-AM_FCFLAGS = $(NETCDF_FCFLAGS) $(FC_MODINC)$(top_builddir)/libglimmer-solve $(FC_MODINC)$(top_builddir)/libglide $(FC_MODINC)$(top_builddir)/libglimmer
+AM_FCFLAGS = $(NETCDF_FCFLAGS) $(FC_MODINC)$(top_builddir)/libglimmer-solve $(FC_MODINC)$(top_builddir)/glide $(FC_MODINC)$(top_builddir)/libglimmer
 
 #some special rules for automatically generating ncdf src code
 verif_io.F90:	verif_vars.def $(top_srcdir)/libglimmer/ncdf_template.F90.in
