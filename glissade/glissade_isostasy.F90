@@ -29,10 +29,10 @@ module glissade_isostasy
   !-------------------------------------------------------------------------
   ! Some notes on the glissade_isostasy module (WHL, July 2026):
   !
-  ! This module, glissade_isostasy, supersedes the isostasy module in libglide.
-  ! Most of the code below is very similar to that in isostasy.F90, with subroutine
+  ! This module, glissade_isostasy, supersedes the isostasy module in glide (glide_isostasy).
+  ! Most of the code below is very similar to that in glide_isostasy.F90, with subroutine
   !  names changed to avoid conflicts.
-  ! I left isostasy.F90 in place for now (in libglide) but may remove it later.
+  ! I left glide_isostasy.F90 in place for now (in glide) but may remove it later.
   !
   ! Changes from isostasy.F90:
   ! * There are just two public subroutines: glissade_isostasy_init and glissade_isostasy_solve.
