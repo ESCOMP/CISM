@@ -476,6 +476,7 @@ contains
   subroutine exact_surfmass(eismint_climate,model,time,which_call,which_test)
 
     use glide_types, only: glide_global_type
+    use glimmer_physcon, only: scyr
     use testsFG
     implicit none
 
@@ -546,13 +547,13 @@ contains
                         TT = 0.d0 !TT = model%temper%dissip(lev,ew,ns)
                         call model_exact(time,r,z,model%geometry%thck(ew,ns),H_0,TT,U,w,Sig,M,Sigc)
                     end if
-                    model%climate%acab(ew,ns) = M*SperA  !m/a
+                    model%climate%acab(ew,ns) = M  ! M from testsFG is in m/s, the internal unit of acab
                 else
                     if(r .eq. 0.d0) then
                         model%climate%acab(ew,ns) = 0.d0
                         !model%climate%acab(ew,ns) = H0 - model%geometry%thck(center,center) !set it back to H0
                     else
-                        model%climate%acab(ew,ns) = -0.1d0  !outside the glacier we use .1 m ablation as specified in the paper
+                        model%climate%acab(ew,ns) = -0.1d0/scyr  ! outside the glacier, 0.1 m/yr ablation as specified in the paper (converted to m/s)
                     end if
                 end if
             end do
