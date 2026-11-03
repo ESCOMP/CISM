@@ -1307,7 +1307,9 @@ contains
     call write_log(message)
 
     ! Forbidden options for running in parallel
-    if (tasks > 1 .and. (model%options%which_ho_sparse==HO_SPARSE_BICG  .or.  &
+    ! Note: The local SIA solver does not use a sparse linear solver, so which_ho_sparse is ignored.
+    if (tasks > 1 .and. model%options%which_ho_approx /= HO_APPROX_LOCAL_SIA .and.  &
+                        (model%options%which_ho_sparse==HO_SPARSE_BICG  .or.  &
                          model%options%which_ho_sparse==HO_SPARSE_GMRES .or.  &
                          model%options%which_ho_sparse==HO_SPARSE_PCG_INCH) ) then
        call write_log('Error, SLAP solver not supported for more than one processor', GM_FATAL)

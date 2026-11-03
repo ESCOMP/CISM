@@ -892,7 +892,7 @@ module glissade_types
     !> \item[4] L2 norm of system residual relative to rhs, |Ax-b|/|b|
     !> \end{description}
 
-    integer :: which_ho_sparse = 0
+    integer :: which_ho_sparse = HO_SPARSE_PCG_CHRONGEAR
     !> Flag that indicates method for solving the sparse linear system
     !> that arises from the higher-order solver
     !> \begin{description}
@@ -900,7 +900,7 @@ module glissade_types
     !> \item[0]  SLAP (serial): Biconjugate gradient, incomplete LU preconditioner
     !> \item[1]  SLAP (serial): GMRES, incomplete LU preconditioner
     !> \item[2] Native PCG, parallel-enabled, standard solver
-    !> \item[3] Native PCG, parallel-enabled, Chronopoulos-Gear solver
+    !> \item[3] Native PCG, parallel-enabled, Chronopoulos-Gear solver (default)
     !> \end{description}
 
     integer :: which_ho_approx = 2 
