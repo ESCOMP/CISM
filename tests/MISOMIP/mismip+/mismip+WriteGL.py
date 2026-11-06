@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 #Set ice density prescribed for MISMIP+.
 #WHL - Read from CISM output file instead?
 rhoi = 918.  # kg/m^3
-model = '_cism'
+suffix = '_cism'
 
 # Parse options
 from argparse import ArgumentParser
@@ -137,10 +137,7 @@ for expt in experiments:
     print( 'Shape of 2D fields:', f_ground.shape)
 
     # Create the GL output file
-    #WHL: Change to [expt]_cism.nc
-
-    #outfilename = 'mismip+_example.cism.nc'
-    outfilename = expt + model + '.nc'
+    outfilename = expt + suffix + '.nc'
     ncfile = Dataset(outfilename, 'w')
     print( 'Created output file', outfilename)
 
