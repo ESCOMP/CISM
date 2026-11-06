@@ -1396,8 +1396,9 @@ module glissade_types
      real(dp),dimension(:,:),pointer :: acab_unapplied_glad      => null() !> SMB zeroed by GLAD before the dycore sees it
                                                                            !>    (ice-free cells with acab < 0; ice-free ocean)
      real(dp),dimension(:,:),pointer :: acab_unapplied_glad_tavg => null() !> SMB zeroed by GLAD (time average)
-     real(dp),dimension(:,:),pointer :: acab_unapplied      => null() !> SMB passed to the dycore but not applied, = acab - acab_applied
-                                                                      !>    (melt exceeding the ice present; ocean cells; partial cells)
+     real(dp),dimension(:,:),pointer :: acab_unapplied      => null() !> SMB passed to the dycore but not applied
+                                                                      !>    (melt exceeding the ice present; ocean cells; partial cells;
+                                                                      !>     positive SMB removed by block_inception)
      real(dp),dimension(:,:),pointer :: acab_unapplied_tavg => null() !> SMB passed to the dycore but not applied (time average)
      real(dp),dimension(:,:),pointer :: smb             => null() !> Surface mass balance (mm/yr water equivalent)
      real(dp),dimension(:,:),pointer :: smb_anomaly     => null() !> Surface mass balance anomaly (mm/yr w.e.)
