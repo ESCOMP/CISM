@@ -32,9 +32,8 @@ module glissade_isostasy
   ! This module, glissade_isostasy, supersedes the isostasy module in glide (glide_isostasy).
   ! Most of the code below is very similar to that in glide_isostasy.F90, with subroutine
   !  names changed to avoid conflicts.
-  ! I left glide_isostasy.F90 in place for now (in glide) but may remove it later.
   !
-  ! Changes from isostasy.F90:
+  ! Changes from glide_isostasy.F90:
   ! * There are just two public subroutines: glissade_isostasy_init and glissade_isostasy_solve.
   !   The rest are private.
   ! * Calculations specific to the elastic lithosphere and relaxing asthenosphere

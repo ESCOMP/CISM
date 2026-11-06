@@ -1118,7 +1118,6 @@ contains
 
        !WHL - The Glide version of CALVING_RELX_THRESHOLD calves ice wherever the relaxed bedrock criterion is met.
        !      Must set calving_domain = CALVING_DOMAIN_EVERYWHERE to match the Glide behavior.
-       ! Note: calving%marine_limit (a holdover from Glide) has scaled model units
        where (relx <= calving%marine_limit + eus)
           calving_law_mask = .true.
        elsewhere

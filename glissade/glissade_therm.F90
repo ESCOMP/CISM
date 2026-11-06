@@ -129,7 +129,7 @@ module glissade_therm
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
          tempunstag        ! ice temperature on unstaggered grid
-                           ! may be used to initialize from an unstaggered glide temperature field
+                           ! may be used to initialize from an unstaggered temperature field
                            ! intent(inout) because it might have been read from an input file,
                            ! but otherwise it is set (diagnostically) in this subroutine
          

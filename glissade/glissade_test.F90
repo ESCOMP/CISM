@@ -400,9 +400,8 @@ contains
     !     (e.g., the dome test case), the ice extent will be preserved, but
     !     the thickness will be set everywhere to thk_init, giving a steep
     !     front at the ice margin that is challenging for transport schemes.
-    ! (3) Comment out the call to glissade_diagnostic_variable_solve in
-    !     cism_driver or simple_glide.  (It probable won't hurt to
-    !     have it turned on, but will just use extra cycles.)
+    ! (3) Comment out the call to glissade_diagnostic_variable_solve in cism_driver.
+    !     (It probably won't hurt to have it turned on, but will just use extra cycles.)
     !
     ! During the run, the following will happen:
     ! (1) During glissade_initialise, the ice thickness will be set to
