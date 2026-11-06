@@ -88,11 +88,14 @@ contains
 
     !--------------------------------------------------------------------
     ! Accumulate solid runoff (calving and other ice removal)
-    ! Note: Icebergs and isthmuses removed by glissade_handle_ice_caps, ice removed by
-    !       forced retreat, and tiny thicknesses cleaned up by glissade_cleanup_tiny_thickness
-    !       are all tracked separately from calving_thck as removal_thck (not explicitly
-    !       calved), but the ice is still lost to the ocean as solid ice, so it is included
-    !       here in the solid ice runoff along with calving_thck.
+    ! Note: Ice caps removed by glissade_handle_ice_caps, ice removed by forced retreat,
+    !       and tiny thicknesses cleaned up by glissade_cleanup_tiny_thickness are all tracked
+    !       separately from calving_thck as removal_thck (not explicitly calved), but the ice
+    !       is still lost to the ocean as solid ice, so it is included here in the solid ice
+    !       runoff along with calving_thck. Icebergs removed by remove_icebergs are part of
+    !       calving_thck.
+    !       Positive SMB received by the dycore but not applied (e.g., removed by block_inception)
+    !       is also included, so that the water removed from the land model as SMB is conserved.
     !--------------------------------------------------------------------
 
     ! Note on units: model%calving%calving_thck and model%geometry%removal_thck
@@ -103,6 +106,12 @@ contains
     ! Convert to kg/m^2/s
     output_fluxes%rofi_sum(:,:) = output_fluxes%rofi_sum(:,:)  &
          + (model%calving%calving_thck(:,:) + model%geometry%removal_thck(:,:)) * rhoi / model%numerics%dt
+
+    ! Add the positive SMB that was passed to the dycore but not applied.
+    ! Note: model%climate%acab_unapplied has units of m/s ice; multiply by rhoi to convert to kg/m^2/s.
+    !       Negative values (melt in excess of the ice present) cannot be returned as runoff.
+    output_fluxes%rofi_sum(:,:) = output_fluxes%rofi_sum(:,:)  &
+         + max(model%climate%acab_unapplied(:,:), 0.0d0) * rhoi
 
     !--------------------------------------------------------------------
     ! Accumulate liquid runoff (basal melting and lateral/submarine melting)
