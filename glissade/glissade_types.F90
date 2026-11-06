@@ -1222,6 +1222,14 @@ module glissade_types
     ! global scalars
     real(dp) :: total_smb_flux         ! total surface mass balance flux (kg/s)
     real(dp) :: total_smb_flux_tavg    ! total surface mass balance flux (kg/s), time average
+    ! SMB budget diagnostics for coupled runs: total_smb_cpl_flux = total_smb_flux
+    !  + total_smb_unapplied_glad_flux + total_smb_unapplied_flux
+    real(dp) :: total_smb_cpl_flux = 0.d0          ! total SMB flux received from the coupler (kg/s)
+    real(dp) :: total_smb_cpl_flux_tavg = 0.d0     ! total SMB flux received from the coupler (kg/s), time average
+    real(dp) :: total_smb_unapplied_glad_flux = 0.d0 ! total SMB flux zeroed by GLAD (kg/s)
+    real(dp) :: total_smb_unapplied_glad_flux_tavg = 0.d0 ! total SMB flux zeroed by GLAD (kg/s), time average
+    real(dp) :: total_smb_unapplied_flux = 0.d0    ! total SMB flux passed to the dycore but not applied (kg/s)
+    real(dp) :: total_smb_unapplied_flux_tavg = 0.d0 ! total SMB flux passed to the dycore but not applied (kg/s), time average
     real(dp) :: total_bmb_flux         ! total basal mass balance flux (kg/s)
     real(dp) :: total_bmb_flux_tavg    ! total basal mass balance flux (kg/s), time average
     real(dp) :: total_calving_flux     ! total calving mass flux (kg/s)
@@ -1381,6 +1389,16 @@ module glissade_types
      real(dp),dimension(:,:),pointer :: acab_applied    => null() !> Surface mass balance applied to ice (m/yr ice)
                                                                   !>    = 0 for ice-free cells with acab < 0
      real(dp),dimension(:,:),pointer :: acab_applied_tavg => null() !> Surface mass balance applied to ice (m/yr ice, time average)
+     ! SMB budget diagnostics for coupled runs (GLAD); m/yr ice for I/O, m/s ice in code
+     ! In each cell, acab_cpl = acab_applied + acab_unapplied_glad + acab_unapplied
+     real(dp),dimension(:,:),pointer :: acab_cpl        => null() !> SMB received from the coupler, before any masking in GLAD
+     real(dp),dimension(:,:),pointer :: acab_cpl_tavg   => null() !> SMB received from the coupler (time average)
+     real(dp),dimension(:,:),pointer :: acab_unapplied_glad      => null() !> SMB zeroed by GLAD before the dycore sees it
+                                                                           !>    (ice-free cells with acab < 0; ice-free ocean)
+     real(dp),dimension(:,:),pointer :: acab_unapplied_glad_tavg => null() !> SMB zeroed by GLAD (time average)
+     real(dp),dimension(:,:),pointer :: acab_unapplied      => null() !> SMB passed to the dycore but not applied, = acab - acab_applied
+                                                                      !>    (melt exceeding the ice present; ocean cells; partial cells)
+     real(dp),dimension(:,:),pointer :: acab_unapplied_tavg => null() !> SMB passed to the dycore but not applied (time average)
      real(dp),dimension(:,:),pointer :: smb             => null() !> Surface mass balance (mm/yr water equivalent)
      real(dp),dimension(:,:),pointer :: smb_anomaly     => null() !> Surface mass balance anomaly (mm/yr w.e.)
      real(dp),dimension(:,:),pointer :: smb_corrected  => null()  !> Surface mass balance with flux or anomaly corrections (mm/yr w.e.)
@@ -2758,6 +2776,12 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_cpl)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_cpl_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_unapplied_glad)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_unapplied_glad_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_unapplied)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_unapplied_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb_anomaly)
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb_corrected)
@@ -3344,6 +3368,18 @@ contains
         deallocate(model%climate%acab_applied)
     if (associated(model%climate%acab_applied_tavg)) &
         deallocate(model%climate%acab_applied_tavg)
+    if (associated(model%climate%acab_cpl)) &
+        deallocate(model%climate%acab_cpl)
+    if (associated(model%climate%acab_cpl_tavg)) &
+        deallocate(model%climate%acab_cpl_tavg)
+    if (associated(model%climate%acab_unapplied_glad)) &
+        deallocate(model%climate%acab_unapplied_glad)
+    if (associated(model%climate%acab_unapplied_glad_tavg)) &
+        deallocate(model%climate%acab_unapplied_glad_tavg)
+    if (associated(model%climate%acab_unapplied)) &
+        deallocate(model%climate%acab_unapplied)
+    if (associated(model%climate%acab_unapplied_tavg)) &
+        deallocate(model%climate%acab_unapplied_tavg)
     if (associated(model%climate%smb)) &
         deallocate(model%climate%smb)
     if (associated(model%climate%smb_anomaly)) &

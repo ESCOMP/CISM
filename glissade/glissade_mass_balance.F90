@@ -962,6 +962,12 @@
          model%geometry%tracers_lsrf(:,:,:),               &
          model%options%which_ho_vertical_remap)
 
+    ! Diagnose the SMB that was passed to the dycore but not applied (m/s).
+    ! This is nonzero where (1) the SMB is negative and melts the full column, with energy left over,
+    !  (2) the cell is ice-free ocean, or (3) the cell is only partly ice-covered (effective_areafrac < 1).
+    ! Note: acab_applied is computed only for locally owned cells, so the values in halo cells are not meaningful.
+    model%climate%acab_unapplied(:,:) = model%climate%acab(:,:) - model%climate%acab_applied(:,:)
+
     if (verbose_calving) then
        call point_diag(model%geometry%thck, 'After mass balance driver, thck (m)', itest, jtest, rtest, 7, 7)
     endif
