@@ -355,7 +355,7 @@ module glissade_bmlt_float
                            + (basal_melt%bmlt_float_depth_meltmax - basal_melt%bmlt_float_depth_meltmin) *  &
                            (z_draft - basal_melt%bmlt_float_depth_zmeltmin) &
                            / (basal_melt%bmlt_float_depth_zmeltmax - basal_melt%bmlt_float_depth_zmeltmin)
-                   elseif (z_draft <= basal_melt%bmlt_float_depth_meltmax) then
+                   elseif (z_draft <= basal_melt%bmlt_float_depth_zmeltmax) then
                       ! max melting
                       bmlt_float(i,j) = basal_melt%bmlt_float_depth_meltmax
                    endif
@@ -373,7 +373,7 @@ module glissade_bmlt_float
                       ! melting with a linear taper from meltmax to zero
                       bmlt_float(i,j) = basal_melt%bmlt_float_depth_meltmax * &
                            melt_ramp_factor * (basal_melt%bmlt_float_depth_zmelt0 - z_draft)
-                   elseif (z_draft <= basal_melt%bmlt_float_depth_meltmax) then
+                   elseif (z_draft <= basal_melt%bmlt_float_depth_zmeltmax) then
                       ! max melting
                       bmlt_float(i,j) = basal_melt%bmlt_float_depth_meltmax
                    endif
