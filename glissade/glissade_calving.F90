@@ -3728,7 +3728,9 @@ contains
           call point_diag(model%calving%calving_mask, 'calving_mask', itest, jtest, rtest, 7, 7)
        endif
 
-       if (model%calving%timescale <= 1.0d0) then  ! this is the default; currently have 1.0 yr in config files
+       ! Note: calving%timescale has units of s. A timescale of up to 1 yr (scyr) gives immediate removal;
+       !       this includes the default timescale of 0.
+       if (model%calving%timescale <= scyr) then
 
           ! Remove ice in all cells with calving_mask = 1
           where (model%geometry%thck > 0.0d0 .and. model%calving%calving_mask == 1)
