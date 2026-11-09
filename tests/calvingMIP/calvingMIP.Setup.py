@@ -577,7 +577,7 @@ for expt in experiments:
         config.set('CF output1', 'name',      outputfile)
         config.set('CF output1', 'frequency', str(outputfreq))
         config.set('CF output1', 'variables',
-                   'thk topg usurf lsurf calving_flux_tavg ice_mask grounded_mask floating_mask ice_mask_stag f_ground_cell effective_areafrac')
+                   'thk topg usurf lsurf ice_mask grounded_mask floating_mask ice_mask_stag f_ground_cell effective_areafrac')
 #        print('Output file:', outputfile)
 
         # fields on the x0 grid
@@ -597,6 +597,16 @@ for expt in experiments:
         # Do not write initial output, since scalar output values may not be computed until
         #  after the first timestep.
         config.set('CF output3', 'write_init', 'False')
+#        print('Output file:', outputfile)
+
+        # time-averaged fields on the x1 grid
+        # Note: Time-averaged fields must be in a different output file from snapshot fields.
+        config.add_section('CF output4')
+        outputfile = 'calvingMIP.' + expt + '.out.tavg.x1.nc'
+        config.set('CF output4', 'name',      outputfile)
+        config.set('CF output4', 'frequency', str(outputfreq))
+        config.set('CF output4', 'variables', 'calving_flux_tavg')
+        config.set('CF output4', 'write_init', 'False')
 #        print('Output file:', outputfile)
 
 

@@ -121,7 +121,7 @@ You can launch the job by typing
 > qsub runCISM.SpinupCircular [or whatever the name may be]
 
 The file calvingMIP.SpinupCircular.restart.nc becomes the initial condition for Experiments 1 and 2.
-Similarly, calvingMIP.ThuleCircular.restart.nc becomes the initial condition for Experiments 3, 4 and 5.
+Similarly, calvingMIP.SpinupThule.restart.nc becomes the initial condition for Experiments 3, 4 and 5.
 Note that these experiments start in the hybrid restart mode ('restart = 2'), so they begin at year 0,
 regardless of the length of the Spinup run.
 
@@ -129,10 +129,11 @@ For each of the five experiments, the output should include several files, e.g.
 
 * calvingMIP.Experiment1.out.nc
 * calvingMIP.Experiment1.out.x1.nc
-* calvingMIP.Experiment1.out.x2.nc
+* calvingMIP.Experiment1.out.x0.nc
 * calvingMIP.Experiment1.out.scalars.nc
+* calvingMIP.Experiment1.out.tavg.x1.nc
 
-The first file includes 'standard' CISM output. The other three files include the fields needed
+The first file includes 'standard' CISM output. The other four files include the fields needed
 to obtain the fields and scalars specified on the calvingMIP wiki.
 
 CISM contains code to compute and output any or all of these fields on each of 8 axes for each experiment:
