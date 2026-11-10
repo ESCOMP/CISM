@@ -208,7 +208,7 @@ def main():
     if not args.quiet: 
         print("\nCreating config file: "+config_name)
     
-    config_parser.set('grid', 'udn', str(nz))
+    config_parser.set('grid', 'upn', str(nz))
     
     config_parser.set('grid', 'ewn', str(nx))
     config_parser.set('grid', 'nsn', str(ny))
