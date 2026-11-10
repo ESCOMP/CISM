@@ -262,10 +262,6 @@ module glissade_types
   integer, parameter :: HO_DELTAT_OCN_CALIBRATE_BASIN = 4
   integer, parameter :: HO_DELTAT_OCN_DTHCK_DT = 5
 
-  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT = 0
-  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_INVERSION = 1
-  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_EXTERNAL = 2
-
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
   integer, parameter :: HO_BWAT_LOCAL_TILL = 2
@@ -845,13 +841,6 @@ module glissade_types
     !> \item[4] calibrate deltaT_ocean to match a basin-scale melt target
     !> \item[5] set deltaT_ocn to match a local dH/dt target
     !> \end{description}
-
-    integer :: which_ho_flow_enhancement_factor = 0
-    !> Flag for flow enhancement factor E
-    !> \begin{description}
-    !> \item[0] flow enhancement factor E = constant (typically lower for floating ice)
-    !> \item[1] invert for flow_enhancement factor E
-    !> \item[2] read flow_enhancement factor E from external file
 
     integer :: which_ho_bwat = 0
     !> Basal water depth:
@@ -1682,15 +1671,6 @@ module glissade_types
 
      integer ::  &
           basin_number_mass_correction = 0       !> integer ID for the basin receiving the correction
-
-     ! parameters for flow_enhancement_factor inversion
-     !WHL TODO - Remove flow_enhancement_factor inversion (maybe during the config reorg)
-     real(dp) ::  &
-          flow_enhancement_timescale = 200.d0,  & !> inversion timescale (yr)
-          flow_enhancement_velo_scale = 100.d0, & !> inversion velocity scale (m/yr)
-          flow_enhancement_thck_scale = 100.d0, & !> inversion thickness scale (m)
-          flow_enhancement_length_scale = 0.d0, & !> diffusive length scale (m) for inversion
-          flow_enhancement_relax_factor = 1.0d0   !> controls strength of relaxation to default values (unitless)
 
   end type glissade_inversion_type
 

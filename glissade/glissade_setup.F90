@@ -272,8 +272,6 @@ contains
     ! scale inversion parameters
     model%inversion%babc_timescale = model%inversion%babc_timescale * scyr    ! convert yr to s
     model%inversion%deltaT_ocn_timescale = model%inversion%deltaT_ocn_timescale * scyr   ! yr to s
-    model%inversion%flow_enhancement_velo_scale = model%inversion%flow_enhancement_velo_scale / scyr  ! m/yr to m/s
-    model%inversion%flow_enhancement_timescale = model%inversion%flow_enhancement_timescale * scyr  ! yr to s
 
     ! scale SMB/acab parameterss
     model%climate%overwrite_acab_value = model%climate%overwrite_acab_value/scyr
@@ -927,7 +925,6 @@ contains
     call GetValue(section, 'which_ho_coulomb_c',          model%options%which_ho_coulomb_c)
     call GetValue(section, 'elevation_based_coulomb_c',   model%options%elevation_based_coulomb_c)
     call GetValue(section, 'which_ho_deltaT_ocn',         model%options%which_ho_deltaT_ocn)
-    call GetValue(section, 'which_ho_flow_enhancement_factor', model%options%which_ho_flow_enhancement_factor)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
     call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
@@ -1172,11 +1169,6 @@ contains
          'invert for basin-scale deltaT_ocn           ', &
          'calibrate deltaT_basin to match melt target ', &
          'set deltaT_ocn based on observed dthck_dt   ' /)
-
-    character(len=*), dimension(0:2), parameter :: ho_flow_enhancement_factor = (/ &
-         'uniform flow enhancement factors               ', &
-         'invert for flow_enhancement_factor             ', &
-         'read flow_enhancment_factor from external file ' /)
 
     ! basal water options
     character(len=*), dimension(0:3), parameter :: ho_whichbwat = (/ &
@@ -1794,17 +1786,6 @@ contains
        call write_log('Error, ho_deltaT_ocn out of range', GM_FATAL)
     end if
 
-    if (model%options%which_ho_flow_enhancement_factor /= HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT) then
-       write(message,*) 'ho_flow_enhancement_factor: ',model%options%which_ho_flow_enhancement_factor,  &
-                         ho_flow_enhancement_factor(model%options%which_ho_flow_enhancement_factor)
-       call write_log(message)
-    endif
-
-    if (model%options%which_ho_flow_enhancement_factor < 0 .or. &
-         model%options%which_ho_flow_enhancement_factor >= size(ho_flow_enhancement_factor)) then
-       call write_log('Error, ho_flow_enhancement_factor out of range', GM_FATAL)
-    end if
-
     if (model%options%which_ho_bwat /= HO_BWAT_NONE) then
        write(message,*) 'ho_whichbwat            : ',model%options%which_ho_bwat,  &
                          ho_whichbwat(model%options%which_ho_bwat)
@@ -2232,17 +2213,6 @@ contains
     call GetValue(section, 'inversion_deltaT_basin_relax', model%inversion%deltaT_basin_relax)
     call GetValue(section, 'inversion_basin_flotation_threshold', &
          model%inversion%basin_flotation_threshold)
-
-    call GetValue(section, 'inversion_flow_enhancement_timescale', &
-         model%inversion%flow_enhancement_timescale)
-    call GetValue(section, 'inversion_flow_enhancement_velo_scale', &
-         model%inversion%flow_enhancement_velo_scale)
-    call GetValue(section, 'inversion_flow_enhancement_thck_scale', &
-         model%inversion%flow_enhancement_thck_scale)
-    call GetValue(section, 'inversion_flow_enhancement_length_scale', &
-         model%inversion%flow_enhancement_length_scale)
-    call GetValue(section, 'inversion_flow_enhancement_relax_factor', &
-         model%inversion%flow_enhancement_relax_factor)
 
     call GetValue(section, 'inversion_basin_mass_correction', &
          model%inversion%basin_mass_correction)
@@ -2782,24 +2752,6 @@ contains
           call write_log(message)
        endif
     endif   ! nonlocal melt schemes
-
-    if (model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
-       write(message,*) 'velocity scale (m/yr) for flow factor inversion: ', &
-            model%inversion%flow_enhancement_velo_scale
-       call write_log(message)
-       write(message,*) 'thickness scale (m) for flow factor inversion  : ', &
-            model%inversion%flow_enhancement_thck_scale
-       call write_log(message)
-       write(message,*) 'timescale (yr) for flow factor inversion       : ', &
-            model%inversion%flow_enhancement_timescale
-       call write_log(message)
-       write(message,*) 'length scale (m) for flow factor inversion     : ', &
-            model%inversion%flow_enhancement_length_scale
-       call write_log(message)
-       write(message,*) 'relaxation factor for flow factor inversion    : ', &
-            model%inversion%flow_enhancement_relax_factor
-       call write_log(message)
-    endif
 
     if (model%basal_physics%beta_powerlaw_umax > 0.0d0) then
        write(message,*) 'max ice speed (m/yr) when evaluating beta(u) : ', model%basal_physics%beta_powerlaw_umax
@@ -3884,8 +3836,7 @@ contains
         options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION .or. &
         options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or. &
         options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION_BASIN  .or. &
-        options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN .or. &
-        options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
+        options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
        call glissade_add_to_restart_variable_list('usrf_obs', model_id)
        call glissade_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif
@@ -3895,16 +3846,6 @@ contains
         options%enable_acab_dthck_dt_correction) then
        call glissade_add_to_restart_variable_list('dthk_dt_obs', model_id)
        call glissade_add_to_restart_variable_list('dthk_dt_obs_basin', model_id)
-    endif
-
-    ! inversion options for the flow enhancement factor E
-    if (options%which_ho_flow_enhancement_factor /= HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT) then
-       call glissade_add_to_restart_variable_list('flow_enhancement_factor', model_id)
-    endif
-
-    ! if inverting for E, we need the modeled and observed surface speed
-    if (options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
-       call glissade_add_to_restart_variable_list('velo_sfc', model_id)
     endif
 
     select case (options%isostasy)
