@@ -33,7 +33,6 @@ def intscale(time):
 def garplot(ncfile, label, color, marker):
     """
     add a plot of grounded area against time to current axes
-    #TODO: Modify so that the scaled time labels have only 1 digit after the decimal point
     """
     ncid = Dataset(ncfile, 'r')
     gar = ncid.variables["groundedArea"][:]*1e-6*1e-3
@@ -92,8 +91,10 @@ plt.plot(tscale([100, 100]), [0, 100], color="grey")
 plt.plot(tscale([200, 200]), [0, 100], color="grey")
 plt.xlim(tscale([0, 1000]))
 
-xtlocs = tscale([0, 10, 50, 100, 200, 400, 800])
-plt.xticks(xtlocs, intscale(xtlocs))
+# Label the ticks with the times themselves; recomputing them as intscale(tscale(t))
+#  gives roundoff in the labels (e.g., 800.0000000000001).
+xtyears = [0, 10, 50, 100, 200, 400, 800]
+plt.xticks(tscale(xtyears), [str(t) for t in xtyears])
 plt.xlabel(r'Time,  $t$ (a)')
 plt.ylabel(r'Grounded area (1000 km$^3$)')
 
