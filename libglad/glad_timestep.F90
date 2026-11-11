@@ -182,8 +182,11 @@ contains
           end where
 
           ! Set acab to zero for ocean cells (bed below sea level, no ice present)
+          ! Note: Use the current geometry rather than thkmask, which can be out of date
+          !       at the first time step if initialization removed ice.
 
-          where (GLIDE_IS_OCEAN(instance%model%geometry%thkmask))
+          where (instance%model%geometry%thck <= 0.d0 .and. &
+                 instance%model%geometry%topg - instance%model%climate%eus < 0.d0)
              instance%acab = 0.d0
           endwhere
 
