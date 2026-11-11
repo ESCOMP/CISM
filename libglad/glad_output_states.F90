@@ -79,7 +79,11 @@ contains
           if (is_in_active_grid(instance%model%geometry, i, j)) then
              ice_sheet_grid_mask(i,j) = 1.d0
 
-             if (is_ice_covered(instance%model%geometry, i, j)) then
+             if (instance%ice_covered_thck_scale > 0.d0) then
+                ! fractional ice cover, increasing linearly with thickness up to ice_covered_thck_scale
+                ice_covered(i,j) = min(1.d0, max(0.d0, instance%model%geometry%thck(i,j)) &
+                                             / instance%ice_covered_thck_scale)
+             elseif (is_ice_covered(instance%model%geometry, i, j)) then
                 ice_covered(i,j) = 1.d0
              else
                 ice_covered(i,j) = 0.d0

@@ -104,6 +104,13 @@ module glad_type
      integer :: evolve_ice = 1
      logical :: zero_gcm_fluxes = .false.
 
+     !> Thickness scale (m) for the ice_covered fraction sent to the climate model.
+     !> If ice_covered_thck_scale > 0, then ice_covered = min(1, thck/ice_covered_thck_scale),
+     !>  so that cells with thin ice are treated as partly ice-covered.
+     !> If ice_covered_thck_scale = 0 (the default), then ice_covered = 1 where thck > 0, else 0.
+     !> Note: The coupler must support fractional values of ice_covered.
+     real(dp) :: ice_covered_thck_scale = 0.d0
+
      !> Whether the ice sheet can evolve:
      !> \begin{description}
      !> \item[0] The ice sheet cannot evolve; hold fixed at initial state
@@ -213,6 +220,7 @@ contains
        call GetValue(section,'zero_gcm_fluxes',instance%zero_gcm_fluxes)
        call GetValue(section,'mbal_accum_time',mbal_time_temp)
        call GetValue(section,'ice_tstep_multiply',instance%ice_tstep_multiply)
+       call GetValue(section,'ice_covered_thck_scale',instance%ice_covered_thck_scale)
     end if
 
     if (mbal_time_temp > 0.0) then
@@ -321,6 +329,13 @@ contains
 
     write(message,*) 'ice_tstep_multiply:',instance%ice_tstep_multiply
     call write_log(message)
+
+    if (instance%ice_covered_thck_scale > 0.0d0) then
+       write(message,*) 'Fractional ice_covered, thickness scale (m):', instance%ice_covered_thck_scale
+       call write_log(message)
+    elseif (instance%ice_covered_thck_scale < 0.0d0) then
+       call write_log('Error, ice_covered_thck_scale must be >= 0', GM_FATAL)
+    endif
 
   end subroutine glad_i_printconfig
 
