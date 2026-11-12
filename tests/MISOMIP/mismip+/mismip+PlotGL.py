@@ -2,19 +2,21 @@
 # -*- coding: utf-8 -*-
 """
 plot grounded area against time for all 3 MISMIP+ experiments (7 branches)
-plot the grounding lines at 0,  100, 200 years
+plot the grounding lines at 0, 100, 200 years
 
 Created on Tue Sep  8 09:29:09 2015
 
 @author: s.l.cornford@bris.ac.uk
-Modified by William Lipscomb
+Modified by William Lipscomb to include the extended 1000-yr experiments
+
 """
 
 from netCDF4 import Dataset
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker  #WHL
 
-model = '_cism'
+suffix = '_cism'
 
 def tscale(time):
     """
@@ -28,7 +30,6 @@ def intscale(time):
     """
     return time**2
 
-#TODO - Modify so the label is optional
 def garplot(ncfile, label, color, marker):
     """
     add a plot of grounded area against time to current axes
@@ -36,18 +37,18 @@ def garplot(ncfile, label, color, marker):
     ncid = Dataset(ncfile, 'r')
     gar = ncid.variables["groundedArea"][:]*1e-6*1e-3
     time = ncid.variables["time"][:]
+
+    time = np.floor(time)
+
     if label == 'nolabel':
-        plt.plot(tscale(time), gar, 'o-', mfc=color,
-                 color='black', label="", marker=marker)
+        plt.plot(tscale(time), gar, 'o-', mfc=color, color='black', label="", marker=marker)
     else:    
-        plt.plot(tscale(time), gar, 'o-', mfc=color,
-                 color='black', label=label, marker=marker)
+        plt.plot(tscale(time), gar, 'o-', mfc=color, color='black', label=label, marker=marker)
     ncid.close()
     lmax = max(gar)
     lmin = min(gar)
     return lmax, lmin
 
-#TODO - Modify so the label is optional
 def glplot(ncfile, times, colora, label):
     """
     add a plot of grounding line points to current axes.
@@ -63,24 +64,22 @@ def glplot(ncfile, times, colora, label):
         lxmax = max(np.max(xGL), lxmax)
         lxmin = min(np.min(xGL), lxmin)
         yGL = ncid.variables["yGL"][:, seq]*1e-3
-        plt.plot(xGL, yGL, 's', ms=3, mfc=colora[i],
-                 mec=colora[i], label=label + ', t = ' + format(times[i]))
+        plt.plot(xGL, yGL, 's', ms=3, mfc=colora[i], mec=colora[i], label=label + ', t = ' + format(times[i]))
     return lxmin, lxmax
 
 plt.figure(figsize=(7, 10))
 
 plt.subplot(211)
 
-xmin, xmax = glplot('Ice1r/Ice1r' + model + '.nc', [0, 100], ['black', 'red'], 'Ice1r')
+xmin, xmax = glplot('Ice1r/'  + 'Ice1r' + suffix + '.nc', [0, 100], ['black', 'red'], 'Ice1r')
 xmaxplot = xmax  # xmax based on Ice1r at t = 0
-xmin, xmax = glplot('Ice1rr/Ice1rr' + model + '.nc', [200], ['yellow'], 'Ice1rr')
+xmin, xmax = glplot('Ice1rr/' + 'Ice1rr' + suffix + '.nc', [200], ['yellow'], 'Ice1rr')
 xminplot = xmin  # xmin based on Ice1rr at t = 200
 plt.xlim([xminplot-50.0, xmaxplot+50.0])
-xmin, xmax = glplot('Ice1ra/Ice1ra' + model + '.nc', [200], ['orange'], 'Ice1ra')
-xmin, xmax = glplot('Ice2r/Ice2r' + model + '.nc', [100], ['blue'], 'Ice2r')
-xmin, xmax = glplot('Ice2rr/Ice2rr' + model + '.nc', [200], ['pink'], 'Ice2rr')
-xmin, xmax = glplot('Ice2ra/Ice2ra' + model + '.nc', [200], ['purple'], 'Ice2ra')
-
+xmin, xmax = glplot('Ice1ra/' + 'Ice1ra' + suffix + '.nc', [200], ['orange'], 'Ice1ra')
+xmin, xmax = glplot('Ice2r/'  + 'Ice2r'  + suffix + '.nc', [100], ['blue'],   'Ice2r')
+xmin, xmax = glplot('Ice2rr/' + 'Ice2rr' + suffix + '.nc', [200], ['pink'],   'Ice2rr')
+xmin, xmax = glplot('Ice2ra/' + 'Ice2ra' + suffix + '.nc', [200], ['purple'], 'Ice2ra')
 
 plt.legend(frameon=True, borderaxespad=0, loc='right')
 plt.xlabel(r'$x$ (km)')
@@ -92,31 +91,33 @@ plt.plot(tscale([100, 100]), [0, 100], color="grey")
 plt.plot(tscale([200, 200]), [0, 100], color="grey")
 plt.xlim(tscale([0, 1000]))
 
-xtlocs = tscale([0, 10, 50, 100, 200, 400, 800])
-plt.xticks(xtlocs, intscale(xtlocs))
+# Label the ticks with the times themselves; recomputing them as intscale(tscale(t))
+#  gives roundoff in the labels (e.g., 800.0000000000001).
+xtyears = [0, 10, 50, 100, 200, 400, 800]
+plt.xticks(tscale(xtyears), [str(t) for t in xtyears])
 plt.xlabel(r'Time,  $t$ (a)')
 plt.ylabel(r'Grounded area (1000 km$^3$)')
 
 #Ice0
-maxa, mina = garplot('Ice0/Ice0' + model + '.nc', 'Ice0', 'grey', 'd')
+maxa, mina = garplot('Ice0/' + 'Ice0' + suffix + '.nc', 'Ice0', 'grey', 'd')
 xmaxplot = maxa
 
 #Ice1
-maxa, mina = garplot('Ice1r/Ice1r' + model + '.nc', 'Ice1r', 'red', 'o')
-maxa, mina = garplot('Ice1rr/Ice1rr' + model + '.nc', 'Ice1rr', 'purple', 'o')
-maxa, mina = garplot('Ice1ra/Ice1ra' + model + '.nc', 'Ice1ra', 'orange', 'o')
-maxa, mina = garplot('Ice1rrx/Ice1rrx' + model + '.nc', 'nolabel', 'purple', 'o')
+maxa, mina = garplot('Ice1r/'   + 'Ice1r'   + suffix + '.nc', 'Ice1r', 'red', 'o')
+maxa, mina = garplot('Ice1rr/'  + 'Ice1rr'  + suffix + '.nc', 'Ice1rr', 'purple', 'o')
+maxa, mina = garplot('Ice1ra/'  + 'Ice1ra'  + suffix + '.nc', 'Ice1ra', 'orange', 'o')
+maxa, mina = garplot('Ice1rrx/' + 'Ice1rrx' + suffix + '.nc', 'nolabel', 'purple', 'o')
 xminplot = mina
-maxa, mina = garplot('Ice1rax/Ice1rax' + model + '.nc', 'nolabel', 'orange', 'o')
+maxa, mina = garplot('Ice1rax/' + 'Ice1rax' + suffix + '.nc', 'nolabel', 'orange', 'o')
 
 plt.ylim([xminplot-2., xmaxplot+2.])
 
 #Ice2
-maxa, mina = garplot('Ice2r/Ice2r' + model + '.nc', 'Ice2r', 'blue', 's')
-maxa, mina = garplot('Ice2rr/Ice2rr' + model + '.nc', 'Ice2rr', 'pink', 's')
-maxa, mina = garplot('Ice2ra/Ice2ra' + model + '.nc', 'Ice2ra', 'yellow', 's')
-maxa, mina = garplot('Ice2rrx/Ice2rrx' + model + '.nc', 'nolabel', 'pink', 's')
-maxa, mina = garplot('Ice2rax/Ice2rax' + model + '.nc', 'nolabel', 'yellow', 's')
+maxa, mina = garplot('Ice2r/'   + 'Ice2r'   + suffix + '.nc', 'Ice2r', 'blue', 's')
+maxa, mina = garplot('Ice2rr/'  + 'Ice2rr'  + suffix + '.nc', 'Ice2rr', 'pink', 's')
+maxa, mina = garplot('Ice2ra/'  + 'Ice2ra'  + suffix + '.nc', 'Ice2ra', 'yellow', 's')
+maxa, mina = garplot('Ice2rrx/' + 'Ice2rrx' + suffix + '.nc', 'nolabel', 'pink', 's')
+maxa, mina = garplot('Ice2rax/' + 'Ice2rax' + suffix + '.nc', 'nolabel', 'yellow', 's')
 
 plt.legend(loc='lower left', ncol=2, frameon=True, borderaxespad=0)
 

@@ -2156,7 +2156,7 @@
                ice_mask,                         &
                land_mask,                        &
                f_ground,                         &
-               beta*scyr,                        &  ! external beta (intent in)
+               beta/scyr,                        &  ! external beta, converted from Pa s/m to Pa yr/m (intent in)
                beta_internal,                    &  ! beta weighted by f_ground (intent inout)
                whichbeta_limit,                  &
                itest = itest, jtest = jtest, rtest = rtest)

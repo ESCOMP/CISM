@@ -117,7 +117,7 @@ contains
 
   subroutine glissade_readconfig(model,config)
 
-    ! read Glide configuration file
+    ! read Glissade configuration file
     ! Note: sigma coordinates are handled by a subsequent call to glissade_read_sigma
  
     use glissade_types
@@ -238,6 +238,13 @@ contains
 !-------------------------------------------------------------------------
     
   subroutine glissade_scale_params(model)
+
+    !TODO - Most of the scaling involves converting input parameters from yr or yr^{-1} to s or s^{-1}.
+    !       Some input parameters are not rescaled here, but are effectively rescaled during calculations
+    !        or subroutine calls, e.g. writing (basal_melt%bmlt_float_omega/scyr) when bmlt_float_omega
+    !        is used in a calculation with MKS units.
+    !       It would be better to have a consistent approach, possibly by removing most of the conversions below.
+
     !> scale parameters
     use glissade_types
     use glimmer_physcon,  only: scyr
@@ -261,13 +268,6 @@ contains
 
     ! scale basal traction parameter
     model%paramets%btrac_const = model%paramets%btrac_const/scyr
-
-    ! scale basal melting parameters (1/yr -> 1/s, or m/yr -> m/s)
-    model%basal_melt%bmlt_float_omega = model%basal_melt%bmlt_float_omega / scyr
-    model%basal_melt%bmlt_float_const = model%basal_melt%bmlt_float_const / scyr
-    model%basal_melt%bmlt_float_depth_meltmax = model%basal_melt%bmlt_float_depth_meltmax / scyr
-    model%basal_melt%bmlt_float_depth_frzmax = model%basal_melt%bmlt_float_depth_frzmax / scyr
-    model%basal_melt%bmlt_float_depth_meltmin = model%basal_melt%bmlt_float_depth_meltmin / scyr
 
     ! scale inversion parameters
     model%inversion%babc_timescale = model%inversion%babc_timescale * scyr    ! convert yr to s
@@ -322,7 +322,7 @@ contains
   subroutine glissade_load_sigma(model,unit)
 
     ! Compute sigma coordinates or read them from a file
-    ! Note: This subroutine is called from glide_initialise or glissade_initialise.
+    ! Note: This subroutine is called from glissade_initialise.
     !       If sigma levels are provided in the config file, then they are read
     !        in by glissade_read_sigma, and model%options%which_sigma is set to
     !        SIGMA_CONFIG, in which case this subroutine does nothing.
@@ -836,7 +836,7 @@ contains
        call write_log(message)
     endif
 
-     !WHL - Written to log in glide_init_diag
+     !WHL - Written to log in glissade_init_diag
 !    write(message,*) 'idiag               : ',model%numerics%idiag
 !    call write_log(message)
 !    write(message,*) 'jdiag               : ',model%numerics%jdiag
@@ -977,7 +977,7 @@ contains
     type(glissade_global_type)  :: model
     character(len=500) :: message
 
-    ! basic Glide/Glimmer options
+    ! basic Glissade options
 
     ! Glissade is the only dycore option here (dycore = 2)
     character(len=*), parameter :: dycore = 'glissade           '  ! finite element
@@ -1307,7 +1307,9 @@ contains
     call write_log(message)
 
     ! Forbidden options for running in parallel
-    if (tasks > 1 .and. (model%options%which_ho_sparse==HO_SPARSE_BICG  .or.  &
+    ! Note: The local SIA solver does not use a sparse linear solver, so which_ho_sparse is ignored.
+    if (tasks > 1 .and. model%options%which_ho_approx /= HO_APPROX_LOCAL_SIA .and.  &
+                        (model%options%which_ho_sparse==HO_SPARSE_BICG  .or.  &
                          model%options%which_ho_sparse==HO_SPARSE_GMRES .or.  &
                          model%options%which_ho_sparse==HO_SPARSE_PCG_INCH) ) then
        call write_log('Error, SLAP solver not supported for more than one processor', GM_FATAL)
@@ -1370,7 +1372,7 @@ contains
     end if
     ! Note: If reading temperature from an input or restart file, the temp_init option is overridden,
     !        in which case it could be confusing here to write the option to the log file.
-    !       The method actually used is written to the log file by glide_init_temp. 
+    !       The method actually used is written to the log file by glissade_init_temp.
 
     if (model%options%whichflwa < 0 .or. model%options%whichflwa >= size(flow_law)) then
        call write_log('Error, flow_law out of range',GM_FATAL)
@@ -3539,7 +3541,7 @@ contains
 
   subroutine define_glissade_restart_variables(model, model_id)
 
-    !> This subroutine analyzes the glide/glissade options input by the user in the config file
+    !> This subroutine analyzes the glissade options input by the user in the config file
     !> and determines which variables are necessary for an exact restart.  MJH 1/11/2013
 
     ! Please comment thoroughly the reasons why a particular variable needs to be a restart variable for a given config.
@@ -3821,7 +3823,6 @@ contains
      endif
 
     ! ==== Other options ====
-    !TODO - Either separate Glissade from Glide options, or just assume the user is running Glissade.
 
     ! internal water option (for enthalpy scheme)
     select case (options%whichtemp)

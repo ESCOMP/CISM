@@ -73,7 +73,7 @@ parser.add_argument('-e', '--exec',   dest='executable',    type=str, default='c
 parser.add_argument('-x', '--expt',   dest='experiment',    type=str, default= 'all',   help="MISMIP+ experiment(s) to set up", metavar="EXPT")
 parser.add_argument('-t', '--tstep',  dest='timestep',      type=float,  default= 0.5,     help="time step (yr)",         metavar="TSTEP")
 parser.add_argument('-r', '--res',    dest='resolution',    type=int,    default= 2000,    help="grid resolution (m)",    metavar="RES")
-parser.add_argument('-v', '--vlevel', dest='vertlevels',    type=int,    default= 3,       help="no. of vertical levels", metavar="VLEVEL")
+parser.add_argument('-v', '--vlevel', dest='vertlevels',    type=int,    default= 5,       help="no. of vertical levels", metavar="VLEVEL")
 parser.add_argument('-a', '--approx', dest='approximation', type=str, default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
 parser.add_argument('-b', '--basal',  dest='basalFriction', type=str, default='Schoof', help="basal friction law (Schoof, Tsai, powerlaw)")
 parser.add_argument('-y', '--year',   dest='yearsSpinup',   type=int,    default= 20000,   help="length of spinup run (yr)")
@@ -173,6 +173,15 @@ config.set('grid', 'upn', str(nz))
 config.set('grid', 'dew', str(dx))
 config.set('grid', 'dns', str(dy))
 config.set('grid', 'global_bc', str(options.global_bc))
+
+# Set the diagnostic cell
+# By default, this cell lies midway along the y-axis, near the right edge of the domain.
+idiag = int(7*nx/8)
+jdiag = int(ny/2)
+config.set('time', 'idiag', str(idiag))
+config.set('time', 'jdiag', str(jdiag))
+print('idiag:',idiag)
+print('jdiag:',jdiag)
 
 # Set Stokes approximation in config file.
 if options.approximation == 'SSA':
@@ -284,7 +293,6 @@ for i in range(nx):
     if x1[i] <= xCalve:
         thk[:,:,i] = initThickness
 
-
 # Set bed topography.
 Ly = yDomain / 1.e3  # m to km
 for i in range(nx):
@@ -361,9 +369,9 @@ for expt in experiments:
     #       Experiments Ice1ra, Ice1rr, Ice2ra and Ice2rr are assumed to end at year 200.
     #       Experiments Ice1rax, Ice1rrx, Ice2rax and Ice2rrx are the optional extensions
     #        from year 200 to year 1000.
-    # Note: Although these experiments read restart files at startup, they are formally 
-    #       cold-start experiments (restart = 0, starting from the 'CF input' file)
-    #       rather than restart experiments (restart = 1, starting from the 'CF restart' file).
+    # Note: With the exception of Spinup, these experiments use hybrid restart option 2.
+    #       This means that they use the restart file from a previous experiment (generally
+    #       with different config options) as their input file.
 
     if (expt == 'Spinup'):
         tstart      = 0.0
@@ -472,6 +480,11 @@ for expt in experiments:
     # For all other experiments, the initial temperature is read from the input/restart file.
     if expt != 'Spinup':
        config.set('options', 'temp_init', '4')
+
+    # The Spinup run is an initialization run (restart = 0).
+    # The other experiments use hybrid restart.
+    if expt != 'Spinup':
+       config.set('options', 'restart', '2')
 
     # Set the time step in the master config file.
     # Set the diagnostic interval to the same value (not necessary, but helpful for debugging).

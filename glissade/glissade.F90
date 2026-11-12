@@ -30,13 +30,6 @@
 @PROCESS OPT(0)
 #endif
 
-!CLEANUP - glissade.F90
-!
-! NOTE: MJH Lines that start with !### are ones I have identified to be deleted.
-!
-! This module was originally copied from glide.F90 (William Lipscomb, June 2012)
-! Removed SIA-specific code, leaving only the HO code with remapping transport.
-!
 ! +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ! +                                                           +
 ! +  glissade.f90 - part of the CISM ice model        + 
@@ -77,10 +70,6 @@ module glissade
 
 contains
 
-!=======================================================================
-
-! Note: There is no glissade_config subroutine; glide_config works for all dycores.
-!       glide_config is called from cism_init_dycore before glissade_initialise.
 !=======================================================================
 
   subroutine glissade_initialise(model, evolve_ice)
@@ -678,7 +667,7 @@ contains
 
        ! If running with glaciers, then process the input glacier data and initialize glacier arrays
 
-       ! Note: On start-up, this subroutine counts the glaciers.  It should be called before glide_io_createall,
+       ! Note: On start-up, this subroutine counts the glaciers.  It should be called before glissade_io_createall,
        !       which needs to know nglacier to set up glacier output files with the right dimensions.
        !       On restart, most of the required glacier arrays are in the restart file, and this subroutine
        !       computes a few remaining variables.
@@ -698,10 +687,8 @@ contains
     call openall_out(model%funits, model%options%is_restart, model%projection, &
                      model%numerics%tstart, model%numerics%tstep_count)
 
-    ! create glide I/O variables
+    ! create glissade I/O variables
     call glissade_io_createall(model, model)
-
-    ! initialize glissade components
 
     ! Initialize basal hydrology, if needed
     call glissade_basal_water_init(model)
@@ -1587,12 +1574,6 @@ contains
     ! ------------------------------------------------------------------------ 
     ! Calculate ice thickness and tracer evolution, including horizontal transport and surface and basal mass balance.
     ! MJH: This subroutine uses velocity from the previous time step, which is appropriate for a Forward Euler time-stepping scheme.
-    ! WHL: We used to have EVOL_NO_THICKNESS = -1 as a Glide option, used to hold the ice surface elevation fixed during CESM runs. 
-    !      This option has been replaced by a Glint/Glad option, evolve_ice.
-    !      We now have EVOL_NO_THICKESS = 5 as a glissade option.  It is used to hold the ice surface elevation fixed
-    !       while allowing temperature to evolve, which can be useful for model spinup.  This option might need more testing.
-    ! Note: This subroutine calls glissade_inversion_bmlt_float, because it is convenient to invert for bmlt_float
-    !       after horizontal transport and before applying the surface and basal mass balance.
     ! ------------------------------------------------------------------------ 
 
     use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_tracers,  &

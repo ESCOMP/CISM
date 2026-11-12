@@ -322,7 +322,7 @@ def main():
                 # NOTE: The cases below are only writing [x,y,u,v] to the text file.  This is the
                 # minimum needed to compare to other models.  In the future, the other additional
                 # fields specified in section 4 of
-                #     http://homepages.ulb.ac.be/~fpattyn/ismip/ismiphom.pdf 
+                #     the ISMIP-HOM experiment description (see https://doi.org/10.5194/tc-2-95-2008)
                 # can be added.  wvel and the stresses are on the x1,y1 grid, so they would need to
                 # be interpolated to the x0,y0 grid since we are using that as the coordinate system
                 # in the text files.
@@ -585,7 +585,7 @@ def main():
 
                 # Calculate statistics of the other model results
                 if sum(count) == 0:
-                    print( 'To compare with other models you need to download the ISMIP-HOM results from: http://www.the-cryosphere.net/2/95/2008/tc-2-95-2008-supplement.zip and unzip the contained file tc-2007-0019-sp2.zip into a directory named ismip_all.  The ismip_all directory must be in the directory from which you are running this script.')
+                    print( 'To compare with other models you need to download the ISMIP-HOM results from: https://tc.copernicus.org/articles/2/95/2008/tc-2-95-2008-supplement.zip and unzip the contained file tc-2007-0019-sp2.zip, which creates a directory named ismip_all.  The ismip_all directory must be in the directory from which you are running this script.')
                 else:
                     # Find the mean and standard deviation of the velocities at each x
                     for index in (firstOrder,fullStokes):
@@ -753,7 +753,7 @@ def main():
 
                     # Calculate statistics of the other model results
                     if sum(count) == 0:
-                        print( 'To compare with other models you need to download the ISMIP-HOM results from: http://www.the-cryosphere.net/2/95/2008/tc-2-95-2008-supplement.zip and unzip the contained file tc-2007-0019-sp2.zip into a directory named ismip_all.  The ismip_all directory must be in the directory from which you are running this script.')
+                        print( 'To compare with other models you need to download the ISMIP-HOM results from: https://tc.copernicus.org/articles/2/95/2008/tc-2-95-2008-supplement.zip and unzip the contained file tc-2007-0019-sp2.zip, which creates a directory named ismip_all.  The ismip_all directory must be in the directory from which you are running this script.')
                     else:
                         # Find the mean and standard deviation of the velocities at each x
                         for index in (firstOrder,fullStokes):

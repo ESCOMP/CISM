@@ -249,8 +249,8 @@ module glissade_bmlt_float
 
              if (floating_mask(i,j) == 1 .or. ocean_mask(i,j) == 1) then   ! ice is present and floating, or ice-free ocean
 
-                ! Note: For MISMIP+ experiment Ice2r, melting is masked out where x < 480 km
-
+                ! Note: For MISMIP+ experiment Ice2r, melting is masked out where x < 480 km.
+                !       bmlt_float_const has units of m/yr; divide here by scyr to convert to m/s.
                 if (abs(x1(i)) >= basal_melt%bmlt_float_xlim) then   ! melting is allowed
                    bmlt_float(i,j) = basal_melt%bmlt_float_const/scyr
                 endif
@@ -320,6 +320,7 @@ module glissade_bmlt_float
        ! The freezing rate is set to a maximum value where z_draft >= zfrzmax,
        !  then decreases linearly to 0 as z_draft decreases from zfrzmax to zmelt0.
        ! (Here, z_draft < 0 by definition.)
+       ! Note: The melt parameters below have units of m/y; conversion to m/s is done below.
 
        ! Compute ramp factors
        ! These factors are set to avoid divzero whe zmelt0 = zmeltmax, or zmelt0 = zfrzmax
@@ -354,7 +355,7 @@ module glissade_bmlt_float
                            + (basal_melt%bmlt_float_depth_meltmax - basal_melt%bmlt_float_depth_meltmin) *  &
                            (z_draft - basal_melt%bmlt_float_depth_zmeltmin) &
                            / (basal_melt%bmlt_float_depth_zmeltmax - basal_melt%bmlt_float_depth_zmeltmin)
-                   elseif (z_draft <= basal_melt%bmlt_float_depth_meltmax) then
+                   elseif (z_draft <= basal_melt%bmlt_float_depth_zmeltmax) then
                       ! max melting
                       bmlt_float(i,j) = basal_melt%bmlt_float_depth_meltmax
                    endif
@@ -372,7 +373,7 @@ module glissade_bmlt_float
                       ! melting with a linear taper from meltmax to zero
                       bmlt_float(i,j) = basal_melt%bmlt_float_depth_meltmax * &
                            melt_ramp_factor * (basal_melt%bmlt_float_depth_zmelt0 - z_draft)
-                   elseif (z_draft <= basal_melt%bmlt_float_depth_meltmax) then
+                   elseif (z_draft <= basal_melt%bmlt_float_depth_zmeltmax) then
                       ! max melting
                       bmlt_float(i,j) = basal_melt%bmlt_float_depth_meltmax
                    endif

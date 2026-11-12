@@ -50,10 +50,9 @@ module glissade_types
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   ! Constants that describe the options available
-  ! We use these integer parameters elsewhere in the code to avoid
-  !  hardwiring of option numbers
+  ! We use these integer parameters elsewhere in the code to avoid hardwiring of option numbers
 
-  ! basic Glimmer/Glide options
+  ! basic options
 
   integer, parameter :: GLOBAL_BC_PERIODIC = 0  ! doubly periodic
   integer, parameter :: GLOBAL_BC_OUTFLOW = 1   ! free outflow; scalars in global halo set to zero
@@ -892,7 +891,7 @@ module glissade_types
     !> \item[4] L2 norm of system residual relative to rhs, |Ax-b|/|b|
     !> \end{description}
 
-    integer :: which_ho_sparse = 0
+    integer :: which_ho_sparse = HO_SPARSE_PCG_CHRONGEAR
     !> Flag that indicates method for solving the sparse linear system
     !> that arises from the higher-order solver
     !> \begin{description}
@@ -900,7 +899,7 @@ module glissade_types
     !> \item[0]  SLAP (serial): Biconjugate gradient, incomplete LU preconditioner
     !> \item[1]  SLAP (serial): GMRES, incomplete LU preconditioner
     !> \item[2] Native PCG, parallel-enabled, standard solver
-    !> \item[3] Native PCG, parallel-enabled, Chronopoulos-Gear solver
+    !> \item[3] Native PCG, parallel-enabled, Chronopoulos-Gear solver (default)
     !> \end{description}
 
     integer :: which_ho_approx = 2 
@@ -1279,7 +1278,7 @@ module glissade_types
 
   type glissade_velocity_type
 
-    !> Holds the velocity fields in 2D and 3D. Some of these fields are defined only in Glide.
+    !> Holds the velocity fields in 2D and 3D.
     real(dp),dimension(:,:,:),pointer :: uvel  => null()   !> 3D $x$-velocity.
     real(dp),dimension(:,:,:),pointer :: vvel  => null()   !> 3D $y$-velocity.
     real(dp),dimension(:,:,:),pointer :: velnorm => null() ! horizontal ice speed
@@ -1726,7 +1725,7 @@ module glissade_types
                                                     !> similar to bmlt_float_h0, which is used specifically for MISMIP+
 
      ! MISMIP+ parameters for Ice1 experiments (BMLT_FLOAT_MISMIP)
-     ! Note: Parameters with units yr^{-1} are scaled to s^{-1} in subroutine glide_scale_params
+     ! Note: Parameters with units yr^{-1} are scaled to s^{-1} when used in the code
      real(dp) :: bmlt_float_omega = 0.2d0           !> time scale for basal melting (yr-1)
                                                     !> default value = 0.2 yr^{-1} for MISMIP+ Ice1r
      real(dp) :: bmlt_float_h0 = 75.d0              !> scale for sub-shelf cavity thickness (m)

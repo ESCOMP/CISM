@@ -346,16 +346,21 @@ y0[:] = y[:-1] + dy/2.   # x = -R,..., -dy, 0, dy,..., R
 # Set SMB
 acab[:,:,:] = accum
 
+# Note: thk and topg are computed in numpy arrays and written to the file once.
+#       Reading and writing netCDF variables one element at a time is very slow.
+
 # Set initial thickness
-thk[:,:,:] = 0.
+thk_arr = np.zeros((ny,nx), dtype='float32')
 
 for i in range(0,nx):
     for j in range(0,ny):
         # Find the distance d from the origin to the cell center.
         # If d <= cf_radius, then put ice in the cell with thk = initThickness, else set thk = 0
-        d = np.sqrt(x1[i]**2 + y1[j]**2)
+        d = np.sqrt(x[i]**2 + y[j]**2)
         if d <= cf_radius:
-            thk[:,j,i] = initThickness
+            thk_arr[j,i] = initThickness
+
+thk[0,:,:] = thk_arr
 
 # Set circular bed topography
 #  Enforce symmetry across each axis by setting all values with positive x
@@ -364,13 +369,15 @@ for i in range(0,nx):
 #   (~8th significant digit) between cell pairs on either side of the x- and y-axes,
 #   breaking the exact symmetry of the domain.
 
-topg[:,:,:] = 0.
+topg_arr = np.zeros((ny,nx), dtype='float32')
 for i in range(0,nx):
     for j in range(0,ny):
-        topg[:,j,i] = computeBedCircular(x1[i], y1[j], R, Bc_circ, Bl_circ)
-        topg[0,j,nx-i-1] = topg[0,j,i]
-        topg[0,ny-j-1,i] = topg[0,j,i]
-        topg[0,ny-j-1,nx-i-1] = topg[0,j,i]
+        topg_arr[j,i] = computeBedCircular(x[i], y[j], R, Bc_circ, Bl_circ)
+        topg_arr[j,nx-i-1] = topg_arr[j,i]
+        topg_arr[ny-j-1,i] = topg_arr[j,i]
+        topg_arr[ny-j-1,nx-i-1] = topg_arr[j,i]
+
+topg[0,:,:] = topg_arr
 
 # Close the file 
 ncfile.close()
@@ -392,13 +399,15 @@ ncfile = Dataset(inputfileThule, 'r+')
 #    for j in range(0,ny):
 #        topg[:,j,i] = computeBedThule(x1[i], y1[j], R, Bc_thule, Bl_thule, Ba_thule)
 
-ncfile['topg'][:,:,:] = 0.
+topg_arr = np.zeros((ny,nx), dtype='float32')
 for i in range(0,nx//2):
     for j in range(0,ny//2):
-        ncfile['topg'][:,j,i] = computeBedThule(ncfile['x1'][i], ncfile['y1'][j], R, Bc_thule, Bl_thule, Ba_thule)
-        ncfile['topg'][0,j,nx-i-1] = ncfile['topg'][0,j,i]
-        ncfile['topg'][0,ny-j-1,i] = ncfile['topg'][0,j,i]
-        ncfile['topg'][0,ny-j-1,nx-i-1] = ncfile['topg'][0,j,i]
+        topg_arr[j,i] = computeBedThule(x[i], y[j], R, Bc_thule, Bl_thule, Ba_thule)
+        topg_arr[j,nx-i-1] = topg_arr[j,i]
+        topg_arr[ny-j-1,i] = topg_arr[j,i]
+        topg_arr[ny-j-1,nx-i-1] = topg_arr[j,i]
+
+ncfile['topg'][0,:,:] = topg_arr
 
 # Close the file
 ncfile.close()
@@ -577,7 +586,7 @@ for expt in experiments:
         config.set('CF output1', 'name',      outputfile)
         config.set('CF output1', 'frequency', str(outputfreq))
         config.set('CF output1', 'variables',
-                   'thk topg usurf lsurf calving_flux_tavg ice_mask grounded_mask floating_mask ice_mask_stag f_ground_cell effective_areafrac')
+                   'thk topg usurf lsurf ice_mask grounded_mask floating_mask ice_mask_stag f_ground_cell effective_areafrac')
 #        print('Output file:', outputfile)
 
         # fields on the x0 grid
@@ -597,6 +606,16 @@ for expt in experiments:
         # Do not write initial output, since scalar output values may not be computed until
         #  after the first timestep.
         config.set('CF output3', 'write_init', 'False')
+#        print('Output file:', outputfile)
+
+        # time-averaged fields on the x1 grid
+        # Note: Time-averaged fields must be in a different output file from snapshot fields.
+        config.add_section('CF output4')
+        outputfile = 'calvingMIP.' + expt + '.out.tavg.x1.nc'
+        config.set('CF output4', 'name',      outputfile)
+        config.set('CF output4', 'frequency', str(outputfreq))
+        config.set('CF output4', 'variables', 'calving_flux_tavg')
+        config.set('CF output4', 'write_init', 'False')
 #        print('Output file:', outputfile)
 
 
