@@ -68,7 +68,6 @@ contains
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
     use glide
-    use glissade
     use glide_io
     use glint_upscale, only: glint_upscaling
     use glint_mbal_coupling
@@ -276,19 +275,11 @@ contains
 
           if (instance%evolve_ice == EVOLVE_ICE_TRUE) then
 
-             if (instance%model%options%whichdycore == DYCORE_GLIDE) then
+             call glide_tstep_p1(instance%model,instance%glide_time)
 
-                call glide_tstep_p1(instance%model,instance%glide_time)
+             call glide_tstep_p2(instance%model)
 
-                call glide_tstep_p2(instance%model)
-
-                call glide_tstep_p3(instance%model)
-
-             else   ! glam/glissade dycore
-
-                call glissade_tstep(instance%model,instance%glide_time)
-
-             endif
+             call glide_tstep_p3(instance%model)
 
           endif   ! evolve_ice
 
@@ -502,7 +493,6 @@ contains
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
     use glide
-    use glissade
     use glide_io
     use glint_downscale, only: glint_accumulate_input_gcm, glint_average_input_gcm
     use glint_upscale, only: glint_accumulate_output_gcm
@@ -655,19 +645,11 @@ contains
 
           if (instance%evolve_ice == EVOLVE_ICE_TRUE) then
 
-             if (instance%model%options%whichdycore == DYCORE_GLIDE) then
- 
-                call glide_tstep_p1(instance%model, instance%glide_time)
+             call glide_tstep_p1(instance%model, instance%glide_time)
 
-                call glide_tstep_p2(instance%model)
- 
-                call glide_tstep_p3(instance%model)
+             call glide_tstep_p2(instance%model)
 
-             else   ! glam/glissade dycore
-
-                call glissade_tstep(instance%model, instance%glide_time)
-
-             endif
+             call glide_tstep_p3(instance%model)
 
           endif  ! evolve_ice
 

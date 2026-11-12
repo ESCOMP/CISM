@@ -167,7 +167,6 @@ contains
  
     use glimmer_paramets, only: unphys_val
     use glimmer_physcon, only: scyr, rhoi, shci
-    use glissade_utils, only: glissade_usrf_to_thck, glissade_rms_error
 
     implicit none
  
@@ -197,30 +196,8 @@ contains
          thck_floating,                 &    ! thickness of floating ice
          thck_above_flotation,          &    ! thickness above flotation
          tot_energy,                    &    ! total ice energy (J)
-         tot_smb_flux,                  &    ! total surface mass balance flux (kg/s)
-         tot_smb_cpl_flux,              &    ! total SMB flux received from the coupler (kg/s)
-         tot_smb_unapplied_glad_flux,   &    ! total SMB flux zeroed by GLAD (kg/s)
-         tot_smb_unapplied_flux,        &    ! total SMB flux passed to the dycore but not applied (kg/s)
-         tot_bmb_flux,                  &    ! total basal mass balance flux (kg/s)
-         tot_calving_flux,              &    ! total calving flux (kg/s)
-         tot_latmelt_flux,              &    ! total latmelt flux (kg/s)
-         tot_removal_flux,              &    ! total removal flux (kg/s)
-         tot_gl_flux,                   &    ! total grounding line flux (kg/s)
-         tot_acab,                      &    ! total surface accumulation/ablation rate (m^3/yr)
-         tot_bmlt,                      &    ! total basal melt rate (m^3/yr)
-         tot_calving,                   &    ! total calving rate (m^3/yr)
-         tot_latmelt,                   &    ! total lateral melt rate (m^3/yr)
-         tot_removal,                   &    ! total removal rate (m^3/yr)
-         tot_dmass_dt,                  &    ! rate of change of total mass (kg/s)
-         err_dmass_dt,                  &    ! mass conservation error (kg/s)
-                                             ! given by dmass_dt - (tot_acab - tot_bmlt - tot_calving)
          mean_thck,                     &    ! mean ice thickness (m)
          mean_temp,                     &    ! mean ice temperature (deg C)
-         mean_acab,                     &    ! mean surface accumulation/ablation rate (m/yr)
-         mean_bmlt,                     &    ! mean basal melt (m/yr)
-         mean_calving,                  &    ! mean calving (m/yr)
-         mean_latmelt,                  &    ! mean latmelt (m/yr)
-         mean_removal,                  &    ! mean removal (m/yr)
          max_thck, max_thck_global,     &    ! max ice thickness (m)
          max_temp, max_temp_global,     &    ! max ice temperature (deg C)
          min_temp, min_temp_global,     &    ! min ice temperature (deg C)
@@ -238,16 +215,13 @@ contains
          bmlt_diag, bwat_diag,          &
          bheatflx_diag,                 &
          top_age_diag, bot_age_diag,    &
-         level,                         &
-         rmse_thck, rmse_velo,          &    ! rms errors for ice thickness (m) and surface speed (m/yr)
-         factor                              ! unit conversion factor
+         level
 
     integer, dimension(model%general%ewn,model%general%nsn) ::  &
          ice_mask,                 & ! = 1 where ice is present with thck > minthck, else = 0
          floating_mask,            & ! = 1 where ice is present and floating, else = 0
          grounded_mask,            & ! = 1 where ice is present and grounded, else = 0
-         ice_cap_mask,             & ! = 1 where an ice cap is present, else = 0
-         glacier_ice_mask            ! = 1 where glacier ice is present, initially and/or currently
+         ice_cap_mask                ! = 1 where an ice cap is present, else = 0
 
     integer, dimension(model%general%ewn-1,model%general%nsn-1) ::  &
          stag_ice_mask               ! staggered mask; = 1 if ice_mask = 1 for any of the four neighbors
@@ -263,22 +237,8 @@ contains
     real(dp), dimension(model%lithot%nlayer) ::  &
          lithtemp_diag                       ! lithosphere column diagnostics
 
-    ! glacier diagnostics
-    real(dp) :: &
-         tot_glc_area_init, tot_glc_area,     & ! total glacier area, initial and current (km^2)
-         tot_glc_volume_init, tot_glc_volume, & ! total glacier volume, initial and current (km^3)
-         tot_glc_area_init_extent,            & ! glacier area summed over the initial extent (km^2)
-         tot_glc_volume_init_extent,          & ! glacier volume summed over the initial extent (km^3)
-         tot_glc_area_target,                 & ! target glacier area for inversion (km^2)
-         tot_glc_volume_target,               & ! target glacier volume for inversion (km^3)
-         glc_rmse_thck,                       & ! root mean square value of thck - thck_target
-         glc_rmse_thck_init_extent              ! as above, but within initial extent
-
     integer :: &
-         count_area, count_volume               ! number of glaciers with nonzero area and volume
-
-    integer :: &
-         i, j, k, nb, ng,                   &
+         i, j, k, nb,                       &
          ktop, kbed,                        &
          imax, imin,                        &
          jmax, jmin,                        &
@@ -292,11 +252,7 @@ contains
          velo_ew_ubound, velo_ns_ubound          ! upper bounds for velocity variables
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-         volume_above_flotation,& ! ice volue above flotation (m^3)
-         thck_obs                 ! observed ice thickness (m), derived from usrf_obs and topg
-
-    real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::  &
-         velo_sfc               ! surface ice speed (m/s)
+         volume_above_flotation   ! ice volue above flotation (m^3)
 
     real(dp), dimension(model%general%upn, model%general%ewn, model%general%nsn) ::  &
          local_energy           ! internal energy (J) per layer in a column
@@ -554,133 +510,6 @@ contains
 
     endif   ! nbasin > 1
 
-    ! For Glissade only, compute a global mass budget and check mass conservation
-
-    if (model%options%whichdycore == DYCORE_GLISSADE) then
-
-       ! total surface accumulation/ablation rate (m^3/yr ice)
-       tot_acab = parallel_global_sum(model%climate%acab_applied*cell_area, parallel)
-       tot_acab = tot_acab * scyr                ! convert from m^3/s to m^3/yr
-
-       ! total surface mass balance flux (kg/s)
-       tot_smb_flux = tot_acab * rhoi / scyr     ! convert m^3/yr to kg/s
-
-       ! SMB budget terms for coupled runs (kg/s): SMB received from the coupler, the part zeroed by GLAD,
-       !  and the part passed to the dycore but not applied.
-       ! These are zero for standalone runs.
-       ! Note: tot_smb_cpl_flux = tot_smb_flux + tot_smb_unapplied_glad_flux + tot_smb_unapplied_flux
-       tot_smb_cpl_flux = parallel_global_sum(model%climate%acab_cpl*cell_area, parallel) * rhoi
-       tot_smb_unapplied_glad_flux = parallel_global_sum(model%climate%acab_unapplied_glad*cell_area, parallel) * rhoi
-       tot_smb_unapplied_flux = parallel_global_sum(model%climate%acab_unapplied*cell_area, parallel) * rhoi
-
-       ! mean accumulation/ablation rate (m/yr)
-       ! Note: This will be only approximate if some ice has melted completely during the time step
-       if (tot_area > eps) then
-          mean_acab = tot_acab/tot_area    ! divide by total area to get m/yr
-       else
-          mean_acab = 0.d0
-       endif
-
-       ! total basal melting rate (positive for ice loss)
-       tot_bmlt = parallel_global_sum(model%basal_melt%bmlt_applied*cell_area, parallel)
-       tot_bmlt = tot_bmlt * scyr                ! convert from m^3/s to m^3/yr
-
-       ! total basal mass balance (kg/s, positive for freeze-on, negative for melt)
-       tot_bmb_flux = -tot_bmlt * rhoi / scyr   ! convert m^3/yr to kg/s
-
-       ! mean basal melt rate (m/yr)
-       ! Note: This will be only approximate if some ice has melted completely during the time step
-       if (tot_area > eps) then
-          mean_bmlt = tot_bmlt/tot_area    ! divide by total area to get m/yr
-       else
-          mean_bmlt = 0.d0
-       endif
-
-       ! total calving rate (m^3/yr ice)
-       ! Note: calving%calving_rate has units of m/yr ice
-       tot_calving = parallel_global_sum(model%calving%calving_rate*cell_area, parallel)
-
-       ! total calving mass balance flux (kg/s, negative for ice loss by calving)
-       tot_calving_flux = -tot_calving * rhoi / scyr   ! convert m^3/yr to kg/s
-
-       ! mean calving rate (m/yr)
-       ! Note: This will be only approximate if some ice has calved completely during the time step
-       if (tot_area > eps) then
-          mean_calving = tot_calving/tot_area    ! divide by total area to get m/yr
-       else
-          mean_calving = 0.d0
-       endif
-
-       ! total lateral melt rate (m^3/yr ice)
-       ! Note: latmelt_rate has units of m/yr ice
-       tot_latmelt = parallel_global_sum(model%lateral_melt%latmelt_rate*cell_area, parallel)
-
-       ! total lateral melt mass balance flux (kg/s, negative for ice loss by melting)
-       tot_latmelt_flux = -tot_latmelt * rhoi/scyr    ! convert m^3/yr to kg/s
-
-       ! mean lateral melt rate (m/yr)
-       ! Note: This will be only approximate if some ice has melted completely during the time step
-       if (tot_area > eps) then
-          mean_latmelt = tot_latmelt/tot_area    ! divide by total area to get m/yr
-       else
-          mean_latmelt = 0.d0
-       endif
-
-       ! total ice removal rate (m^3/yr ice)
-       ! Note: geometry%removal_rate has units of m/yr ice
-       tot_removal = parallel_global_sum(model%geometry%removal_rate*cell_area, parallel)
-
-       ! total removal mass balance flux (kg/s, negative for ice removed)
-       tot_removal_flux = -tot_removal * rhoi / scyr   ! convert m^3/yr to kg/s
-
-       ! mean removal rate (m/yr)
-       if (tot_area > eps) then
-          mean_removal = tot_removal/tot_area    ! divide by total area to get m/yr
-       else
-          mean_removal = 0.d0
-       endif
-
-       ! total grounding line mass balance flux (< 0 by definition)
-       ! Note: At this point, gl_flux_east and gl_flux_north are already dimensionalized in kg/m/s,
-       !       so tot_gl_flux will have units of kg/s
-       tot_gl_flux = parallel_global_sum(abs(model%mass_flux%gl_flux_east)  * model%numerics%dns  &
-                                       + abs(model%mass_flux%gl_flux_north) * model%numerics%dew, &
-                                       parallel)
-       tot_gl_flux = (-1.0d0)*tot_gl_flux   ! negative by definition
-
-       ! total rate of change of ice mass (kg/s)
-       ! Note: dthck_dt has units of m/s
-       !TODO: Change this calculation to use the total mass of ice in the global domain
-       !       in successive time steps, instead of summing over dthck_dt.
-       !      Note that dthck_dt does not account for global outflow fluxes (i.e., removal of ice
-       !       near the global boundary in halo updates).
-       tot_dmass_dt = parallel_global_sum(model%geometry%dthck_dt*cell_area, parallel)
-       tot_dmass_dt = tot_dmass_dt * rhoi              ! convert to kg/s
-
-       ! mass conservation error
-       ! Note: For most runs, this should be close to zero.
-
-       err_dmass_dt = tot_dmass_dt - &
-            (tot_smb_flux + tot_bmb_flux + tot_calving_flux + tot_latmelt_flux + tot_removal_flux)
-
-       ! copy some global scalars to the mass_flux derived type
-       ! Note: These have SI units (e.g, m^2 for area, m^3 for volume)
-       model%mass_flux%total_smb_flux = tot_smb_flux
-       model%mass_flux%total_smb_cpl_flux = tot_smb_cpl_flux
-       model%mass_flux%total_smb_unapplied_glad_flux = tot_smb_unapplied_glad_flux
-       model%mass_flux%total_smb_unapplied_flux = tot_smb_unapplied_flux
-       model%mass_flux%total_bmb_flux = tot_bmb_flux
-       model%mass_flux%total_calving_flux = tot_calving_flux
-       model%mass_flux%total_latmelt_flux = tot_latmelt_flux
-       model%mass_flux%total_removal_flux = tot_removal_flux
-
-       ! Note: The total mass budget consists of the five terms above.
-       !       The GL flux is not part of the mass budget, since any ice fluxed across the GL
-       !        is not added or lost, but simply changes from grounded to floating.
-       model%mass_flux%total_gl_flux = tot_gl_flux
-
-    endif  ! Glissade dycore
-
     ! write global sums and means to log file
 
     write(message,'(a25,e24.16)') 'Total ice area (km^2)    ',   &
@@ -737,127 +566,6 @@ contains
                                       tot_vol_ice_caps*1.0d-9   ! convert to km^3
        call write_log(trim(message), type = GM_DIAGNOSTIC)
     endif
-
-    if (model%options%whichdycore == DYCORE_GLISSADE) then
-
-       if (model%options%dm_dt_diag == DM_DT_DIAG_KG_S) then
-
-          write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          if (abs(tot_smb_cpl_flux) > 0.0d0) then   ! coupled run
-             write(message,'(a25,e24.16)') 'SMB flux from cpl (kg/s) ', tot_smb_cpl_flux
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-             write(message,'(a25,e24.16)') 'SMB zeroed by GLAD (kg/s)', tot_smb_unapplied_glad_flux
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-             write(message,'(a25,e24.16)') 'SMB unapplied (kg/s)     ', tot_smb_unapplied_flux
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          write(message,'(a25,e24.16)') 'Total BMB flux (kg/s)    ', tot_bmb_flux
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          if (abs(tot_latmelt_flux) > eps11) then
-             write(message,'(a25,e24.16)') 'Total latmelt flux (kg/s)', tot_latmelt_flux
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          if (abs(tot_removal_flux) > eps11) then
-             write(message,'(a25,e24.16)') 'Total removal flux (kg/s)', tot_removal_flux
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          if (tot_bmlt_float > eps11) then
-             write(message,'(a25,e24.16)') 'Total bmlt_float (kg/s)  ', tot_bmlt_float
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          if (tot_bmlt_float_target > eps11) then
-             write(message,'(a25,e24.16)') 'Target bmlt_float (kg/s)', tot_bmlt_float_target
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          write(message,'(a25,e24.16)') 'Total dmass/dt (kg/s)    ', tot_dmass_dt
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a25,e24.16)') 'dmass/dt error (kg/s)    ', err_dmass_dt
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_Y) then
-
-          factor = scyr / 1.0d12
-
-          write(message,'(a25,e24.16)') 'Total SMB flux (Gt/y)    ', tot_smb_flux * factor
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          if (abs(tot_smb_cpl_flux) > 0.0d0) then   ! coupled run
-             write(message,'(a25,e24.16)') 'SMB flux from cpl (Gt/y) ', tot_smb_cpl_flux * factor
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-             write(message,'(a25,e24.16)') 'SMB zeroed by GLAD (Gt/y)', tot_smb_unapplied_glad_flux * factor
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-             write(message,'(a25,e24.16)') 'SMB unapplied (Gt/y)     ', tot_smb_unapplied_flux * factor
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          write(message,'(a25,e24.16)') 'Total BMB flux (Gt/y)    ', tot_bmb_flux * factor
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a25,e24.16)') 'Total calving flux (Gt/y)', tot_calving_flux * factor
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          if (abs(tot_latmelt_flux) > eps11) then
-             write(message,'(a25,e24.16)') 'Total latmelt flux (Gt/y)', tot_latmelt_flux * factor
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          if (abs(tot_removal_flux) > eps11) then
-             write(message,'(a25,e24.16)') 'Total removal flux (Gt/y)', tot_removal_flux * factor
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          if (tot_bmlt_float > eps11) then
-             write(message,'(a25,e24.16)') 'Total bmlt_float (Gt/y)  ', tot_bmlt_float * factor
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          if (tot_bmlt_float_target > eps11) then
-             write(message,'(a25,e24.16)') 'Target bmlt_float (Gt/y) ', tot_bmlt_float_target * factor
-             call write_log(trim(message), type = GM_DIAGNOSTIC)
-          endif
-
-          write(message,'(a25,e24.16)') 'Total dmass/dt (Gt/y)    ', tot_dmass_dt * factor
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a25,e24.16)') 'dmass/dt error (Gt/y)    ', err_dmass_dt * factor
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a25,e24.16)') 'Total gr line flux (Gt/y)', tot_gl_flux * factor
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       endif   ! dm_dt_diag
-
-!       write(message,'(a25,e24.16)') 'Mean accum/ablat (m/yr)  ', mean_acab
-!       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-!       write(message,'(a25,e24.16)') 'Mean basal melt (m/yr)   ', mean_bmlt
-!       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-!       write(message,'(a25,e24.16)') 'Mean calving (m/yr)      ', mean_calving
-!       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-!       write(message,'(a25,e24.16)') 'Mean latmelt (m/yr)      ', mean_latmelt
-!       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-!       write(message,'(a25,e24.16)') 'Mean removal (m/yr)      ', mean_removal
-!       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-    endif  ! Glissade dycore
 
     write(message,'(a25,f24.16)') 'Mean thickness (m)       ', mean_thck
     call write_log(trim(message), type = GM_DIAGNOSTIC)
@@ -1071,52 +779,6 @@ contains
                     max_spd_bas_global*scyr, imax_global, jmax_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    !-----------------------------------------------------------------
-    ! Optionally, compute the rms_error of model thickness and surface speed
-    ! compared to observations.
-    ! TODO - Instead of ice_mask, use a mask that also includes cells
-    !        which are ice-free in the model but ice-covered in observations
-    !-----------------------------------------------------------------
-
-    if (.not.parallel_is_zero(model%geometry%usrf_obs)) then
-
-       call glissade_usrf_to_thck(&
-            model%geometry%usrf_obs,      &
-            model%geometry%topg,          &
-            model%climate%eus,            &
-            thck_obs)
-
-       call glissade_rms_error(&
-            ewn,            nsn,          &
-            ice_mask,                     &
-            parallel,                     &
-            model%geometry%thck,          &  ! m
-            thck_obs,                     &  ! m
-            rmse_thck)
-
-       write(message,'(a25,f24.16)') 'rms error, thickness (m) ', rmse_thck
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-    endif
-
-    if (.not.parallel_is_zero(model%velocity%velo_sfc_obs)) then
-
-       velo_sfc = sqrt(model%velocity%uvel(1,:,:)**2   &
-                     + model%velocity%vvel(1,:,:)**2)
-
-       call glissade_rms_error(&
-            ewn-1,          nsn-1,              &
-            stag_ice_mask,                      &
-            parallel,                           &
-            velo_sfc * scyr,                    &  ! m/yr
-            model%velocity%velo_sfc_obs * scyr, &  ! m/yr
-            rmse_velo)
-
-       write(message,'(a25,f24.16)') 'rms error, sfc spd (m/y) ', rmse_velo
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-    endif
-
     ! local diagnostics
 
     ! initialize to unphysical negative values
@@ -1317,205 +979,6 @@ contains
     endif     ! idiag_local and jdiag_local in bounds
 
     call write_log(' ')
-
-    ! glacier diagnostics
-
-    if (model%options%enable_glaciers) then
-
-       tot_glc_area = 0.0d0
-       tot_glc_volume = 0.0d0
-       tot_glc_area_init = 0.0d0
-       tot_glc_volume_init = 0.0d0
-       tot_glc_area_init_extent = 0.0d0
-       tot_glc_volume_init_extent = 0.0d0
-       count_area = 0
-       count_volume = 0
-
-       do ng = 1, model%glacier%nglacier
-          tot_glc_area = tot_glc_area + model%glacier%area(ng)
-          tot_glc_volume = tot_glc_volume + model%glacier%volume(ng)
-          tot_glc_area_init = tot_glc_area_init + model%glacier%area_init(ng)
-          tot_glc_volume_init = tot_glc_volume_init + model%glacier%volume_init(ng)
-          tot_glc_area_init_extent = tot_glc_area_init_extent + model%glacier%area_init_extent(ng)
-          tot_glc_volume_init_extent = tot_glc_volume_init_extent + model%glacier%volume_init_extent(ng)
-          if (model%glacier%area(ng) > eps) then
-             count_area = count_area + 1
-          endif
-          if (model%glacier%volume(ng) > eps) then
-             count_volume = count_volume + 1
-          endif
-       enddo
-
-       ! Copy selected scalars into the derived type
-       model%glacier%total_area = tot_glc_area
-       model%glacier%total_volume = tot_glc_volume
-       model%glacier%nglacier_active = count_area
-
-       ! Write some total glacier diagnostics
-
-       write(message,'(a25)') 'Glacier diagnostics: '
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       call write_log(' ')
-
-       write(message,'(a35,i14)')   'Number of glaciers                 ', &
-            model%glacier%nglacier
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,i14)')   'Glaciers with nonzero area         ', &
-            count_area
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,i14)')   'Glaciers with nonzero volume       ', &
-            count_volume
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,f14.6)') 'Total glacier area_init (km^2)     ', &
-            tot_glc_area_init / 1.0d6
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,f14.6)') 'Total glacier area (km^2)          ', &
-            tot_glc_area / 1.0d6
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,f14.6)') 'Total area_init_extent (km^2)      ', &
-            tot_glc_area_init_extent / 1.0d6
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,f14.6)') 'Total glacier volume_init (km^3)   ', &
-            tot_glc_volume_init / 1.0d9
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,f14.6)') 'Total glacier volume (km^3)        ', &
-            tot_glc_volume / 1.0d9
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,f14.6)') 'Total volume_init_extent (km^3)    ', &
-            tot_glc_volume_init_extent / 1.0d9
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
-
-          ! diagnostics related to thickness inversion
-
-          tot_glc_area_target = 0.0d0
-          tot_glc_volume_target = 0.0d0
-          do ng = 1, model%glacier%nglacier
-             tot_glc_area_target = tot_glc_area_target + model%glacier%area_target(ng)
-             tot_glc_volume_target = tot_glc_volume_target + model%glacier%volume_target(ng)
-          enddo
-
-          ! Compute the root-mean-square error of (thck - thck_target), including cells
-          !  with cism_glacier_id > 0 or cism_glacier_id_init > 0
-          where (model%glacier%cism_glacier_id_init > 0 .or. model%glacier%cism_glacier_id > 0)
-             glacier_ice_mask = 1
-          elsewhere
-             glacier_ice_mask = 0
-          endwhere
-
-          call glissade_rms_error(&
-               ewn,            nsn,          &
-               glacier_ice_mask,             &
-               parallel,                     &
-               model%geometry%thck,          &
-               model%glacier%thck_target,    &
-               glc_rmse_thck)
-
-          ! Repeat, including only cells within the initial glacier extent
-
-          where (model%glacier%cism_glacier_id_init > 0)
-             glacier_ice_mask = 1.0d0
-          elsewhere
-             glacier_ice_mask = 0.0d0
-          endwhere
-
-          call glissade_rms_error(&
-               ewn,            nsn,          &
-               glacier_ice_mask,             &
-               parallel,                     &
-               model%geometry%thck,          &
-               model%glacier%thck_target,    &
-               glc_rmse_thck_init_extent)
-
-          write(message,'(a35,f14.6)') 'Total area target (km^2)           ', &
-               tot_glc_area_target / 1.0d6
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'Total volume target (km^2)         ', &
-               tot_glc_volume_target / 1.0d9
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'rms error, thck - thck_target (m)  ', &
-               glc_rmse_thck
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'rms error over init extent (m)     ', &
-               glc_rmse_thck_init_extent
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       endif  ! set_powerlaw_c
-
-       call write_log(' ')
-
-       ! Write output related to the diagnostic glacier
-
-       ng = model%glacier%ngdiag
-
-       if (ng > 0) then
-
-          write(message,'(a35,i14)') 'Diagnostic glacier index (RGI)     ', &
-               model%glacier%cism_to_rgi_glacier_id(ng)
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'Glacier area_init (km^2)           ', &
-               model%glacier%area_init(ng) / 1.0d6
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'Glacier area (km^2)                ', &
-               model%glacier%area(ng) / 1.0d6
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'Glacier area_init_extent (km^2)    ', &
-               model%glacier%area_init_extent(ng) / 1.0d6
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'Glacier volume (km^3)              ', &
-               model%glacier%volume(ng) / 1.0d9
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'Glacier volume_init (km^3)         ', &
-               model%glacier%volume_init(ng) / 1.0d9
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'Glacier volume_init_extent (km^3)  ', &
-               model%glacier%volume_init_extent(ng) / 1.0d9
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'mu_star (mm/yr w.e./deg C)         ', &
-               model%glacier%mu_star(ng)
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'alpha_snow                         ', &
-               model%glacier%alpha_snow(ng)
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'beta_artm (deg C)                  ', &
-               model%glacier%beta_artm(ng)
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       else   ! glacier ID = 0
-
-          write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       endif
-
-       call write_log(' ')
-
-    endif  ! enable_glaciers
 
   end subroutine glide_write_diag
      

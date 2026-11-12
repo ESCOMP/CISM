@@ -106,7 +106,7 @@ contains
   subroutine glissade_isostasy_init(model)
 
     !> initialise isostasy calculations
-    use glide_types
+    use glissade_types
     use glissade_isostasy_elastic, only: glissade_init_elastic
     use cism_parallel, only: parallel_is_zero
 
@@ -224,7 +224,7 @@ contains
     ! 
     ! ------------------------------------------------------------------------
 
-    use glide_types
+    use glissade_types
     use glissade_masks, only: glissade_marine_connection_mask
     use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_extrapolate
 
@@ -318,7 +318,7 @@ contains
     !> calculate surface load factors due to water and ice distribution
 
     use glimmer_physcon
-    use glide_types
+    use glissade_types
     implicit none
 
     type(glide_global_type) :: model
@@ -363,7 +363,7 @@ contains
     !  Note: This subroutine is called only at initialization; should not
     !        be called on restart..
     
-    use glide_types
+    use glissade_types
     implicit none
 
     type(glide_global_type) :: model
@@ -385,7 +385,7 @@ contains
 
     !> calculate isostatic adjustment due to changing surface loads
 
-    use glide_types
+    use glissade_types
     implicit none
 
     type(glide_global_type) :: model
@@ -418,7 +418,7 @@ contains
 
     ! Update the lithosphere
 
-    use glide_types
+    use glissade_types
     use glissade_isostasy_elastic, only: glissade_calc_elastic
     implicit none
 
@@ -474,7 +474,7 @@ contains
     !  laterally varying 2D field read in at initialization (tau_relax).
     ! Both dt and tau_relax have units of seconds.
 
-    use glide_types
+    use glissade_types
     implicit none
 
     type(glide_global_type) :: model

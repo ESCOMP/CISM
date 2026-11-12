@@ -1711,6 +1711,10 @@ contains
        call write_log('Error, geothermal flux option out of range',GM_FATAL)
     end if
 
+    if (model%options%whichdycore == DYCORE_GLISSADE .and. model%options%gthf == GTHF_COMPUTE) then
+       call write_log('Error, gthf = 2 (computed flux) is supported only for Glide', GM_FATAL)
+    end if
+
     write(message,*) 'geothermal heat flux    : ',model%options%gthf,gthf(model%options%gthf)
     call write_log(message)
 
@@ -4004,9 +4008,8 @@ contains
       case (DYCORE_GLISSADE)
         ! beta - b.c. needed for runs with sliding - could add logic to only include in that case
         ! flwa is not needed for glissade.
-        ! TODO not sure if thkmask is needed for HO
 
-         call glide_add_to_restart_variable_list('thkmask kinbcmask bfricflx dissip', model_id)
+         call glide_add_to_restart_variable_list('kinbcmask bfricflx dissip', model_id)
 
         ! uvel,vvel: These are needed for an exact restart because we can only recalculate
         !            them to within the picard/jfnk convergence tolerance.

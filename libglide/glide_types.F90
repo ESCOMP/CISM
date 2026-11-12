@@ -49,11 +49,14 @@ module glide_types
   use glimmer_global, only: sp, dp, fname_length
   use glimmer_physcon, only: rhoi, rhoo, coni
   use glimmer_paramets, only: unphys_val
-  use glimmer_ncdf, only: glimmer_nc_input, glimmer_nc_output
+  use glimmer_ncdf, only: glimmer_nc_input, glimmer_nc_output, glimmer_funits, &
+       NO_RESTART, STANDARD_RESTART, HYBRID_RESTART
   use profile, only: profile_type
   use glimmer_coordinates, only: coordsystem_type
   use glimmer_map_types, only: glimmap_proj
-  use glimmer_sparse_type, only: sparse_matrix_type
+  use glimmer_sparse_type, only: sparse_matrix_type, &
+       HO_SPARSE_PCG_INCH, HO_SPARSE_BICG, HO_SPARSE_GMRES, &
+       HO_SPARSE_PCG_STANDARD, HO_SPARSE_PCG_CHRONGEAR
   use cism_parallel, only: parallel_type
 
   implicit none
@@ -230,10 +233,6 @@ module glide_types
   integer, parameter :: SIGMA_COMPUTE_EVEN = 3
   integer, parameter :: SIGMA_COMPUTE_PATTYN = 4
 
-  integer, parameter :: NO_RESTART = 0
-  integer, parameter :: STANDARD_RESTART = 1
-  integer, parameter :: HYBRID_RESTART = 2
-
   integer, parameter :: RESTART_EXTEND_VELO_FALSE = 0
   integer, parameter :: RESTART_EXTEND_VELO_TRUE = 1
   
@@ -334,12 +333,6 @@ module glide_types
   integer, parameter :: HO_RESID_MEANU = 2
   integer, parameter :: HO_RESID_L2NORM = 3
   integer, parameter :: HO_RESID_L2NORM_RELATIVE = 4
-
-  integer, parameter :: HO_SPARSE_PCG_INCH = -1
-  integer, parameter :: HO_SPARSE_BICG = 0
-  integer, parameter :: HO_SPARSE_GMRES = 1
-  integer, parameter :: HO_SPARSE_PCG_STANDARD = 2
-  integer, parameter :: HO_SPARSE_PCG_CHRONGEAR = 3
 
   integer, parameter :: HO_APPROX_LOCAL_SIA = -1
   integer, parameter :: HO_APPROX_SIA = 0
@@ -2548,17 +2541,6 @@ module glide_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glide_funits
-    character(fname_length) :: sigfile=''                      !> sigma coordinates file
-    character(fname_length) :: ncfile=''                       !> configuration file for netCDF I/O
-    type(glimmer_nc_output),pointer :: out_first=>NULL()       !> first element of linked list defining netCDF outputs
-    type(glimmer_nc_input), pointer :: in_first=>NULL()        !> first element of linked list defining netCDF inputs
-    type(glimmer_nc_input), pointer :: frc_first=>NULL()       !> first element of linked list defining netCDF forcings
-    ! Note: forcing files are of the same type as input files since they share a lot in common.
-  end type glide_funits
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
   type glide_numerics
 
     !> Parameters relating to the model numerics
@@ -2827,7 +2809,7 @@ module glide_types
     type(glide_inversion):: inversion
     type(glide_plume)    :: plume
     type(glide_lithot_type)  :: lithot
-    type(glide_funits)   :: funits
+    type(glimmer_funits) :: funits
     type(glide_numerics) :: numerics
     type(glide_velowk)   :: velowk
     type(glide_thckwk)   :: thckwk

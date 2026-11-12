@@ -41,7 +41,7 @@
     use glimmer_global, only: dp
     use glimmer_paramets, only: iulog
     use glimmer_physcon, only: rhoi, rhoo
-    use glide_types  ! grounding line options
+    use glissade_types  ! grounding line options
     use cism_parallel, only: this_rank, nhalo, parallel_type, parallel_halo
     !TODO - May be able to remove parallel halo updates from this module
 

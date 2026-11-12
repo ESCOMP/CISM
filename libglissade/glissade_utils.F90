@@ -33,7 +33,7 @@ module glissade_utils
   use glimmer_global, only: dp
   use glimmer_paramets, only: iulog, eps11, eps08
   use glimmer_log
-  use glide_types
+  use glissade_types
   use cism_parallel, only: this_rank, main_task, nhalo
 
   implicit none

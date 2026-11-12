@@ -73,6 +73,11 @@ module glimmer_ncdf
   real(dp), parameter :: glimmer_nc_max_time=1.d10
   !> maximum time that can be written
 
+  !> restart options (model%options%is_restart)
+  integer, parameter :: NO_RESTART = 0
+  integer, parameter :: STANDARD_RESTART = 1
+  integer, parameter :: HYBRID_RESTART = 2
+
   !> Data structure holding netCDF file description
   type glimmer_nc_stat
      !> Data structure holding netCDF file description
@@ -282,6 +287,16 @@ module glimmer_ncdf
      logical                        :: read_once = .false.
 
   end type glimmer_nc_input
+
+  !> Data structure holding the netCDF input, output and forcing files of a model instance
+  type glimmer_funits
+    character(fname_length) :: sigfile=''                      !> sigma coordinates file
+    character(fname_length) :: ncfile=''                       !> configuration file for netCDF I/O
+    type(glimmer_nc_output),pointer :: out_first=>NULL()       !> first element of linked list defining netCDF outputs
+    type(glimmer_nc_input), pointer :: in_first=>NULL()        !> first element of linked list defining netCDF inputs
+    type(glimmer_nc_input), pointer :: frc_first=>NULL()       !> first element of linked list defining netCDF forcings
+    ! Note: forcing files are of the same type as input files since they share a lot in common.
+  end type glimmer_funits
 
 
   interface delete

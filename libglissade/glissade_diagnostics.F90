@@ -47,19 +47,1502 @@
     use glimmer_physcon, only: scyr
     !!    use glimmer_log
     use glimmer_utils, only: point_diag
-    use glide_types
+    use glissade_types
     use cism_parallel, only: this_rank, main_task, nhalo
 
     implicit none
 
     private
-    public :: glissade_mass_balance_diagnostics, glissade_grounding_line_flux, &
+    public :: glissade_init_diag, glissade_write_diagnostics, &
+         glissade_mass_balance_diagnostics, glissade_grounding_line_flux, &
          glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues, &
          glissade_calvingmip_diag
 
     logical :: verbose_calvingmip = .false.
 
+    logical, parameter :: verbose_diagnostics = .false.
+
   contains
+
+!****************************************************************************
+
+  subroutine glissade_init_diag (model)
+
+    ! Initialize model diagnostics.
+    ! (1) Set ndiag based on dt_diag.  (Diagnostics are written every ndiag steps.)
+    ! (2) Find the local rank and indices of the global diagnostic point
+
+    use glimmer_log, only: write_log, GM_DIAGNOSTIC
+    use cism_parallel, only: parallel_localindex
+
+    implicit none
+
+    ! input/output arguments
+
+    type(glide_global_type), intent(inout) :: model    ! model instance
+
+    ! local variables
+
+    character(len=100) :: message
+
+    !-----------------------------------------------------------------
+    ! Given dt_diag, compute the interval ndiag of diagnostic output.
+    ! (Output is written every ndiag timesteps.)
+    ! NOTE: The ratio dt_diag/tinc is rounded to the nearest integer.
+    !-----------------------------------------------------------------
+
+    if (model%numerics%dt_diag > 0.0d0) then   ! dt_diag was specified in the config file; use it to compute ndiag
+
+       ! Note: tinc and dt_diag have units of years, whereas dt has model timeunits
+       model%numerics%ndiag = nint(model%numerics%dt_diag / model%numerics%tinc)
+       model%numerics%ndiag = max(model%numerics%ndiag, 1)  ! cannot write more often than once per timestep
+
+    endif
+
+    !-----------------------------------------------------------------
+    ! Find the local rank and indices of the global diagnostic point
+    !-----------------------------------------------------------------
+
+    call parallel_localindex(model%numerics%idiag,       model%numerics%jdiag,       &
+                             model%numerics%idiag_local, model%numerics%jdiag_local, &
+                             model%numerics%rdiag_local, model%parallel)
+
+    if (main_task) then
+       write(iulog,'(a26,2i6)') ' Global idiag, jdiag:     ',   &
+                             model%numerics%idiag, model%numerics%jdiag
+       write(iulog,'(a26,3i6)') ' Local idiag, jdiag, task:',   &
+                             model%numerics%idiag_local,  &
+                             model%numerics%jdiag_local,  &
+                             model%numerics%rdiag_local
+    endif
+
+    if (main_task) then
+
+       write(message,'(a25,2i6)') 'Global idiag, jdiag:     ',   &
+                                   model%numerics%idiag, model%numerics%jdiag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,3i6)') 'Local idiag, jdiag, task:',   &
+                                   model%numerics%idiag_local,  &
+                                   model%numerics%jdiag_local,  &
+                                   model%numerics%rdiag_local
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    endif  ! main_task
+
+    ! Broadcast from main task to all processors
+    !TODO - Uncomment and make sure this does not cause problems
+!    call broadcast(model%numerics%idiag_local)
+!    call broadcast(model%numerics%jdiag_local)
+!    call broadcast(model%numerics%rdiag_local)
+
+  end subroutine glissade_init_diag
+
+!****************************************************************************
+
+  subroutine glissade_write_diagnostics (model,  time,    &
+                                      tstep_count)
+
+    ! Short driver subroutine to decide whether it's time to write diagnostics.
+    ! If so, it calls glissade_write_diag.   
+
+    ! input/output arguments
+
+    ! Note: model is intent(inout) so that some global diagnostics can be computed below
+    type(glide_global_type), intent(inout) :: model    ! model instance
+
+    real(dp), intent(in) :: time          ! current time in years
+
+    integer,  intent(in) :: tstep_count   ! current timestep
+
+    ! local arguments
+
+    ! debug
+    if (main_task .and. verbose_diagnostics) then
+       write(iulog,*) '	'
+       write(iulog,*) 'In glissade_write_diagnostics'
+       write(iulog,*) 'time =', time
+       write(iulog,*) 'dt_diag =', model%numerics%dt_diag
+       write(iulog,*) 'ndiag =', model%numerics%ndiag
+       write(iulog,*) 'tstep_count =', tstep_count
+    endif
+
+    if (model%numerics%ndiag > 0) then
+
+       if (mod(tstep_count, model%numerics%ndiag) == 0)  then    ! time to write
+          call glissade_write_diag(model, time)
+       endif
+
+    endif    ! ndiag > 0
+
+  end subroutine glissade_write_diagnostics
+
+!****************************************************************************
+
+  subroutine glissade_write_diag (model,       time)
+
+    ! Write global diagnostics
+    ! Also write local diagnostics for a selected grid cell
+ 
+    use glimmer_paramets, only: unphys_val
+    use glimmer_physcon, only: scyr, rhoi, shci
+    use glimmer_log
+    use cism_parallel, only: lhalo, uhalo, parallel_type, broadcast, &
+         parallel_globalindex, &
+         parallel_global_sum, parallel_global_sum_patch, &
+         parallel_reduce_max, parallel_reduce_maxloc, parallel_reduce_minloc, &
+         parallel_is_zero
+    use glissade_utils, only: glissade_usrf_to_thck, glissade_rms_error
+
+    implicit none
+ 
+    ! input/output arguments
+
+    ! Note: model is intent(inout) so that some global diagnostics can be computed here 
+    type(glide_global_type), intent(inout) :: model ! model instance
+
+    real(dp),  intent(in) :: time                   ! current time in years
+
+    ! local variables
+
+    real(dp) ::                         &
+         minthck,                       &    ! ice thickness threshold (m) for global diagnostics
+         tot_area,                      &    ! total ice area (m^2)
+         tot_area_ground,               &    ! total area of grounded ice (m^2)
+         tot_area_float,                &    ! total area of floating ice (m^2)
+         area_cell,                     &    ! cell area
+         tot_volume,                    &    ! total ice volume (m^3)
+         tot_volume_above_flotation,    &    ! total ice volume above flotation (m^3)
+         tot_mass,                      &    ! total ice mass (kg)
+         tot_mass_above_flotation,      &    ! total ice mass above flotation (kg)
+         tot_area_ice_caps,             &    ! total area of disconnected ice caps (m^2)
+         tot_vol_ice_caps,              &    ! total volume of disconnected ice caps (m^3)
+         tot_bmlt_float,                &    ! total basal melt rate for floating ice (kg/s)
+         tot_bmlt_float_target,         &    ! total target basal melt rate for floating ice (kg/s)
+         thck_floating,                 &    ! thickness of floating ice
+         thck_above_flotation,          &    ! thickness above flotation
+         tot_energy,                    &    ! total ice energy (J)
+         tot_smb_flux,                  &    ! total surface mass balance flux (kg/s)
+         tot_smb_cpl_flux,              &    ! total SMB flux received from the coupler (kg/s)
+         tot_smb_unapplied_glad_flux,   &    ! total SMB flux zeroed by GLAD (kg/s)
+         tot_smb_unapplied_flux,        &    ! total SMB flux passed to the dycore but not applied (kg/s)
+         tot_bmb_flux,                  &    ! total basal mass balance flux (kg/s)
+         tot_calving_flux,              &    ! total calving flux (kg/s)
+         tot_latmelt_flux,              &    ! total latmelt flux (kg/s)
+         tot_removal_flux,              &    ! total removal flux (kg/s)
+         tot_gl_flux,                   &    ! total grounding line flux (kg/s)
+         tot_acab,                      &    ! total surface accumulation/ablation rate (m^3/yr)
+         tot_bmlt,                      &    ! total basal melt rate (m^3/yr)
+         tot_calving,                   &    ! total calving rate (m^3/yr)
+         tot_latmelt,                   &    ! total lateral melt rate (m^3/yr)
+         tot_removal,                   &    ! total removal rate (m^3/yr)
+         tot_dmass_dt,                  &    ! rate of change of total mass (kg/s)
+         err_dmass_dt,                  &    ! mass conservation error (kg/s)
+                                             ! given by dmass_dt - (tot_acab - tot_bmlt - tot_calving)
+         mean_thck,                     &    ! mean ice thickness (m)
+         mean_temp,                     &    ! mean ice temperature (deg C)
+         mean_acab,                     &    ! mean surface accumulation/ablation rate (m/yr)
+         mean_bmlt,                     &    ! mean basal melt (m/yr)
+         mean_calving,                  &    ! mean calving (m/yr)
+         mean_latmelt,                  &    ! mean latmelt (m/yr)
+         mean_removal,                  &    ! mean removal (m/yr)
+         max_thck, max_thck_global,     &    ! max ice thickness (m)
+         max_temp, max_temp_global,     &    ! max ice temperature (deg C)
+         min_temp, min_temp_global,     &    ! min ice temperature (deg C)
+         max_bmlt,                      &    ! max basal melt rate (m/yr)
+         max_bmlt_global,               &
+         max_bmlt_ground,               &    ! max basal melt rate, grounded ice (m/yr)
+         max_bmlt_ground_global,        &
+         max_spd_sfc, max_spd_sfc_global, &  ! max surface ice speed (m/yr)
+         max_spd_bas, max_spd_bas_global, &  ! max basal ice speed (m/yr)
+         spd,                           &    ! speed
+         thck_diag, usrf_diag,          &    ! local column diagnostics
+         topg_diag, relx_diag,          &    
+         load_diag,                     &
+         artm_diag, acab_diag,          &
+         bmlt_diag, bwat_diag,          &
+         bheatflx_diag,                 &
+         top_age_diag, bot_age_diag,    &
+         level,                         &
+         rmse_thck, rmse_velo,          &    ! rms errors for ice thickness (m) and surface speed (m/yr)
+         factor                              ! unit conversion factor
+
+    integer, dimension(model%general%ewn,model%general%nsn) ::  &
+         ice_mask,                 & ! = 1 where ice is present with thck > minthck, else = 0
+         floating_mask,            & ! = 1 where ice is present and floating, else = 0
+         grounded_mask,            & ! = 1 where ice is present and grounded, else = 0
+         ice_cap_mask,             & ! = 1 where an ice cap is present, else = 0
+         glacier_ice_mask            ! = 1 where glacier ice is present, initially and/or currently
+
+    integer, dimension(model%general%ewn-1,model%general%nsn-1) ::  &
+         stag_ice_mask               ! staggered mask; = 1 if ice_mask = 1 for any of the four neighbors
+
+    real(dp), dimension(model%general%upn) ::  &
+         temp_diag,                     &    ! Note: sfc temp not included if temps are staggered
+                                             !       (use artm instead)
+         spd_diag                            ! speed (m/yr)
+
+    real(dp), dimension(model%general%upn-1) ::  &
+         age_diag                            ! ice age (yr)
+
+    real(dp), dimension(model%lithot%nlayer) ::  &
+         lithtemp_diag                       ! lithosphere column diagnostics
+
+    ! glacier diagnostics
+    real(dp) :: &
+         tot_glc_area_init, tot_glc_area,     & ! total glacier area, initial and current (km^2)
+         tot_glc_volume_init, tot_glc_volume, & ! total glacier volume, initial and current (km^3)
+         tot_glc_area_init_extent,            & ! glacier area summed over the initial extent (km^2)
+         tot_glc_volume_init_extent,          & ! glacier volume summed over the initial extent (km^3)
+         tot_glc_area_target,                 & ! target glacier area for inversion (km^2)
+         tot_glc_volume_target,               & ! target glacier volume for inversion (km^3)
+         glc_rmse_thck,                       & ! root mean square value of thck - thck_target
+         glc_rmse_thck_init_extent              ! as above, but within initial extent
+
+    integer :: &
+         count_area, count_volume               ! number of glaciers with nonzero area and volume
+
+    integer :: &
+         i, j, k, nb, ng,                   &
+         ktop, kbed,                        &
+         imax, imin,                        &
+         jmax, jmin,                        &
+         kmax, kmin,                        &
+         imax_global, imin_global,          &
+         jmax_global, jmin_global,          &
+         kmax_global, kmin_global,          &
+         procnum,                           &
+         ewn, nsn, upn,                     &    ! model%numerics%ewn, etc.
+         nlith,                             &    ! model%lithot%nlayer
+         velo_ew_ubound, velo_ns_ubound          ! upper bounds for velocity variables
+
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+         volume_above_flotation,& ! ice volue above flotation (m^3)
+         thck_obs                 ! observed ice thickness (m), derived from usrf_obs and topg
+
+    real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::  &
+         velo_sfc               ! surface ice speed (m/s)
+
+    real(dp), dimension(model%general%upn, model%general%ewn, model%general%nsn) ::  &
+         local_energy           ! internal energy (J) per layer in a column
+
+    character(len=100) :: message
+    
+    ! Note: cell_area is copied here from model%geometry%cell_area
+    ! cell_area = dew*dns by default; optionally scaled to account for grid distortion
+    real(dp), dimension(model%general%ewn,model%general%nsn) :: &
+         cell_area     ! grid cell areas (scaled model units); diagnostic only
+
+    real(dp), parameter ::   &
+         eps = eps11             ! small threshold for diagnostics
+
+    type(parallel_type) :: parallel       ! info for parallel communication
+
+    parallel = model%parallel
+    ewn = model%general%ewn
+    nsn = model%general%nsn
+    upn = model%general%upn
+
+    ! Set cell_area = model%geometry%cell_area
+    ! Note: By default, cell_area = dew*dns
+    !       For diagnostics, however, we may want to correct for grid distortions,
+    !        giving a better estimate of the true ice area and volume.
+    !       In this case, model%geometry%cell_area is corrected at initialization.
+    !       It is used only for diagnostics. In the dynamics, each cell is a rectangle of area dew*dns.
+    !       Using the corrected value here will give a conservation error (total dmass_dt > 0)
+    !        in the diagnostics, because horizontal transport does not account for area factors.
+    !        Horizontal transport conserves mass only under the assumption of rectangular grid cells.
+    cell_area = model%geometry%cell_area
+
+    nlith = model%lithot%nlayer
+
+    if (uhalo > 0) then
+       velo_ns_ubound = nsn-uhalo
+       velo_ew_ubound = ewn-uhalo
+    else
+       ! for uhalo==0 (as is the case for the glide dycore), the velocity grid has one less
+       ! point than the main grid, so we need to subtract one to avoid out-of-bounds problems
+       velo_ns_ubound = nsn-uhalo-1
+       velo_ew_ubound = ewn-uhalo-1
+    end if
+
+    ! Set the minimum ice thickness for including cells in diagnostics
+    if (model%options%diag_minthck == DIAG_MINTHCK_ZERO) then
+       minthck = eps  ! slightly > 0
+    elseif (model%options%diag_minthck == DIAG_MINTHCK_THKLIM) then
+       ! Note: If the user specifies model%numerics%thklim = 1.0 m in the config file,
+       !       then thklim is reset at initialization to a number slightly less than 1.0.
+       !       This protects the diagnostics below against rounding errors for cells
+       !       with thck very close to minthck.
+       minthck = model%numerics%thklim
+    endif
+
+    !-----------------------------------------------------------------
+    ! Compute some masks that are useful for diagnostics
+    !-----------------------------------------------------------------
+
+    do j = 1, nsn
+       do i = 1, ewn
+          if (model%geometry%thck(i,j) > minthck) then
+             ice_mask(i,j) = 1
+             if (model%geometry%topg(i,j) - model%climate%eus < (-rhoi/rhoo)*model%geometry%thck(i,j)) then
+                floating_mask(i,j) = 1
+                grounded_mask(i,j) = 0
+             else
+                floating_mask(i,j) = 0
+                grounded_mask(i,j) = 1
+             endif
+          else
+             ice_mask(i,j) = 0
+             floating_mask(i,j) = 0
+             grounded_mask(i,j) = 0
+          endif
+       enddo
+    enddo
+
+    do j = 1, nsn-1
+       do i = 1, ewn-1
+          if (ice_mask(i,j+1) == 1 .or. ice_mask(i+1,j+1) == 1 .or.  &
+              ice_mask(i,j)   == 1 .or. ice_mask(i+1,j)   == 1) then
+             stag_ice_mask(i,j) = 1
+          else
+             stag_ice_mask(i,j) = 0
+          endif
+       enddo
+    enddo
+
+    ice_cap_mask = model%geometry%ice_cap_mask
+
+    !-----------------------------------------------------------------
+    ! Compute and write global diagnostics
+    !-----------------------------------------------------------------
+ 
+    call write_log('----------------------------------------------------------')
+    call write_log(' ')
+    write(message,'(a25,f24.16)') 'Diagnostic output, time =', time
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+    call write_log(' ')
+
+    ! total ice area (m^2)
+    tot_area = parallel_global_sum(cell_area, parallel, ice_mask)
+    tot_area_float = parallel_global_sum(cell_area, parallel, floating_mask)
+    tot_area_ground = parallel_global_sum(cell_area, parallel, grounded_mask)
+
+    ! total ice volume (m^3)
+    tot_volume = parallel_global_sum(model%geometry%thck*cell_area, parallel, ice_mask)
+
+    ! total ice mass (kg)
+    tot_mass = tot_volume * rhoi
+
+    ! total ice volume above flotation (m^3)
+    volume_above_flotation = 0.0d0
+    do j = 1, nsn
+       do i = 1, ewn
+          if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then
+             if (model%geometry%topg(i,j) - model%climate%eus < 0.0d0) then  ! grounded below sea level
+                thck_floating = (-rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)  ! exactly floating
+                volume_above_flotation(i,j) = (model%geometry%thck(i,j) - thck_floating) * cell_area(i,j)
+             else   ! grounded above sea level
+                volume_above_flotation(i,j) = model%geometry%thck(i,j) * cell_area(i,j)
+             endif
+          endif
+       enddo
+    enddo
+
+    tot_volume_above_flotation = parallel_global_sum(volume_above_flotation, parallel)
+
+    ! total ice mass above flotation (kg)
+    tot_mass_above_flotation = tot_volume_above_flotation * rhoi
+
+    ! ice cap area and volume
+    tot_area_ice_caps = parallel_global_sum(cell_area, parallel, ice_cap_mask)
+    tot_vol_ice_caps = parallel_global_sum(model%geometry%thck*cell_area, parallel, ice_cap_mask)
+
+    ! basal melting for floating ice (kg/s)
+    tot_bmlt_float = &
+         parallel_global_sum(model%basal_melt%bmlt_float*rhoi*cell_area, parallel)
+    tot_bmlt_float_target = &
+         parallel_global_sum(model%basal_melt%bmlt_float_target*rhoi*cell_area, parallel)
+
+    ! total ice energy relative to T = 0 deg C (J)
+    local_energy = 0.0d0
+    if (size(model%temper%temp,1) == upn+1) then  ! temps are staggered in vertical, located at layer centers
+       ! in this case, the data in the upn layer remains = 0
+       do j = 1, nsn
+          do i = 1, ewn
+             if (ice_mask(i,j) == 1) then
+                do k = 1, upn-1   ! (upn-1) layers
+                   local_energy(k,i,j) = &
+                        model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)   &
+                        * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
+                enddo
+             endif
+          enddo
+       enddo
+    else   ! temps are unstaggered in vertical, located at layer interfaces
+       do j = 1, nsn
+          do i = 1, ewn
+             if (ice_mask(i,j) == 1) then
+                k = 1   ! top interface; assign this temperature to the top half layer
+                local_energy(k,i,j) = &
+                     model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)    &
+                     * 0.5d0 * model%numerics%sigma(k+1)
+                do k = 2, upn-1   ! interior layers
+                   local_energy(k,i,j) = &
+                        model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)  &
+                        * 0.5d0*(model%numerics%sigma(k+1) - model%numerics%sigma(k-1))
+                enddo
+                k = upn   ! bottom interface; assign this temperature to the bottom half layer
+                local_energy(k,i,j) = &
+                     model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)  &
+                     * 0.5d0 * (1.0d0 - model%numerics%sigma(k-1))
+             endif
+          enddo
+       enddo
+    endif
+    local_energy = local_energy * rhoi * shci
+    tot_energy = parallel_global_sum(local_energy, parallel, ice_mask)
+
+    ! mean thickness
+    if (tot_area > eps) then
+       mean_thck = tot_volume/tot_area
+    else
+       mean_thck = 0.d0
+    endif
+
+    ! mean temperature
+    if (tot_volume > eps) then
+       mean_temp = tot_energy/ (rhoi*shci*tot_volume)
+    else
+       mean_temp = 0.d0
+    endif
+ 
+    ! copy some global scalars to the scalars derived type
+    ! Note: These have SI units (e.g, m^2 for area, m^3 for volume, kg/s for melt rates)
+
+    model%scalars%iarea  = tot_area
+    model%scalars%iareag = tot_area_ground
+    model%scalars%iareaf = tot_area_float
+    model%scalars%ivol   = tot_volume
+    model%scalars%ivol_above_flotation = tot_volume_above_flotation
+    model%scalars%imass  = tot_mass
+    model%scalars%imass_above_flotation = tot_mass_above_flotation
+    model%scalars%icap_area  = tot_area_ice_caps
+    model%scalars%icap_vol  = tot_vol_ice_caps
+    model%scalars%total_bmlt_float = tot_bmlt_float
+    model%scalars%total_bmlt_float_target = tot_bmlt_float_target
+
+    ! Optionally, compute some basin-scale scalars, also written to the scalars derived type
+
+    if (model%ocean_data%nbasin > 1) then
+       model%scalars%iarea_basin(:)  = &
+            parallel_global_sum_patch(cell_area*ice_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%iareag_basin(:) = &
+            parallel_global_sum_patch(cell_area*grounded_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%iareaf_basin(:) = &
+            parallel_global_sum_patch(cell_area*floating_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%ivol_basin(:)   = &
+            parallel_global_sum_patch(cell_area*ice_mask*model%geometry%thck, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%ivol_above_flotation_basin(:) = &
+            parallel_global_sum_patch(volume_above_flotation, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%imass_basin(:) = model%scalars%ivol_basin(:)*rhoi
+       model%scalars%imass_above_flotation_basin(:) = model%scalars%ivol_above_flotation_basin(:)*rhoi
+       model%scalars%icap_area_basin(:)  = &
+            parallel_global_sum_patch(cell_area*ice_cap_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%icap_vol_basin(:)  = &
+            parallel_global_sum_patch(cell_area*ice_cap_mask*model%geometry%thck, &
+            model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%bmlt_float_basin(:)  = &
+            parallel_global_sum_patch(model%basal_melt%bmlt_float*rhoi*cell_area, &
+            model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%bmlt_float_target_basin(:)  = &
+            parallel_global_sum_patch(model%basal_melt%bmlt_float_target*rhoi*cell_area, &
+            model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+
+       ! Optionally, write output to a specific basin with an applied thermal forcing anomaly
+       if (main_task) then
+          nb = model%ocean_data%thermal_forcing_anomaly_basin
+          if (nb >= 1 .and. nb <= model%ocean_data%nbasin) then
+             write(iulog,*) 'Diagnostics for basin', nb
+             write(iulog,*) 'iarea, iareag, iareaf (km^2):', &
+                  model%scalars%iarea_basin(nb)/1.0d6, model%scalars%iareag_basin(nb)/1.0d6, model%scalars%iareaf_basin(nb)/1.0d6
+             write(iulog,*) 'ivol, ivol_above_flotation (km^3):', &
+                  model%scalars%ivol_basin(nb)/1.0d9, model%scalars%ivol_above_flotation_basin(nb)/1.0d9
+             write(iulog,*) 'imass, imass_above_flotation (Gt):', &
+                  model%scalars%imass_basin(nb)/1.0d12, model%scalars%imass_above_flotation_basin(nb)/1.0d12
+             if (.not.model%options%remove_ice_caps)  then
+                write(iulog,*) '   ice cap area (km^2):', model%scalars%icap_area_basin(nb)/1.0d6
+                write(iulog,*) '   ice cap vol  (km^3):', model%scalars%icap_vol_basin(nb)/1.0d9
+             endif
+          endif
+       endif
+
+    endif   ! nbasin > 1
+
+    ! For Glissade only, compute a global mass budget and check mass conservation
+
+    if (model%options%whichdycore == DYCORE_GLISSADE) then
+
+       ! total surface accumulation/ablation rate (m^3/yr ice)
+       tot_acab = parallel_global_sum(model%climate%acab_applied*cell_area, parallel)
+       tot_acab = tot_acab * scyr                ! convert from m^3/s to m^3/yr
+
+       ! total surface mass balance flux (kg/s)
+       tot_smb_flux = tot_acab * rhoi / scyr     ! convert m^3/yr to kg/s
+
+       ! SMB budget terms for coupled runs (kg/s): SMB received from the coupler, the part zeroed by GLAD,
+       !  and the part passed to the dycore but not applied.
+       ! These are zero for standalone runs.
+       ! Note: tot_smb_cpl_flux = tot_smb_flux + tot_smb_unapplied_glad_flux + tot_smb_unapplied_flux
+       tot_smb_cpl_flux = parallel_global_sum(model%climate%acab_cpl*cell_area, parallel) * rhoi
+       tot_smb_unapplied_glad_flux = parallel_global_sum(model%climate%acab_unapplied_glad*cell_area, parallel) * rhoi
+       tot_smb_unapplied_flux = parallel_global_sum(model%climate%acab_unapplied*cell_area, parallel) * rhoi
+
+       ! mean accumulation/ablation rate (m/yr)
+       ! Note: This will be only approximate if some ice has melted completely during the time step
+       if (tot_area > eps) then
+          mean_acab = tot_acab/tot_area    ! divide by total area to get m/yr
+       else
+          mean_acab = 0.d0
+       endif
+
+       ! total basal melting rate (positive for ice loss)
+       tot_bmlt = parallel_global_sum(model%basal_melt%bmlt_applied*cell_area, parallel)
+       tot_bmlt = tot_bmlt * scyr                ! convert from m^3/s to m^3/yr
+
+       ! total basal mass balance (kg/s, positive for freeze-on, negative for melt)
+       tot_bmb_flux = -tot_bmlt * rhoi / scyr   ! convert m^3/yr to kg/s
+
+       ! mean basal melt rate (m/yr)
+       ! Note: This will be only approximate if some ice has melted completely during the time step
+       if (tot_area > eps) then
+          mean_bmlt = tot_bmlt/tot_area    ! divide by total area to get m/yr
+       else
+          mean_bmlt = 0.d0
+       endif
+
+       ! total calving rate (m^3/yr ice)
+       ! Note: calving%calving_rate has units of m/yr ice
+       tot_calving = parallel_global_sum(model%calving%calving_rate*cell_area, parallel)
+
+       ! total calving mass balance flux (kg/s, negative for ice loss by calving)
+       tot_calving_flux = -tot_calving * rhoi / scyr   ! convert m^3/yr to kg/s
+
+       ! mean calving rate (m/yr)
+       ! Note: This will be only approximate if some ice has calved completely during the time step
+       if (tot_area > eps) then
+          mean_calving = tot_calving/tot_area    ! divide by total area to get m/yr
+       else
+          mean_calving = 0.d0
+       endif
+
+       ! total lateral melt rate (m^3/yr ice)
+       ! Note: latmelt_rate has units of m/yr ice
+       tot_latmelt = parallel_global_sum(model%lateral_melt%latmelt_rate*cell_area, parallel)
+
+       ! total lateral melt mass balance flux (kg/s, negative for ice loss by melting)
+       tot_latmelt_flux = -tot_latmelt * rhoi/scyr    ! convert m^3/yr to kg/s
+
+       ! mean lateral melt rate (m/yr)
+       ! Note: This will be only approximate if some ice has melted completely during the time step
+       if (tot_area > eps) then
+          mean_latmelt = tot_latmelt/tot_area    ! divide by total area to get m/yr
+       else
+          mean_latmelt = 0.d0
+       endif
+
+       ! total ice removal rate (m^3/yr ice)
+       ! Note: geometry%removal_rate has units of m/yr ice
+       tot_removal = parallel_global_sum(model%geometry%removal_rate*cell_area, parallel)
+
+       ! total removal mass balance flux (kg/s, negative for ice removed)
+       tot_removal_flux = -tot_removal * rhoi / scyr   ! convert m^3/yr to kg/s
+
+       ! mean removal rate (m/yr)
+       if (tot_area > eps) then
+          mean_removal = tot_removal/tot_area    ! divide by total area to get m/yr
+       else
+          mean_removal = 0.d0
+       endif
+
+       ! total grounding line mass balance flux (< 0 by definition)
+       ! Note: At this point, gl_flux_east and gl_flux_north are already dimensionalized in kg/m/s,
+       !       so tot_gl_flux will have units of kg/s
+       tot_gl_flux = parallel_global_sum(abs(model%mass_flux%gl_flux_east)  * model%numerics%dns  &
+                                       + abs(model%mass_flux%gl_flux_north) * model%numerics%dew, &
+                                       parallel)
+       tot_gl_flux = (-1.0d0)*tot_gl_flux   ! negative by definition
+
+       ! total rate of change of ice mass (kg/s)
+       ! Note: dthck_dt has units of m/s
+       !TODO: Change this calculation to use the total mass of ice in the global domain
+       !       in successive time steps, instead of summing over dthck_dt.
+       !      Note that dthck_dt does not account for global outflow fluxes (i.e., removal of ice
+       !       near the global boundary in halo updates).
+       tot_dmass_dt = parallel_global_sum(model%geometry%dthck_dt*cell_area, parallel)
+       tot_dmass_dt = tot_dmass_dt * rhoi              ! convert to kg/s
+
+       ! mass conservation error
+       ! Note: For most runs, this should be close to zero.
+
+       err_dmass_dt = tot_dmass_dt - &
+            (tot_smb_flux + tot_bmb_flux + tot_calving_flux + tot_latmelt_flux + tot_removal_flux)
+
+       ! copy some global scalars to the mass_flux derived type
+       ! Note: These have SI units (e.g, m^2 for area, m^3 for volume)
+       model%mass_flux%total_smb_flux = tot_smb_flux
+       model%mass_flux%total_smb_cpl_flux = tot_smb_cpl_flux
+       model%mass_flux%total_smb_unapplied_glad_flux = tot_smb_unapplied_glad_flux
+       model%mass_flux%total_smb_unapplied_flux = tot_smb_unapplied_flux
+       model%mass_flux%total_bmb_flux = tot_bmb_flux
+       model%mass_flux%total_calving_flux = tot_calving_flux
+       model%mass_flux%total_latmelt_flux = tot_latmelt_flux
+       model%mass_flux%total_removal_flux = tot_removal_flux
+
+       ! Note: The total mass budget consists of the five terms above.
+       !       The GL flux is not part of the mass budget, since any ice fluxed across the GL
+       !        is not added or lost, but simply changes from grounded to floating.
+       model%mass_flux%total_gl_flux = tot_gl_flux
+
+    endif  ! Glissade dycore
+
+    ! write global sums and means to log file
+
+    write(message,'(a25,e24.16)') 'Total ice area (km^2)    ',   &
+                                   tot_area*1.0d-6           ! convert to km^2
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,e24.16)') 'Grounded ice area (km^2) ',   &
+                                   tot_area_ground*1.0d-6    ! convert to km^2
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,e24.16)') 'Floating ice area (km^2) ',   &
+                                   tot_area_float*1.0d-6     ! convert to km^2
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,e24.16)') 'Total ice volume (km^3)  ',   &
+                                   tot_volume*1.0d-9         ! convert to km^3
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    if (model%options%dm_dt_diag == DM_DT_DIAG_KG_S) then
+
+       write(message,'(a25,e24.16)') 'Total ice mass (kg)      ',   &
+                                      tot_mass                  ! kg
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'Mass above flotation (kg)',   &
+                                      tot_mass_above_flotation  ! kg
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'Total ice energy (J)     ',   &
+                                      tot_energy                ! J
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_Y) then
+
+       write(message,'(a25,e24.16)') 'Total ice mass (Gt)      ',   &
+                                      tot_mass * 1.0d-12        ! Gt
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'Mass above flotation (Gt)',   &
+                      tot_mass_above_flotation * 1.0d-12        ! Gt
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,e24.16)') 'Total ice energy (GJ)     ',  &
+                                    tot_energy * 1.0d-9         ! GJ
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    endif  ! dm_dt_diag
+
+    if (.not.model%options%remove_ice_caps .and. .not.model%options%enable_glaciers) then
+       write(message,'(a25,e24.16)') 'Ice cap area (km^2)       ',   &
+                                      tot_area_ice_caps*1.0d-6  ! convert to km^2
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+       write(message,'(a25,e24.16)') 'Ice cap volume (km^3)     ',   &
+                                      tot_vol_ice_caps*1.0d-9   ! convert to km^3
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+    endif
+
+    if (model%options%whichdycore == DYCORE_GLISSADE) then
+
+       if (model%options%dm_dt_diag == DM_DT_DIAG_KG_S) then
+
+          write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          if (abs(tot_smb_cpl_flux) > 0.0d0) then   ! coupled run
+             write(message,'(a25,e24.16)') 'SMB flux from cpl (kg/s) ', tot_smb_cpl_flux
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+             write(message,'(a25,e24.16)') 'SMB zeroed by GLAD (kg/s)', tot_smb_unapplied_glad_flux
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+             write(message,'(a25,e24.16)') 'SMB unapplied (kg/s)     ', tot_smb_unapplied_flux
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          write(message,'(a25,e24.16)') 'Total BMB flux (kg/s)    ', tot_bmb_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          if (abs(tot_latmelt_flux) > eps11) then
+             write(message,'(a25,e24.16)') 'Total latmelt flux (kg/s)', tot_latmelt_flux
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (abs(tot_removal_flux) > eps11) then
+             write(message,'(a25,e24.16)') 'Total removal flux (kg/s)', tot_removal_flux
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (tot_bmlt_float > eps11) then
+             write(message,'(a25,e24.16)') 'Total bmlt_float (kg/s)  ', tot_bmlt_float
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (tot_bmlt_float_target > eps11) then
+             write(message,'(a25,e24.16)') 'Target bmlt_float (kg/s)', tot_bmlt_float_target
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          write(message,'(a25,e24.16)') 'Total dmass/dt (kg/s)    ', tot_dmass_dt
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'dmass/dt error (kg/s)    ', err_dmass_dt
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_Y) then
+
+          factor = scyr / 1.0d12
+
+          write(message,'(a25,e24.16)') 'Total SMB flux (Gt/y)    ', tot_smb_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          if (abs(tot_smb_cpl_flux) > 0.0d0) then   ! coupled run
+             write(message,'(a25,e24.16)') 'SMB flux from cpl (Gt/y) ', tot_smb_cpl_flux * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+             write(message,'(a25,e24.16)') 'SMB zeroed by GLAD (Gt/y)', tot_smb_unapplied_glad_flux * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+             write(message,'(a25,e24.16)') 'SMB unapplied (Gt/y)     ', tot_smb_unapplied_flux * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          write(message,'(a25,e24.16)') 'Total BMB flux (Gt/y)    ', tot_bmb_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'Total calving flux (Gt/y)', tot_calving_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          if (abs(tot_latmelt_flux) > eps11) then
+             write(message,'(a25,e24.16)') 'Total latmelt flux (Gt/y)', tot_latmelt_flux * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (abs(tot_removal_flux) > eps11) then
+             write(message,'(a25,e24.16)') 'Total removal flux (Gt/y)', tot_removal_flux * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (tot_bmlt_float > eps11) then
+             write(message,'(a25,e24.16)') 'Total bmlt_float (Gt/y)  ', tot_bmlt_float * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (tot_bmlt_float_target > eps11) then
+             write(message,'(a25,e24.16)') 'Target bmlt_float (Gt/y) ', tot_bmlt_float_target * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          write(message,'(a25,e24.16)') 'Total dmass/dt (Gt/y)    ', tot_dmass_dt * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'dmass/dt error (Gt/y)    ', err_dmass_dt * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a25,e24.16)') 'Total gr line flux (Gt/y)', tot_gl_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       endif   ! dm_dt_diag
+
+!       write(message,'(a25,e24.16)') 'Mean accum/ablat (m/yr)  ', mean_acab
+!       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+!       write(message,'(a25,e24.16)') 'Mean basal melt (m/yr)   ', mean_bmlt
+!       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+!       write(message,'(a25,e24.16)') 'Mean calving (m/yr)      ', mean_calving
+!       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+!       write(message,'(a25,e24.16)') 'Mean latmelt (m/yr)      ', mean_latmelt
+!       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+!       write(message,'(a25,e24.16)') 'Mean removal (m/yr)      ', mean_removal
+!       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    endif  ! Glissade dycore
+
+    write(message,'(a25,f24.16)') 'Mean thickness (m)       ', mean_thck
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,f24.16)') 'Mean temperature (C)     ', mean_temp
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    ! Find various global maxes and mins
+
+    ! max thickness
+
+    imax = 0
+    jmax = 0
+    max_thck = unphys_val   ! = an arbitrary large negative number
+    do j = lhalo+1, nsn-uhalo
+       do i = lhalo+1, ewn-uhalo
+          if (model%geometry%thck(i,j) > max_thck) then
+             max_thck = model%geometry%thck(i,j)
+             imax = i
+             jmax = j
+          endif
+       enddo
+    enddo
+
+    imax_global = 0
+    jmax_global = 0
+    max_thck_global = parallel_reduce_max(max_thck)
+    if (max_thck == max_thck_global) then  ! max_thck lives on this processor
+       imax_global = (imax - lhalo) + parallel%global_col_offset
+       jmax_global = (jmax - lhalo) + parallel%global_row_offset
+    endif
+    imax_global = parallel_reduce_max(imax_global)
+    jmax_global = parallel_reduce_max(jmax_global)
+
+    write(message,'(a25,f24.16,2i6)') 'Max thickness (m), i, j  ',   &
+                                       max_thck_global, imax_global, jmax_global
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    ! max temperature
+
+    ktop = lbound(model%temper%temp,1)
+    kbed = ubound(model%temper%temp,1)
+
+    imax = 0
+    jmax = 0
+    kmax = 0
+    max_temp =  unphys_val
+    do j = lhalo+1, nsn-uhalo
+       do i = lhalo+1, ewn-uhalo
+          if (ice_mask(i,j) == 1) then
+            do k = ktop, kbed
+                if (model%temper%temp(k,i,j) > max_temp) then
+                   max_temp = model%temper%temp(k,i,j)
+                   imax = i
+                   jmax = j
+                   kmax = k
+                endif
+             enddo
+          endif
+       enddo
+    enddo
+
+    call parallel_reduce_maxloc(xin=max_temp, xout=max_temp_global, xprocout=procnum)
+    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
+    kmax_global = kmax
+    call broadcast(imax_global, proc = procnum)
+    call broadcast(jmax_global, proc = procnum)
+    call broadcast(kmax_global, proc = procnum)
+
+    write(message,'(a25,f24.16,3i6)') 'Max temperature, i, j, k ',   &
+                    max_temp_global, imax_global, jmax_global, kmax_global
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+ 
+    ! min temperature
+
+    imin = 0
+    jmin = 0
+    kmin = 0
+    min_temp = 999.d0  ! arbitrary large positive number
+    do j = lhalo+1, nsn-uhalo
+       do i = lhalo+1, ewn-uhalo
+          if (ice_mask(i,j) == 1) then
+             do k = ktop, kbed
+                if (model%temper%temp(k,i,j) < min_temp) then
+                   min_temp = model%temper%temp(k,i,j)
+                   imin = i
+                   jmin = j
+                   kmin = k
+                endif
+             enddo
+          endif
+       enddo
+    enddo
+
+    call parallel_reduce_minloc(xin=min_temp, xout=min_temp_global, xprocout=procnum)
+    call parallel_globalindex(imin, jmin, imin_global, jmin_global, parallel)
+    kmin_global = kmin
+    call broadcast(imin_global, proc = procnum)
+    call broadcast(jmin_global, proc = procnum)
+    call broadcast(kmin_global, proc = procnum)
+
+    write(message,'(a25,f24.16,3i6)') 'Min temperature, i, j, k ',   &
+                    min_temp_global, imin_global, jmin_global, kmin_global
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    ! max applied basal melt rate
+    ! Usually, this will be for floating ice, if floating ice is present
+    imax = 0
+    jmax = 0
+    max_bmlt = unphys_val
+
+    do j = lhalo+1, nsn-uhalo
+       do i = lhalo+1, ewn-uhalo
+          if (model%basal_melt%bmlt_applied(i,j) > max_bmlt) then
+             max_bmlt = model%basal_melt%bmlt_applied(i,j)
+             imax = i
+             jmax = j
+          endif
+       enddo
+    enddo
+
+    call parallel_reduce_maxloc(xin=max_bmlt, xout=max_bmlt_global, xprocout=procnum)
+    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
+    call broadcast(imax_global, proc = procnum)
+    call broadcast(jmax_global, proc = procnum)
+
+    ! Write to diagnostics only if nonzero
+
+    if (abs(max_bmlt_global*scyr) > eps) then
+       write(message,'(a25,f24.16,2i6)') 'Max bmlt (m/y), i, j     ',   &
+            max_bmlt_global*scyr, imax_global, jmax_global
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+    endif
+
+    ! max basal melt rate for grounded ice
+    imax = 0
+    jmax = 0
+    max_bmlt_ground = unphys_val
+
+    do j = lhalo+1, nsn-uhalo
+       do i = lhalo+1, ewn-uhalo
+          if (model%basal_melt%bmlt_ground(i,j) > max_bmlt_ground) then
+             max_bmlt_ground = model%basal_melt%bmlt_ground(i,j)
+             imax = i
+             jmax = j
+          endif
+       enddo
+    enddo
+
+    call parallel_reduce_maxloc(xin=max_bmlt_ground, xout=max_bmlt_ground_global, xprocout=procnum)
+    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
+    call broadcast(imax_global, proc = procnum)
+    call broadcast(jmax_global, proc = procnum)
+
+    ! Write to diagnostics only if nonzero
+
+    if (abs(max_bmlt_global*scyr) > eps) then
+       write(message,'(a25,f24.16,2i6)') 'Max bmlt grnd (m/y), i, j',   &
+            max_bmlt_ground_global*scyr, imax_global, jmax_global
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+    endif
+
+    ! max surface speed
+    imax = 0
+    jmax = 0
+    max_spd_sfc = unphys_val
+
+    do j = lhalo+1, velo_ns_ubound
+       do i = lhalo+1, velo_ew_ubound
+          spd = sqrt(model%velocity%uvel(1,i,j)**2   &
+                   + model%velocity%vvel(1,i,j)**2)
+          if (model%geomderv%stagthck(i,j) > minthck .and. spd > max_spd_sfc) then
+             max_spd_sfc = spd
+             imax = i
+             jmax = j
+          endif
+       enddo
+    enddo
+
+    call parallel_reduce_maxloc(xin=max_spd_sfc, xout=max_spd_sfc_global, xprocout=procnum)
+    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
+    call broadcast(imax_global, proc = procnum)
+    call broadcast(jmax_global, proc = procnum)
+
+    write(message,'(a25,f24.16,2i6)') 'Max sfc spd (m/y), i, j  ',   &
+                    max_spd_sfc_global*scyr, imax_global, jmax_global
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    ! max basal speed
+
+    imax = 0
+    jmax = 0
+    max_spd_bas = unphys_val
+    do j = lhalo+1, velo_ns_ubound
+       do i = lhalo+1, velo_ew_ubound
+          spd = sqrt(model%velocity%uvel(upn,i,j)**2   &
+                   + model%velocity%vvel(upn,i,j)**2)
+          if (model%geomderv%stagthck(i,j) > minthck  .and. spd > max_spd_bas) then
+             max_spd_bas = spd
+             imax = i
+             jmax = j
+          endif
+       enddo
+    enddo
+
+    call parallel_reduce_maxloc(xin=max_spd_bas, xout=max_spd_bas_global, xprocout=procnum)
+    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
+    call broadcast(imax_global, proc = procnum)
+    call broadcast(jmax_global, proc = procnum)
+    write(message,'(a25,f24.16,2i6)') 'Max base spd (m/y), i, j ',   &
+                    max_spd_bas_global*scyr, imax_global, jmax_global
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    !-----------------------------------------------------------------
+    ! Optionally, compute the rms_error of model thickness and surface speed
+    ! compared to observations.
+    ! TODO - Instead of ice_mask, use a mask that also includes cells
+    !        which are ice-free in the model but ice-covered in observations
+    !-----------------------------------------------------------------
+
+    if (.not.parallel_is_zero(model%geometry%usrf_obs)) then
+
+       call glissade_usrf_to_thck(&
+            model%geometry%usrf_obs,      &
+            model%geometry%topg,          &
+            model%climate%eus,            &
+            thck_obs)
+
+       call glissade_rms_error(&
+            ewn,            nsn,          &
+            ice_mask,                     &
+            parallel,                     &
+            model%geometry%thck,          &  ! m
+            thck_obs,                     &  ! m
+            rmse_thck)
+
+       write(message,'(a25,f24.16)') 'rms error, thickness (m) ', rmse_thck
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    endif
+
+    if (.not.parallel_is_zero(model%velocity%velo_sfc_obs)) then
+
+       velo_sfc = sqrt(model%velocity%uvel(1,:,:)**2   &
+                     + model%velocity%vvel(1,:,:)**2)
+
+       call glissade_rms_error(&
+            ewn-1,          nsn-1,              &
+            stag_ice_mask,                      &
+            parallel,                           &
+            velo_sfc * scyr,                    &  ! m/yr
+            model%velocity%velo_sfc_obs * scyr, &  ! m/yr
+            rmse_velo)
+
+       write(message,'(a25,f24.16)') 'rms error, sfc spd (m/y) ', rmse_velo
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    endif
+
+    ! local diagnostics
+
+    ! initialize to unphysical negative values
+    usrf_diag     = unphys_val
+    thck_diag     = unphys_val
+    topg_diag     = unphys_val
+    relx_diag     = unphys_val
+    load_diag     = unphys_val
+    artm_diag     = unphys_val
+    acab_diag     = unphys_val
+    bmlt_diag     = unphys_val
+    bwat_diag     = unphys_val
+    bheatflx_diag = unphys_val
+    top_age_diag  = unphys_val
+    bot_age_diag  = unphys_val
+    temp_diag(:)  = unphys_val
+    spd_diag(:)   = unphys_val
+    age_diag(:)   = unphys_val
+    lithtemp_diag(:) = unphys_val    
+
+    ! Set local diagnostic values, and communicate them to main_task
+       
+    if (model%numerics%idiag_local >= 1 .and. model%numerics%idiag_local <= ewn  &
+                                        .and.                                    &
+        model%numerics%jdiag_local >= 1 .and. model%numerics%jdiag_local <= nsn) then
+
+       if (this_rank == model%numerics%rdiag_local) then
+
+          i = model%numerics%idiag_local
+          j = model%numerics%jdiag_local
+          usrf_diag = model%geometry%usrf(i,j)
+          thck_diag = model%geometry%thck(i,j)
+          topg_diag = model%geometry%topg(i,j)
+          if (model%options%isostasy == ISOSTASY_COMPUTE) then
+             relx_diag = model%isostasy%relx(i,j)
+             load_diag = model%isostasy%load(i,j)
+          endif
+          artm_diag = model%climate%artm_corrected(i,j)  ! artm_corrected = artm + artm_anomaly
+          acab_diag = model%climate%acab_applied(i,j) * scyr
+          bmlt_diag = model%basal_melt%bmlt_applied(i,j) * scyr
+          if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+             bwat_diag = model%basal_hydro%bwat_diag(i,j)
+          else
+             bwat_diag = model%basal_hydro%bwat(i,j)
+          endif
+          bheatflx_diag = model%temper%bheatflx(i,j)
+          if (associated(model%geometry%ice_age)) then
+             top_age_diag = model%geometry%ice_age(1,i,j)       ! age of top ice layer
+             bot_age_diag = model%geometry%ice_age(upn-1,i,j)   ! age of bottom ice layer
+          endif
+          temp_diag(:) = model%temper%temp(1:upn,i,j)          
+          spd_diag(:) = sqrt(model%velocity%uvel(1:upn,i,j)**2   &
+                           + model%velocity%vvel(1:upn,i,j)**2) * scyr
+          if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) &
+               age_diag(:) = model%geometry%ice_age(:,i,j)/scyr
+          if (model%options%gthf == GTHF_COMPUTE) &
+               lithtemp_diag(:) = model%lithot%temp(i,j,:)
+       endif
+
+       usrf_diag = parallel_reduce_max(usrf_diag)
+       thck_diag = parallel_reduce_max(thck_diag)
+       topg_diag = parallel_reduce_max(topg_diag)
+       if (model%options%isostasy == ISOSTASY_COMPUTE) then
+          relx_diag = parallel_reduce_max(relx_diag)
+          load_diag = parallel_reduce_max(load_diag)
+       endif
+       artm_diag = parallel_reduce_max(artm_diag)
+       acab_diag = parallel_reduce_max(acab_diag)
+       bmlt_diag = parallel_reduce_max(bmlt_diag)
+       bwat_diag = parallel_reduce_max(bwat_diag)
+       bheatflx_diag = parallel_reduce_max(bheatflx_diag)
+       if (associated(model%geometry%ice_age)) then
+          top_age_diag = parallel_reduce_max(top_age_diag)
+          bot_age_diag = parallel_reduce_max(bot_age_diag)
+       endif
+       do k = 1, upn
+          temp_diag(k) = parallel_reduce_max(temp_diag(k))
+          spd_diag(k)  = parallel_reduce_max(spd_diag(k))
+       enddo
+       do k = 1, upn-1
+          age_diag(k)  = parallel_reduce_max(age_diag(k))
+       enddo
+       do k = 1, nlith
+          lithtemp_diag(k) = parallel_reduce_max(lithtemp_diag(k))
+       enddo
+
+       call write_log(' ')
+       write(message,'(a39,2i6)')  &
+            'Grid point diagnostics: (i,j) =', model%numerics%idiag, &
+                                               model%numerics%jdiag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+       write(message,'(a39,3i6)')  &
+            'Local (i,j,rank) =             ', model%numerics%idiag_local, &
+                                               model%numerics%jdiag_local, &
+                                               model%numerics%rdiag_local
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+       call write_log(' ')
+ 
+       write(message,'(a25,f24.16)') 'Upper surface (m)        ', usrf_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Thickness (m)            ', thck_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Bedrock topo (m)         ', topg_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       if (model%options%isostasy == ISOSTASY_COMPUTE) then
+          write(message,'(a25,f24.16)') 'Relaxed bedrock (m)   ', relx_diag
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a25,f24.16)') 'Load deflection (m)   ', load_diag
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+       endif
+
+       write(message,'(a25,f24.16)') 'Sfc mass balance (m/yr)  ', acab_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Basal mass balance (m/yr)', -bmlt_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Basal water depth (m)    ', bwat_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Basal heat flux (W/m^2)  ', bheatflx_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       ! Commented out, since we are writing the age in every column below
+!       if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+!          write(message,'(a25,f24.16)') 'Age of top layer (yr)    ', top_age_diag/scyr
+!          call write_log(trim(message), type = GM_DIAGNOSTIC)
+!          write(message,'(a25,f24.16)') 'Age of bottom layer (yr) ', bot_age_diag/scyr
+!          call write_log(trim(message), type = GM_DIAGNOSTIC)
+!       endif
+
+       ! Vertical profile of ice speed and temperature
+
+       call write_log(' ')
+       write(message,'(a74)') ' Sigma       Ice speed (m/yr)      Ice temperature (C)        Ice age (yr)'
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+ 
+       if (size(model%temper%temp,1) == upn+1) then   ! temperatures staggered in vertical
+                                                      ! (at layer midpoints)
+
+           ! upper surface 
+           write (message,'(f6.3,2f24.16)') model%numerics%sigma(1), spd_diag(1), artm_diag
+           call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+           ! internal
+           do k = 1, upn-1
+
+              ! speed at top of layer
+              if (k > 1) then
+                 write (message,'(f6.3,f24.16)') model%numerics%sigma(k), spd_diag(k)
+                 call write_log(trim(message), type = GM_DIAGNOSTIC)
+              endif
+
+              ! temp (and optionally age) at layer midpoint
+              if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+                 write (message,'(f6.3,24x,f24.16,f18.6)') model%numerics%stagsigma(k), temp_diag(k), age_diag(k)
+                 call write_log(trim(message), type = GM_DIAGNOSTIC)
+              else
+                 write (message,'(f6.3,24x,f24.16)') model%numerics%stagsigma(k), temp_diag(k)
+                 call write_log(trim(message), type = GM_DIAGNOSTIC)
+              endif
+
+           enddo
+
+           ! lower surface
+           write (message,'(f6.3,2f24.16)') model%numerics%sigma(upn), spd_diag(upn), temp_diag(upn)
+           call write_log(trim(message), type = GM_DIAGNOSTIC)
+           
+       else    ! temperatures unstaggered in vertical (at layer interfaces)
+ 
+           do k = 1, upn
+             write (message,'(f6.3,2f24.16)') model%numerics%sigma(k), spd_diag(k), temp_diag(k)
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          enddo
+
+       endif  ! temps staggered
+
+       ! Vertical profile of upper lithosphere temperature
+
+       if (model%options%gthf == GTHF_COMPUTE) then
+
+          call write_log(' ')
+          write(message,'(a41)') '  Level (m)          Lithosphere temp (C)'
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          level = 0.d0
+          do k = 1, nlith
+             level = level + model%lithot%deltaz(nlith)
+             write (message,'(f10.0,6x,f24.16)') level, lithtemp_diag(k)
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          enddo
+
+       endif  ! gthf_compute
+
+    endif     ! idiag_local and jdiag_local in bounds
+
+    call write_log(' ')
+
+    ! glacier diagnostics
+
+    if (model%options%enable_glaciers) then
+
+       tot_glc_area = 0.0d0
+       tot_glc_volume = 0.0d0
+       tot_glc_area_init = 0.0d0
+       tot_glc_volume_init = 0.0d0
+       tot_glc_area_init_extent = 0.0d0
+       tot_glc_volume_init_extent = 0.0d0
+       count_area = 0
+       count_volume = 0
+
+       do ng = 1, model%glacier%nglacier
+          tot_glc_area = tot_glc_area + model%glacier%area(ng)
+          tot_glc_volume = tot_glc_volume + model%glacier%volume(ng)
+          tot_glc_area_init = tot_glc_area_init + model%glacier%area_init(ng)
+          tot_glc_volume_init = tot_glc_volume_init + model%glacier%volume_init(ng)
+          tot_glc_area_init_extent = tot_glc_area_init_extent + model%glacier%area_init_extent(ng)
+          tot_glc_volume_init_extent = tot_glc_volume_init_extent + model%glacier%volume_init_extent(ng)
+          if (model%glacier%area(ng) > eps) then
+             count_area = count_area + 1
+          endif
+          if (model%glacier%volume(ng) > eps) then
+             count_volume = count_volume + 1
+          endif
+       enddo
+
+       ! Copy selected scalars into the derived type
+       model%glacier%total_area = tot_glc_area
+       model%glacier%total_volume = tot_glc_volume
+       model%glacier%nglacier_active = count_area
+
+       ! Write some total glacier diagnostics
+
+       write(message,'(a25)') 'Glacier diagnostics: '
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       call write_log(' ')
+
+       write(message,'(a35,i14)')   'Number of glaciers                 ', &
+            model%glacier%nglacier
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,i14)')   'Glaciers with nonzero area         ', &
+            count_area
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,i14)')   'Glaciers with nonzero volume       ', &
+            count_volume
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Total glacier area_init (km^2)     ', &
+            tot_glc_area_init / 1.0d6
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Total glacier area (km^2)          ', &
+            tot_glc_area / 1.0d6
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Total area_init_extent (km^2)      ', &
+            tot_glc_area_init_extent / 1.0d6
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Total glacier volume_init (km^3)   ', &
+            tot_glc_volume_init / 1.0d9
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Total glacier volume (km^3)        ', &
+            tot_glc_volume / 1.0d9
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Total volume_init_extent (km^3)    ', &
+            tot_glc_volume_init_extent / 1.0d9
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+
+          ! diagnostics related to thickness inversion
+
+          tot_glc_area_target = 0.0d0
+          tot_glc_volume_target = 0.0d0
+          do ng = 1, model%glacier%nglacier
+             tot_glc_area_target = tot_glc_area_target + model%glacier%area_target(ng)
+             tot_glc_volume_target = tot_glc_volume_target + model%glacier%volume_target(ng)
+          enddo
+
+          ! Compute the root-mean-square error of (thck - thck_target), including cells
+          !  with cism_glacier_id > 0 or cism_glacier_id_init > 0
+          where (model%glacier%cism_glacier_id_init > 0 .or. model%glacier%cism_glacier_id > 0)
+             glacier_ice_mask = 1
+          elsewhere
+             glacier_ice_mask = 0
+          endwhere
+
+          call glissade_rms_error(&
+               ewn,            nsn,          &
+               glacier_ice_mask,             &
+               parallel,                     &
+               model%geometry%thck,          &
+               model%glacier%thck_target,    &
+               glc_rmse_thck)
+
+          ! Repeat, including only cells within the initial glacier extent
+
+          where (model%glacier%cism_glacier_id_init > 0)
+             glacier_ice_mask = 1.0d0
+          elsewhere
+             glacier_ice_mask = 0.0d0
+          endwhere
+
+          call glissade_rms_error(&
+               ewn,            nsn,          &
+               glacier_ice_mask,             &
+               parallel,                     &
+               model%geometry%thck,          &
+               model%glacier%thck_target,    &
+               glc_rmse_thck_init_extent)
+
+          write(message,'(a35,f14.6)') 'Total area target (km^2)           ', &
+               tot_glc_area_target / 1.0d6
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'Total volume target (km^2)         ', &
+               tot_glc_volume_target / 1.0d9
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'rms error, thck - thck_target (m)  ', &
+               glc_rmse_thck
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'rms error over init extent (m)     ', &
+               glc_rmse_thck_init_extent
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       endif  ! set_powerlaw_c
+
+       call write_log(' ')
+
+       ! Write output related to the diagnostic glacier
+
+       ng = model%glacier%ngdiag
+
+       if (ng > 0) then
+
+          write(message,'(a35,i14)') 'Diagnostic glacier index (RGI)     ', &
+               model%glacier%cism_to_rgi_glacier_id(ng)
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'Glacier area_init (km^2)           ', &
+               model%glacier%area_init(ng) / 1.0d6
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'Glacier area (km^2)                ', &
+               model%glacier%area(ng) / 1.0d6
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'Glacier area_init_extent (km^2)    ', &
+               model%glacier%area_init_extent(ng) / 1.0d6
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'Glacier volume (km^3)              ', &
+               model%glacier%volume(ng) / 1.0d9
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'Glacier volume_init (km^3)         ', &
+               model%glacier%volume_init(ng) / 1.0d9
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'Glacier volume_init_extent (km^3)  ', &
+               model%glacier%volume_init_extent(ng) / 1.0d9
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'mu_star (mm/yr w.e./deg C)         ', &
+               model%glacier%mu_star(ng)
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'alpha_snow                         ', &
+               model%glacier%alpha_snow(ng)
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'beta_artm (deg C)                  ', &
+               model%glacier%beta_artm(ng)
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       else   ! glacier ID = 0
+
+          write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       endif
+
+       call write_log(' ')
+
+    endif  ! enable_glaciers
+
+  end subroutine glissade_write_diag
 
 !****************************************************************************
 

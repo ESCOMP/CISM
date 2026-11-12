@@ -41,7 +41,7 @@ module glissade_test
   use glimmer_paramets, only: iulog
   use glimmer_log
   use glimmer_utils, only: point_diag
-  use glide_types
+  use glissade_types
 
   implicit none
 

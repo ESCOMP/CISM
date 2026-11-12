@@ -47,8 +47,6 @@
 #include "config.inc"
 #endif
 
-#include "glide_mask.inc"
-
 module glissade
 
   ! Driver for Glissade (parallel, higher-order) dynamical core
@@ -56,10 +54,9 @@ module glissade
   use glimmer_global, only: dp
   use glimmer_paramets, only: iulog
   use glimmer_log
-  use glide_types
+  use glissade_types
   use glimmer_utils, only: point_diag, calc_lsrf_usrf
-  use glide_io
-  use glide_lithot
+  use glissade_io
   use glimmer_config
   use glissade_test, only: &
        glissade_test_halo, glissade_test_transport
@@ -95,24 +92,22 @@ contains
          parallel_halo, parallel_halo_extrapolate, parallel_globalindex, &
          staggered_parallel_halo_extrapolate, staggered_no_penetration_mask, &
          parallel_create_comm_row, parallel_create_comm_col, &
-         parallel_reduce_max, parallel_is_zero, not_parallel
+         parallel_reduce_max, parallel_is_zero
 
-    use glide_setup
+    use glissade_setup
     use glimmer_ncio, only: openall_in, openall_out, glimmer_nc_get_var, glimmer_nc_get_dimlength
-    use glide_velo, only: init_velo  !TODO - Remove call to init_velo?
     use glissade_therm, only: glissade_init_therm
     use glissade_mass_balance, only: glissade_mass_balance_init
     use glissade_basal_water, only: glissade_basal_water_init
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_scales
     use glimmer_physcon, only: scyr
-    use glide_mask
     use glissade_isostasy, only: glissade_isostasy_init
     use glimmer_map_init
     use glimmer_coordinates, only: coordsystem_new
     use glissade_grid_operators, only: glissade_stagger, glissade_laplacian_smoother
     use glissade_velo_higher, only: glissade_velo_higher_init
-    use glide_diagnostics, only: glide_init_diag
+    use glissade_diagnostics, only: glissade_init_diag
     use glissade_calving, only: glissade_calving_mask_init, glissade_subgrid_calving_mask_init, &
          glissade_calving_solve, verbose_calving, verbose_retreat
     use glissade_inversion, only: glissade_inversion_init, verbose_inversion
@@ -169,7 +164,7 @@ contains
     call glimmer_init_scales
 
     ! scale parameters
-    call glide_scale_params(model)
+    call glissade_scale_params(model)
 
     ! Set up coordinate systems, and change the parallel values of ewn and nsn.
     ! With no_ice BCs, scalars adjacent to the global boundary (including halos) are set to zero.
@@ -329,7 +324,7 @@ contains
 
     ! compute sigma levels or load from external file
     ! (if not already read from config file)
-    call glide_load_sigma(model,dummyunit)
+    call glissade_load_sigma(model,dummyunit)
 
     ! initialize the time step counter
     ! For restart, tstep_count will be overwritten from the restart file.
@@ -339,13 +334,15 @@ contains
     model%numerics%tstep_count = 0
 
     ! open all input files
-    call openall_in(model)
+    call openall_in(model%funits, model%projection, &
+                    model%parallel%global_ewn, model%parallel%global_nsn, &
+                    model%numerics%dew, model%numerics%dns, model%general%upn)
 
     ! read first time slice
-    call glide_io_readall(model,model)
+    call glissade_io_readall(model,model)
 
     ! initialize model diagnostics
-    call glide_init_diag(model)
+    call glissade_init_diag(model)
 
     ! Set coordinates of diagnostic point
     rtest = model%numerics%rdiag_local
@@ -701,16 +698,13 @@ contains
     endif
 
     ! open all output files
-    call openall_out(model)
+    call openall_out(model%funits, model%options%is_restart, model%projection, &
+                     model%numerics%tstart, model%numerics%tstep_count)
 
     ! create glide I/O variables
-    call glide_io_createall(model, model)
+    call glissade_io_createall(model, model)
 
     ! initialize glissade components
-
-    !TODO - Remove call to init_velo in glissade_initialise?
-    !       Most of what's done in init_velo is needed for SIA only, but still need velowk for call to wvelintg
-    call init_velo(model)
 
     ! Initialize basal hydrology, if needed
     call glissade_basal_water_init(model)
@@ -735,11 +729,6 @@ contains
                              model%temper%pmp_offset,                               & ! deg C
                              model%temper%temp,                                     & ! deg C
                              model%temper%tempunstag)                                 ! deg C
-
-    if (model%options%gthf == GTHF_COMPUTE) then
-       call not_parallel(__FILE__,__LINE__)
-       call init_lithot(model)
-    end if
 
     ! Dycore-specific velocity solver initialization
     select case (model%options%whichdycore)
@@ -849,14 +838,6 @@ contains
 
     endif  ! use_c_space_factor
 
-    ! calculate mask
-    ! Note: This call includes a halo update for thkmask
-    !TODO - Replace with glissade masks?
-    call glide_set_mask(model%numerics,                                &
-                        model%geometry%thck,  model%geometry%topg,     &
-                        model%general%ewn,    model%general%nsn,       &
-                        model%climate%eus,    model%geometry%thkmask)
-
     ! compute halo for relaxed topography
     ! Note: See comments above with regard to the halo update for topg.
     !       Outflow BCs zero out scalars beyond the global boundary, and no_ice BCs zero out scalars
@@ -915,14 +896,6 @@ contains
          model%options%is_restart == NO_RESTART) then
 
        call glissade_calving_solve(model, .true.)   ! init_calving = .true.
-
-       ! The mask needs to be recalculated after calving.
-       ! Note: glide_set_mask includes a halo update for thkmask.
-       !TODO - Delete this call? Glissade dycore does not use thkmask.
-       call glide_set_mask(model%numerics,                                &
-                           model%geometry%thck,  model%geometry%topg,     &
-                           model%general%ewn,    model%general%nsn,       &
-                           model%climate%eus,    model%geometry%thkmask)
 
     endif  ! initial calving
 
@@ -1168,11 +1141,10 @@ contains
 
     ! Perform time-step of an ice model instance with the Glissade dycore
 
-    use cism_parallel, only:  parallel_type, not_parallel
+    use cism_parallel, only:  parallel_type
 
     use glimmer_paramets, only: eps11
     use glimmer_physcon, only: scyr
-    use glide_mask, only: glide_set_mask
     use glissade_mass_balance, only: glissade_prepare_climate_forcing
     use glissade_bmlt_float, only: glissade_bmlt_float_solve
     use glissade_calving, only: glissade_calving_solve
@@ -1241,16 +1213,6 @@ contains
     ! ------------------------------------------------------------------------
 
     call glissade_isostasy_solve(model)
-
-    ! ------------------------------------------------------------------------ 
-    ! Calculate geothermal heat flux
-    ! ------------------------------------------------------------------------ 
-    !TODO Not sure if this is in the right place.  G1=f(G0,T0) and T1=g(G0,T0)  
-    !     If we update G1 now, then we will be doing T1=g(G1,T0).
-    if (model%options%gthf == GTHF_COMPUTE) then
-       call not_parallel(__FILE__,__LINE__)
-       call calc_lithot(model)
-    end if
 
     ! ------------------------------------------------------------------------
     ! Prepare climate forcing (acab, artm, snow and/or precip) as needed.
@@ -1364,21 +1326,6 @@ contains
     ! ------------------------------------------------------------------------ 
 
     call glissade_cleanup_icefree_cells(model)
-
-    ! glissade_calve_ice adjusts thickness for calved ice.  Therefore the mask needs to be recalculated.
-    ! Note: glide_set_mask includes a halo update of thkmask
-    ! This time we want to calculate the optional arguments iarea and ivol because thickness 
-    ! will not change further during this time step.
-    !TODO - Remove this call to glide_set_mask?
-    !       This subroutine is called at the beginning of glissade_velo_driver,
-    !        so a call here is not needed for the velo diagnostic solve.
-    !       The question is whether it is needed for the isostasy.
-    !TODO - Remove the call to glide_set_mask after checking isostasy
-
-    call glide_set_mask(model%numerics,                                &
-                        model%geometry%thck,  model%geometry%topg,     &
-                        model%general%ewn,    model%general%nsn,       &
-                        model%climate%eus,    model%geometry%thkmask)
 
     ! ------------------------------------------------------------------------
     !TODO - Remove the thermal solve here; always do it near the start of the time step.
@@ -1669,7 +1616,6 @@ contains
     use glissade_inversion, only: verbose_inversion
     use glissade_calving, only: verbose_calving
     use glissade_glacier, only: verbose_glacier
-    use glide_stop, only: glide_finalise
 
     implicit none
 
@@ -1965,11 +1911,11 @@ contains
 
           ! If advective_cfl exceeds 1.0, then abort cleanly.  Otherwise, set dt_transport and proceed.
           ! Note: Usually, it would be enough to write a fatal abort message.
-          !       The call to glide_finalise was added to allow CISM to finish cleanly when running
+          !       The call to glissade_finalise (formerly glide_finalise) was added to allow CISM to finish cleanly when running
           !        a suite of automated stability tests, e.g. with the stabilitySlab.py script.
           if (advective_cfl > 1.0d0) then
-             if (main_task) write(iulog,*) 'advective CFL violation; call glide_finalise and exit cleanly'
-             call glide_finalise(model, forcewrite_arg=.true.)
+             if (main_task) write(iulog,*) 'advective CFL violation; call glissade_finalise and exit cleanly'
+             call glissade_finalise(model, forcewrite_arg=.true.)
              stop
           else
              nsubcyc = model%numerics%subcyc
@@ -2122,8 +2068,7 @@ contains
 
     use glimmer_paramets, only: eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
-    use glissade_velo, only: glissade_velo_driver
-    use glide_velo, only: wvelintg
+    use glissade_velo, only: glissade_velo_driver, glissade_wvelintg
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask, glissade_calving_front_mask
     use glissade_grid_operators, only: glissade_stagger, glissade_gradient, glissade_laplacian_smoother
     use glissade_grounding_line, only: glissade_grounded_fraction, verbose_glp
@@ -2639,15 +2584,14 @@ contains
     ! Note: This current implementation for wvel only supports whichwvel=VERTINT_STANDARD
     ! Note: For glissade, wvel is diagnostic only.
     !       Pass in the basal melt rate for grounded ice only, as in Glide.
-    call wvelintg(model%velocity%uvel,                        &
-                  model%velocity%vvel,                        &
-                  model%geomderv,                             &
-                  model%numerics,                             &
-                  model%velowk,                               &
-                  model%geometry%thck * 0.0d0,                &  ! Just need a 2d array of all 0's for wgrd
-                  model%geometry%thck,                        &
-                  model%basal_melt%bmlt,                      &
-                  model%velocity%wvel)
+    call glissade_wvelintg(model%velocity%uvel,               &
+                           model%velocity%vvel,               &
+                           model%geomderv,                    &
+                           model%numerics,                    &
+                           model%geometry%thck * 0.0d0,       &  ! Just need a 2d array of all 0's for wgrd
+                           model%geometry%thck,               &
+                           model%basal_melt%bmlt,             &
+                           model%velocity%wvel)
     ! Note: halos may be wrong for wvel, but since it is currently only used as an output diagnostic variable, that is OK.
 
     ! compute the velocity norm (for diagnostic output)
@@ -2902,6 +2846,58 @@ contains
     endif
 
   end subroutine glissade_diagnostic_variable_solve
+
+!=======================================================================
+
+  subroutine glissade_finalise(model,forcewrite_arg)
+
+    !> finalise model instance
+    !> (Glissade copy of glide_finalise)
+
+    use glimmer_ncio
+    use glimmer_log
+    use glissade_types
+    use glissade_io
+    use glide_model_registry, only: deregister_model
+    use profile
+    implicit none
+    type(glide_global_type) :: model                 !> model instance
+    logical, optional, intent(in) :: forcewrite_arg  !> if true, then force a write to output files
+    character(len=100) :: message
+
+    logical :: forcewrite         !> if true, then force a write to output files
+
+    forcewrite = .false.
+
+    ! force write to output files if specified by the optional input argument
+    if (present(forcewrite_arg)) then
+       forcewrite = forcewrite_arg
+    end if
+
+    ! force write to output files if set by a model option
+    if (model%options%forcewrite_final) then
+       forcewrite = .true.
+    endif
+
+    call glissade_io_writeall(model, model, forcewrite)
+
+    call closeall_in(model%funits)
+    call closeall_out(model%funits)
+
+    call glide_deallocarr(model)
+    call deregister_model(model)
+
+    ! write some statistics
+    call write_log('Some Stats')
+    write(message,*) 'Maximum temperature iterations: ',model%temper%niter
+    call write_log(message)
+
+    ! close profile
+#if (defined PROFILING || defined CCSMCOUPLED || defined CESMTIMERS)
+    call profile_close(model%profile)
+#endif
+
+  end subroutine glissade_finalise
 
 !=======================================================================
 

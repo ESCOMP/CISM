@@ -41,7 +41,7 @@
     use glimmer_paramets, only: iulog
     use glimmer_log
     use glimmer_utils, only: point_diag
-    use glide_types
+    use glissade_types
     use cism_parallel, only: this_rank, main_task, nhalo, lhalo, uhalo, &
          parallel_halo, parallel_reduce_max, parallel_global_sum, parallel_globalindex
     use glissade_calving, only: verbose_calving
@@ -1594,7 +1594,7 @@
        overwrite_acab_minthck, &
        overwrite_acab_mask)
 
-    use glide_types
+    use glissade_types
 
     ! If overwrite_acab /=0 , then set overwrite_acab_mask = 1 for grid cells
     !  where acab is to be overwritten.  Currently, three options are supported:

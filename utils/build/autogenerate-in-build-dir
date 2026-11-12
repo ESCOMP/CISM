@@ -6,7 +6,7 @@
 # of the autoconf system.
 
 echo
-echo "Auto-generating glide_io.F90 in build directory."
+echo "Auto-generating glide_io.F90 and glissade_io.F90 in build directory."
 echo
 
 mkdir -p fortran_autogen_srcs
@@ -25,15 +25,17 @@ echo $CISM_SOURCE_DIR
 ##########################
 # The following lines generate several *_io.F90 files, based on variable definition files:
 
-echo "  --creating glide_io.F90"
+echo "  --creating glide_io.F90 and glissade_io.F90"
 
 # Save path to source files used in autogeneration
 export GLIDE_VARS_PATH=$CISM_SOURCE_DIR/libglide/glide_vars.def
+export GLISSADE_VARS_PATH=$CISM_SOURCE_DIR/libglissade/glissade_vars.def
 export NCDF_TEMPL_PATH=$CISM_SOURCE_DIR/libglimmer/ncdf_template.F90.in
 
 # Call python script with source file arguments
 python3 -V
 python3 $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLIDE_VARS_PATH $NCDF_TEMPL_PATH
+python3 $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLISSADE_VARS_PATH $NCDF_TEMPL_PATH
 
 popd
 

@@ -69,9 +69,10 @@ contains
     use glide_model_registry, only : register_model
     use glide
     use glissade
+    use glissade_setup, only: glissade_config
     use glad_constants
     use glad_restart_gcm
-    use glide_diagnostics
+    use glissade_diagnostics, only: glissade_write_diagnostics
     use cism_parallel, only: main_task
 
     implicit none
@@ -102,7 +103,13 @@ contains
     ! initialise model
 
     call register_model(instance%model)
-    call glide_config(instance%model, config, config_fileunit)
+    call glissade_config(instance%model, config, config_fileunit)
+
+    ! GLAD supports only the Glissade dycore
+    if (instance%model%options%whichdycore /= DYCORE_GLISSADE) then
+       call write_log('GLAD supports only the Glissade dycore (dycore = 2)', &
+                      GM_FATAL,__FILE__,__LINE__)
+    endif
 
     ! if this is a continuation run, then set up to read restart
     ! (currently assumed to be a CESM restart file)
@@ -141,25 +148,12 @@ contains
 
     do_ice_evolution = (instance%evolve_ice == EVOLVE_ICE_TRUE)
 
-    if (instance%model%options%whichdycore == DYCORE_GLIDE) then  ! SIA dycore
+    ! initialise the model
+    call glissade_initialise(instance%model, &
+         evolve_ice = do_ice_evolution)
 
-       ! initialise the model
-       call glide_initialise(instance%model)
-
-       ! compute the initial diagnostic state
-       call glide_init_state_diagnostic(instance%model, &
-            evolve_ice = do_ice_evolution)
-
-    else       ! glam/glissade HO dycore     
-
-       ! initialise the model
-       call glissade_initialise(instance%model, &
-            evolve_ice = do_ice_evolution)
-
-       ! compute the initial diagnostic state
-       call glissade_diagnostic_variable_solve(instance%model)
-
-    endif
+    ! compute the initial diagnostic state
+    call glissade_diagnostic_variable_solve(instance%model)
 
     instance%ice_tstep = get_tinc(instance%model)*nint(years2hours)
 
@@ -179,7 +173,9 @@ contains
     call glad_io_createall(instance%model, data=instance)
 
     ! create instantaneous glad variables
-    call openall_out(instance%model, outfiles=instance%out_first)
+    call openall_out(instance%model%funits, instance%model%options%is_restart, instance%model%projection, &
+                     instance%model%numerics%tstart, instance%model%numerics%tstep_count, &
+                     outfiles=instance%out_first)
     call glad_mbal_io_createall(instance%model, data=instance, outfiles=instance%out_first)
 
     ! fill dimension variables
@@ -274,13 +270,13 @@ contains
 
    ! Write initial ice sheet diagnostics for this instance
 
-    call glide_write_diagnostics(instance%model,                  &
+    call glissade_write_diagnostics(instance%model,                  &
                                  instance%model%numerics%time,    &
                                  tstep_count = instance%model%numerics%tstep_count)
 
     ! Write netCDF output for this instance
 
-    call glide_io_writeall(instance%model, instance%model)
+    call glissade_io_writeall(instance%model, instance%model)
     call glad_io_writeall(instance, instance%model)
     call glad_mbal_io_writeall(instance, instance%model, outfiles=instance%out_first)
 
@@ -292,14 +288,13 @@ contains
 
     !> Tidy up 
 
-    use glide
+    use glissade, only: glissade_finalise
     use glimmer_ncio
-    use glide_stop, only : glide_finalise
     implicit none
     type(glad_instance),  intent(inout) :: instance    !> The instance being initialised.
 
-    call glide_finalise(instance%model)
-    call closeall_out(instance%model,outfiles=instance%out_first)
+    call glissade_finalise(instance%model)
+    call closeall_out(instance%model%funits, outfiles=instance%out_first)
     instance%out_first => null()
 
   end subroutine glad_i_end

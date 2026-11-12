@@ -67,7 +67,7 @@
     use glissade_grid_operators
     use glissade_masks, only: glissade_get_masks
 
-    use glide_types
+    use glissade_types
 
     use glissade_velo_higher_slap, only:   &
          slap_preprocess_3d,   slap_preprocess_2d,   &
@@ -738,10 +738,6 @@
        f_ground,             &  ! grounded ice fraction at vertices, 0 <= f_ground <= 1
        f_ground_cell            ! grounded ice fraction in cells, 0 <= f_ground_cell <= 1
 
-    !TODO - Remove dependence on stagmask?  Currently it is needed for input to calcbeta.
-    integer, dimension(:,:), pointer ::   &
-       stagmask                 ! mask on staggered grid
-
     real(dp), dimension(:,:,:), pointer ::  &
        uvel, vvel,  &           ! velocity components (m/yr)
        temp,   &                ! ice temperature (deg C)
@@ -1104,7 +1100,6 @@
      sigma    => model%numerics%sigma(:)
      stagsigma=> model%numerics%stagsigma(:)
      stagwbndsigma=> model%numerics%stagwbndsigma(:)
-     stagmask => model%geometry%stagmask(:,:)
      f_ground => model%geometry%f_ground(:,:)
      f_ground_cell => model%geometry%f_ground_cell(:,:)
      f_flotation => model%geometry%f_flotation(:,:)

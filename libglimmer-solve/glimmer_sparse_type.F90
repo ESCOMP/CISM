@@ -32,6 +32,13 @@ module glimmer_sparse_type
  
   use glimmer_global, only:dp
   implicit none
+
+  ! sparse solver options (model%options%which_ho_sparse)
+  integer, parameter :: HO_SPARSE_PCG_INCH = -1
+  integer, parameter :: HO_SPARSE_BICG = 0
+  integer, parameter :: HO_SPARSE_GMRES = 1
+  integer, parameter :: HO_SPARSE_PCG_STANDARD = 2
+  integer, parameter :: HO_SPARSE_PCG_CHRONGEAR = 3
   
   ! sparse matrix type
   type sparse_matrix_type
