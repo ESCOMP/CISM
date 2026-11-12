@@ -6,7 +6,7 @@
 # Set path to top cism directory
 # Note, this is an easy way to build out of source.
 # In directory you want to build in, run:
-#   $ source $CISM/builds/linux-gnu-cism/linux-gnu-cism-cmake $CISM
+#   $ source $CISM/builds/derecho-intel/derecho-intel-cmake.sh $CISM
 # where $CISM is the path to the top level cism directory.
 if [ $# -eq 0 ]
 then
@@ -17,7 +17,7 @@ fi
 
 source /etc/profile.d/z00_modules.sh
 
-source derecho-intel-modules
+source "${cism_top}/builds/derecho-intel/derecho-intel-modules"
 
 echo CISM: "${cism_top}"
 
@@ -33,26 +33,20 @@ echo "Doing CMake Configuration step"
 # unnecessary for a standalone cism build, but I am keeping things consistent
 # with the CESM build for simplicity.
 
-# CISM_USE_GPTL_INSTRUMENTATION -- ON by default, set to OFF to not use GPTL instrumentation.
+# GPTL timing is off by default. To use it, first build libgptl.a in
+# utils/libgptl (see utils/libgptl/README.CISM), then set
+# CISM_USE_GPTL_INSTRUMENTATION=ON and CISM_GPTL_DIR=<path to libgptl> below.
 
 cmake \
   -D CISM_BUILD_CISM_DRIVER:BOOL=ON \
-  -D CISM_ENABLE_BISICLES=OFF \
-  -D CISM_ENABLE_FELIX=OFF \
 \
-  -D CISM_USE_TRILINOS:BOOL=OFF \
-  -D CISM_MPI_MODE:BOOL=ON \
-  -D CISM_SERIAL_MODE:BOOL=OFF \
-\
-  -D CISM_USE_GPTL_INSTRUMENTATION:BOOL="${CISM_USE_GPTL_INSTRUMENTATION:=ON}" \
+  -D CISM_USE_GPTL_INSTRUMENTATION:BOOL=OFF \
   -D CISM_COUPLED:BOOL=OFF \
   -D CISM_USE_CISM_FRONT_END:BOOL=OFF \
 \
   -D CISM_NETCDF_DIR="$NETCDF" \
-  -D CISM_GPTL_DIR= "utils/libgptl" \
   -D CMAKE_VERBOSE_MAKEFILE:BOOL=OFF \
 \
-  -D CMAKE_CXX_COMPILER=mpiicpc \
   -D CMAKE_C_COMPILER=mpicc \
   -D CMAKE_Fortran_COMPILER=mpif90 \
 \
@@ -60,6 +54,5 @@ cmake \
 \
   -D CMAKE_Fortran_FLAGS:STRING="-qno-opt-dynamic-align  -convert big_endian -assume byterecl -ftz -traceback -assume realloc_lhs -fp-model source -qopt-report -O2 -debug minimal " \
   -D CMAKE_C_FLAGS:STRING="-qno-opt-dynamic-align -fp-model precise -std=gnu99 -qopt-report -O2 -debug minimal " \
-  -D CMAKE_CXX_FLAGS:STRING="-qno-opt-dynamic-align -fp-model precise -std=gnu99 -qopt-report -O2 -debug minimal " \
   "${cism_top}"
 

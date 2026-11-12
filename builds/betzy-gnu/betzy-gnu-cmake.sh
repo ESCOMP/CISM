@@ -1,8 +1,8 @@
-# Run this script by typing: source cheyenne-intel-cmake
+# Run this script by typing: source betzy-gnu-cmake.sh
 # After this script completes, type: make -j 8
 # If rebuilding, type 'make clean' before running 'make -j 8'
 
-# This cmake configuration script is set up to perform a parallel build with Trilinos
+# This cmake configuration script is set up to perform a parallel build.
 
 module purge
 module load StdEnv
@@ -25,12 +25,6 @@ echo "Doing CMake Configuration step"
 # with the CESM build for simplicity.
 cmake \
   -D CISM_BUILD_CISM_DRIVER:BOOL=ON \
-  -D CISM_ENABLE_BISICLES=OFF \
-  -D CISM_ENABLE_FELIX=OFF \
-\
-  -D CISM_USE_TRILINOS:BOOL=OFF \
-  -D CISM_MPI_MODE:BOOL=ON \
-  -D CISM_SERIAL_MODE:BOOL=OFF \
 \
   -D CISM_USE_GPTL_INSTRUMENTATION:BOOL=OFF \
   -D CISM_COUPLED:BOOL=OFF \
@@ -39,7 +33,6 @@ cmake \
   -D CISM_NETCDF_DIR=$EBROOTNETCDFMINFORTRAN \
   -D CMAKE_VERBOSE_MAKEFILE:BOOL=OFF \
 \
-  -D CMAKE_CXX_COMPILER=mpiicpc \
   -D CMAKE_C_COMPILER=mpicc \
   -D CMAKE_Fortran_COMPILER=mpif90 \
 \
@@ -53,7 +46,7 @@ cmake \
 # Note: last argument above  "../.."  is path to top-level cism directory
 
 #  -D CMAKE_C_FLAGS:STRING="-qno-opt-dynamic-align -fp-model precise -std=gnu99 -qopt-report -O2 -debug minimal " \
-#  -D CMAKE_CXX_FLAGS:STRING="-qno-opt-dynamic-align -fp-model precise -std=gnu99 -qopt-report -O2 -debug minimal " \#  -D CMAKE_Fortran_FLAGS:STRING="-qno-opt-dynamic-align  -convert big_endian -assume byterecl -ftz -traceback -assume realloc_lhs -fp-model source -qopt-report -O2 -debug minimal " \
+#  -D CMAKE_Fortran_FLAGS:STRING="-qno-opt-dynamic-align  -convert big_endian -assume byterecl -ftz -traceback -assume realloc_lhs -fp-model source -qopt-report -O2 -debug minimal " \
 
 
 #  -D CMAKE_Fortran_FLAGS:STRING="-fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -O -L/cluster/software/OpenBLAS/0.3.18-GCC-11.2.0/lib/libopenblas.a" \

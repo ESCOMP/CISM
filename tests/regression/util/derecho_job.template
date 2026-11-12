@@ -1,0 +1,16 @@
+#!/bin/bash
+#PBS -A PBS_A
+#PBS -q PBS_q
+#PBS -N PBS_N 
+#PBS -l walltime=PBS_walltime
+#PBS -l PBS_RES=RES_NUM
+#PBS -j oe
+#PBS -m ae
+
+module purge
+module load ncarenv/23.09
+module load intel/2023.2.1
+module load ncarcompilers/1.0.0
+module load cray-mpich/8.1.27
+module load mkl/2023.2.0
+module load netcdf/4.9.2

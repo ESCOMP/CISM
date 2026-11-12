@@ -8,19 +8,13 @@ To run a particular test case, first create a symbolic link (or copy of) your ex
 ln -s ../../../builds/mac-gnu/cism_driver/cism_driver
 ```
 
-For a serial build, the EISMINT-1, moving margin, test case 3 can be run using:
-
-```sh
-./cism_driver e1-mm.3.config
-```
-
-and likewise for other test cases ("mm" = moving margin; "fm" = fixed margin).
-
-For a parallel build, one would use:
+The EISMINT-1, moving margin, test case 3 can be run on one processor using:
 
 ```sh
 mpirun -np 1 ./cism_driver e1-mm.3.config
 ```
+
+and likewise for other test cases ("mm" = moving margin; "fm" = fixed margin).
 
 To view the results use ncview or another utility for viewing netCDF files.
 
