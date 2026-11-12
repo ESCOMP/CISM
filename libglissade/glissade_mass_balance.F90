@@ -379,6 +379,11 @@
        model%climate%acab(:,:) = (model%climate%smb_corrected(:,:) * (rhow/rhoi)/1000.d0) / scyr
     endif
 
+    ! For SMB budget diagnostics, save the acab received by the dycore (m/s), before the
+    !  adjustments below (overwrite_acab, block_inception, dthck_dt correction).
+    ! The applied SMB is subtracted in glissade_apply_smb to give the unapplied SMB.
+    model%climate%acab_unapplied(:,:) = model%climate%acab(:,:)
+
     ! Optionally, overwrite acab where overwrite_acab_mask = 1.
     ! Note: overwrite_acab_value has scaled model units for now
     if (model%options%overwrite_acab /= 0) then
@@ -961,6 +966,16 @@
          model%geometry%tracers_usrf(:,:,:),               &
          model%geometry%tracers_lsrf(:,:,:),               &
          model%options%which_ho_vertical_remap)
+
+    ! Diagnose the SMB that was passed to the dycore but not applied (m/s).
+    ! On input, acab_unapplied holds the acab received by the dycore, saved in glissade_prepare_climate_forcing
+    !  before any adjustments. The unapplied SMB is nonzero where
+    !  (1) the SMB is negative and melts the full column, with energy left over,
+    !  (2) the cell is ice-free ocean,
+    !  (3) the cell is only partly ice-covered (effective_areafrac < 1), or
+    !  (4) acab was adjusted before being applied (e.g., positive acab removed by block_inception).
+    ! Note: acab_applied is computed only for locally owned cells, so the values in halo cells are not meaningful.
+    model%climate%acab_unapplied(:,:) = model%climate%acab_unapplied(:,:) - model%climate%acab_applied(:,:)
 
     if (verbose_calving) then
        call point_diag(model%geometry%thck, 'After mass balance driver, thck (m)', itest, jtest, rtest, 7, 7)

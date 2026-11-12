@@ -781,6 +781,27 @@ long_name:     total surface mass balance flux
 data:          data%mass_flux%total_smb_flux
 average:       1
 
+[total_smb_cpl_flux]
+dimensions:    time
+units:         kg/s
+long_name:     total surface mass balance flux received from the coupler
+data:          data%mass_flux%total_smb_cpl_flux
+average:       1
+
+[total_smb_unapplied_glad_flux]
+dimensions:    time
+units:         kg/s
+long_name:     total surface mass balance flux from the coupler that is zeroed by GLAD
+data:          data%mass_flux%total_smb_unapplied_glad_flux
+average:       1
+
+[total_smb_unapplied_flux]
+dimensions:    time
+units:         kg/s
+long_name:     total surface mass balance flux passed to the dycore but not applied
+data:          data%mass_flux%total_smb_unapplied_flux
+average:       1
+
 [total_bmb_flux]
 dimensions:    time
 units:         kg/s
@@ -961,6 +982,30 @@ long_name:     applied accumulation, ablation rate
 data:          data%climate%acab_applied
 factor:        scyr
 standard_name: land_ice_surface_specific_mass_balance_applied
+average:       1
+
+[acab_cpl]
+dimensions:    time, y1, x1
+units:         meter/year ice
+long_name:     surface mass balance received from the coupler, before masking
+data:          data%climate%acab_cpl
+factor:        scyr
+average:       1
+
+[acab_unapplied_glad]
+dimensions:    time, y1, x1
+units:         meter/year ice
+long_name:     surface mass balance from the coupler that is zeroed by GLAD
+data:          data%climate%acab_unapplied_glad
+factor:        scyr
+average:       1
+
+[acab_unapplied]
+dimensions:    time, y1, x1
+units:         meter/year ice
+long_name:     surface mass balance passed to the dycore but not applied
+data:          data%climate%acab_unapplied
+factor:        scyr
 average:       1
 
 [overwrite_acab_mask]

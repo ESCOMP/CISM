@@ -175,6 +175,11 @@ contains
 !!          call glide_get_usurf(instance%model, instance%local_orog)
 !!          call glad_remove_bath(instance%local_orog,1,1)
 
+          ! Save the SMB received from the coupler, before masking, for SMB budget diagnostics.
+          ! Convert from m/yr w.e. to m/yr ice; glide_set_acab_cpl converts to m/s.
+
+          call glide_set_acab_cpl(instance%model, instance%acab * rhow/rhoi)
+
           ! Mask out non-accumulation in ice-free areas
 
           where(thck_temp <= 0.d0 .and. instance%acab < 0.d0)
@@ -182,8 +187,11 @@ contains
           end where
 
           ! Set acab to zero for ocean cells (bed below sea level, no ice present)
+          ! Note: Use the current geometry rather than thkmask, which can be out of date
+          !       at the first time step if initialization removed ice.
 
-          where (GLIDE_IS_OCEAN(instance%model%geometry%thkmask))
+          where (instance%model%geometry%thck <= 0.d0 .and. &
+                 instance%model%geometry%topg - instance%model%climate%eus < 0.d0)
              instance%acab = 0.d0
           endwhere
 
@@ -198,6 +206,10 @@ contains
           !       Change to use the same units consistently?  E.g., switch to w.e. in Glide
 
           call glide_set_acab(instance%model, instance%acab * rhow/rhoi)
+
+          ! Diagnose the SMB zeroed by the masking above (m/s ice)
+          instance%model%climate%acab_unapplied_glad(:,:) = &
+               instance%model%climate%acab_cpl(:,:) - instance%model%climate%acab(:,:)
           call glide_set_artm(instance%model, instance%artm)
 
           ! Note: CISM has several thermal forcing options, as determined by ocean_data_domain:
