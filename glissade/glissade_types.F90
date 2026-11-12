@@ -91,8 +91,6 @@ module glissade_types
   integer, parameter :: BTRC_CONSTANT = 1
   integer, parameter :: BTRC_CONSTANT_BWAT = 2
   integer, parameter :: BTRC_CONSTANT_BPMP = 3
-  integer, parameter :: BTRC_LINEAR_BMLT = 4
-  integer, parameter :: BTRC_TANH_BWAT = 5
 
   integer, parameter :: BMLT_FLOAT_NONE = 0
   integer, parameter :: BMLT_FLOAT_MISMIP = 1
@@ -2338,7 +2336,7 @@ module glissade_types
   !TODO - Move these parameters to types associated with a certain kind of physics
   !WHL TODO - During the config reorg, change default geot to 0.0, so that idealized tests by default have no mass loss
   type glissade_paramets_type
-    real(dp) :: btrac_const = 0.d0     ! m yr^{-1} Pa^{-1} (gets scaled during init)
+    real(dp) :: btrc_const = 0.d0      ! m yr^{-1} Pa^{-1} (gets scaled during init)
     real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down  !TODO - Change default to 0.0?
     real(dp) :: flow_enhancement_factor_ground = 1.0d0   ! flow enhancement parameter for the Arrhenius relationship;
                                                          ! grounded ice only; typically > 1 for SIA models to speed up the ice

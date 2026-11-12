@@ -267,7 +267,7 @@ contains
     model%calving%cliff_timescale = model%calving%cliff_timescale * scyr    ! convert from yr to s
 
     ! scale basal traction parameter
-    model%paramets%btrac_const = model%paramets%btrac_const/scyr
+    model%paramets%btrc_const = model%paramets%btrc_const/scyr
 
     ! scale inversion parameters
     model%inversion%babc_timescale = model%inversion%babc_timescale * scyr    ! convert yr to s
@@ -1008,14 +1008,12 @@ contains
          'Paterson and Budd (T = -5 C)', &
          'Paterson and Budd           ' /)
 
-    !TODO - Rename slip_coeff to which_btrc?
-    character(len=*), dimension(0:5), parameter :: slip_coeff = (/ &
+    ! Note: Glide also supports 'linear function of bmlt' (4) and 'tanh function of bwat' (5)
+    character(len=*), dimension(0:3), parameter :: slip_coeff = (/ &
          'no basal sliding       ', &
          'constant basal traction', &
          'constant where bwat > 0', &
-         'constant where T = Tpmp', &
-         'linear function of bmlt', &
-         'tanh function of bwat  ' /)
+         'constant where T = Tpmp' /)
 
     character(len=*), dimension(0:1), parameter :: b_mbal = (/ &
          'not in continuity eqn', &
@@ -1456,11 +1454,6 @@ contains
     if (model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
        write(message,*) 'slip_coeff              : ', model%options%whichbtrc, slip_coeff(model%options%whichbtrc)
        call write_log(message)
-
-       !Note: Not all basal traction options are supported for the Glissade SIA solver
-       if (model%options%whichbtrc > BTRC_CONSTANT_BPMP) then
-          call write_log('Error, slip_coeff out of range for Glissade dycore',GM_FATAL)
-       end if
     endif
 
     !WHL TODO: Renumber during the config reorg and restore the following commented-out line
@@ -2133,8 +2126,8 @@ contains
     call GetValue(section,'cf_advance_retreat_period',    model%calving%cf_advance_retreat_period)
     call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
 
-    ! NOTE: btrac_const is used for several slip_coeff options in the local SIA solver
-    call GetValue(section,'basal_tract_const', model%paramets%btrac_const)
+    ! NOTE: btrc_const is used for several slip_coeff options in the local SIA solver
+    call GetValue(section,'basal_tract_const', model%paramets%btrc_const)
 
     call GetValue(section,'beta_grounded_min', model%basal_physics%beta_grounded_min)
     call GetValue(section,'ho_beta_const', model%basal_physics%ho_beta_const)
@@ -2471,9 +2464,8 @@ contains
 
     if (model%options%whichbtrc == BTRC_CONSTANT      .or.  &
         model%options%whichbtrc == BTRC_CONSTANT_BWAT .or.  &
-        model%options%whichbtrc == BTRC_LINEAR_BMLT   .or.  &
         model%options%whichbtrc == BTRC_CONSTANT_BPMP) then
-       write(message,*) 'basal traction param (m/yr/Pa)      : ', model%paramets%btrac_const
+       write(message,*) 'basal traction param (m/yr/Pa)      : ', model%paramets%btrc_const
        call write_log(message)
     end if
 
