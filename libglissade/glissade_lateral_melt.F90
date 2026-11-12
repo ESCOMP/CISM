@@ -446,6 +446,7 @@ contains
              tf_sr = thermal_forcing_2d(i,j)  ! 2d thermal forcing [degC]
              q_sr = (subglacial_discharge(i,j)/rhow) * scday  ! subglacial_discharge converted from kg/m^2/s to m/day
 
+             !TODO - Turn hardwired constants to parameters
              ! Rignot et al. 2016; formulated in m/day, convert to m/s and multiply by a prescribed melt_factor
              m_sr = melt_factor * (3.0d-4 * thck_submerged(i,j) * q_sr**0.39d0 + 0.15d0) * tf_sr**1.18d0 * 365.d0/scyr
 

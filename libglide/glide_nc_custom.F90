@@ -121,34 +121,29 @@ contains
        status = parallel_put_var(NCO%id,varid,model%general%y0_global)
        call nc_errorhandle(__FILE__,__LINE__,status)
 
-    else if(.not. associated(model%funits%in_first)) then
+    else   ! no input file; compute the coordinates from the grid spacing
 
-       ! WHL: The following code goes back to early Glimmer.
-       !      I think it was used to define grid output variables when there was no input file.
-       !      It has not been used recently; not sure it still works.
+       ! Note: The original code (from early Glimmer) wrote one scalar per call without a 'start' index,
+       !       so each call overwrote the first element, leaving the rest of the array as fill values.
 
        status = parallel_inq_varid(NCO%id,'x0',varid)
-       do i=1, model%general%ewn-1
-          status=nf90_put_var(NCO%id,varid,(real(i,dp)-0.5d0)*model%numerics%dew)
-       enddo
+       status = parallel_put_var(NCO%id, varid, &
+            (/ ((real(i,dp)-0.5d0)*model%numerics%dew, i = 1, model%parallel%global_ewn-1) /))
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        status = parallel_inq_varid(NCO%id,'y0',varid)
-       do i=1, model%general%nsn-1
-          status=nf90_put_var(NCO%id,varid,(real(i,dp)-0.5d0)*model%numerics%dns)
-       enddo
+       status = parallel_put_var(NCO%id, varid, &
+            (/ ((real(i,dp)-0.5d0)*model%numerics%dns, i = 1, model%parallel%global_nsn-1) /))
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        status = parallel_inq_varid(NCO%id,'x1',varid)
-       do i=1, model%general%ewn-1
-          status=nf90_put_var(NCO%id,varid,(real(i,dp)-1.0d0)*model%numerics%dew)
-       enddo
+       status = parallel_put_var(NCO%id, varid, &
+            (/ ((real(i,dp)-1.0d0)*model%numerics%dew, i = 1, model%parallel%global_ewn) /))
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        status = parallel_inq_varid(NCO%id,'y1',varid)
-       do i=1, model%general%nsn-1
-          status=nf90_put_var(NCO%id,varid,(real(i,dp)-1.0d0)*model%numerics%dns)
-       enddo
+       status = parallel_put_var(NCO%id, varid, &
+            (/ ((real(i,dp)-1.0d0)*model%numerics%dns, i = 1, model%parallel%global_nsn) /))
        call nc_errorhandle(__FILE__,__LINE__,status)
 
     end if   ! associated(model%funits%in_first)

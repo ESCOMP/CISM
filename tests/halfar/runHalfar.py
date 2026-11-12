@@ -38,8 +38,8 @@ def unsigned_int(x):
         raise argparse.ArgumentTypeError("This argument is an unsigned int type! Should be an integer greater than zero.")
     return x
 
-parser.add_argument('-c','--config', default='./halfar.config', 
-        help="The configure file used to setup the test case and run CISM")
+parser.add_argument('-c','--config', default='./halfar.config.glide',
+        help="The configure file used to set up the test case and run CISM")
 parser.add_argument('-e','--executable', default='./cism_driver', 
         help="The CISM driver")
 parser.add_argument('--hpc', nargs='?', const='aprun',
@@ -166,7 +166,7 @@ def main():
     try:
         config_parser = configparser.ConfigParser(delimiters=('=', ':'),
                             comment_prefixes=('#', ';'),
-                            inline_comment_prefixes=';',
+                            inline_comment_prefixes=('#', ';'),
                             interpolation=None)
         config_parser.read( args.config )
         
