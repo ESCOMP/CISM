@@ -6,7 +6,7 @@
 
 source /etc/profile.d/z00_modules.csh
 
-source derecho-intel-modules
+./derecho-intel-modules
 
 # remove old build data:
 rm -f ./CMakeCache.txt

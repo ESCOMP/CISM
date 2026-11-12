@@ -17,7 +17,7 @@ fi
 
 source /etc/profile.d/z00_modules.sh
 
-source derecho-intel-modules
+./derecho-intel-modules
 
 echo CISM: "${cism_top}"
 
