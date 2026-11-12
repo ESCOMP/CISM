@@ -123,16 +123,16 @@ ENDIF()
 #####Build All Fortran Sources #####
 
 #IF (CISM_USE_CISM_FRONT_END)
-   file(GLOB GLINT_SOURCES libglint/*.F90)
-   file(GLOB GLAD_SOURCES libglad/*.F90)
-   file(GLOB GLISSADE_SOURCES libglissade/*.F90)
+   file(GLOB GLINT_SOURCES glint/*.F90)
+   file(GLOB GLAD_SOURCES glad/*.F90)
+   file(GLOB GLISSADE_SOURCES glissade/*.F90)
 #ENDIF()
 
 file(GLOB FORTRANSOURCES
      libglimmer-solve/SLAP/*.f
      libglimmer-solve/*.F90
-     libglimmer/*.F90 libglimmer/writestats.c
-     libglide/*.F90
+     libglimmer/*.F90
+     glide/*.F90
      cism_driver/eismint_forcing.F90
      cism_driver/testsfg.F90
      ${GLINT_SOURCES}
@@ -161,8 +161,8 @@ ADD_CUSTOM_COMMAND(
 		       fortran_autogen_srcs/glissade_io.F90
 		COMMAND ${CISM_SOURCE_DIR}/utils/build/autogenerate-in-build-dir
 		${CISM_SOURCE_DIR} 
-		DEPENDS ${CISM_SOURCE_DIR}/libglide/glide_vars.def 
-			${CISM_SOURCE_DIR}/libglissade/glissade_vars.def
+		DEPENDS ${CISM_SOURCE_DIR}/glide/glide_vars.def 
+			${CISM_SOURCE_DIR}/glissade/glissade_vars.def
 		        ${CISM_SOURCE_DIR}/libglimmer/ncdf_template.F90.in
 			${CISM_SOURCE_DIR}/utils/build/generate_ncvars.py
 			${CISM_SOURCE_DIR}/utils/build/autogenerate-in-build-dir
@@ -179,10 +179,10 @@ ADD_CUSTOM_COMMAND(
 		       fortran_autogen_srcs/glad_mbal_io.F90
 		COMMAND ${CISM_SOURCE_DIR}/utils/build/autogen-for-glint-and-glad-in-build-dir
                 ${CISM_SOURCE_DIR}
-		DEPENDS ${CISM_SOURCE_DIR}/libglint/glint_vars.def
-			${CISM_SOURCE_DIR}/libglint/glint_mbal_vars.def
-			${CISM_SOURCE_DIR}/libglad/glad_vars.def
-			${CISM_SOURCE_DIR}/libglad/glad_mbal_vars.def
+		DEPENDS ${CISM_SOURCE_DIR}/glint/glint_vars.def
+			${CISM_SOURCE_DIR}/glint/glint_mbal_vars.def
+			${CISM_SOURCE_DIR}/glad/glad_vars.def
+			${CISM_SOURCE_DIR}/glad/glad_mbal_vars.def
 			${CISM_SOURCE_DIR}/libglimmer/ncdf_template.F90.in
 			${CISM_SOURCE_DIR}/utils/build/generate_ncvars.py
 			${CISM_SOURCE_DIR}/utils/build/autogen-for-glint-and-glad-in-build-dir
@@ -201,10 +201,10 @@ ADD_CUSTOM_COMMAND(
 # This can be removed once we switch to consistently using this new
 # cmake-based build.
   LIST(REMOVE_ITEM FORTRANSOURCES
-     ${CISM_SOURCE_DIR}/libglide/glide_io.F90
-     ${CISM_SOURCE_DIR}/libglide/glide_lithot_io.F90
-     ${CISM_SOURCE_DIR}/libglint/glint_io.F90
-     ${CISM_SOURCE_DIR}/libglint/glint_mbal_io.F90
+     ${CISM_SOURCE_DIR}/glide/glide_io.F90
+     ${CISM_SOURCE_DIR}/glide/glide_lithot_io.F90
+     ${CISM_SOURCE_DIR}/glint/glint_io.F90
+     ${CISM_SOURCE_DIR}/glint/glint_mbal_io.F90
      ${CISM_SOURCE_DIR}/libglimmer/glimmer_vers.F90 )
 #ENDIF()
 
@@ -256,10 +256,10 @@ SET(CMAKE_INCLUDE_PATH ${CISM_BINARY_DIR}/include)
 #message("Fortransource ${FORTRANSOURCES}")
 
 # include-dirs: Binary: all the .mod files; SOURCE: config.inc; 
-#               libglide: glide_mask.inc
+#               glide: glide_mask.inc
 
 include_directories (${CISM_BINARY_DIR} ${CISM_SOURCE_DIR}
-                     ${CISM_SOURCE_DIR}/libglide)
+                     ${CISM_SOURCE_DIR}/glide)
 
 
 SET(LIBRARY_OUTPUT_PATH ${CISM_BINARY_DIR}/lib)

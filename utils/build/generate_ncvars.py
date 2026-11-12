@@ -295,6 +295,12 @@ class PrintNC_template(PrintVars):
         for l in self.infile.readlines():
             for k in module.keys():
                 l = l.replace(k.upper(),module[k])
+            # For glide_io and glissade_io, DATAMOD is the <dycore_prefix>_types module, which is
+            # already used in full; skip the redundant 'use ..., only' line (avoids a compiler warning).
+            types_mod = '%s_types' % module.get('dycore_prefix', '').strip()
+            if module['datamod'].strip() == types_mod and \
+               l.strip().startswith('use %s, only:' % types_mod) and l.startswith('  use'):
+                continue
             for token in self.handletoken:
                 if l.find(token) != -1:
                     break

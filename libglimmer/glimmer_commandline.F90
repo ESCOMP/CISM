@@ -45,7 +45,6 @@ module glimmer_commandline
 
   character(len=5000)         :: commandline_history     !< complete command line
   character(len=fname_length) :: commandline_configname  !< name of the configuration file
-  character(len=fname_length) :: commandline_resultsname !< name of results file
 
 contains
 
@@ -66,7 +65,6 @@ contains
     integer, dimension(100) :: argumentIdx
     
     ! defaults
-    commandline_resultsname = 'results'
 
     if (main_task) then
        ! get number of arguments and file names
@@ -91,14 +89,6 @@ contains
                 case ('-h')
                    call glimmer_commandlineHelp()
                    stop
-                case ('-r')
-                   i = i+1
-                   if (i > numargs) then
-                      write(*,*) 'Error, expect name of output file to follow -o option'
-                      call glimmer_commandlineHelp()
-                      stop
-                   end if
-                   call GETARG(i,commandline_resultsname)
                 case default
                    write(*,*) 'Unkown option ',trim(argument)
                    call glimmer_commandlineHelp()
@@ -139,7 +129,6 @@ contains
        write(*,*) trim(commandline_history)
        write(*,*)
        write(*,*) 'commandline_configname:  ', trim(commandline_configname)
-       write(*,*) 'commandline_resultsname: ', trim(commandline_resultsname)
     endif
   end subroutine glimmer_PrintCommandline
 
@@ -158,7 +147,6 @@ contains
        write(*,*) 'Usage: ',trim(pname),' [options] cfgname'
        write(*,*) 'where [options] are'
        write(*,*) '  -h:          this message'
-       write(*,*) '  -r <fname>:  the name of the results file (default: results)'
     endif
   end subroutine glimmer_commandlineHelp
 end module glimmer_commandline

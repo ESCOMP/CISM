@@ -1475,7 +1475,7 @@ contains
 
       ! Check for the need to output tempstag and update the output variables if needed.
       !
-      ! For the glam/glissade dycore, the vertical temperature grid has an extra level.
+      ! For the Glissade dycore, the vertical temperature grid has an extra level.
       ! In that case, the netCDF output file should include a variable
       ! called tempstag(0:nz) instead of temp(1:nz). This subroutine is added for
       ! convenience to allow the variable "temp" to be specified in the config

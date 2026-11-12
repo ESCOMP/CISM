@@ -1,0 +1,183 @@
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!                                                             
+!   glad_output_fluxes.F90 - part of the Community Ice Sheet Model (CISM)  
+!                                                              
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!
+!   Copyright (C) 2005-2018
+!   CISM contributors - see AUTHORS file for list of contributors
+!
+!   This file is part of CISM.
+!
+!   CISM is free software: you can redistribute it and/or modify it
+!   under the terms of the Lesser GNU General Public License as published
+!   by the Free Software Foundation, either version 3 of the License, or
+!   (at your option) any later version.
+!
+!   CISM is distributed in the hope that it will be useful,
+!   but WITHOUT ANY WARRANTY; without even the implied warranty of
+!   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!   Lesser GNU General Public License for more details.
+!
+!   You should have received a copy of the Lesser GNU General Public License
+!   along with CISM. If not, see <http://www.gnu.org/licenses/>.
+!
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#ifdef HAVE_CONFIG_H
+#include "config.inc"
+#endif
+
+module glad_output_fluxes
+
+  !> This module defines a type and related operations for working with fluxes output to
+  !> the GCM. Its main purpose is to produce temporal averages of these outputs.
+
+  ! (Most of the code here used to be in glint_upscale.F90)
+
+  use glimmer_global, only: dp
+
+  implicit none
+  private
+
+  type, public :: glad_output_fluxes_type
+     private
+
+     integer  :: av_count_output       ! step counter
+     
+     real(dp), dimension(:,:), pointer :: hflx_sum => null()  ! conductive heat flux at top surface (W m-2)
+     real(dp), dimension(:,:), pointer :: rofi_sum => null()  ! solid ice runoff (kg m-2 s-1)
+     real(dp), dimension(:,:), pointer :: rofl_sum => null()  ! liquid runoff from basal/interior melting (kg m-2 s-1)
+  end type glad_output_fluxes_type
+
+  public :: initialize_glad_output_fluxes   ! Initialize a glad_output_fluxes instance
+  public :: accumulate_output_fluxes        ! Accumulate one time step's contribution to fluxes
+  public :: calculate_average_output_fluxes ! Compute and return time-average fluxes
+  public :: reset_output_fluxes             ! Reset output_fluxes state to start a new averaging period
+  
+contains
+
+  subroutine initialize_glad_output_fluxes(output_fluxes, ewn, nsn)
+    ! Initialize a glad_output_fluxes instance
+
+    type(glad_output_fluxes_type), intent(inout) :: output_fluxes
+
+    ! dimensions of local grid
+    integer, intent(in) :: ewn
+    integer, intent(in) :: nsn
+
+    allocate(output_fluxes%rofi_sum(ewn,nsn))
+    allocate(output_fluxes%rofl_sum(ewn,nsn))
+    allocate(output_fluxes%hflx_sum(ewn,nsn))
+
+    call reset_output_fluxes(output_fluxes)
+
+  end subroutine initialize_glad_output_fluxes
+
+  subroutine accumulate_output_fluxes(output_fluxes, model)
+    ! Given the calving, basal melting, and conductive heat flux fields from the dycore,
+    ! accumulate contributions to the rofi, rofl, and hflx fields to be sent to the coupler.
+
+    use glimmer_physcon, only : rhoi
+    use glissade_types, only : glissade_global_type
+
+    type(glad_output_fluxes_type), intent(inout) :: output_fluxes
+    type(glissade_global_type), intent(in) :: model
+
+    output_fluxes%av_count_output = output_fluxes%av_count_output + 1
+
+    !--------------------------------------------------------------------
+    ! Accumulate solid runoff (calving and other ice removal)
+    ! Note: Ice caps removed by glissade_handle_ice_caps, ice removed by forced retreat,
+    !       and tiny thicknesses cleaned up by glissade_cleanup_tiny_thickness are all tracked
+    !       separately from calving_thck as removal_thck (not explicitly calved), but the ice
+    !       is still lost to the ocean as solid ice, so it is included here in the solid ice
+    !       runoff along with calving_thck. Icebergs removed by remove_icebergs are part of
+    !       calving_thck.
+    !       Positive SMB received by the dycore but not applied (e.g., removed by block_inception)
+    !       is also included, so that the water removed from the land model as SMB is conserved.
+    !--------------------------------------------------------------------
+
+    ! Note on units: model%calving%calving_thck and model%geometry%removal_thck
+    !                have dimensions of m of ice.
+    !                Multiply by rhoi to convert to kg/m^2 water equiv.
+    !                Divide by dt to convert to kg/m^2/s
+
+    ! Convert to kg/m^2/s
+    output_fluxes%rofi_sum(:,:) = output_fluxes%rofi_sum(:,:)  &
+         + (model%calving%calving_thck(:,:) + model%geometry%removal_thck(:,:)) * rhoi / model%numerics%dt
+
+    ! Add the positive SMB that was passed to the dycore but not applied.
+    ! Note: model%climate%acab_unapplied has units of m/s ice; multiply by rhoi to convert to kg/m^2/s.
+    !       Negative values (melt in excess of the ice present) cannot be returned as runoff.
+    output_fluxes%rofi_sum(:,:) = output_fluxes%rofi_sum(:,:)  &
+         + max(model%climate%acab_unapplied(:,:), 0.0d0) * rhoi
+
+    !--------------------------------------------------------------------
+    ! Accumulate liquid runoff (basal melting and lateral/submarine melting)
+    ! Note: There can be basal melting beneath either grounded ice or floating ice.
+    !       Basal melt beneath floating ice will typically be an input from the coupler
+    !        (computed based on sub-ice-shelf ocean temperature and salinity).
+    !       If so, then we are simply passing it out again here.
+    !       But the output bmlt from floating ice could differ from the input if either
+    !       (1) floating ice melts entirely before using up the potential melt, or
+    !       (2) some floating ice melts internally.
+    !       In these cases, we will need to be careful that heat and water are conserved.
+    !       Lateral melt (glissade_lateral_melt) represents submarine melting at marine
+    !       ice fronts, which converts ice directly to liquid water, so it is added here
+    !       to the liquid runoff rather than to the solid ice runoff.
+    !--------------------------------------------------------------------
+
+    ! Note on units: model%temper%bmlt has dimensionless units of m/s ice
+    !                Multiply by rhoi to convert to kg/m^2/s water equiv.
+    !                model%lateral_melt%latmelt_thck has dimensions of m of ice;
+    !                multiply by rhoi and divide by dt to convert to kg/m^2/s.
+
+    ! Convert to kg/m^2/s
+    output_fluxes%rofl_sum(:,:) = output_fluxes%rofl_sum(:,:) + model%basal_melt%bmlt(:,:) * rhoi &
+         + model%lateral_melt%latmelt_thck(:,:) * rhoi / model%numerics%dt
+
+    !--------------------------------------------------------------------
+    ! Accumulate basal heat flux
+    !--------------------------------------------------------------------
+
+    ! Note on units: model%temper%ucondflx has units of W/m^2, positive down
+    !                Flip the sign so that hflx is positive up.
+
+    output_fluxes%hflx_sum(:,:) = output_fluxes%hflx_sum(:,:) &
+         - model%temper%ucondflx(:,:)
+
+  end subroutine accumulate_output_fluxes
+
+  subroutine calculate_average_output_fluxes(output_fluxes, rofi_tavg, rofl_tavg, hflx_tavg)
+    ! Compute and return time-average fluxes
+
+    type(glad_output_fluxes_type), intent(in) :: output_fluxes
+    real(dp), dimension(:,:), intent(out) :: rofi_tavg  ! average solid ice runoff (kg m-2 s-1)
+    real(dp), dimension(:,:), intent(out) :: rofl_tavg  ! average liquid runoff from basal/interior melting (kg m-2 s-1)
+    real(dp), dimension(:,:), intent(out) :: hflx_tavg  ! average conductive heat flux at top surface (W m-2)
+    
+    if (output_fluxes%av_count_output > 0) then
+       rofi_tavg(:,:) = output_fluxes%rofi_sum(:,:) / real(output_fluxes%av_count_output,dp)
+       rofl_tavg(:,:) = output_fluxes%rofl_sum(:,:) / real(output_fluxes%av_count_output,dp)
+       hflx_tavg(:,:) = output_fluxes%hflx_sum(:,:) / real(output_fluxes%av_count_output,dp)
+    else
+       rofi_tavg(:,:) = 0.d0
+       rofl_tavg(:,:) = 0.d0
+       hflx_tavg(:,:) = 0.d0
+    end if
+
+  end subroutine calculate_average_output_fluxes
+
+  subroutine reset_output_fluxes(output_fluxes)
+    ! Reset output_fluxes state to start a new averaging period
+
+    type(glad_output_fluxes_type), intent(inout) :: output_fluxes
+
+    output_fluxes%av_count_output = 0
+    output_fluxes%rofi_sum(:,:) = 0.d0
+    output_fluxes%rofl_sum(:,:) = 0.d0
+    output_fluxes%hflx_sum(:,:) = 0.d0
+  end subroutine reset_output_fluxes
+    
+end module glad_output_fluxes

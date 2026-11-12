@@ -94,7 +94,7 @@ The maximum stable timestep will be determined at 12 resolutions ranging from 10
 This test takes several minutes to complete on a Macbook Pro with 4 cores.
 
 Note: This test can fail with an energy conservation error, due to energy conservation diagnostics
-that are not appropriate for the problem. If so, the user can edit .../libglissade/glissade_therm.F90.
+that are not appropriate for the problem. If so, the user can edit .../glissade/glissade_therm.F90.
 Comment out this line:
      if (abs((efinal-einit-delta_e)/dttem) > 1.0d-7) then
 Uncomment this line:

@@ -1,0 +1,584 @@
+#[]
+#dimensions:    time, level, y1, x1
+#units:           The documentation will complain if units have LaTeX characters like ^
+#long_name:     
+#data:          
+#factor:        
+
+# Note on scales: CISM uses SI units (m, kg, s) for most calculations.
+# For velocities, melt rates, and similar quantities, units of yr^(-1) are more intuitive than s^(-1).
+# Thus, many I/O variables have a time unit of yr^(-1) or yr.
+# The units are converted to s in the code by using scyr or 1/scyr as a scale factor.
+# Previous code versions used scale factors such as scale_uvel, scale_acab, etc. These have been removed.
+
+# setup for code generator
+[VARSET]
+# prefix of the generated module
+name:     glide
+# f90 type containing all necessary data
+datatype: glide_global_type   
+# module where type is defined
+datamod:  glide_types
+# path to parallel derived type
+datapath: data
+# dycore prefix of the model type (DYCORE_PREFIX_global_type) and nc_custom module used
+dycore_prefix: glide
+
+[x0]
+dimensions:    x0
+units:         meter
+long_name:     Cartesian x-coordinate, velocity grid
+axis:          X
+data:          data%general%x0
+dimlen:        model%parallel%global_ewn-1
+load:          1
+
+[y0]
+dimensions:    y0
+units:         meter
+long_name:     Cartesian y-coordinate, velocity grid
+axis:          Y
+data:          data%general%y0
+dimlen:        model%parallel%global_nsn-1
+load:          1
+
+[x1]
+dimensions:    x1
+units:         meter
+long_name:     Cartesian x-coordinate
+axis:          X
+data:          data%general%x1
+dimlen:        model%parallel%global_ewn
+load:          1
+
+[y1]
+dimensions:    y1
+units:         meter
+long_name:     Cartesian y-coordinate
+axis:          Y
+data:          data%general%y1
+dimlen:        model%parallel%global_nsn
+load:          1
+
+[level]
+dimensions:    level
+units:         1
+long_name:     sigma layers
+standard_name: land_ice_sigma_coordinate
+positive:      down
+dimlen:        model%general%upn
+
+[staglevel]
+dimensions:    staglevel
+units:         1
+long_name:     stag sigma layers
+standard_name: land_ice_stag_sigma_coordinate
+positive:      down
+dimlen:        model%general%upn-1
+
+[stagwbndlevel]
+dimensions:    stagwbndlevel
+units:         1
+long_name:     stag sigma layers with boundaries
+standard_name: land_ice_stag_sigma_coordinate_with_bnd
+positive:      down
+dimlen:        model%general%upn+1
+
+[lithoz]
+dimensions:    lithoz
+units:         meter
+long_name:     vertical coordinate of lithosphere layer
+dimlen:        model%lithot%nlayer
+
+[lat]
+dimensions:    time, y1, x1
+units:         degreeN
+standard_name: latitude
+long_name:     latitude
+data:          data%general%lat
+load:          1
+
+[lon]
+dimensions:    time, y1, x1
+units:         degreeE
+standard_name: longitude
+long_name:     longitude
+data:          data%general%lon
+load:          1
+
+[cell_area]
+dimensions:    time, y1, x1
+units:         meter2
+long_name:     cell area of cism grid
+data:          data%geometry%cell_area
+load:          1
+
+[relx]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     relaxed bedrock topography
+data:          data%isostasy%relx
+load:          1
+
+[load]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     bedrock deflection from applied load
+data:          data%isostasy%load
+load:          1
+
+[eus]
+dimensions:    time
+units:         meter
+long_name:     global average sea level
+data:          data%climate%eus
+standard_name: global_average_sea_level_change
+
+[uflx]
+dimensions:    time, y0, x0
+units:         meter2/year
+long_name:     flux in x direction (NOTE: Glide only)
+data:          data%velocity%uflx
+factor:        scyr
+
+[vflx]
+dimensions:    time, y0, x0
+units:         meter2/year
+long_name:     flux in x direction (NOTE: Glide only)
+data:          data%velocity%vflx
+factor:        scyr
+
+[diffu]
+dimensions:    time, y0, x0
+units:         meter2/year
+long_name:     apparent diffusivity
+data:          data%velocity%diffu
+factor:        scyr
+
+[btrc]
+dimensions:    time, y0, x0
+units:         m/yr/Pa
+long_name:     basal slip coefficient
+data:          data%velocity%btrc
+factor:        scyr
+
+[usfc]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     surface velocity in x direction
+data:          data%velocity%uvel(1,1:data%general%ewn-1,1:data%general%nsn-1)
+factor:        scyr
+standard_name: land_ice_surface_x_velocity
+
+[vsfc]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     surface velocity in y direction
+data:          data%velocity%vvel(1,1:data%general%ewn-1,1:data%general%nsn-1)
+factor:        scyr
+standard_name: land_ice_surface_y_velocity
+
+[wsfc]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     surface velocity in z direction
+data:          data%velocity%wvel(1,1:data%general%ewn,1:data%general%nsn)
+factor:        scyr
+standard_name: land_ice_surface_z_velocity
+
+[ubas]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     basal slip velocity in x direction
+data:          data%velocity%uvel(data%general%upn,1:data%general%ewn-1,1:data%general%nsn-1)
+factor:        scyr
+standard_name: land_ice_basal_x_velocity
+
+[vbas]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     basal slip velocity in y direction
+data:          data%velocity%vvel(data%general%upn,1:data%general%ewn-1,1:data%general%nsn-1)
+factor:        scyr
+standard_name: land_ice_basal_y_velocity
+
+[wbas]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     basal velocity in z direction
+data:          data%velocity%wvel(data%general%upn,1:data%general%ewn,1:data%general%nsn)
+factor:        scyr
+standard_name: land_ice_basal_z_velocity
+
+[taux]
+dimensions:    time, y0, x0
+units:         kilopascal
+long_name:     basal shear stress in x direction (NOTE: Glide only)
+data:          data%velocity%tau_x
+factor:        1e-3
+
+[tauy]
+dimensions:    time, y0, x0
+units:         kilopascal
+long_name:     basal shear stress in y direction
+data:          data%velocity%tau_y
+factor:        1e-3
+
+[thk]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     ice thickness
+data:          data%geometry%thck
+load:          1
+standard_name: land_ice_thickness
+
+[stagthk]
+dimensions:    time, y0, x0
+units:         meter
+long_name:     staggered ice thickness
+data:          data%geometry%stagthck
+standard_name: stag_land_ice_thickness
+load:          0
+
+[calving_thck]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     thickness of calving ice
+data:          data%calving%calving_thck
+
+[area_factor]
+dimensions:    time, y1, x1
+units:         unitless
+long_name:     area scale factor for stereographic map projection
+data:          data%projection%stere%area_factor
+  
+[iarea]
+dimensions:    time
+units:         m2
+long_name:     area covered by ice 
+data:          data%scalars%iarea
+
+[iareag]
+dimensions:    time
+units:         m2
+long_name:     area covered by grounded ice 
+data:          data%scalars%iareag
+
+[iareaf]
+dimensions:    time
+units:         m2
+long_name:     area covered by floating ice 
+data:          data%scalars%iareaf
+
+[ivol]
+dimensions:    time
+units:         m3
+long_name:     ice volume
+data:          data%scalars%ivol
+
+[ivol_above_flotation]
+dimensions:    time
+units:         m3
+long_name:     ice volume above flotation
+data:          data%scalars%ivol_above_flotation
+
+[imass]
+dimensions:    time
+units:         kg
+long_name:     ice mass
+data:          data%scalars%imass
+
+[imass_above_flotation]
+dimensions:    time
+units:         kg
+long_name:     ice mass above flotation
+data:          data%scalars%imass_above_flotation
+
+[thkmask]
+dimensions:    time, y1, x1
+long_name:     mask
+units:         1
+data:          data%geometry%thkmask
+type:          int
+load:          1
+
+[usurf]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     ice upper surface elevation
+data:          data%geometry%usrf
+load:          1
+standard_name: surface_altitude
+
+[lsurf]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     ice lower surface elevation
+data:          data%geometry%lsrf
+
+[topg]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     bedrock topography
+data:          data%geometry%topg
+load:          1
+standard_name: bedrock_altitude
+
+[acab]
+dimensions:    time, y1, x1
+units:         meter/year ice
+long_name:     accumulation, ablation rate
+data:          data%climate%acab
+factor:        scyr
+standard_name: land_ice_surface_specific_mass_balance
+load:          1
+
+[acab_applied]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     applied accumulation, ablation rate
+data:          data%climate%acab_applied
+factor:        scyr
+standard_name: land_ice_surface_specific_mass_balance_applied
+average:       1
+
+[smb]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     surface mass balance
+data:          data%climate%smb
+standard_name: land_ice_surface_specific_mass_balance
+load:          1
+
+[bheatflx]
+dimensions:    time, y1, x1
+units:         watt/meter2
+long_name:     downward basal heat flux
+data:          data%temper%bheatflx
+load:          1
+
+[bmlt]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     basal melt rate
+data:          data%basal_melt%bmlt
+factor:        scyr
+standard_name: land_ice_basal_melt_rate
+#average:       1
+
+[bmlt_ground]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     basal melt rate for grounded ice
+data:          data%basal_melt%bmlt_ground
+factor:        scyr
+standard_name: grounded_ice_basal_melt_rate
+
+[bmlt_applied]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     applied basal melt rate
+data:          data%basal_melt%bmlt_applied
+factor:        scyr
+standard_name: land_ice_basal_melt_rate_applied
+average:       1
+
+[bwat]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     local basal water depth
+data:          data%basal_hydro%bwat
+load:          1
+
+[bwatflx]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     basal water flux
+factor:        scyr
+data:          data%basal_hydro%bwatflx
+
+[artm]
+dimensions:    time, y1, x1
+units:         degree_Celsius
+long_name:     annual mean air temperature
+data:          data%climate%artm
+standard_name: surface_air_temperature
+cell_methods:  time: mean
+load:          1
+
+[btemp]
+dimensions:    time, y1, x1
+units:         degree_Celsius
+long_name:     basal ice temperature
+data:          data%temper%btemp
+standard_name: land_ice_temperature
+
+[dusrfdtm]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     rate of upper ice surface elevation change (NOTE: Glide only)
+data:          data%geomderv%dusrfdtm
+factor:        scyr
+
+[dthckdtm]
+dimensions:    time, y1,x1
+units:         meter/year
+long_name:     tendency of ice thickness (NOTE: Glide only)
+data:          data%geomderv%dthckdtm
+factor:        scyr
+
+[uvel]
+dimensions:    time, level, y0, x0
+units:         meter/year
+long_name:     ice velocity in x direction
+data:          data%velocity%uvel(up,:,:)
+factor:        scyr
+standard_name: land_ice_x_velocity
+load:          1
+
+[vvel]
+dimensions:    time, level, y0, x0
+units:         meter/year
+long_name:     ice velocity in y direction
+data:          data%velocity%vvel(up,:,:)
+factor:        scyr
+standard_name: land_ice_y_velocity
+load:          1
+
+[velnorm]
+dimensions:    time, level, y0, x0
+units:         meter/year
+long_name:     Horizontal ice velocity magnitude
+data:          data%velocity%velnorm(up,:,:)
+factor:        scyr
+
+[wvel]
+dimensions:    time, level, y1, x1
+units:         meter/year
+long_name:     vertical ice velocity
+data:          data%velocity%wvel(up,:,:)
+factor:        scyr
+load:          1
+
+[wgrd]
+dimensions:    time, level, y1, x1
+units:         meter/year
+long_name:     Vertical grid velocity 
+data:          data%velocity%wgrd(up,:,:)
+factor:        scyr
+load:          1
+
+[flwa]
+dimensions:    time, level, y1, x1
+units:         pascal**(-n) year**(-1)
+long_name:     Pre-exponential flow law parameter
+data:          data%temper%flwa(up,:,:)
+factor:        scyr
+load:          1
+
+[flwastag]
+dimensions:    time, staglevel, y1, x1
+units:         pascal**(-n) year**(-1)
+long_name:     Pre-exponential flow law parameter
+data:          data%temper%flwa(up,:,:)
+factor:        scyr
+# hot=0 because we do not want the stag version to be in the hotvars definition. 
+# The conversion to stag happens if needed in check_for_tempstag
+# but we do want it loadable in case flwa is listed as hot.
+load:          1
+
+[temp]
+dimensions:    time, level, y1, x1
+units:         degree_Celsius
+long_name:     ice temperature
+data:          data%temper%temp(up,1:data%general%ewn,1:data%general%nsn)
+standard_name: land_ice_temperature
+load:          1
+
+[tempstag]
+dimensions:    time, stagwbndlevel, y1, x1
+units:         degree_Celsius
+long_name:     ice temperature on staggered vertical levels with boundaries
+data:          data%temper%temp(up,1:data%general%ewn,1:data%general%nsn)
+standard_name: land_ice_temperature_stag
+# hot=0 because we do not want the stag version to be in the hotvars definition.
+# The conversion to stag happens if needed in check_for_tempstag.
+load:          1
+
+[bpmp]
+dimensions:    time, y1, x1
+units:         degree_Celsius
+long_name:     basal pressure melting point temperature
+data:          data%temper%bpmp
+standard_name: pressure_melting_point_temperature
+
+[litho_temp]
+dimensions:    time, lithoz, y1, x1
+units:         degree_Celsius
+long_name:     lithosphere temperature
+data:          data%lithot%temp
+load:          1
+
+[rho_ice]
+dimensions:    time
+units:         kg/meter3
+long_name:     ice density
+data:          rhoi
+factor:        noscale
+standard_name: rho_ice
+
+[rho_seawater]
+dimensions:    time
+units:         kg/meter3
+long_name:     seawater density
+data:          rhoo
+factor:        noscale
+standard_name: rho_seawater
+
+[gravity]
+dimensions:    time
+units:         meter/s/s
+long_name:     gravitational acceleration
+data:          grav
+factor:        noscale
+standard_name: gravity
+
+[seconds_per_year]
+dimensions:    time
+units:         s/yr
+long_name:     seconds per year
+data:          scyr
+factor:        noscale
+standard_name: seconds_per_year
+
+[ice_specific_heat]
+dimensions:    time
+units:         J/kg/K
+long_name:     ice specific heat 
+data:          shci
+factor:        noscale
+standard_name: ice_specific_heat
+
+[ice_thermal_conductivity]
+dimensions:    time
+units:         W/(m K)
+long_name:     ice thermal conductivity 
+data:          coni
+factor:        noscale
+standard_name: ice_thermal_conductivity
+
+[dissip]
+dimensions:   time, level, y1, x1
+units:        deg C/yr
+long_name:    dissipation rate (W m-3) divided by rhoi Ci
+data:         data%temper%dissip(up,:,:)
+factor:       scyr
+load:         1
+
+[dissipstag]
+dimensions:   time, staglevel, y1, x1
+units:        deg C/yr
+long_name:    dissipation rate (W m-3) divided by rhoi Ci
+data:         data%temper%dissip(up,:,:)
+factor:       scyr
+load:         1

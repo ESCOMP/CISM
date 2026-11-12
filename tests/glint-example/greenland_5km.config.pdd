@@ -57,7 +57,7 @@ title: GLINT example test run
 comment: results from a Greenland 5-km test run with PDD forcing
 
 [CF input]
-name: Greenland_5km_v1.1.nc
+name: gland5.input.nc
 
 [CF output]
 name:      greenland_5km.pdd.nc

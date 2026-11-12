@@ -30,10 +30,10 @@ echo "  --creating glint_io.F90, glint_mbal_io.F90, glad_io.F90 and glad_mbal_io
 
 # Save path to source files used in autogeneration
 export NCDF_TEMPL_PATH=$CISM_SOURCE_DIR/libglimmer/ncdf_template.F90.in
-export GLINT_VARS_PATH=$CISM_SOURCE_DIR/libglint/glint_vars.def
-export GLINT_MBAL_PATH=$CISM_SOURCE_DIR/libglint/glint_mbal_vars.def
-export GLAD_VARS_PATH=$CISM_SOURCE_DIR/libglad/glad_vars.def
-export GLAD_MBAL_PATH=$CISM_SOURCE_DIR/libglad/glad_mbal_vars.def
+export GLINT_VARS_PATH=$CISM_SOURCE_DIR/glint/glint_vars.def
+export GLINT_MBAL_PATH=$CISM_SOURCE_DIR/glint/glint_mbal_vars.def
+export GLAD_VARS_PATH=$CISM_SOURCE_DIR/glad/glad_vars.def
+export GLAD_MBAL_PATH=$CISM_SOURCE_DIR/glad/glad_mbal_vars.def
 
 # Call python script with source file arguments
 python3 -V

@@ -1,0 +1,375 @@
+#ifdef CPRIBM
+@PROCESS ALIAS_SIZE(107374182)
+#endif
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!                                                             
+!   glad_timestep.F90 - part of the Community Ice Sheet Model (CISM)  
+!                                                              
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!
+!   Copyright (C) 2005-2018
+!   CISM contributors - see AUTHORS file for list of contributors
+!
+!   This file is part of CISM.
+!
+!   CISM is free software: you can redistribute it and/or modify it
+!   under the terms of the Lesser GNU General Public License as published
+!   by the Free Software Foundation, either version 3 of the License, or
+!   (at your option) any later version.
+!
+!   CISM is distributed in the hope that it will be useful,
+!   but WITHOUT ANY WARRANTY; without even the implied warranty of
+!   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!   Lesser GNU General Public License for more details.
+!
+!   You should have received a copy of the Lesser GNU General Public License
+!   along with CISM. If not, see <http://www.gnu.org/licenses/>.
+!
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#ifdef HAVE_CONFIG_H
+#include "config.inc"
+#endif
+
+module glad_timestep
+  !> timestep of a GLAD instance
+
+  use glad_type
+  use glimmer_physcon, only: hours2years
+  use glimmer_global, only: dp
+  use cism_parallel, only: tasks, main_task, this_rank
+
+  implicit none
+
+  private
+  public glad_i_tstep_gcm
+
+contains
+
+
+  !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  subroutine glad_i_tstep_gcm(time,            instance,       &
+                               ice_tstep)
+
+    ! Performs time-step of an ice model instance. 
+    ! Input quantities here are accumulated/average totals since the last call.
+    ! Global output arrays are only valid on the main task.
+    !
+    use glimmer_paramets, only: iulog, GLC_DEBUG
+    use glimmer_physcon, only: rhow, rhoi
+    use glimmer_log
+    use glimmer_coordinates, only: coordsystem_allocate
+    use glissade
+    use glissade_io
+    use glissade_types
+    use glad_mbal_coupling, only : glad_accumulate_input_gcm, glad_average_input_gcm
+    use glad_io
+    use glad_mbal_io
+    use glissade_diagnostics, only: glissade_write_diagnostics
+    use glad_output_fluxes, only : accumulate_output_fluxes, reset_output_fluxes
+    
+    implicit none
+
+    ! ------------------------------------------------------------------------  
+    ! Arguments
+    ! ------------------------------------------------------------------------  
+
+    integer,                intent(in)   :: time         ! Current time in hours
+    type(glad_instance), intent(inout)  :: instance     ! Model instance
+    logical,                intent(out)  :: ice_tstep    ! Set if we have done an ice time step
+
+    ! ------------------------------------------------------------------------  
+    ! Internal variables
+    ! ------------------------------------------------------------------------  
+
+    real(dp),dimension(:,:),pointer :: thck_temp => null() ! temporary array for volume calcs
+
+    integer :: iter, il, jl
+
+    if (GLC_DEBUG .and. main_task) then
+       print*, 'In glad_i_tstep_gcm'
+    endif
+
+    ice_tstep = .false.
+
+    call coordsystem_allocate(instance%lgrid, thck_temp)
+
+    ! ------------------------------------------------------------------------
+    ! Sort out some local orography and remove bathymetry. This relies on the 
+    ! point 1,1 being underwater. However, it's a better method than just 
+    ! setting all points < 0.0 to zero
+    ! ------------------------------------------------------------------------  
+
+    !Note: Call to glad_remove_bath is commented out for now.  Not sure if it is needed in GCM runs.
+!!    call glide_get_usurf(instance%model, instance%local_orog)
+!!    call glad_remove_bath(instance%local_orog,1,1)
+
+    ! Get ice thickness ----------------------------------------
+
+    call glissade_get_thk(instance%model,thck_temp)
+
+    ! Accumulate Glide input fields, acab and artm and 7 layers of POP thermal forcings
+    ! Note: At this point, instance%acab has units of m
+    !       Upon averaging (in glad_average_input_gcm), units are converted to m/yr
+
+    call glad_accumulate_input_gcm(instance%mbal_accum,   time,               &
+                                   instance%acab,         instance%artm,      &
+                                   instance%thermal_forcing)
+
+    if (GLC_DEBUG .and. main_task) then
+       write(iulog,*) ' '
+       write(iulog,*) 'In glad_i_tstep_gcm, time =', time
+       write(iulog,*) 'next_time =', instance%next_time
+       write(iulog,*) 'Check for ice dynamics timestep'
+       write(iulog,*) 'time =', time
+       write(iulog,*) 'start_time =', instance%mbal_accum%start_time
+       write(iulog,*) 'mbal_step =', instance%mbal_tstep
+       write(iulog,*) 'mbal_accum_time =', instance%mbal_accum_time
+       write(iulog,*) 'time-start_time+mbal_tstep =', time - instance%mbal_accum%start_time + instance%mbal_tstep
+       write(iulog,*) 'ice_tstep =', instance%ice_tstep
+       write(iulog,*) 'n_icetstep =', instance%n_icetstep
+    end if
+
+    ! ------------------------------------------------------------------------  
+    ! ICE TIMESTEP begins HERE ***********************************************
+    ! ------------------------------------------------------------------------  
+
+    if (time - instance%mbal_accum%start_time + instance%mbal_tstep == instance%mbal_accum_time) then
+
+       if (instance%mbal_accum_time < instance%ice_tstep) then 
+          instance%next_time = instance%next_time + instance%ice_tstep - instance%mbal_tstep
+       end if
+
+       ice_tstep = .true.
+
+       call reset_output_fluxes(instance%glad_output_fluxes)
+
+       ! ---------------------------------------------------------------------
+       ! Timestepping for ice sheet model
+       ! ---------------------------------------------------------------------
+
+       do iter = 1, instance%n_icetstep
+
+          if (GLC_DEBUG .and. main_task) then
+             write (iulog,*) 'Ice sheet timestep, iteration =', iter
+          end if
+
+          ! Get average values of acab and artm and 7 layers of POP thermal forcings 
+          ! during mbal_accum_time
+          ! instance%acab has units of m/yr w.e. after averaging
+
+          call glad_average_input_gcm(instance%mbal_accum, instance%mbal_accum_time,  &
+                                      instance%acab,       instance%artm,             &
+                                      instance%thermal_forcing)
+                                  
+          ! Calculate the initial ice volume (scaled and converted to water equivalent)
+          call glissade_get_thk(instance%model,thck_temp)
+          thck_temp = thck_temp * rhoi/rhow
+
+          !Note: Call to glad_remove_bath is commented out for now.  Not sure if it is needed in GCM runs.
+          ! Get latest upper-surface elevation (needed for masking)
+!!          call glide_get_usurf(instance%model, instance%local_orog)
+!!          call glad_remove_bath(instance%local_orog,1,1)
+
+          ! Save the SMB received from the coupler, before masking, for SMB budget diagnostics.
+          ! Convert from m/yr w.e. to m/yr ice; glissade_set_acab_cpl converts to m/s.
+
+          call glissade_set_acab_cpl(instance%model, instance%acab * rhow/rhoi)
+
+          ! Mask out non-accumulation in ice-free areas
+
+          where(thck_temp <= 0.d0 .and. instance%acab < 0.d0)
+             instance%acab = 0.d0
+          end where
+
+          ! Set acab to zero for ocean cells (bed below sea level, no ice present)
+
+          where (instance%model%geometry%thck <= 0.d0 .and. &
+                 instance%model%geometry%topg - instance%model%climate%eus < 0.d0)
+             instance%acab = 0.d0
+          endwhere
+
+          ! Put climate inputs in the appropriate places, with conversion ----------
+
+          ! Note on units:
+          ! For subroutine glide_set_acab, input acab is in m/yr ice; this value is divided
+          !  by scyr and copied to data%climate%acab.
+          ! Input artm is in deg C; this value is copied to data%climate%artm (no unit conversion).
+
+          !TODO - It is confusing to have units of m/yr w.e. for instance%acab, compared to units m/yr ice for Glide. 
+          !       Change to use the same units consistently?  E.g., switch to w.e. in Glide
+
+          call glissade_set_acab(instance%model, instance%acab * rhow/rhoi)
+
+          ! Diagnose the SMB zeroed by the masking above (m/s ice)
+          instance%model%climate%acab_unapplied_glad(:,:) = &
+               instance%model%climate%acab_cpl(:,:) - instance%model%climate%acab(:,:)
+          call glissade_set_artm(instance%model, instance%artm)
+
+          ! Note: CISM has several thermal forcing options, as determined by ocean_data_domain:
+          !        compute internally, read from external file, or receive from Glad.
+          !       Only if receiving from Glad do we set instance%model%ocean_data%thermal_forcing here.
+          !
+          ! Note: The ocean thermal forcing is reset only on the first ice dynamics timestep within this loop.
+          !       The reason is that CISM has the option of extrapolating thermal forcing from open ocean
+          !        (i.e., the overlap region between the ocean and ice sheet domains) into sub-shelf cavities.
+          !       It is more efficient to do this extrapolation only once within the mass_balance timestep
+          !        (with minor subsequent adjustments if CISM ice shelves retreat) than to extrapolate
+          !        from the open ocean every ice dynamics time step.
+
+          if (iter == 1) then
+             if ( associated(instance%model%ocean_data%thermal_forcing) .and. &
+                  instance%model%options%ocean_data_domain == OCEAN_DATA_GLAD) then
+                ! GRL: At this point, glide_set does not work for 3D variables.
+                instance%model%ocean_data%thermal_forcing = instance%thermal_forcing
+             endif
+          endif
+
+          ! This will work only for single-processor runs
+          if (GLC_DEBUG .and. tasks==1) then
+             il = instance%model%numerics%idiag
+             jl = instance%model%numerics%jdiag
+             write (iulog,*) ' '
+             write (iulog,*) 'After glissade_set_acab, glissade_set_artm, glissade_set_thermal_forcing: i, j =', il, jl
+             write (iulog,*) 'acab (m/y), artm (C), thermal_forcing (K) =', &
+                  instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl), instance%thermal_forcing(:,il,jl)
+          end if
+
+          ! Adjust glad acab for output
+          !TODO - Use acab_applied for Glad output?
+          where (instance%acab < -thck_temp .and. thck_temp > 0.d0)
+             instance%acab = -thck_temp
+          end where
+
+          instance%glissade_time = instance%glissade_time + instance%model%numerics%tinc
+
+          ! call the dynamic ice sheet model (provided the ice is allowed to evolve)
+
+          if (instance%evolve_ice == EVOLVE_ICE_TRUE) then
+
+             call glissade_tstep(instance%model, instance%glissade_time)
+
+          else  ! EVOLVE_ICE_FALSE
+
+             ! With ice evolution turned on, tstep_count gets incremented inside the
+             ! dycore's tstep subroutine. Since we're not calling the tstep subroutine,
+             ! we need to increment it here. In practice, this shouldn't matter, but it's
+             ! needed so that CESM's exact restart tests pass, since tstep_count is
+             ! written to CISM's history files.
+             !TODO - Always increment tstep_count outside the dycore?
+             instance%model%numerics%tstep_count = instance%model%numerics%tstep_count + 1
+
+             ! Given acab, compute the surface mass balance in units of mm/yr w.e.
+             ! Note: model%climate%acab has units of m/s of ice; multiply by scyr to convert to m/yr of ice.
+             !TODO - Instead of converting the SMB from the coupler to acab and converting back here,
+             !       simply compute SMB here based on the SMB from the coupler.
+             !       Could pass the SMB (in water equivalent units) to the dycore and let the dycore convert to acab.
+             instance%model%climate%smb(:,:) = (instance%model%climate%acab(:,:) * scyr) * (1000.d0 * rhoi/rhow)
+
+          endif  ! evolve_ice
+
+          ! write ice sheet diagnostics at specified interval (model%numerics%dt_diag)
+
+          call glissade_write_diagnostics(instance%model,                  &
+                                       instance%model%numerics%time,    &
+                                       tstep_count = instance%model%numerics%tstep_count)
+
+          ! write netCDF output
+
+          call glissade_io_writeall(instance%model,instance%model)
+          call glad_io_writeall(instance,instance%model)
+
+          ! Accumulate Glide output fields to be sent to GCM
+
+          call accumulate_output_fluxes(instance%glad_output_fluxes, instance%model)
+
+       end do   ! instance%n_icetstep
+
+    end if   ! time - instance%mbal_accum%start_time + instance%mbal_tstep == instance%mbal_accum_time
+
+    ! Output instantaneous values
+
+    call glad_mbal_io_writeall(instance, instance%model,       &
+                                outfiles = instance%out_first,  &
+                                time = time*hours2years)
+
+    ! Deallocate
+
+    if (associated(thck_temp)) then
+       deallocate(thck_temp)
+       thck_temp => null()
+    endif
+
+    if (GLC_DEBUG .and. main_task) then
+       write(iulog,*) 'Done in glad_i_tstep_gcm'
+    endif
+
+  end subroutine glad_i_tstep_gcm
+
+  !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  !TODO - Rewrite glad_remove_bath to support multiple tasks?
+  !       Calls to this subroutine are currently commented out.
+
+  subroutine glad_remove_bath(orog,x,y)
+
+    ! Sets ocean areas to zero height, working recursively from
+    ! a known ocean point.
+
+    use glimmer_log
+
+    real(dp),dimension(:,:),intent(inout) :: orog !> Orography --- used for input and output
+    integer,                intent(in)    :: x,y  !> Location of starting point (index)
+
+    integer :: nx,ny
+
+    ! Currently, this routine is called assuming point 1,1 is ocean... this won't be true
+    ! when running on multiple processors, with a distributed grid
+    ! This can't be made a fatal error, because this is currently called even if we have
+    ! more than one task... the hope is just that the returned data aren't needed in CESM.
+    if (tasks > 1) then
+       call write_log('Use of glad_remove_bath currently assumes the use of only one task', &
+                      GM_WARNING, __FILE__, __LINE__)
+    end if
+
+    nx=size(orog,1) ; ny=size(orog,2)
+
+    if (orog(x,y) < 0.d0) orog(x,y) = 0.d0
+    call glad_find_bath(orog,x,y,nx,ny)
+
+  end subroutine glad_remove_bath
+
+  !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  recursive subroutine glad_find_bath(orog,x,y,nx,ny)
+
+    !> Recursive subroutine called by {\tt glimmer\_remove\_bath}.
+
+    real(dp),dimension(:,:),intent(inout) :: orog  !> Orography --- used for input and output
+    integer,                intent(in)    :: x,y   !> Starting point
+    integer,                intent(in)    :: nx,ny !> Size of array {\tt orography}
+
+    integer,dimension(4) :: xi = (/ -1,1,0,0 /)
+    integer,dimension(4) :: yi = (/ 0,0,-1,1 /)
+    integer :: ns = 4
+    integer :: i
+
+    do i=1,ns
+       if (x+xi(i) <= nx .and. x+xi(i) > 0 .and. &
+           y+yi(i) <= ny .and. y+yi(i) > 0) then
+          if (orog(x+xi(i),y+yi(i)) < 0.d0) then
+             orog(x+xi(i),y+yi(i)) = 0.d0
+             call glad_find_bath(orog,x+xi(i),y+yi(i),nx,ny)
+          endif
+       endif
+    enddo
+
+  end subroutine glad_find_bath
+
+
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+end module glad_timestep
+
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

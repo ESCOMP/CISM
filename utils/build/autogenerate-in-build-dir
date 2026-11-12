@@ -28,8 +28,8 @@ echo $CISM_SOURCE_DIR
 echo "  --creating glide_io.F90 and glissade_io.F90"
 
 # Save path to source files used in autogeneration
-export GLIDE_VARS_PATH=$CISM_SOURCE_DIR/libglide/glide_vars.def
-export GLISSADE_VARS_PATH=$CISM_SOURCE_DIR/libglissade/glissade_vars.def
+export GLIDE_VARS_PATH=$CISM_SOURCE_DIR/glide/glide_vars.def
+export GLISSADE_VARS_PATH=$CISM_SOURCE_DIR/glissade/glissade_vars.def
 export NCDF_TEMPL_PATH=$CISM_SOURCE_DIR/libglimmer/ncdf_template.F90.in
 
 # Call python script with source file arguments

@@ -34,7 +34,49 @@ module eismint_forcing
   ! temperature fields
 
   use glimmer_global, only : dp
-  use glide_types, only : eismint_climate_type
+
+  implicit none
+
+  type eismint_climate_type
+
+     ! holds parameters for the eismint climate
+
+     ! For EISMINT2:
+     ! airt(1) = Tmin = summit surface temperature (K)
+     ! airt(2) = S_T = horizontal temperature gradient (K/m)
+     ! nmsb(1) = M_max = max accumulation (m/yr)
+     ! nmsb(2) = S_b = horizontal smb gradient (m/yr/m)
+     ! nmsb(3) = R_el = radial distance from summit where mass balance = 0 (m)   
+     !
+
+     integer :: eismint_type = 0
+     !> select EISMINT experiment
+     !> \begin{description}
+     !> \item[{\bf 1}] EISMINT-1 fixed margin
+     !> \item[{\bf 2}] EISMINT-1 moving margin
+     !> \item[{\bf 3}] EISMINT-2
+     !> \item[{\bf 4}] Exact verification (not EISMINT but has similar climate parameters);
+     !>                  Glide only
+     !> \end{description}
+
+     ! NOTE: The initial nmsb values in the declarations below are appropriate
+     !       for EISMINT-2, but the initial airt values are not.
+     ! TODO: Change default airt values in eismint_type to be consistent with EISMINT-2?
+
+     !> air temperature parameterisation K, K km$^{-3}$
+     real(dp), dimension(2) :: airt = (/ -3.15d0, 1.d-2 /)  
+
+     !> mass balance parameterisation:
+!!     real(dp), dimension(3) :: nmsb = (/ 0.5d0, 1.05d-5, 450.0d3 /)
+     real(dp), dimension(3) :: nmsb = (/ 0.5d0, 1.0d-5, 450.0d3 /)
+
+     !> EISMINT time-dep climate forcing period, switched off when set to 0
+     real(dp) :: period = 0.d0
+
+     !> EISMINT amplitude of mass balance time-dep climate forcing
+     real(dp) :: mb_amplitude = 0.2d0
+
+  end type eismint_climate_type
 
   !MAKE_RESTART
 #ifdef RESTARTS
@@ -60,7 +102,6 @@ contains
     use glimmer_global, only: dp
     use glimmer_physcon, only: scyr
     use glimmer_config
-    use glide_types
     implicit none
 
     type(eismint_climate_type) :: eismint_climate         ! structure holding climate info
@@ -273,45 +314,40 @@ contains
 
   end subroutine eismint_printconfig
 
-  subroutine eismint_massbalance(eismint_climate,model,time)
+  subroutine eismint_massbalance(eismint_climate, time, dew, parallel, acab)
 
     ! calculate eismint mass balance
+    ! Note: For eismint_type = 4 (exact verification), acab is set in eismint_exact_forcing.
 
     use glimmer_global, only : dp
-    use glide_types
-    use glimmer_paramets, only : scyr
+    use glimmer_physcon, only : scyr
     use glimmer_physcon, only : pi
-    use cism_parallel, only: parallel_globalindex
+    use cism_parallel, only: parallel_type, parallel_globalindex
 
     implicit none
 
     type(eismint_climate_type) :: eismint_climate         ! structure holding climate info
-    type(glide_global_type) :: model        ! model instance
     real(dp), intent(in) :: time            ! current time
+    real(dp), intent(in) :: dew             ! grid cell size (m)
+    type(parallel_type), intent(in) :: parallel   ! info for parallel communication
+    real(dp), dimension(:,:), intent(inout) :: acab   ! surface mass balance
 
     ! local variables
     integer  :: ew, ns, ew_global, ns_global
     real(dp) :: dist, ewct, nsct, grid, rel
-    real(dp) :: periodic = 1.d0
 
-    ewct = (model%parallel%global_ewn + 1.d0) / 2.d0
-    nsct = (model%parallel%global_nsn + 1.d0) / 2.d0
+    ewct = (parallel%global_ewn + 1.d0) / 2.d0
+    nsct = (parallel%global_nsn + 1.d0) / 2.d0
 
-    grid = real(model%numerics%dew,dp)
-
-    if (model%options%periodic_ew) then
-        periodic = 0.d0
-    else
-        periodic = 1.d0
-    end if
+    grid = real(dew,dp)
 
     select case(eismint_climate%eismint_type)
 
     case(1)
        ! EISMINT-1 fixed margin
-       model%climate%acab(:,:) = eismint_climate%nmsb(1)
+       acab(:,:) = eismint_climate%nmsb(1)
        if (eismint_climate%period .ne. 0.d0) then
-          model%climate%acab(:,:) = model%climate%acab(:,:) + eismint_climate%mb_amplitude * &
+          acab(:,:) = acab(:,:) + eismint_climate%mb_amplitude * &
                sin(2.d0*pi*time/eismint_climate%period)/ scyr
        end if
 
@@ -323,11 +359,11 @@ contains
           rel = eismint_climate%nmsb(3)
        end if
 
-       do ns = 1,model%general%nsn
-          do ew = 1,model%general%ewn
-             call parallel_globalindex(ew, ns, ew_global, ns_global, model%parallel)
+       do ns = 1,size(acab,2)
+          do ew = 1,size(acab,1)
+             call parallel_globalindex(ew, ns, ew_global, ns_global, parallel)
              dist = grid * sqrt((real(ew_global,kind=dp) - ewct)**2 + (real(ns_global,kind=dp) - nsct)**2)
-             model%climate%acab(ew,ns) = min(eismint_climate%nmsb(1), eismint_climate%nmsb(2) * (rel - dist))
+             acab(ew,ns) = min(eismint_climate%nmsb(1), eismint_climate%nmsb(2) * (rel - dist))
           end do
        end do
 
@@ -335,90 +371,100 @@ contains
        ! EISMINT-2
        rel = eismint_climate%nmsb(3)
 
-       do ns = 1,model%general%nsn
-          do ew = 1,model%general%ewn
-             call parallel_globalindex(ew, ns, ew_global, ns_global, model%parallel)
+       do ns = 1,size(acab,2)
+          do ew = 1,size(acab,1)
+             call parallel_globalindex(ew, ns, ew_global, ns_global, parallel)
              dist = grid * sqrt((real(ew_global,kind=dp) - ewct)**2 + (real(ns_global,kind=dp) - nsct)**2)
-             model%climate%acab(ew,ns) = min(eismint_climate%nmsb(1), eismint_climate%nmsb(2) * (rel - dist))
+             acab(ew,ns) = min(eismint_climate%nmsb(1), eismint_climate%nmsb(2) * (rel - dist))
           end do
        end do
-
-    case(4)
-       !verification 
-       call exact_surfmass(eismint_climate,model,time,1.d0,eismint_climate%airt(2))
 
     end select
 
   end subroutine eismint_massbalance
 
-  subroutine eismint_surftemp(eismint_climate,model,time)
+  subroutine eismint_surftemp(eismint_climate, time, dew, parallel, thck, artm)
 
     ! calculate eismint air surface temperature
+    ! Note: For eismint_type = 4 (exact verification), see eismint_exact_forcing.
 
-    use glide_types
     use glimmer_global, only: dp
     use glimmer_physcon, only : pi
-    use cism_parallel, only: parallel_globalindex
+    use cism_parallel, only: parallel_type, parallel_globalindex
 
+    implicit none
+
+    type(eismint_climate_type) :: eismint_climate         ! structure holding climate info
+    real(dp), intent(in) :: time            ! current time
+    real(dp), intent(in) :: dew             ! grid cell size (m)
+    type(parallel_type), intent(in) :: parallel   ! info for parallel communication
+    real(dp), dimension(:,:), intent(in) :: thck      ! ice thickness
+    real(dp), dimension(:,:), intent(inout) :: artm   ! surface air temperature
+
+    ! local variables
+    integer  :: ew, ns, ew_global, ns_global
+    real(dp) :: dist, ewct, nsct, grid
+
+    ewct = (parallel%global_ewn + 1.d0) / 2.d0
+    nsct = (parallel%global_nsn + 1.d0) / 2.d0
+    grid = real(dew,dp)
+
+    select case(eismint_climate%eismint_type)
+
+    case(1)
+       ! EISMINT-1 fixed margin
+       do ns = 1,size(artm,2)
+          do ew = 1,size(artm,1)
+             call parallel_globalindex(ew, ns, ew_global, ns_global, parallel)
+             dist = grid * max(abs(real(ew_global,kind=dp) - ewct),abs(real(ns_global,kind=dp) - nsct))*1d-3
+             artm(ew,ns) = eismint_climate%airt(1) + eismint_climate%airt(2) * dist*dist*dist
+          end do
+       end do
+       if (eismint_climate%period .ne. 0.d0) then
+          artm(:,:) = artm(:,:) + 10.d0*sin(2.d0*pi*time/eismint_climate%period)
+       end if
+
+    case(2)
+       ! EISMINT-1 moving margin
+       artm(:,:) = eismint_climate%airt(1) - thck(:,:) * eismint_climate%airt(2)
+       if (eismint_climate%period .ne. 0.d0) then
+          artm(:,:) = artm(:,:) + 10.d0*sin(2.d0*pi*time/eismint_climate%period)
+       end if
+
+    case(3)
+       ! EISMINT-2
+       do ns = 1,size(artm,2)
+          do ew = 1,size(artm,1)
+             call parallel_globalindex(ew, ns, ew_global, ns_global, parallel)
+             dist = grid * sqrt((real(ew_global,kind=dp) - ewct)**2 + (real(ns_global,kind=dp) - nsct)**2)
+             artm(ew,ns) = eismint_climate%airt(1)+eismint_climate%airt(2) * dist
+          end do
+       end do
+
+    end select
+
+  end subroutine eismint_surftemp
+
+  subroutine eismint_exact_forcing(eismint_climate, model, time)
+
+    ! set the forcing for the exact verification test (eismint_type = 4)
+    ! This test is supported for the Glide dycore only, since exact_surfmass
+    !  sets model%tempwk%compheat, part of the Glide temperature solver.
+
+    use glide_types, only: glide_global_type
     implicit none
 
     type(eismint_climate_type) :: eismint_climate         ! structure holding climate info
     type(glide_global_type) :: model        ! model instance
     real(dp), intent(in) :: time            ! current time
 
-    ! local variables
-    integer  :: ew, ns, ew_global, ns_global
-    real(dp) :: dist, ewct, nsct, grid
-    real(dp) :: periodic = 1.d0
-
-    ewct = (model%parallel%global_ewn + 1.d0) / 2.d0
-    nsct = (model%parallel%global_nsn + 1.d0) / 2.d0
-    grid = real(model%numerics%dew,dp)
-
-    if (model%options%periodic_ew) then
-        periodic = 0.d0
-    else
-        periodic = 1.d0
-    end if
-
-    select case(eismint_climate%eismint_type)
-
-    case(1)
-       ! EISMINT-1 fixed margin
-       do ns = 1,model%general%nsn
-          do ew = 1,model%general%ewn
-             call parallel_globalindex(ew, ns, ew_global, ns_global, model%parallel)
-             dist = grid * max(abs(real(ew_global,kind=dp) - ewct),abs(real(ns_global,kind=dp) - nsct))*1d-3
-             model%climate%artm(ew,ns) = eismint_climate%airt(1) + eismint_climate%airt(2) * dist*dist*dist
-          end do
-       end do
-       if (eismint_climate%period .ne. 0.d0) then
-          model%climate%artm(:,:) = model%climate%artm(:,:) + 10.d0*sin(2.d0*pi*time/eismint_climate%period)
-       end if
-
-    case(2)
-       ! EISMINT-1 moving margin
-       model%climate%artm(:,:) = eismint_climate%airt(1) - model%geometry%thck(:,:) * eismint_climate%airt(2)
-       if (eismint_climate%period .ne. 0.d0) then
-          model%climate%artm(:,:) = model%climate%artm(:,:) + 10.d0*sin(2.d0*pi*time/eismint_climate%period)
-       end if
-
-    case(3)
-       ! EISMINT-2
-       do ns = 1,model%general%nsn
-          do ew = 1,model%general%ewn
-             call parallel_globalindex(ew, ns, ew_global, ns_global, model%parallel)
-             dist = grid * sqrt((real(ew_global,kind=dp) - ewct)**2 + (real(ns_global,kind=dp) - nsct)**2)
-             model%climate%artm(ew,ns) = eismint_climate%airt(1)+eismint_climate%airt(2) * dist
-          end do
-       end do
-
-    case(4)
-       !call both massbalance and surftemp at the same time to save computing time. 
+    if (eismint_climate%eismint_type == 4) then
+       ! mass balance, then surface temperature (compheat)
+       call exact_surfmass(eismint_climate,model,time,1.d0,eismint_climate%airt(2))
        call exact_surfmass(eismint_climate,model,time,0.d0,eismint_climate%airt(2))
-    end select
+    endif
 
-  end subroutine eismint_surftemp
+  end subroutine eismint_exact_forcing
   
   !which_call - eismint_surftemp(0)/eismint_massbalance(1)/both(2)
   !which_test - test f(0)/test g(1)/exact(2)
@@ -429,7 +475,7 @@ contains
 
   subroutine exact_surfmass(eismint_climate,model,time,which_call,which_test)
 
-    use glide_types
+    use glide_types, only: glide_global_type
     use testsFG
     implicit none
 

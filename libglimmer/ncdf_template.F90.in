@@ -44,10 +44,10 @@ module NAME_io
   ! particularly on the Intel compiler
 
   use DATAMOD
+  use DYCORE_PREFIX_types, only: DYCORE_PREFIX_global_type
   use glimmer_ncdf
   use glimmer_paramets
   use glimmer_physcon
-  use glimmer_scales
 
   implicit none
 
@@ -78,9 +78,9 @@ contains
     ! open all netCDF files for output
     use glimmer_ncio
     use glimmer_log
-    use glide_types, only: STANDARD_RESTART
+    use DYCORE_PREFIX_types, only: STANDARD_RESTART
     implicit none
-    type(glide_global_type) :: model
+    type(DYCORE_PREFIX_global_type) :: model
     type(DATATYPE) :: data ! MJH 10/21/13: Making 'data' mandatory.  See notes below in NAME_io_create
     type(glimmer_nc_output),optional,pointer :: outfiles
     
@@ -209,7 +209,7 @@ contains
     use glimmer_ncio
     implicit none
     type(DATATYPE) :: data
-    type(glide_global_type) :: model
+    type(DYCORE_PREFIX_global_type) :: model
     logical, optional :: atend
     type(glimmer_nc_output),optional,pointer :: outfiles
     real(dp),optional :: time
@@ -329,11 +329,11 @@ contains
     !       can call the same sequence of routines, adding the other modules' create and write calls.
 
     use glimmer_ncio
-    use glide_nc_custom, only: glide_nc_filldvars
+    use DYCORE_PREFIX_nc_custom, only: DYCORE_PREFIX_nc_filldvars
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     type(DATATYPE) :: data
-    type(glide_global_type) :: model
+    type(DYCORE_PREFIX_global_type) :: model
     character(len=*), intent(in) :: filename          ! name of the new file
     real(dp), intent(in) :: time                      ! internal time (yr)
     real(dp), intent(in), optional :: external_time   ! external time; if not present, defaults to time
@@ -351,7 +351,7 @@ contains
     call glimmer_nc_newfile(outfile, filename)
     call glimmer_nc_createfile(outfile, model%funits, model%projection, external_baseline_year, external_time_units)
     call NAME_io_create(outfile, model, data)
-    call glide_nc_filldvars(outfile, model)   ! also leaves define mode
+    call DYCORE_PREFIX_nc_filldvars(outfile, model)   ! also leaves define mode
     call glimmer_nc_write_timeslice(outfile, model%funits, time, sub_external_time, model%numerics%tstep_count)
     call NAME_io_write(outfile, data)
 #ifdef HAVE_AVG
@@ -368,22 +368,18 @@ contains
     ! Set the sizes of the vertical and other non-horizontal dimensions,
     !  used when reading and writing fields with these dimensions
 
+    use DYCORE_PREFIX_nc_custom, only: DYCORE_PREFIX_nc_set_custom_dims
     implicit none
     type(glimmer_nc_stat) :: nc
-    type(glide_global_type) :: model
+    type(DYCORE_PREFIX_global_type) :: model
 
     ! level and staglevel dimensions
     nc%nlevel = model%general%upn
     nc%nstaglevel = model%general%upn-1
     nc%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
 
-    ! Note: The following dimension lengths are set to 1 by default,
-    !       but can be increased depending on the config options.
-    nc%nzocn = model%ocean_data%nzocn      ! vertical coordinate for ocean data
-    nc%nzatm = model%climate%nzatm         ! vertical coordinate for atmosphere data
-    nc%nglacier = model%glacier%nglacier   ! glacier ID coordinate for glacier data
-    nc%nbasin = model%ocean_data%nbasin    ! basin coordinate for basin data
-    nc%naxis = model%calving%naxis         ! coordinate for calvingMIP axis data
+    ! dimensions that depend on the dycore (e.g., ocean levels, glaciers, basins)
+    call DYCORE_PREFIX_nc_set_custom_dims(nc, model)
 
   end subroutine NAME_set_nc_dims
 
@@ -398,7 +394,7 @@ contains
     use glimmer_log
     implicit none
     type(glimmer_nc_output), pointer :: outfile
-    type(glide_global_type) :: model
+    type(DYCORE_PREFIX_global_type) :: model
     type(DATATYPE) :: data    ! MJH 10/21/13: Making 'data' mandatory.  See note below
 
     integer status,varid,pos,model_id
@@ -648,7 +644,7 @@ contains
     use glimmer_ncio
     implicit none
     type(DATATYPE) :: data
-    type(glide_global_type) :: model
+    type(DYCORE_PREFIX_global_type) :: model
     integer, intent(in), optional :: filetype  ! 0 for input, 1 for forcing; defaults to input
 
     ! local variables
@@ -687,7 +683,7 @@ contains
 
     implicit none
     type(DATATYPE) :: data
-    type(glide_global_type), intent(inout) :: model
+    type(DYCORE_PREFIX_global_type), intent(inout) :: model
 
     ! Locals
     type(glimmer_nc_input), pointer :: ic
@@ -793,7 +789,7 @@ contains
 
     implicit none
     type(DATATYPE) :: data
-    type(glide_global_type), intent(inout) :: model
+    type(DYCORE_PREFIX_global_type), intent(inout) :: model
 
     ! Locals
     type(glimmer_nc_input), pointer :: ic
@@ -876,7 +872,7 @@ contains
     use cism_parallel, only: main_task
     implicit none
     type(DATATYPE) :: data
-    type(glide_global_type), intent(inout) :: model
+    type(DYCORE_PREFIX_global_type), intent(inout) :: model
 
     ! Locals
     type(glimmer_nc_input), pointer :: ic
@@ -1043,7 +1039,7 @@ contains
     implicit none
     type(glimmer_nc_input), pointer :: infile
     ! structure containg output netCDF descriptor
-    type(glide_global_type) :: model
+    type(DYCORE_PREFIX_global_type) :: model
     type(DATATYPE), optional :: data
 
     integer status,dimid,dimsize
@@ -1070,7 +1066,7 @@ contains
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
-    type(glide_global_type) :: model
+    type(DYCORE_PREFIX_global_type) :: model
     type(DATATYPE) :: data
 
     ! local variables
@@ -1131,7 +1127,7 @@ contains
 
   !> allocate and initialize the restart_variable_list
   subroutine initialize_restart_variable_list()
-    use glide_model_registry, only : get_max_models
+    use glimmer_model_registry, only : get_max_models
 
     allocate(restart_variable_list(get_max_models()))
     restart_variable_list(:) = ''
