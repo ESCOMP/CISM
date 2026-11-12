@@ -1,6 +1,6 @@
 # CMAKE File for CISM building against an installed Trilinos
 
-cmake_minimum_required(VERSION 2.8.4)
+cmake_minimum_required(VERSION 3.10)
 
 OPTION (CISM_BUILD_CISM_DRIVER "Toggle to build cism_driver, on by default" ON)
 
