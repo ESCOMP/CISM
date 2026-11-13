@@ -52,7 +52,6 @@ marine_limit = -890             ; depth past which ice is lost
 coulomb_c = 0.2332
 coulomb_bump_max_slope = 0.5    ; maximum bed obstacle slope
 coulomb_bump_wavelength = 2.0   ; bedrock wavelength
-flwa_basal = 1.0e-16
 p_ocean_penetration = 0.        ; p values for coulomb friction law
 
 

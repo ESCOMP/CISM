@@ -2150,7 +2150,6 @@ contains
     call GetValue(section, 'zoet_iversion_ut', model%basal_physics%zoet_iverson_ut)
     call GetValue(section, 'zoet_iversion_nmax', model%basal_physics%zoet_iverson_nmax)
     call GetValue(section, 'friction_powerlaw_k', model%basal_physics%friction_powerlaw_k)
-    call GetValue(section, 'flwa_basal', model%basal_physics%flwa_basal)
     call GetValue(section, 'coulomb_bump_max_slope', model%basal_physics%coulomb_bump_max_slope)
     call GetValue(section, 'coulomb_bump_wavelength', model%basal_physics%coulomb_bump_wavelength)
 

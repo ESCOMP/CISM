@@ -2172,8 +2172,6 @@ module glissade_types
      !       which is functionally equivalent to the Schoof law.
      real(dp) :: coulomb_bump_wavelength = 2.0d0 !> bedrock wavelength at subgrid scale precision (m)
      real(dp) :: coulomb_bump_max_slope = 0.5d0  !> maximum bed bump slope at subgrid scale precision (no dimension)
-     real(dp) :: flwa_basal = 1.0d-16            !> Glen's A at the bed for Schoof (2005) Coulomb friction law (Pa^{-n} yr^{-1})
-                                                 !> = 3.1688d-24 Pa{-n} s{-1}, the value used by Leguy et al. (2014)
 
      ! parameter to limit the min value of beta for various power laws
      real(dp) :: beta_powerlaw_umax = 0.0d0      !> upper limit of ice speed (m/yr) when evaluating powerlaw beta
