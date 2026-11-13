@@ -1025,7 +1025,7 @@ contains
          'constant melt rate                    ', &
          'depth-dependent melt rate             ', &
          'melt rate from external file          ', &
-         'melt rate from MISOMIP T/S profile    ', &   ! not supported
+         'unused (formerly MISOMIP plume model) ', &
          'melt rate from thermal forcing        ' /)
 
     character(len=*), dimension(0:3), parameter :: bmlt_float_thermal_forcing_param = (/ &
@@ -1485,8 +1485,8 @@ contains
     write(message,*) 'basal melt, floating ice: ',model%options%whichbmlt_float, which_bmlt_float(model%options%whichbmlt_float)
     call write_log(message)
 
-    if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
-       call write_log('Error, BMLT_FLOAT_MISOMIP option is not supported', GM_FATAL)
+    if (model%options%whichbmlt_float == 5) then   ! formerly the MISOMIP plume option, now removed
+       call write_log('Error, bmlt_float = 5 (MISOMIP plume model) is no longer supported', GM_FATAL)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
        write(message,*) 'melt parameterization   : ', model%options%bmlt_float_thermal_forcing_param, &
             bmlt_float_thermal_forcing_param(model%options%bmlt_float_thermal_forcing_param)
@@ -2246,15 +2246,6 @@ contains
     call GetValue(section,'bmlt_float_depth_meltmin', model%basal_melt%bmlt_float_depth_meltmin)
     call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
 
-    ! MISOMIP plume parameters
-    !TODO - Put MISMIP+ and MISOMIP parameters in their own section
-    call GetValue(section,'T0',   model%plume%T0)
-    call GetValue(section,'Tbot', model%plume%Tbot)
-    call GetValue(section,'S0',   model%plume%S0)
-    call GetValue(section,'Sbot', model%plume%Sbot)
-    call GetValue(section,'gammaT',    model%plume%gammaT)
-    call GetValue(section,'gammaS',    model%plume%gammaS)
-
   end subroutine handle_parameters
 
 !--------------------------------------------------------------------------------
@@ -2819,7 +2810,7 @@ contains
        call write_log(message)
     endif
 
-    ! parameters for basal melting of floating ice (including MISMIP+ and MISOMIP)
+    ! parameters for basal melting of floating ice (including MISMIP+)
 
     if (model%basal_melt%bmlt_cavity_h0 > 0.0d0 .and. &
         model%options%whichbmlt_float /= BMLT_FLOAT_MISMIP) then
@@ -2858,19 +2849,6 @@ contains
        write(message,*) 'warm ocean meltmin (m/yr)      :  ', model%basal_melt%bmlt_float_depth_meltmin
        call write_log(message)
        write(message,*) 'warm ocean zmeltmin (m)        :  ', model%basal_melt%bmlt_float_depth_zmeltmin
-       call write_log(message)
-    elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
-       write(message,*) 'T0 (deg C)               :  ', model%plume%T0
-       call write_log(message)
-       write(message,*) 'Tbot (deg C)             :  ', model%plume%Tbot
-       call write_log(message)
-       write(message,*) 'S0 (psu)                 :  ', model%plume%S0
-       call write_log(message)
-       write(message,*) 'Sbot (deg C)             :  ', model%plume%Sbot
-       call write_log(message)
-       write(message,*) 'gammaT (nondimensional)  :  ', model%plume%gammaT
-       call write_log(message)
-       write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
        call write_log(message)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
        write(message,*) 'gamma0 (m/yr)                 :  ', model%ocean_data%gamma0

@@ -97,7 +97,6 @@ module glissade_types
   integer, parameter :: BMLT_FLOAT_CONSTANT = 2
   integer, parameter :: BMLT_FLOAT_DEPTH = 3
   integer, parameter :: BMLT_FLOAT_EXTERNAL = 4
-  integer, parameter :: BMLT_FLOAT_MISOMIP = 5   ! not supported
   integer, parameter :: BMLT_FLOAT_THERMAL_FORCING = 6
 
   !TODO - Deprecate the quadratic option?
@@ -487,7 +486,6 @@ module glissade_types
     !> \item[2] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
     !> \item[3] Depth-dependent basal melt rate for floating ice
     !> \item[4] External basal melt rate field (from input file or coupler)
-    !> \item[5] Basal melt rate for floating ice from MISOMIP ocean forcing with plume model (not supported)
     !> \item[6] Basal melt rate for floating ice derived from ocean thermal forcing
     !> \end{description}
 
@@ -1982,34 +1980,6 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_plume_type
-
-     !> Holds fields and parameters relating to a sub-shelf plume model
-     !> Used to hold more fields, but most were removed when the plume model was abandoned
-
-     real(dp),dimension(:,:), pointer :: T_ambient => null()     !> ambient ocean temperature below ice and plume (deg C)
-     real(dp),dimension(:,:), pointer :: S_ambient => null()     !> ambient ocean salinity below ice and plume (psu)
-
-     ! MISOMIP parameters
-     ! Note: T0, Tbot, S0, Sbot, gammaT and gammaS can be set in the config file.
-     !     - T0, Tbot, S0 and Sbot are prescribed for cold and warm profiles.
-     !     - gammaT is to be tuned to give a bmlt_float of the desired mean value.
-     !     - gammaS should equal gammaS/35.
-     real(dp) :: T0 = -1.9d0             !> sea surface temperature (deg C)
-     real(dp) :: Tbot =  1.0d0           !> temperature at the sea floor, warm profile (deg C)
-!     real(dp) :: Tbot = -1.9d0          !> temperature at the sea floor, cold profile (deg C)
-     real(dp) :: S0 = 33.8d0             !> sea surface salinity (psu)
-     real(dp) :: Sbot = 34.7d0           !> salinity at the sea floor, warm profile (psu)
-!     real(dp) :: Sbot = 34.55d0         !> salinity at the sea floor, cold profile (psu)
-     real(dp) :: gammaT = 2.2d-2         !> nondimensional heat transfer coefficient
-                                         !> value of 2.2e-2 suggested by Asay-Davis et al. as an initial guess
-     real(dp) :: gammaS = 2.2d-2/35.d0   !> nondimensional salt transfer coefficient
-                                         !> for MISOMIP, should be set to gammaT/35 
-
-  end type glissade_plume_type
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
   type glissade_basal_hydro_type
 
      !> Holds variables related to basal hydrology
@@ -2392,7 +2362,6 @@ module glissade_types
     type(glissade_ocean_data_type)   :: ocean_data
     type(glissade_glacier_type)  :: glacier
     type(glissade_inversion_type):: inversion
-    type(glissade_plume_type)    :: plume
     type(glimmer_funits) :: funits
     type(glissade_numerics_type) :: numerics
     type(glissade_paramets_type) :: paramets
@@ -2659,10 +2628,6 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%ocean_data%bmb_float)
     call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
     allocate(model%ocean_data%deltaT_ocn_basin(model%ocean_data%nbasin))
-    if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
-       call coordsystem_allocate(model%general%ice_grid, model%plume%T_ambient)
-       call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
-    endif
 
     ! glacier options
     if (model%options%enable_glaciers) then
@@ -3203,12 +3168,6 @@ contains
         deallocate(model%inversion%floating_thck_target)
     if (associated(model%inversion%grounded_thck_target)) &
         deallocate(model%inversion%grounded_thck_target)
-
-    ! MISOMIP arrays
-    if (associated(model%plume%T_ambient)) &
-        deallocate(model%plume%T_ambient)
-    if (associated(model%plume%S_ambient)) &
-        deallocate(model%plume%S_ambient)
 
     ! geometry arrays
 
