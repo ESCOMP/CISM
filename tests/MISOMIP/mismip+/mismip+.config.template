@@ -21,7 +21,6 @@ flow_law = 0            # 0 = constant, 2 = Paterson-Budd
 temperature = 0         # 0 = sfc air temp, 1 = prognostic, 3 = enthalpy
 basal_mass_balance = 1  # 1 = include basal mass balance in continuity eqn
 bmlt_float = 0          # 0 = no melting of floating ice, 1 = Ice1 melting, 2 = Ice2 melting
-marine_margin = 5       # 4 = topographic threshold, 5 = calving mask
 restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
 restart = 0             # 0 = not a restart
 
@@ -53,7 +52,6 @@ flow_factor_float = 1.
 ice_limit = 1.                  #min thickness (m) for dynamics
 default_flwa = 2.0e-17
 beta_grounded_min = 10.
-calving_front_x = 640000.       # 640 km for mismip+
 p_ocean_penetration = 1.        # p value for Coulomb friction law
 coulomb_c_const = 0.5
 powerlaw_c_const = 1.e4         # constant for the power law stress
@@ -63,6 +61,10 @@ bmlt_float_z0 = -100.           # parameter for Ice1
 bmlt_float_h0 = 75.             # parameter for Ice1
 bmlt_float_const = 100.         # parameter for Ice2
 bmlt_float_xlim = 480000.       # parameter for Ice2
+
+[calving]
+calving_law = 5       # 4 = topographic threshold, 5 = calving mask
+calving_front_x = 640000.       # 640 km for mismip+
 
 [CF default]
 comment = created with mismip+Init.py 

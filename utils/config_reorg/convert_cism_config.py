@@ -22,6 +22,7 @@ How a config file is converted:
   - An old section left with no keys is removed, together with any comment lines left in it.
   - Keys not listed in MOVES are left where they are; the model warns about keys it does not read.
   - Converting a file that is already converted changes nothing.
+  - Glide configs ([options] dycore = 0) are left unchanged: the Glide config format is frozen.
 
 Only the standard library is used.
 """
@@ -33,6 +34,38 @@ import sys
 # (old section, old key) -> (new section, new key).
 # Filled in one topic at a time, in the commits of the config reorganization.
 MOVES = {
+    # [calving]
+    ('options', 'marine_margin'): ('calving', 'calving_law'),
+    ('options', 'calving_init'): ('calving', 'calving_init'),
+    ('options', 'calving_domain'): ('calving', 'calving_domain'),
+    ('options', 'apply_calving_mask'): ('calving', 'apply_calving_mask'),
+    ('options', 'remove_icebergs'): ('calving', 'remove_icebergs'),
+    ('options', 'remove_isthmuses'): ('calving', 'remove_isthmuses'),
+    ('options', 'limit_marine_cliffs'): ('calving', 'limit_marine_cliffs'),
+    ('ho_options', 'which_ho_calving_front'): ('calving', 'subgrid_calving_front'),
+    ('ho_options', 'which_ho_calvingmip_domain'): ('calving', 'calvingmip_domain'),
+    ('parameters', 'marine_limit'): ('calving', 'marine_limit'),
+    ('parameters', 'calving_fraction'): ('calving', 'calving_fraction'),
+    ('parameters', 'calving_timescale'): ('calving', 'calving_timescale'),
+    ('parameters', 'calving_minthck'): ('calving', 'calving_minthck'),
+    ('parameters', 'dthck_dx_cf'): ('calving', 'dthck_dx_cf'),
+    ('parameters', 'thck_effective_min'): ('calving', 'thck_effective_min'),
+    ('parameters', 'eigenconstant'): ('calving', 'eigenconstant'),
+    ('parameters', 'tau_eigenconstant1'): ('calving', 'tau_eigenconstant1'),
+    ('parameters', 'tau_eigenconstant2'): ('calving', 'tau_eigenconstant2'),
+    ('parameters', 'stress_threshold'): ('calving', 'stress_threshold'),
+    ('parameters', 'lateral_rate_min'): ('calving', 'lateral_rate_min'),
+    ('parameters', 'effec_stress_min'): ('calving', 'effec_stress_min'),
+    ('parameters', 'length_scale'): ('calving', 'calving_length_scale'),
+    ('parameters', 'damage_constant'): ('calving', 'damage_constant'),
+    ('parameters', 'taumax_cliff'): ('calving', 'taumax_cliff'),
+    ('parameters', 'cliff_timescale'): ('calving', 'cliff_timescale'),
+    ('parameters', 'calving_front_x'): ('calving', 'calving_front_x'),
+    ('parameters', 'calving_front_y'): ('calving', 'calving_front_y'),
+    ('parameters', 'calving_front_radius'): ('calving', 'calving_front_radius'),
+    ('parameters', 'cf_advance_retreat_amplitude'): ('calving', 'cf_advance_retreat_amplitude'),
+    ('parameters', 'cf_advance_retreat_period'): ('calving', 'cf_advance_retreat_period'),
+    ('parameters', 'f_ground_threshold'): ('calving', 'f_ground_threshold'),
 }
 
 # Order of the new sections when they are created.
@@ -47,6 +80,11 @@ SECTION_ORDER = [
 # CESM user_nl_cism: old key -> new key.  Kept separate from MOVES because a few key names occur in
 # more than one CISM section, while the CESM namelist has one entry per name.
 USER_NL_RENAMES = {
+    # [calving]
+    'marine_margin': 'calving_law',
+    'which_ho_calving_front': 'subgrid_calving_front',
+    'which_ho_calvingmip_domain': 'calvingmip_domain',
+    'length_scale': 'calving_length_scale',
 }
 
 SECTION_RE = re.compile(r'^\s*\[([^\]]+)\]\s*$')
@@ -87,10 +125,24 @@ def has_keys(section):
     return any(KEY_RE.match(l) and not COMMENT_RE.match(l) for l in section.lines)
 
 
+def is_glide(sections):
+    """True if [options] sets dycore = 0 (Glide)."""
+    for s in sections:
+        if s.name == 'options':
+            for line in s.lines:
+                m = KEY_RE.match(line)
+                if m and not COMMENT_RE.match(line) and m.group(2) == 'dycore':
+                    value = re.split(r'[#;!]', m.group(3).lstrip(' \t=:'))[0].strip()
+                    return value == '0'
+    return False
+
+
 def convert_config(text, moves=None):
-    """Return (new_text, list of changes) for a CISM config file."""
+    """Return (new_text, list of changes) for a CISM config file.  Glide configs are returned unchanged."""
     moves = MOVES if moves is None else moves
     sections = parse(text)
+    if is_glide(sections):
+        return text, []
     changes = []
     moved = {}   # new section -> list of lines to add
     emptied = set()   # sections that lost keys
@@ -196,7 +248,9 @@ def self_test():
     assert again == new and not changes2, changes2
     nl, c = convert_user_nl("which_ho_babc = 9\n! comment\nice_limit = 1.\n", {'which_ho_babc': 'sliding_law'})
     assert nl == "sliding_law = 9\n! comment\nice_limit = 1.\n" and c == ['which_ho_babc -> sliding_law'], nl
-    assert convert_config(old)[0] == old                        # empty table: no change
+    assert convert_config(old, {})[0] == old                    # empty table: no change
+    glide = old.replace('dycore = 2', 'dycore = 0   # Glide')
+    assert convert_config(glide, moves) == (glide, [])          # Glide config: no change
     print('self-test passed')
 
 
@@ -224,8 +278,9 @@ def main():
         else:
             new, changes = convert_config(text)
         any_change |= bool(changes)
+        glide = not (a.user_nl or not is_config(text)) and is_glide(parse(text))
         if a.check:
-            print(f'{f}: ' + ('; '.join(changes) if changes else 'no changes'))
+            print(f'{f}: ' + ('Glide config, left unchanged' if glide else '; '.join(changes) if changes else 'no changes'))
             continue
         dest = a.output or (f if a.in_place else f + '.converted')
         if changes or dest != f:

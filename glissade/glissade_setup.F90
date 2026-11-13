@@ -167,6 +167,12 @@ contains
        call handle_parameters(section, model)
     end if
 
+    ! read calving
+    call GetSection(config,section,'calving')
+    if (associated(section)) then
+       call handle_calving(section, model)
+    end if
+
 
     ! Read the sections for optional features whenever they are present.
     ! Note: A section's presence does not turn its feature on; the feature's switch does.
@@ -878,13 +884,6 @@ contains
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'which_lateral_melt',model%options%which_lateral_melt)
-    call GetValue(section,'marine_margin',model%options%whichcalving)
-    call GetValue(section,'calving_init',model%options%calving_init)
-    call GetValue(section,'calving_domain',model%options%calving_domain)
-    call GetValue(section,'apply_calving_mask', model%options%apply_calving_mask)
-    call GetValue(section,'remove_icebergs', model%options%remove_icebergs)
-    call GetValue(section,'remove_isthmuses', model%options%remove_isthmuses)
-    call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
     call GetValue(section,'damage_flwa_feedback', model%options%damage_flwa_feedback)
     call GetValue(section,'adjust_input_thickness', model%options%adjust_input_thickness)
     call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
@@ -937,9 +936,6 @@ contains
     call GetValue(section, 'which_ho_assemble_taud',      model%options%which_ho_assemble_taud)
     call GetValue(section, 'which_ho_assemble_bfric',     model%options%which_ho_assemble_bfric)
     call GetValue(section, 'which_ho_assemble_lateral',   model%options%which_ho_assemble_lateral)
-    !TODO - Move the next two options to the calving type
-    call GetValue(section, 'which_ho_calving_front',      model%options%which_ho_calving_front)
-    call GetValue(section, 'which_ho_calvingmip_domain',  model%options%which_ho_calvingmip_domain)
     call GetValue(section, 'which_ho_ground',             model%options%which_ho_ground)
     call GetValue(section, 'which_ho_fground_no_glp',     model%options%which_ho_fground_no_glp)
     call GetValue(section, 'which_ho_ground_bmlt',        model%options%which_ho_ground_bmlt)
@@ -1074,8 +1070,7 @@ contains
          'no isostasy calculation         ', &
          'compute isostasy with model     ' /)
 
-    !WHL TODO - During the config reorg, change 'marine_margin' to 'which_calving' or something similar
-    character(len=*), dimension(0:11), parameter :: marine_margin = (/ &
+    character(len=*), dimension(0:11), parameter :: calving_law = (/ &
          'no calving law                    ', &
          'remove all floating ice           ', &
          'remove fraction of floating ice   ', &
@@ -1089,11 +1084,11 @@ contains
          'damage-based calving scheme       ', &
          'strain-rate (eigencalving)        ' /)
 
-    character(len=*), dimension(0:1), parameter :: init_calving = (/ &
+    character(len=*), dimension(0:1), parameter :: calving_init = (/ &
          'no calving at initialization    ', &
          'ice calves at initialization    ' /)
 
-    character(len=*), dimension(0:1), parameter :: domain_calving = (/ &
+    character(len=*), dimension(0:1), parameter :: calving_domain = (/ &
          'calving only at the ocean edge             ',  &
          'calving in all cells where criterion is met'/)
 
@@ -1249,11 +1244,11 @@ contains
          'standard finite-element assembly (glissade dycore)         ', &
          'use local thck and usrf on each cell face (glissade dycore)'  /)
 
-    character(len=*), dimension(0:1), parameter :: ho_whichcalving_front = (/ &
+    character(len=*), dimension(0:1), parameter :: subgrid_calving_front = (/ &
          'no subgrid calving front parameterization', &
          'subgrid calving front                    ' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_calvingmip_domain = (/ &
+    character(len=*), dimension(0:2), parameter :: calvingmip_domain = (/ &
          'none       ', &
          'circular   ', &
          'Thule      '  /)
@@ -1367,22 +1362,22 @@ contains
     write(message,*) 'flow law                : ',model%options%whichflwa,flow_law(model%options%whichflwa)
     call write_log(message)
 
-    if (model%options%whichcalving < 0 .or. model%options%whichcalving >= size(marine_margin)) then
-       call write_log('Error, marine_margin out of range',GM_FATAL)
+    if (model%options%whichcalving < 0 .or. model%options%whichcalving >= size(calving_law)) then
+       call write_log('Error, calving_law out of range',GM_FATAL)
     end if
-    write(message,*) 'marine_margin           : ', model%options%whichcalving, marine_margin(model%options%whichcalving)
+    write(message,*) 'calving_law             : ', model%options%whichcalving, calving_law(model%options%whichcalving)
     call write_log(message)
 
-    if (model%options%calving_init < 0 .or. model%options%calving_init >= size(init_calving)) then
+    if (model%options%calving_init < 0 .or. model%options%calving_init >= size(calving_init)) then
        call write_log('Error, calving_init out of range',GM_FATAL)
     end if
-    write(message,*) 'calving_init            : ', model%options%calving_init, init_calving(model%options%calving_init)
+    write(message,*) 'calving_init            : ', model%options%calving_init, calving_init(model%options%calving_init)
     call write_log(message)
 
-    if (model%options%calving_domain < 0 .or. model%options%calving_domain >= size(domain_calving)) then
+    if (model%options%calving_domain < 0 .or. model%options%calving_domain >= size(calving_domain)) then
        call write_log('Error, calving_domain out of range',GM_FATAL)
     end if
-    write(message,*) 'calving_domain          : ', model%options%calving_domain, domain_calving(model%options%calving_domain)
+    write(message,*) 'calving_domain          : ', model%options%calving_domain, calving_domain(model%options%calving_domain)
     call write_log(message)
 
     if (model%options%read_lat_lon) then
@@ -1904,20 +1899,20 @@ contains
        call write_log('Error, lateral-stress assembly option out of range for glissade dycore', GM_FATAL)
     end if
 
-    write(message,*) 'ho_whichcalving_front   : ',model%options%which_ho_calving_front,  &
-                      ho_whichcalving_front(model%options%which_ho_calving_front)
+    write(message,*) 'subgrid_calving_front   : ',model%options%which_ho_calving_front,  &
+                      subgrid_calving_front(model%options%which_ho_calving_front)
     call write_log(message)
     if (model%options%which_ho_calving_front < 0 .or. &
-         model%options%which_ho_calving_front >= size(ho_whichcalving_front)) then
+         model%options%which_ho_calving_front >= size(subgrid_calving_front)) then
        call write_log('Error, calving front option out of range for glissade dycore', GM_FATAL)
     end if
 
     if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
-       write(message,*) 'ho_calvingmip_domain    : ',model%options%which_ho_calvingmip_domain,  &
-            ho_calvingmip_domain(model%options%which_ho_calvingmip_domain)
+       write(message,*) 'calvingmip_domain       : ',model%options%which_ho_calvingmip_domain,  &
+            calvingmip_domain(model%options%which_ho_calvingmip_domain)
        call write_log(message)
        if (model%options%which_ho_calvingmip_domain < 0 .or. &
-            model%options%which_ho_calvingmip_domain >= size(ho_calvingmip_domain)) then
+            model%options%which_ho_calvingmip_domain >= size(calvingmip_domain)) then
           call write_log('Error, calvingMIP domain option out of range for glissade dycore', GM_FATAL)
        end if
     end if
@@ -2099,30 +2094,6 @@ contains
     call GetValue(section,'smb_factor',         model%climate%smb_factor)
     call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
 
-    ! calving parameters
-    call GetValue(section,'marine_limit',       model%calving%marine_limit)
-    call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
-    call GetValue(section,'calving_timescale',  model%calving%timescale)
-    call GetValue(section,'calving_minthck',    model%calving%minthck)
-    call GetValue(section,'dthck_dx_cf',        model%calving%dthck_dx_cf)
-    call GetValue(section,'thck_effective_min', model%calving%thck_effective_min)
-    call GetValue(section,'eigenconstant',      model%calving%eigenconstant)
-    call GetValue(section,'tau_eigenconstant1', model%calving%tau_eigenconstant1)
-    call GetValue(section,'tau_eigenconstant2', model%calving%tau_eigenconstant2)
-    call GetValue(section,'stress_threshold',   model%calving%stress_threshold)
-    call GetValue(section,'lateral_rate_min',   model%calving%lateral_rate_min)
-    call GetValue(section,'effec_stress_min',   model%calving%effec_stress_min)
-    call GetValue(section,'length_scale',       model%calving%length_scale)
-    call GetValue(section,'damage_constant',    model%calving%damage_constant)
-    call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
-    call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
-    call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
-    call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
-    call GetValue(section,'calving_front_radius',         model%calving%calving_front_radius)
-    call GetValue(section,'cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude)
-    call GetValue(section,'cf_advance_retreat_period',    model%calving%cf_advance_retreat_period)
-    call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
-
     ! NOTE: btrc_const is used for several slip_coeff options in the local SIA solver
     call GetValue(section,'basal_tract_const', model%paramets%btrc_const)
 
@@ -2243,6 +2214,54 @@ contains
     call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
 
   end subroutine handle_parameters
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_calving(section, model)
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! calving options
+    call GetValue(section,'calving_law',           model%options%whichcalving)
+    call GetValue(section,'calving_init',          model%options%calving_init)
+    call GetValue(section,'calving_domain',        model%options%calving_domain)
+    call GetValue(section,'apply_calving_mask',    model%options%apply_calving_mask)
+    call GetValue(section,'remove_icebergs',       model%options%remove_icebergs)
+    call GetValue(section,'remove_isthmuses',      model%options%remove_isthmuses)
+    call GetValue(section,'limit_marine_cliffs',   model%options%limit_marine_cliffs)
+    call GetValue(section,'subgrid_calving_front', model%options%which_ho_calving_front)
+    call GetValue(section,'calvingmip_domain',     model%options%which_ho_calvingmip_domain)
+
+    ! calving parameters
+    call GetValue(section,'marine_limit',       model%calving%marine_limit)
+    call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
+    call GetValue(section,'calving_timescale',  model%calving%timescale)
+    call GetValue(section,'calving_minthck',    model%calving%minthck)
+    call GetValue(section,'dthck_dx_cf',        model%calving%dthck_dx_cf)
+    call GetValue(section,'thck_effective_min', model%calving%thck_effective_min)
+    call GetValue(section,'eigenconstant',      model%calving%eigenconstant)
+    call GetValue(section,'tau_eigenconstant1', model%calving%tau_eigenconstant1)
+    call GetValue(section,'tau_eigenconstant2', model%calving%tau_eigenconstant2)
+    call GetValue(section,'stress_threshold',   model%calving%stress_threshold)
+    call GetValue(section,'lateral_rate_min',   model%calving%lateral_rate_min)
+    call GetValue(section,'effec_stress_min',   model%calving%effec_stress_min)
+    call GetValue(section,'calving_length_scale', model%calving%length_scale)
+    call GetValue(section,'damage_constant',    model%calving%damage_constant)
+    call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
+    call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
+    call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
+    call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
+    call GetValue(section,'calving_front_radius',         model%calving%calving_front_radius)
+    call GetValue(section,'cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude)
+    call GetValue(section,'cf_advance_retreat_period',    model%calving%cf_advance_retreat_period)
+    call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
+
+  end subroutine handle_calving
 
 !--------------------------------------------------------------------------------
 

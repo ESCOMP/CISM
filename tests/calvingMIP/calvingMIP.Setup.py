@@ -516,30 +516,30 @@ for expt in experiments:
     # Set other parameters specific to certain experiments
     if expt == 'SpinupCircular' or expt == 'SpinupThule':
         config.set('options', 'temp_init', '1')
-        config.set('parameters', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
-        config.set('parameters', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
+        config.set('calving', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
+        config.set('calving', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
         # Both spin-ups use a calving mask to prevent advance beyond the prescribed radius
-        config.set('options', 'apply_calving_mask', 'True')
-        config.set('parameters', 'calving_front_radius', str(cf_radius))
+        config.set('calving', 'apply_calving_mask', 'True')
+        config.set('calving', 'calving_front_radius', str(cf_radius))
     elif expt == 'Experiment2':
-        config.set('parameters', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
-        config.set('parameters', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
+        config.set('calving', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
+        config.set('calving', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
     elif expt == 'Experiment4':
-        config.set('parameters', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
-        config.set('parameters', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
+        config.set('calving', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
+        config.set('calving', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
         # Note: This experiment uses a calving mask to prevent readvance beyond the original CF
-        config.set('options', 'apply_calving_mask', 'True')
-        config.set('parameters', 'calving_front_radius', str(cf_radius))
+        config.set('calving', 'apply_calving_mask', 'True')
+        config.set('calving', 'calving_front_radius', str(cf_radius))
     elif expt == 'Experiment5':
-        config.set('options', 'marine_margin', '7')
+        config.set('calving', 'calving_law', '7')
         calvingMinthck = 325.
-        config.set('parameters', 'calving_minthck', str(calvingMinthck))
+        config.set('calving', 'calving_minthck', str(calvingMinthck))
             
     # Set the calvingMIP domain (circular or Thule)
     if expt == 'SpinupCircular' or expt == 'Experiment1' or expt == 'Experiment2':
-        config.set('ho_options', 'which_ho_calvingmip_domain', '1')
+        config.set('calving', 'calvingmip_domain', '1')
     elif expt == 'SpinupThule' or expt == 'Experiment3' or expt == 'Experiment4' or expt == 'Experiment5':
-        config.set('ho_options', 'which_ho_calvingmip_domain', '2')
+        config.set('calving', 'calvingmip_domain', '2')
 
     # Set the start and end times
     config.set('time', 'tstart', str(tstart))
@@ -670,8 +670,8 @@ for expt in experiments:
 
         config.set('time', 'tend',   str(tend))
         config.set('options', 'restart', '1')
-        config.set('parameters', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
-        config.set('parameters', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
+        config.set('calving', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
+        config.set('calving', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
 
         # Write to the new config file.
         with open(newConfigFile, 'w') as configfile:

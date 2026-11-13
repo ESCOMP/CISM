@@ -436,7 +436,7 @@ yearsSpinup = float(options.yearsSpinup)
 config.set('time', 'tend', str(yearsSpinup))
 
 # Config setting related to presence of ice.
-config.set('parameters','marine_limit', str(marine_limit))
+config.set('calving', 'marine_limit', str(marine_limit))
 
 # Write to the master config file.
 with open(masterConfigFile, 'w') as configfile:

@@ -17,7 +17,6 @@ dycore = 2                   # 0 = glide, 1 = glam, 2=glissade
 evolution = 3                # 3 = remapping, 4 = first order upwind
 flow_law = 0                 # 0 = constant, 2 = Paterson-Budd
 temperature = 0              # 1 = prognostic, 3 = enthalpy
-marine_margin = 4            # 4 = topographic threshold, 5 = calving mask
 basal_mass_balance = 1       # 1 = include basal mass balance in continuity eqn
 bmlt_float = 0               # 0 = no melting of floating ice
 restart_extend_velo = 1      # 1 = write uvel/vvel on extended grid
@@ -48,12 +47,15 @@ flow_factor_ground = 1.
 flow_factor_float = 1.
 ice_limit = 1.                  ; min thickness (m) for dynamics
 default_flwa = 3.1536e-18
-marine_limit = -890             ; depth past which ice is lost
 coulomb_c = 0.2332
 coulomb_bump_max_slope = 0.5    ; maximum bed obstacle slope
 coulomb_bump_wavelength = 2.0   ; bedrock wavelength
 p_ocean_penetration = 0.        ; p values for coulomb friction law
 
+
+[calving]
+calving_law = 4            # 4 = topographic threshold, 5 = calving mask
+marine_limit = -890             ; depth past which ice is lost
 
 [CF default]
 comment = created with mismip3dInit.py 
