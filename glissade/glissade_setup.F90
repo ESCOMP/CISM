@@ -168,38 +168,35 @@ contains
     end if
 
 
+    ! Read the sections for optional features whenever they are present.
+    ! Note: A section's presence does not turn its feature on; the feature's switch does.
+    !       If a section is absent, its parameters keep their default values.
+    !       The handlers only read values, so reading a section for a feature that is off
+    !       has no effect on the results.
+
     ! read isostasy
-    ! NOTE: The [isostasy] section is ignored unless model%options%isostasy = ISOSTASY_COMPUTE
-    if (model%options%isostasy == ISOSTASY_COMPUTE) then
-       call GetSection(config,section,'isostasy')
-       if (associated(section)) then
-          call handle_isostasy(section, model)
-       end if
-    endif
+    call GetSection(config,section,'isostasy')
+    if (associated(section)) then
+       call handle_isostasy(section, model)
+    end if
 
     ! read lateral melt info
-    if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
-       call GetSection(config,section,'lateral_melt')
-       if (associated(section)) then
-          call handle_lateral_melt(section, model)
-       end if
-    endif
+    call GetSection(config,section,'lateral_melt')
+    if (associated(section)) then
+       call handle_lateral_melt(section, model)
+    end if
 
     ! read basal hydrology info
-    if (model%options%which_ho_bwat /= HO_BWAT_NONE) then
-       call GetSection(config,section,'basal_hydro')
-       if (associated(section)) then
-          call handle_basal_hydro(section, model)
-       end if
-    endif
+    call GetSection(config,section,'basal_hydro')
+    if (associated(section)) then
+       call handle_basal_hydro(section, model)
+    end if
 
     ! read glacier info
-    if (model%options%enable_glaciers) then
-       call GetSection(config,section,'glaciers')
-       if (associated(section)) then
-          call handle_glaciers(section, model)
-       end if
-    endif
+    call GetSection(config,section,'glaciers')
+    if (associated(section)) then
+       call handle_glaciers(section, model)
+    end if
 
     !TODO - Create handle_basal_physics, handle_calving, etc.?
 
