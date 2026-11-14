@@ -110,6 +110,14 @@ MOVES = {
     ('parameters', 'pseudo_plastic_phimax'): ('basal_physics', 'pseudo_plastic_phimax'),
     ('parameters', 'pseudo_plastic_bedmin'): ('basal_physics', 'pseudo_plastic_bedmin'),
     ('parameters', 'pseudo_plastic_bedmax'): ('basal_physics', 'pseudo_plastic_bedmax'),
+    # [grounding_line]
+    ('ho_options', 'which_ho_ground'): ('grounding_line', 'grounding_line_param'),
+    ('ho_options', 'which_ho_fground_no_glp'): ('grounding_line', 'fground_no_glp'),
+    ('ho_options', 'which_ho_ground_bmlt'): ('grounding_line', 'grounding_line_bmlt'),
+    ('ho_options', 'which_ho_flotation_function'): ('grounding_line', 'flotation_function'),
+    # [basal_hydro] (existing section): the switch moves in; one key renamed in place
+    ('ho_options', 'which_ho_bwat'): ('basal_hydro', 'bwat_method'),
+    ('basal_hydro', 'ho_flux_routing_scheme'): ('basal_hydro', 'flux_routing_method'),
     # [climate]
     ('options', 'smb_input'): ('climate', 'smb_input'),
     ('options', 'smb_input_function'): ('climate', 'smb_input_function'),
@@ -161,6 +169,13 @@ USER_NL_RENAMES = {
     'which_ho_effecpress': 'effecpress_method',
     'basal_tract_const': 'btrc_const',
     'ho_beta_const': 'beta_const',
+    # [grounding_line]
+    'which_ho_ground': 'grounding_line_param',
+    'which_ho_ground_bmlt': 'grounding_line_bmlt',
+    'which_ho_flotation_function': 'flotation_function',
+    # [basal_hydro]
+    'which_ho_bwat': 'bwat_method',
+    'ho_flux_routing_scheme': 'flux_routing_method',
 }
 
 # Match the CISM reader (glimmer_config.F90): a section header is a line starting with '[' in

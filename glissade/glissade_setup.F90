@@ -173,6 +173,12 @@ contains
        call handle_basal_physics(section, model)
     end if
 
+    ! read grounding-line options
+    call GetSection(config,section,'grounding_line')
+    if (associated(section)) then
+       call handle_grounding_line(section, model)
+    end if
+
     ! read surface climate forcing (SMB, surface temperature)
     call GetSection(config,section,'climate')
     if (associated(section)) then
@@ -923,7 +929,6 @@ contains
     call GetValue(section, 'which_ho_disp',               model%options%which_ho_disp)
     call GetValue(section, 'which_ho_thermal_timestep',   model%options%which_ho_thermal_timestep)
     call GetValue(section, 'which_ho_deltaT_ocn',         model%options%which_ho_deltaT_ocn)
-    call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
     call GetValue(section, 'which_ho_nonlinear',          model%options%which_ho_nonlinear)
     call GetValue(section, 'which_ho_sparse',             model%options%which_ho_sparse)
@@ -937,10 +942,6 @@ contains
     call GetValue(section, 'which_ho_assemble_taud',      model%options%which_ho_assemble_taud)
     call GetValue(section, 'which_ho_assemble_bfric',     model%options%which_ho_assemble_bfric)
     call GetValue(section, 'which_ho_assemble_lateral',   model%options%which_ho_assemble_lateral)
-    call GetValue(section, 'which_ho_ground',             model%options%which_ho_ground)
-    call GetValue(section, 'which_ho_fground_no_glp',     model%options%which_ho_fground_no_glp)
-    call GetValue(section, 'which_ho_ground_bmlt',        model%options%which_ho_ground_bmlt)
-    call GetValue(section, 'which_ho_flotation_function', model%options%which_ho_flotation_function)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'enable_glaciers',             model%options%enable_glaciers)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
@@ -1159,13 +1160,13 @@ contains
          'set deltaT_ocn based on observed dthck_dt   ' /)
 
     ! basal water options
-    character(len=*), dimension(0:3), parameter :: ho_whichbwat = (/ &
+    character(len=*), dimension(0:3), parameter :: bwat_method = (/ &
          'zero basal water depth                          ', &
          'constant basal water depth                      ', &
          'basal water depth computed from local till model', &
          'steady-state water routing with flux calculation' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_flux_routing_scheme = (/ &
+    character(len=*), dimension(0:2), parameter :: flux_routing_method = (/ &
          'D8; route flux to lowest-elevation neighbor      ', &
          'Dinf; route flux to two lower-elevation neighbors', &
          'FD8; route flux to all lower-elevation neighbors ' /)
@@ -1251,21 +1252,21 @@ contains
          'circular   ', &
          'Thule      '  /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichground = (/ &
+    character(len=*), dimension(0:2), parameter :: grounding_line_param = (/ &
          'f_ground = 0 or 1; no GLP  (glissade dycore)               ', &
          'GLP for basal friction with 0 <= f_ground <= 1 for vertices', &
          'deluxe GLP, 0 <= f_ground <= 1 for both vertices and cells ' /)
 
-    character(len=*), dimension(0:1), parameter :: ho_whichfground_no_glp = (/ &
+    character(len=*), dimension(0:1), parameter :: fground_no_glp = (/ &
          'f_ground = 1 at vertex if any neighbor cell is grounded   ', &
          'f_ground = 0 or 1 at vertex based on staggered f_flotation' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichground_bmlt = (/ &
+    character(len=*), dimension(0:2), parameter :: grounding_line_bmlt = (/ &
          'no GLP for bmlt_float                        ', &
          'weigh bmlt_float by floating fraction of cell', &
          'set bmlt_float = 0 in partly grounded cells  ' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichflotation_function = (/ &
+    character(len=*), dimension(0:2), parameter :: flotation_function = (/ &
          'f_pattyn = (-rhoo*b)/(rhoi*H)     ', &
          '1/fpattyn = (rhoi*H)/(-rhoo*b)    ', &
          'linear = -b - (rhoi/rhoo)*H       ' /)
@@ -1770,11 +1771,11 @@ contains
     end if
 
     if (model%options%which_ho_bwat /= HO_BWAT_NONE) then
-       write(message,*) 'ho_whichbwat            : ',model%options%which_ho_bwat,  &
-                         ho_whichbwat(model%options%which_ho_bwat)
+       write(message,*) 'bwat_method             : ',model%options%which_ho_bwat,  &
+                         bwat_method(model%options%which_ho_bwat)
        call write_log(message)
     endif
-    if (model%options%which_ho_bwat < 0 .or. model%options%which_ho_bwat >= size(ho_whichbwat)) then
+    if (model%options%which_ho_bwat < 0 .or. model%options%which_ho_bwat >= size(bwat_method)) then
        call write_log('Error, HO basal water input out of range', GM_FATAL)
     end if
 
@@ -1788,7 +1789,7 @@ contains
        call write_log(message)
     elseif (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
        if (model%basal_hydro%ho_flux_routing_scheme < 0.or. &
-            model%basal_hydro%ho_flux_routing_scheme >= size(ho_flux_routing_scheme)) then
+            model%basal_hydro%ho_flux_routing_scheme >= size(flux_routing_method)) then
           call write_log('Error, HO flux routing scheme out of range', GM_FATAL)
        end if
     endif
@@ -1915,48 +1916,46 @@ contains
        end if
     end if
 
-    write(message,*) 'ho_whichground          : ', model%options%which_ho_ground,  &
-                      ho_whichground(model%options%which_ho_ground)
+    write(message,*) 'grounding_line_param    : ', model%options%which_ho_ground,  &
+                      grounding_line_param(model%options%which_ho_ground)
     call write_log(message)
-    if (model%options%which_ho_ground < 0 .or. model%options%which_ho_ground >= size(ho_whichground)) then
-       call write_log('Error, ho_ground option out of range for glissade dycore', GM_FATAL)
+    if (model%options%which_ho_ground < 0 .or. model%options%which_ho_ground >= size(grounding_line_param)) then
+       call write_log('Error, grounding_line_param out of range for glissade dycore', GM_FATAL)
     end if
 
     if (model%options%which_ho_ground == HO_GROUND_NO_GLP) then
-       write(message,*) 'ho_whichfground_no_glp  : ', model%options%which_ho_fground_no_glp,  &
-                         ho_whichfground_no_glp(model%options%which_ho_fground_no_glp)
+       write(message,*) 'fground_no_glp          : ', model%options%which_ho_fground_no_glp,  &
+                         fground_no_glp(model%options%which_ho_fground_no_glp)
        call write_log(message)
        if (model%options%which_ho_fground_no_glp < 0 .or. &
-           model%options%which_ho_fground_no_glp >= size(ho_whichfground_no_glp)) then
-          call write_log('Error, ho_fground_no_glp option out of range for glissade dycore', GM_FATAL)
+           model%options%which_ho_fground_no_glp >= size(fground_no_glp)) then
+          call write_log('Error, fground_no_glp out of range for glissade dycore', GM_FATAL)
        end if
     endif
 
-    write(message,*) 'ho_whichground_bmlt     : ',model%options%which_ho_ground_bmlt,  &
-                      ho_whichground_bmlt(model%options%which_ho_ground_bmlt)
+    write(message,*) 'grounding_line_bmlt     : ',model%options%which_ho_ground_bmlt,  &
+                      grounding_line_bmlt(model%options%which_ho_ground_bmlt)
     call write_log(message)
     if (model%options%which_ho_ground_bmlt < 0 .or. &
-        model%options%which_ho_ground_bmlt >= size(ho_whichground_bmlt)) then
-       call write_log('Error, ho_ground_bmlt option out of range for glissade dycore', GM_FATAL)
+        model%options%which_ho_ground_bmlt >= size(grounding_line_bmlt)) then
+       call write_log('Error, grounding_line_bmlt out of range for glissade dycore', GM_FATAL)
     end if
 
     if (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_FLOATING_FRAC  .or. &
         model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_ZERO_GROUNDED) then
        if (model%options%which_ho_ground /= HO_GROUND_GLP_DELUXE) then
-          write(message,*) 'This setting of which_ho_ground_bmlt requires which_ho_ground =', &
+          write(message,'(a,i2)') 'This setting of grounding_line_bmlt requires grounding_line_param = ', &
                HO_GROUND_GLP_DELUXE
           call write_log(message)
-          write(message,*)  'Defaulting to which_ho_ground_bmlt =', HO_GROUND_BMLT_NO_GLP
-          call write_log(message)
-          model%options%which_ho_ground_bmlt = HO_GROUND_BMLT_NO_GLP
+          call write_log('Incompatible grounding_line_bmlt and grounding_line_param', GM_FATAL)
        endif
     endif
 
-    write(message,*) 'ho_whichflotation_function:',model%options%which_ho_flotation_function,  &
-         ho_whichflotation_function(model%options%which_ho_flotation_function)
+    write(message,*) 'flotation_function      : ',model%options%which_ho_flotation_function,  &
+         flotation_function(model%options%which_ho_flotation_function)
     call write_log(message)
     if (model%options%which_ho_flotation_function < 0 .or. &
-         model%options%which_ho_flotation_function >= size(ho_whichflotation_function)) then
+         model%options%which_ho_flotation_function >= size(flotation_function)) then
        call write_log('Error, flotation_function option out of range for glissade dycore', GM_FATAL)
     endif
 
@@ -2224,6 +2223,28 @@ contains
     call GetValue(section,'pseudo_plastic_bedmax', model%basal_physics%pseudo_plastic_bedmax)
 
   end subroutine handle_basal_physics
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_grounding_line(section, model)
+
+    ! Grounding-line options: the grounding-line parameterization (GLP) for basal stress,
+    ! the grounded fraction without GLP, subgrid basal melting near the grounding line,
+    ! and the flotation function.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    call GetValue(section,'grounding_line_param', model%options%which_ho_ground)
+    call GetValue(section,'fground_no_glp',       model%options%which_ho_fground_no_glp)
+    call GetValue(section,'grounding_line_bmlt',  model%options%which_ho_ground_bmlt)
+    call GetValue(section,'flotation_function',   model%options%which_ho_flotation_function)
+
+  end subroutine handle_grounding_line
 
 !--------------------------------------------------------------------------------
 
@@ -3179,6 +3200,9 @@ contains
     type(ConfigSection), pointer :: section
     type(glissade_global_type)  :: model
 
+    ! basal water option (the switch for this section)
+    call GetValue(section, 'bwat_method', model%options%which_ho_bwat)
+
     ! constant basal water
     call GetValue(section, 'const_bwat', model%basal_hydro%const_bwat)
 
@@ -3187,7 +3211,7 @@ contains
     call GetValue(section, 'c_drainage', model%basal_hydro%c_drainage)
 
     ! flux routing
-    call GetValue(section, 'ho_flux_routing_scheme', model%basal_hydro%ho_flux_routing_scheme)
+    call GetValue(section, 'flux_routing_method', model%basal_hydro%ho_flux_routing_scheme)
     call GetValue(section, 'const_source', model%basal_hydro%const_source)
     call GetValue(section, 'btemp_flow_scale', model%basal_hydro%btemp_flow_scale)
     call GetValue(section, 'btemp_freeze_scale', model%basal_hydro%btemp_freeze_scale)
@@ -3218,13 +3242,13 @@ contains
     type(glissade_global_type)  :: model
     character(len=100) :: message
 
-    character(len=*), dimension(0:3), parameter :: ho_whichbwat = (/ &
+    character(len=*), dimension(0:3), parameter :: bwat_method = (/ &
          'zero basal water depth                           ', &
          'constant basal water depth                       ', &
          'basal water depth computed from local till model ', &
          'steady-state flux routing                        ' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_flux_routing_scheme = (/ &
+    character(len=*), dimension(0:2), parameter :: flux_routing_method = (/ &
          'D8; route flux to lowest-elevation neighbor      ', &
          'Dinf; route flux to two lower-elevation neighbors', &
          'FD8; route flux to all lower-elevation neighbors ' /)
@@ -3244,10 +3268,10 @@ contains
     call write_log('Basal hydrology')
     call write_log('--------')
 
-    write(message,*) 'ho_whichbwat                  : ',model%options%which_ho_bwat,  &
-                      ho_whichbwat(model%options%which_ho_bwat)
+    write(message,*) 'bwat_method                   : ',model%options%which_ho_bwat,  &
+                      bwat_method(model%options%which_ho_bwat)
     call write_log(message)
-    if (model%options%which_ho_bwat < 0 .or. model%options%which_ho_bwat >= size(ho_whichbwat)) then
+    if (model%options%which_ho_bwat < 0 .or. model%options%which_ho_bwat >= size(bwat_method)) then
        call write_log('Error, HO basal water input out of range', GM_FATAL)
     end if
 
@@ -3268,7 +3292,7 @@ contains
        endif
     elseif (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
        if (model%basal_hydro%ho_flux_routing_scheme < 0.or. &
-            model%basal_hydro%ho_flux_routing_scheme >= size(ho_flux_routing_scheme)) then
+            model%basal_hydro%ho_flux_routing_scheme >= size(flux_routing_method)) then
           call write_log('Error, HO flux routing scheme out of range', GM_FATAL)
        end if
        if (model%options%reproducible_sums) then
@@ -3281,8 +3305,8 @@ contains
              call write_log('Please set btemp_freeze_scale = 0 or turn off reproducible sums', GM_FATAL)
           endif
        endif  ! reproducible sums
-       write(message,*) 'ho_flux_routing_scheme        : ',model%basal_hydro%ho_flux_routing_scheme,  &
-            ho_flux_routing_scheme(model%basal_hydro%ho_flux_routing_scheme)
+       write(message,*) 'flux_routing_method           : ',model%basal_hydro%ho_flux_routing_scheme,  &
+            flux_routing_method(model%basal_hydro%ho_flux_routing_scheme)
        call write_log(message)
        if (model%basal_hydro%const_source > 0.0d0) then
           write(message,*) 'constant melt source at the bed (m/yr): ', model%basal_hydro%const_source
