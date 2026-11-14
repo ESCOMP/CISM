@@ -197,6 +197,24 @@ MOVES = {
     ('ho_options', 'which_ho_assemble_taud'): ('velocity_solver', 'assemble_taud'),
     ('ho_options', 'which_ho_assemble_bfric'): ('velocity_solver', 'assemble_bfric'),
     ('ho_options', 'which_ho_assemble_lateral'): ('velocity_solver', 'assemble_lateral'),
+    # [advection]
+    ('options', 'evolution'): ('advection', 'advection_method'),
+    ('ho_options', 'which_ho_vertical_remap'): ('advection', 'vertical_remap_order'),
+    ('ho_options', 'which_ho_ice_age'): ('advection', 'compute_ice_age'),
+    # [flow_law]
+    ('options', 'flow_law'): ('flow_law', 'flow_law'),
+    ('options', 'damage_flwa_feedback'): ('flow_law', 'damage_flwa_feedback'),
+    ('parameters', 'n_glen'): ('flow_law', 'n_glen'),
+    ('parameters', 'flow_factor_ground'): ('flow_law', 'flow_factor_ground'),
+    ('parameters', 'flow_factor_float'): ('flow_law', 'flow_factor_float'),
+    ('parameters', 'default_flwa'): ('flow_law', 'default_flwa'),
+    # [temperature]
+    ('options', 'temperature'): ('temperature', 'temperature_method'),
+    ('options', 'temp_init'): ('temperature', 'temp_init'),
+    ('ho_options', 'which_ho_disp'): ('temperature', 'dissipation_method'),
+    ('ho_options', 'which_ho_thermal_timestep'): ('temperature', 'thermal_timestep'),
+    ('parameters', 'pmp_offset'): ('temperature', 'pmp_offset'),
+    ('parameters', 'pmp_threshold'): ('temperature', 'pmp_threshold'),
 }
 
 # Order of the new sections when they are created.
@@ -248,6 +266,13 @@ USER_NL_RENAMES = {
     'which_ho_assemble_taud': 'assemble_taud',
     'which_ho_assemble_bfric': 'assemble_bfric',
     'which_ho_assemble_lateral': 'assemble_lateral',
+    # [advection], [temperature]
+    'evolution': 'advection_method',
+    'which_ho_vertical_remap': 'vertical_remap_order',
+    'which_ho_ice_age': 'compute_ice_age',
+    'temperature': 'temperature_method',
+    'which_ho_disp': 'dissipation_method',
+    'which_ho_thermal_timestep': 'thermal_timestep',
 }
 
 # Match the CISM reader (glimmer_config.F90): a section header is a line starting with '[' in

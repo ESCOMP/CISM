@@ -14,9 +14,6 @@ dt = 1
 
 [options]
 dycore = 2                   # 0 = glide, 1 = glam, 2=glissade
-evolution = 3                # 3 = remapping, 4 = first order upwind
-flow_law = 0                 # 0 = constant, 2 = Paterson-Budd
-temperature = 0              # 1 = prognostic, 3 = enthalpy
 restart_extend_velo = 1      # 1 = write uvel/vvel on extended grid
 # restart = 1
 
@@ -24,10 +21,7 @@ restart_extend_velo = 1      # 1 = write uvel/vvel on extended grid
 rhoi = 900.0                    ; MISMIP ice density
 rhoo = 1000.0                   ; MISMIP ocean density
 grav = 9.8                      ; MISMIP gravitational acceleration
-flow_factor_ground = 1.
-flow_factor_float = 1.
 ice_limit = 1.                  ; min thickness (m) for dynamics
-default_flwa = 3.1536e-18
 coulomb_c = 0.2332
 
 
@@ -64,6 +58,18 @@ assemble_beta = 1        # 0 = standard FE, 1 = local
 assemble_taud = 1        # 0 = standard FE, 1 = local
 nonlinear_residual = 4                # 3 = absolute, 4 = relative
 nonlinear_maxiters = 50
+
+[advection]
+advection_method = 3                # 3 = remapping, 4 = first order upwind
+
+[flow_law]
+flow_law = 0                 # 0 = constant, 2 = Paterson-Budd
+flow_factor_ground = 1.
+flow_factor_float = 1.
+default_flwa = 3.1536e-18
+
+[temperature]
+temperature_method = 0              # 1 = prognostic, 3 = enthalpy
 
 [CF default]
 comment = created with mismip3dInit.py 

@@ -17,10 +17,6 @@ jdiag = 311
 
 [options]
 dycore = 2              # 0 = glide, 2 = glissade
-evolution = 3           # 3 = remapping, 4 = first order upwind
-flow_law = 0            # 0 = constant, 2 = Paterson-Budd
-temperature = 0         # 0 = sfc air temp, 1 = prognostic
-temp_init = 4           # 4 = read from external file
 dm_dt_diag = 1          # 0 = kg/s, 1 = Gt/yr
 restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
 restart = 0             # 0 = no restart, 1 = standard restart, 2 = hybrid restart
@@ -30,7 +26,6 @@ rhoi = 917.0                    # ice density
 rhoo = 1028.0                   # ocean density
 grav = 9.81	                # gravitational acceleration
 ice_limit = 1.                  # min thickness (m) for dynamics
-default_flwa = 2.9377e-18
 geothermal = 0.
 
 [calving]
@@ -78,6 +73,17 @@ assemble_bfric = 1       # 0 = standard FE, 1 = local
 assemble_lateral = 1     # 1 = local assembly applied at the marine boundary
 nonlinear_residual = 4                # 3 = absolute, 4 = relative
 nonlinear_maxiters = 50
+
+[advection]
+advection_method = 3           # 3 = remapping, 4 = first order upwind
+
+[flow_law]
+flow_law = 0            # 0 = constant, 2 = Paterson-Budd
+default_flwa = 2.9377e-18
+
+[temperature]
+temperature_method = 0         # 0 = sfc air temp, 1 = prognostic
+temp_init = 4           # 4 = read from external file
 
 [CF default]
 comment = created with calvingMIP.Setup.py

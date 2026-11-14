@@ -177,8 +177,13 @@ def main():
         dx = float(config_parser.get('grid','dew'))
         dy = float(config_parser.get('grid','dns'))
         
-        flwa = float(config_parser.get('parameters','default_flwa'))
-        flow_law = int(config_parser.get('options','flow_law'))
+        # Glissade configs have a [flow_law] section; Glide configs keep the old format.
+        if config_parser.has_section('flow_law'):
+            flwa_section = flow_law_section = 'flow_law'
+        else:
+            flwa_section, flow_law_section = 'parameters', 'options'
+        flwa = float(config_parser.get(flwa_section,'default_flwa'))
+        flow_law = int(config_parser.get(flow_law_section,'flow_law'))
         if flow_law != 0:
             print('Error: The option "flow_law" must be set to 0 for the test case to work properly.')
             sys.exit(1)
@@ -215,8 +220,8 @@ def main():
     config_parser.set('grid', 'dew', str(dx))
     config_parser.set('grid', 'dns', str(dy))
 
-    config_parser.set('parameters', 'default_flwa', str(flwa))
-    config_parser.set('options', 'flow_law', str(flow_law))
+    config_parser.set(flwa_section, 'default_flwa', str(flwa))
+    config_parser.set(flow_law_section, 'flow_law', str(flow_law))
     
     config_parser.set('CF input', 'name', file_name)
     config_parser.set('CF output', 'name', out_name)

@@ -651,7 +651,7 @@ for expt in experiments:
     config.set('time', 'tend',   str(tend))
 
     # Set the default flwa value.
-    config.set('parameters', 'default_flwa', str(float(expt)))
+    config.set('flow_law', 'default_flwa', str(float(expt)))
 
     # Change the default comment.
     comment = 'MISMIP experiment ' + expt

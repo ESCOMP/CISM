@@ -329,8 +329,8 @@ def main():
 
     config_parser.set('parameters', 'rhoi', str(rhoi))
     config_parser.set('parameters', 'grav', str(grav))
-    config_parser.set('parameters', 'n_glen', str(gn))
-    config_parser.set('parameters', 'default_flwa', str(flwa))
+    config_parser.set('flow_law', 'n_glen', str(gn))
+    config_parser.set('flow_law', 'default_flwa', str(flwa))
 
     if (args.approx == 'SIALOC'):
         approx = -1             # Glissade local SIA; uses basal_tract_const = 1/beta

@@ -15,13 +15,9 @@ jdiag = 10
 
 [options]
 dycore = 2               # 0 = glide, 1 = glam, 2 = glissade
-flow_law = 0             # 0 = flow_law option needs to be 0 for the test case to work properly.
-evolution = 3            # 2 = iterated diffusion, 3 = IR
-temperature = 0          # 0 = isothermal temp evolution, if turned on, will not affect flwa because default_flwa is specified below.
 
 [parameters]
 ice_limit = 1.           # min thickness (m) for dynamics
-default_flwa = 1.0e-16   # NOTE: The Halfar testing script requires that flwa is supplied here!
 
 [calving]
 calving_law = 0        # 0 = no calving
@@ -41,6 +37,16 @@ surface_gradient_method = 2    # 0 = centered, 1 = 1st order upstream, 2 = 2nd o
 linear_solver = 3      # 1 = SLAP GMRES, 3 = glissade parallel PCG
 nonlinear_method = 0   # 0 = Picard, 1 = accelerated Picard
 preconditioner = 2     # 1 = diagonal, 2 = physics-based SIA
+
+[advection]
+advection_method = 3            # 2 = iterated diffusion, 3 = IR
+
+[flow_law]
+flow_law = 0             # 0 = flow_law option needs to be 0 for the test case to work properly.
+default_flwa = 1.0e-16   # NOTE: The Halfar testing script requires that flwa is supplied here!
+
+[temperature]
+temperature_method = 0          # 0 = isothermal temp evolution, if turned on, will not affect flwa because default_flwa is specified below.
 
 [CF default]
 comment = created with halfar.py 

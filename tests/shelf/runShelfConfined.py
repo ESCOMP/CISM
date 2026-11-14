@@ -217,7 +217,7 @@ def main():
     # http://homepages.vub.ac.be/~phuybrec/eismint/iceshelf.html
 
     ## Check to make sure that the flow law parameter in the config file is correct.
-    #default_flwa = float(config_parser.get('parameters','default_flwa'))
+    #default_flwa = float(config_parser.get('flow_law','default_flwa'))
     #if default_flwa != 4.6e-18:
     #  print 'WARNING: The parameter default_flwa in',args.config,'should be 4.6e-18'
     #  print '         Currently it is',default_flwa

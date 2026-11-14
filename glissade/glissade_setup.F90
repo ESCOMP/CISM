@@ -179,6 +179,24 @@ contains
        call handle_velocity_solver(section, model)
     end if
 
+    ! read ice advection options (thickness and tracer transport)
+    call GetSection(config,section,'advection')
+    if (associated(section)) then
+       call handle_advection(section, model)
+    end if
+
+    ! read flow law options and parameters
+    call GetSection(config,section,'flow_law')
+    if (associated(section)) then
+       call handle_flow_law(section, model)
+    end if
+
+    ! read temperature options and parameters
+    call GetSection(config,section,'temperature')
+    if (associated(section)) then
+       call handle_temperature(section, model)
+    end if
+
     ! read basal physics (sliding laws and basal friction parameters)
     call GetSection(config,section,'basal_physics')
     if (associated(section)) then
@@ -908,14 +926,9 @@ contains
     type(glissade_global_type)  :: model
 
     call GetValue(section,'dycore',model%options%whichdycore)
-    call GetValue(section,'evolution',model%options%whichevol)
-    call GetValue(section,'temperature',model%options%whichtemp)
-    call GetValue(section,'temp_init',model%options%temp_init)
-    call GetValue(section,'flow_law',model%options%whichflwa)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'which_lateral_melt',model%options%which_lateral_melt)
-    call GetValue(section,'damage_flwa_feedback', model%options%damage_flwa_feedback)
     call GetValue(section,'adjust_input_thickness', model%options%adjust_input_thickness)
     call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
     call GetValue(section,'smooth_input_usrf', model%options%smooth_input_usrf)
@@ -942,10 +955,6 @@ contains
     type(glissade_global_type) :: model
     
     call GetValue(section, 'compute_blocks',              model%options%compute_blocks)
-    call GetValue(section, 'which_ho_disp',               model%options%which_ho_disp)
-    call GetValue(section, 'which_ho_thermal_timestep',   model%options%which_ho_thermal_timestep)
-    call GetValue(section, 'which_ho_vertical_remap',     model%options%which_ho_vertical_remap)
-    call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'enable_glaciers',             model%options%enable_glaciers)
     call GetValue(section, 'reproducible_sums',           model%options%reproducible_sums)
 
@@ -976,12 +985,12 @@ contains
          'inquire the number of active blocks'/)
 
     !WHL TODO - Renumber during the config reorg
-    character(len=*), dimension(3:5), parameter :: evolution = (/ &
+    character(len=*), dimension(3:5), parameter :: advection_method = (/ &
          'incremental remapping                 ', &   
          '1st order upwind                      ', &
          'thickness fixed at initial value      '  /)
 
-    character(len=*), dimension(0:3), parameter :: temperature = (/ &
+    character(len=*), dimension(0:3), parameter :: temperature_method = (/ &
          'isothermal            ', &
          'prognostic temperature', &
          'constant in time      ', &
@@ -1105,12 +1114,12 @@ contains
          'multiple of flow factor        ', &
          'nonlinear, from eff strain rate' /)
 
-    character(len=*), dimension(-1:1), parameter :: ho_whichdisp = (/ &
+    character(len=*), dimension(-1:1), parameter :: dissipation_method = (/ &
          'no dissipation                    ', &
          '0-order SIA                       ', &
          'first-order model (Blatter-Pattyn)' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichthermal_timestep = (/ &
+    character(len=*), dimension(0:2), parameter :: thermal_timestep = (/ &
          'vertical thermal solve before transport    ', &
          'vertical thermal solve after transport     ', &
          'vertical thermal solve split into two parts' /)
@@ -1222,7 +1231,7 @@ contains
          'compute edge gradient when ice lies above ice-free land', & 
          'compute edge gradient when both cells have ice         ' /)
 
-    character(len=*), dimension(0:1), parameter :: ho_whichvertical_remap = (/ &
+    character(len=*), dimension(0:1), parameter :: vertical_remap_order = (/ &
          'first-order accurate  ', &
          'second-order accurate ' /)
 
@@ -1270,7 +1279,7 @@ contains
          '1/fpattyn = (rhoi*H)/(-rhoo*b)    ', &
          'linear = -b - (rhoi/rhoo)*H       ' /)
 
-    character(len=*), dimension(0:1), parameter :: ho_whichice_age = (/ &
+    character(len=*), dimension(0:1), parameter :: compute_ice_age = (/ &
          'ice age computation off', &
          'ice age computation on ' /)
 
@@ -1335,10 +1344,10 @@ contains
     !NOTE : Old option 3 (TEMP_REMAP_ADV) has been removed.
     ! If this has been set, then change to option 1 (TEMP_PROGNOSTIC), which applies to any dycore.
 
-    if (model%options%whichtemp < 0 .or. model%options%whichtemp >= size(temperature)) then
-       call write_log('Error, temperature option out of range',GM_FATAL)
+    if (model%options%whichtemp < 0 .or. model%options%whichtemp >= size(temperature_method)) then
+       call write_log('Error, temperature_method out of range',GM_FATAL)
     end if
-    write(message,*) 'temperature calculation : ',model%options%whichtemp,temperature(model%options%whichtemp)
+    write(message,*) 'temperature calculation : ',model%options%whichtemp,temperature_method(model%options%whichtemp)
     call write_log(message)
 
     ! unsupported temperature options
@@ -1447,12 +1456,12 @@ contains
     endif
 
     !WHL TODO: Renumber during the config reorg and restore the following commented-out line
-!!    if (model%options%whichevol < 0 .or. model%options%whichevol >= size(evolution)) then
+!!    if (model%options%whichevol < 0 .or. model%options%whichevol >= size(advection_method)) then
     if (model%options%whichevol < EVOL_INC_REMAP .or. model%options%whichevol > EVOL_NO_THICKNESS) then
-       call write_log('Error, evolution out of range',GM_FATAL)
+       call write_log('Error, advection_method out of range',GM_FATAL)
     end if
 
-    write(message,*) 'evolution               : ', model%options%whichevol, evolution(model%options%whichevol)
+    write(message,*) 'advection_method        : ', model%options%whichevol, advection_method(model%options%whichevol)
     call write_log(message)
 
     if (model%options%dm_dt_diag < 0 .or. model%options%dm_dt_diag >= size(dm_dt_diag)) then
@@ -1631,18 +1640,18 @@ contains
        call write_log('Error, HO effective viscosity input out of range', GM_FATAL)
     end if
 
-    write(message,*) 'ho_whichdisp            : ',model%options%which_ho_disp,  &
-                      ho_whichdisp(model%options%which_ho_disp)
+    write(message,*) 'dissipation_method      : ',model%options%which_ho_disp,  &
+                      dissipation_method(model%options%which_ho_disp)
     call write_log(message)
-    if (model%options%which_ho_disp < -1 .or. model%options%which_ho_disp >= size(ho_whichdisp)-1) then
+    if (model%options%which_ho_disp < -1 .or. model%options%which_ho_disp >= size(dissipation_method)-1) then
        call write_log('Error, HO dissipation input out of range', GM_FATAL)
     end if
 
-    write(message,*) 'ho_whichthermal_timestep: ',model%options%which_ho_thermal_timestep,  &
-                      ho_whichthermal_timestep(model%options%which_ho_thermal_timestep)
+    write(message,*) 'thermal_timestep        : ',model%options%which_ho_thermal_timestep,  &
+                      thermal_timestep(model%options%which_ho_thermal_timestep)
     call write_log(message)
     if (model%options%which_ho_thermal_timestep < 0 .or. &
-         model%options%which_ho_thermal_timestep >= size(ho_whichthermal_timestep)) then
+         model%options%which_ho_thermal_timestep >= size(thermal_timestep)) then
        call write_log('Error, HO thermal timestep input out of range', GM_FATAL)
     end if
 
@@ -1857,11 +1866,11 @@ contains
        call write_log('Error, gradient margin option out of range for glissade dycore', GM_FATAL)
     end if
 
-    write(message,*) 'ho_whichvertical_remap  : ',model%options%which_ho_vertical_remap,  &
-                      ho_whichvertical_remap(model%options%which_ho_vertical_remap)
+    write(message,*) 'vertical_remap_order    : ',model%options%which_ho_vertical_remap,  &
+                      vertical_remap_order(model%options%which_ho_vertical_remap)
     call write_log(message)
     if (model%options%which_ho_vertical_remap < 0 .or. &
-        model%options%which_ho_vertical_remap >= size(ho_whichvertical_remap)) then
+        model%options%which_ho_vertical_remap >= size(vertical_remap_order)) then
        call write_log('Error, vertical remap option out of range for glissade dycore', GM_FATAL)
     end if
 
@@ -1979,11 +1988,11 @@ contains
        endif
     endif
 
-    write(message,*) 'ho_whichice_age         : ',model%options%which_ho_ice_age,  &
-                      ho_whichice_age(model%options%which_ho_ice_age)
+    write(message,*) 'compute_ice_age         : ',model%options%which_ho_ice_age,  &
+                      compute_ice_age(model%options%which_ho_ice_age)
     call write_log(message)
-    if (model%options%which_ho_ice_age < 0 .or. model%options%which_ho_ice_age >= size(ho_whichice_age)) then
-       call write_log('Error, ice_age option out of range for glissade dycore', GM_FATAL)
+    if (model%options%which_ho_ice_age < 0 .or. model%options%which_ho_ice_age >= size(compute_ice_age)) then
+       call write_log('Error, compute_ice_age option out of range for glissade dycore', GM_FATAL)
     end if
 
     write(message,*) 'nonlinear_maxiters      : ',model%options%glissade_maxiter
@@ -2035,7 +2044,7 @@ contains
     use glimmer_config
     use glissade_types
     use glimmer_log
-    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt, n_glen
+    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt
 
     implicit none
     type(ConfigSection), pointer :: section
@@ -2060,7 +2069,6 @@ contains
     call GetValue(section,'lhci', lhci)
     call GetValue(section,'trpt', trpt)
 #endif
-    call GetValue(section,'n_glen', n_glen)
 
     loglevel = GM_levels-GM_ERROR
     call GetValue(section,'log_level',loglevel)
@@ -2070,13 +2078,7 @@ contains
     call GetValue(section,'ice_limit',          model%numerics%thklim)
     call GetValue(section,'ice_limit_temp',     model%numerics%thklim_temp)
     call GetValue(section,'thck_gradient_ramp', model%numerics%thck_gradient_ramp)
-    call GetValue(section,'pmp_offset',         model%temper%pmp_offset)
-    call GetValue(section,'pmp_threshold',      model%temper%pmp_threshold)
     call GetValue(section,'geothermal',         model%paramets%geot)
-    call GetValue(section,'flow_factor_ground', model%paramets%flow_enhancement_factor_ground)
-    call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
-    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
-    call GetValue(section,'default_flwa',       model%paramets%default_flwa)
 
     ! parameters to adjust input topography
     call GetValue(section, 'adjust_topg_xmin', model%paramets%adjust_topg_xmin)
@@ -2177,6 +2179,81 @@ contains
     call GetValue(section,'assemble_lateral',    model%options%which_ho_assemble_lateral)
 
   end subroutine handle_velocity_solver
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_advection(section, model)
+
+    ! Ice advection: the thickness evolution (transport) scheme, vertical remapping,
+    ! and the ice age tracer.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    call GetValue(section,'advection_method',     model%options%whichevol)
+    call GetValue(section,'vertical_remap_order', model%options%which_ho_vertical_remap)
+    call GetValue(section,'compute_ice_age',      model%options%which_ho_ice_age)
+
+  end subroutine handle_advection
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_flow_law(section, model)
+
+    ! Flow law: how the rate factor flwa is computed, its enhancement factors,
+    ! and the exponent in Glen's flow law.
+
+    use glimmer_config
+    use glissade_types
+    use glimmer_physcon, only: n_glen
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'flow_law',             model%options%whichflwa)
+    call GetValue(section,'damage_flwa_feedback', model%options%damage_flwa_feedback)
+
+    ! parameters
+    call GetValue(section,'n_glen',             n_glen)
+    call GetValue(section,'flow_factor_ground', model%paramets%flow_enhancement_factor_ground)
+    call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
+    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
+    call GetValue(section,'default_flwa',       model%paramets%default_flwa)
+
+  end subroutine handle_flow_law
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_temperature(section, model)
+
+    ! Ice temperature: the temperature (or enthalpy) scheme, its initialization,
+    ! the dissipation term, the order of the thermal and transport solves, and
+    ! the pressure-melting-point parameters.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'temperature_method', model%options%whichtemp)
+    call GetValue(section,'temp_init',          model%options%temp_init)
+    call GetValue(section,'dissipation_method', model%options%which_ho_disp)
+    call GetValue(section,'thermal_timestep',   model%options%which_ho_thermal_timestep)
+
+    ! parameters
+    call GetValue(section,'pmp_offset',    model%temper%pmp_offset)
+    call GetValue(section,'pmp_threshold', model%temper%pmp_threshold)
+
+  end subroutine handle_temperature
 
 !--------------------------------------------------------------------------------
 
@@ -2706,7 +2783,7 @@ contains
        endif
        if (model%options%which_ho_thermal_timestep == HO_THERMAL_BEFORE_TRANSPORT) then
           call write_log('WARNING: Best to do vertical thermal solve after transport for the pseudo-plastic sliding law')
-          write(message,*) 'Set which_ho_thermal_timestep to one of the following values:', &
+          write(message,*) 'Set thermal_timestep to one of the following values:', &
                HO_THERMAL_AFTER_TRANSPORT, HO_THERMAL_SPLIT_TIMESTEP
           call write_log(message, GM_WARNING)
        endif
