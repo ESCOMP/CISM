@@ -178,7 +178,7 @@ else:
     p_ocean_penetration = 0   #  is default
     print( 'Defaulting to Powerlaw basal friction law')
 
-config.set('parameters', 'p_ocean_penetration', str(p_ocean_penetration))
+config.set('basal_physics', 'p_ocean_penetration', str(p_ocean_penetration))
 
 # Config setting related to spin up time.
 yearsStnd = float(options.yearsStnd)

@@ -409,7 +409,7 @@ contains
           call write_log('ERROR: Trying to use HO_BABC_EXTERNAL_BETA, but all beta values are < 0,')
           call write_log('which implies that beta could not be read from the input file.')
           call write_log('Make sure that beta is in the cism input file,')
-          call write_log('or change which_ho_babc to a different option.')
+          call write_log('or change sliding_law to a different option.')
           call write_log('Invalid value for beta. See log file for details.', GM_FATAL)
        end if
 

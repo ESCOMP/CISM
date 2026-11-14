@@ -429,7 +429,7 @@ else:
     which_ho_babc = 9   # powerlaw is default
     print( 'Defaulting to powerlaw basal friction law')
 
-config.set('ho_options', 'which_ho_babc', str(which_ho_babc))
+config.set('basal_physics', 'sliding_law', str(which_ho_babc))
 
 # Config setting related to spin up time.
 yearsSpinup = float(options.yearsSpinup)

@@ -215,7 +215,7 @@ else:
     which_ho_babc = 11   # Schoof is default
     print( 'Defaulting to Schoof basal friction law')
 
-config.set('ho_options', 'which_ho_babc', str(which_ho_babc))
+config.set('basal_physics', 'sliding_law', str(which_ho_babc))
 
 yearsSpinup = float(options.yearsSpinup)
 config.set('time', 'tend', str(yearsSpinup))

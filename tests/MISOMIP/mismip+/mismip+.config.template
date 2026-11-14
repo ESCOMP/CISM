@@ -25,7 +25,6 @@ restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
 restart = 0             # 0 = not a restart
 
 [ho_options]
-which_ho_babc = 11                # 11 = Coulomb w/const basal flwa, 12 = Tsai law, 9 = power law
 which_ho_efvs = 2                 # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
 which_ho_sparse = 3               # 1 = SLAP GMRES, 3 = Fortran PCG, 4 = Trilinos for linear solver
 which_ho_nonlinear = 1            # 0 = Picard, 1 = accelerated Picard
@@ -51,11 +50,6 @@ flow_factor_ground = 1.
 flow_factor_float = 1.
 ice_limit = 1.                  #min thickness (m) for dynamics
 default_flwa = 2.0e-17
-beta_grounded_min = 10.
-p_ocean_penetration = 1.        # p value for Coulomb friction law
-coulomb_c_const = 0.5
-powerlaw_c_const = 1.e4         # constant for the power law stress
-powerlaw_m = 3                  # exponent for the power law stress
 bmlt_float_omega = 0.2          # parameter for Ice1
 bmlt_float_z0 = -100.           # parameter for Ice1
 bmlt_float_h0 = 75.             # parameter for Ice1
@@ -65,6 +59,14 @@ bmlt_float_xlim = 480000.       # parameter for Ice2
 [calving]
 calving_law = 5       # 4 = topographic threshold, 5 = calving mask
 calving_front_x = 640000.       # 640 km for mismip+
+
+[basal_physics]
+sliding_law = 11                # 11 = Coulomb w/const basal flwa, 12 = Tsai law, 9 = power law
+beta_grounded_min = 10.
+p_ocean_penetration = 1.        # p value for Coulomb friction law
+coulomb_c_const = 0.5
+powerlaw_c_const = 1.e4         # constant for the power law stress
+powerlaw_m = 3                  # exponent for the power law stress
 
 [CF default]
 comment = created with mismip+Init.py 

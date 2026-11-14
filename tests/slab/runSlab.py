@@ -334,8 +334,8 @@ def main():
 
     if (args.approx == 'SIALOC'):
         approx = -1             # Glissade local SIA; uses basal_tract_const = 1/beta
-        config_parser.set('options', 'slip_coeff', str(1))
-        config_parser.set('parameters', 'basal_tract_const', str(1./beta))
+        config_parser.set('basal_physics', 'btrc_method', str(1))
+        config_parser.set('basal_physics', 'btrc_const', str(1./beta))
     elif (args.approx == 'SIA'):
         approx = 0              # Glissade matrix-based SIA
     elif (args.approx == 'SSA'):

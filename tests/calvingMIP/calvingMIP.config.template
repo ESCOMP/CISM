@@ -28,8 +28,6 @@ restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
 restart = 0             # 0 = no restart, 1 = standard restart, 2 = hybrid restart
 
 [ho_options]
-which_ho_babc = 9                 # 9 = power law
-which_ho_effecpress = 0           # 0 = overburden
 which_ho_efvs = 2                 # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
 which_ho_sparse = 3               # 1 = SLAP GMRES, 3 = Fortran PCG
 which_ho_nonlinear = 1            # 0 = Picard, 1 = accelerated Picard
@@ -45,7 +43,6 @@ which_ho_ground = 1               # 0 = no GLP, 1 = GLP
 which_ho_ground_bmlt = 0          # 0 = no bmlt GLP, 1 = bmlt GLP
 which_ho_resid = 4                # 3 = absolute, 4 = relative
 which_ho_flotation_function = 2   # 0 = f_pattyn, 2 = linear
-which_ho_powerlaw_c = 0           # 0 = spatially uniform constant
 glissade_maxiter = 50
 
 [parameters]
@@ -54,10 +51,7 @@ rhoo = 1028.0                   # ocean density
 grav = 9.81	                # gravitational acceleration
 ice_limit = 1.                  # min thickness (m) for dynamics
 default_flwa = 2.9377e-18
-powerlaw_c_const = 10000.       # constant for the power law stress
-powerlaw_m = 3.                 # exponent for the power law stress
 geothermal = 0.
-beta_grounded_min = 1.
 
 [calving]
 calving_law = 6       # 5 = calving mask, 6 = prescribed advance/retreat rate
@@ -70,6 +64,14 @@ cf_advance_retreat_period = 0.
 
 [climate]
 smb_input = 0           # 0 = m/yr ice, 1 = mm/yr w.e.
+
+[basal_physics]
+sliding_law = 9                 # 9 = power law
+effecpress_method = 0           # 0 = overburden
+powerlaw_c_method = 0           # 0 = spatially uniform constant
+powerlaw_c_const = 10000.       # constant for the power law stress
+powerlaw_m = 3.                 # exponent for the power law stress
+beta_grounded_min = 1.
 
 [CF default]
 comment = created with calvingMIP.Setup.py

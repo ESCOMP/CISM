@@ -167,6 +167,12 @@ contains
        call handle_parameters(section, model)
     end if
 
+    ! read basal physics (sliding laws and basal friction parameters)
+    call GetSection(config,section,'basal_physics')
+    if (associated(section)) then
+       call handle_basal_physics(section, model)
+    end if
+
     ! read surface climate forcing (SMB, surface temperature)
     call GetSection(config,section,'climate')
     if (associated(section)) then
@@ -876,7 +882,6 @@ contains
     call GetValue(section,'temperature',model%options%whichtemp)
     call GetValue(section,'temp_init',model%options%temp_init)
     call GetValue(section,'flow_law',model%options%whichflwa)
-    call GetValue(section,'slip_coeff',model%options%whichbtrc)
     call GetValue(section,'bmlt_float',model%options%whichbmlt_float)
     call GetValue(section,'bmlt_float_thermal_forcing_param',model%options%bmlt_float_thermal_forcing_param)
     call GetValue(section,'bmlt_float_init',model%options%bmlt_float_init)
@@ -917,15 +922,8 @@ contains
     call GetValue(section, 'which_ho_efvs',               model%options%which_ho_efvs)
     call GetValue(section, 'which_ho_disp',               model%options%which_ho_disp)
     call GetValue(section, 'which_ho_thermal_timestep',   model%options%which_ho_thermal_timestep)
-    call GetValue(section, 'which_ho_babc',               model%options%which_ho_babc)
-    call GetValue(section, 'use_c_space_factor',          model%options%use_c_space_factor)
-    call GetValue(section, 'which_ho_beta_limit',         model%options%which_ho_beta_limit)
-    call GetValue(section, 'which_ho_powerlaw_c',         model%options%which_ho_powerlaw_c)
-    call GetValue(section, 'which_ho_coulomb_c',          model%options%which_ho_coulomb_c)
-    call GetValue(section, 'elevation_based_coulomb_c',   model%options%elevation_based_coulomb_c)
     call GetValue(section, 'which_ho_deltaT_ocn',         model%options%which_ho_deltaT_ocn)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
-    call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
     call GetValue(section, 'which_ho_nonlinear',          model%options%which_ho_nonlinear)
     call GetValue(section, 'which_ho_sparse',             model%options%which_ho_sparse)
@@ -1002,7 +1000,7 @@ contains
          'Paterson and Budd           ' /)
 
     ! Note: Glide also supports 'linear function of bmlt' (4) and 'tanh function of bwat' (5)
-    character(len=*), dimension(0:3), parameter :: slip_coeff = (/ &
+    character(len=*), dimension(0:3), parameter :: btrc_method = (/ &
          'no basal sliding       ', &
          'constant basal traction', &
          'constant where bwat > 0', &
@@ -1118,7 +1116,7 @@ contains
          'vertical thermal solve split into two parts' /)
 
     !WHL TODO - Remove option 3 (and maybe others) during the config reorg
-    character(len=*), dimension(0:14), parameter :: ho_whichbabc = (/ &
+    character(len=*), dimension(0:14), parameter :: sliding_law = (/ &
          'constant beta                                    ', &
          'beta depends on basal temp (melting or frozen)   ', &
          'pseudo-plastic sliding law, new C_c options      ', &
@@ -1135,18 +1133,18 @@ contains
          'power law using effective pressure               ', &
          'till yield stress (Picard)                       ' /)
 
-    character(len=*), dimension(0:1), parameter :: ho_whichbeta_limit = (/ &
+    character(len=*), dimension(0:1), parameter :: beta_limit_method = (/ &
          'absolute beta limit based on beta_grounded_min   ', &
          'beta is limited, then scaled by f_ground_cell    ' /)
 
-    character(len=*), dimension(0:4), parameter :: ho_powerlaw_c = (/ &
+    character(len=*), dimension(0:4), parameter :: powerlaw_c_method = (/ &
          'spatially uniform friction parameter Cp     ', &
          'invert for 2D friction parameter Cp         ', &
          'read friction parameter Cp from file        ', &
          'invert for basin-scale friction parameter Cp', &
          'friction parameter Cp is a function of Cc   ' /)
 
-    character(len=*), dimension(0:3), parameter :: ho_coulomb_c = (/ &
+    character(len=*), dimension(0:3), parameter :: coulomb_c_method = (/ &
          'spatially uniform friction parameter Cc     ', &
          'invert for 2D friction parameter Cc         ', &
          'read friction parameter Cc from file        ', &
@@ -1172,7 +1170,7 @@ contains
          'Dinf; route flux to two lower-elevation neighbors', &
          'FD8; route flux to all lower-elevation neighbors ' /)
 
-    character(len=*), dimension(0:5), parameter :: ho_whicheffecpress = (/ &
+    character(len=*), dimension(0:5), parameter :: effecpress_method = (/ &
          'full overburden pressure                             ', &
          'proportional to height above flotation               ', &
          'macroporous sheet; effecpress depends on bwat        ', &
@@ -1439,12 +1437,12 @@ contains
        call write_log(message)
     endif
 
-    if (model%options%whichbtrc < 0 .or. model%options%whichbtrc >= size(slip_coeff)) then
-       call write_log('Error, slip_coeff out of range',GM_FATAL)
+    if (model%options%whichbtrc < 0 .or. model%options%whichbtrc >= size(btrc_method)) then
+       call write_log('Error, btrc_method out of range',GM_FATAL)
     end if
 
     if (model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
-       write(message,*) 'slip_coeff              : ', model%options%whichbtrc, slip_coeff(model%options%whichbtrc)
+       write(message,*) 'btrc_method             : ', model%options%whichbtrc, btrc_method(model%options%whichbtrc)
        call write_log(message)
     endif
 
@@ -1648,10 +1646,10 @@ contains
        call write_log('Error, HO thermal timestep input out of range', GM_FATAL)
     end if
 
-    write(message,*) 'ho_whichbabc            : ',model%options%which_ho_babc,  &
-                      ho_whichbabc(model%options%which_ho_babc)
+    write(message,*) 'sliding_law             : ',model%options%which_ho_babc,  &
+                      sliding_law(model%options%which_ho_babc)
     call write_log(message)
-    if (model%options%which_ho_babc < 0 .or. model%options%which_ho_babc >= size(ho_whichbabc)) then
+    if (model%options%which_ho_babc < 0 .or. model%options%which_ho_babc >= size(sliding_law)) then
        call write_log('Error, HO basal BC input out of range', GM_FATAL)
     end if
 
@@ -1662,31 +1660,31 @@ contains
           write(message,*) 'Multiplying beta by C_space_factor'
           call write_log(message)
        else
-          call write_log('Error, C_space_factor not supported for this choice of which_ho_babc', GM_FATAL)
+          call write_log('Error, C_space_factor not supported for this choice of sliding_law', GM_FATAL)
        endif
     endif
 
-    write(message,*) 'ho_whichbeta_limit      : ',model%options%which_ho_beta_limit,  &
-                      ho_whichbeta_limit(model%options%which_ho_beta_limit)
+    write(message,*) 'beta_limit_method       : ',model%options%which_ho_beta_limit,  &
+                      beta_limit_method(model%options%which_ho_beta_limit)
     call write_log(message)
-    if (model%options%which_ho_beta_limit < 0 .or. model%options%which_ho_beta_limit >= size(ho_whichbeta_limit)) then
+    if (model%options%which_ho_beta_limit < 0 .or. model%options%which_ho_beta_limit >= size(beta_limit_method)) then
        call write_log('Error, HO beta limit input out of range', GM_FATAL)
     end if
 
     ! basal friction options
 
-    write(message,*) 'ho_powerlaw_c           : ',model%options%which_ho_powerlaw_c,  &
-                      ho_powerlaw_c(model%options%which_ho_powerlaw_c)
+    write(message,*) 'powerlaw_c_method       : ',model%options%which_ho_powerlaw_c,  &
+                      powerlaw_c_method(model%options%which_ho_powerlaw_c)
     call write_log(message)
-    if (model%options%which_ho_powerlaw_c < 0 .or. model%options%which_ho_powerlaw_c >= size(ho_powerlaw_c)) then
+    if (model%options%which_ho_powerlaw_c < 0 .or. model%options%which_ho_powerlaw_c >= size(powerlaw_c_method)) then
        call write_log('Error, HO powerlaw_c input out of range', GM_FATAL)
     end if
 
-    write(message,*) 'ho_coulomb_c            : ',model%options%which_ho_coulomb_c,  &
-                      ho_coulomb_c(model%options%which_ho_coulomb_c)
+    write(message,*) 'coulomb_c_method        : ',model%options%which_ho_coulomb_c,  &
+                      coulomb_c_method(model%options%which_ho_coulomb_c)
     call write_log(message)
-    if (model%options%which_ho_coulomb_c < 0 .or. model%options%which_ho_coulomb_c >= size(ho_coulomb_c)) then
-       call write_log('Error, which_ho_coulomb_c input out of range', GM_FATAL)
+    if (model%options%which_ho_coulomb_c < 0 .or. model%options%which_ho_coulomb_c >= size(coulomb_c_method)) then
+       call write_log('Error, coulomb_c_method out of range', GM_FATAL)
     end if
 
     ! Inversion options
@@ -1795,10 +1793,10 @@ contains
        end if
     endif
 
-    write(message,*) 'ho_whicheffecpress      : ',model%options%which_ho_effecpress,  &
-                      ho_whicheffecpress(model%options%which_ho_effecpress)
+    write(message,*) 'effecpress_method       : ',model%options%which_ho_effecpress,  &
+                      effecpress_method(model%options%which_ho_effecpress)
     call write_log(message)
-    if (model%options%which_ho_effecpress < 0 .or. model%options%which_ho_effecpress >= size(ho_whicheffecpress)) then
+    if (model%options%which_ho_effecpress < 0 .or. model%options%which_ho_effecpress >= size(effecpress_method)) then
        call write_log('Error, HO effective pressure input out of range', GM_FATAL)
     end if
 
@@ -2088,48 +2086,6 @@ contains
     ! BMB parameters
     call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
 
-    ! NOTE: btrc_const is used for several slip_coeff options in the local SIA solver
-    call GetValue(section,'basal_tract_const', model%paramets%btrc_const)
-
-    call GetValue(section,'beta_grounded_min', model%basal_physics%beta_grounded_min)
-    call GetValue(section,'ho_beta_const', model%basal_physics%ho_beta_const)
-    call GetValue(section,'ho_beta_small', model%basal_physics%ho_beta_small)
-    call GetValue(section,'ho_beta_large', model%basal_physics%ho_beta_large)
-
-    ! basal friction parameters
-    call GetValue(section, 'powerlaw_c_const', model%basal_physics%powerlaw_c_const)
-    call GetValue(section, 'powerlaw_c_max', model%basal_physics%powerlaw_c_max)
-    call GetValue(section, 'powerlaw_c_min', model%basal_physics%powerlaw_c_min)
-    call GetValue(section, 'powerlaw_m', model%basal_physics%powerlaw_m)
-    call GetValue(section, 'coulomb_c_const', model%basal_physics%coulomb_c_const)
-    call GetValue(section, 'coulomb_c_max', model%basal_physics%coulomb_c_max)
-    call GetValue(section, 'coulomb_c_min', model%basal_physics%coulomb_c_min)
-    call GetValue(section, 'coulomb_c_hi', model%basal_physics%coulomb_c_hi)
-    call GetValue(section, 'coulomb_c_lo', model%basal_physics%coulomb_c_lo)
-    call GetValue(section, 'coulomb_c_bed_hi', model%basal_physics%coulomb_c_bed_hi)
-    call GetValue(section, 'coulomb_c_bed_lo', model%basal_physics%coulomb_c_bed_lo)
-    call GetValue(section, 'schoof_n', model%basal_physics%schoof_n)
-    call GetValue(section, 'schoof_gamma', model%basal_physics%schoof_gamma)
-    call GetValue(section, 'schoof_p', model%basal_physics%schoof_p)
-    call GetValue(section, 'beta_powerlaw_umax', model%basal_physics%beta_powerlaw_umax)
-    call GetValue(section, 'zoet_iversion_ut', model%basal_physics%zoet_iverson_ut)
-    call GetValue(section, 'zoet_iversion_nmax', model%basal_physics%zoet_iverson_nmax)
-    call GetValue(section, 'friction_powerlaw_k', model%basal_physics%friction_powerlaw_k)
-    call GetValue(section, 'coulomb_bump_max_slope', model%basal_physics%coulomb_bump_max_slope)
-    call GetValue(section, 'coulomb_bump_wavelength', model%basal_physics%coulomb_bump_wavelength)
-
-    ! ocean_p parameters
-    !TODO - Move to the basal hydro section?
-    call GetValue(section, 'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
-
-    ! pseudo-plastic parameters
-    call GetValue(section, 'pseudo_plastic_q', model%basal_physics%pseudo_plastic_q)
-    call GetValue(section, 'pseudo_plastic_u0', model%basal_physics%pseudo_plastic_u0)
-    !WHL TODO - During the config reorg, the next four should be removed
-    call GetValue(section, 'pseudo_plastic_phimin', model%basal_physics%pseudo_plastic_phimin)
-    call GetValue(section, 'pseudo_plastic_phimax', model%basal_physics%pseudo_plastic_phimax)
-    call GetValue(section, 'pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin)
-    call GetValue(section, 'pseudo_plastic_bedmax', model%basal_physics%pseudo_plastic_bedmax)
 
     ! ocean data parameters
     call GetValue(section, 'gamma0', model%ocean_data%gamma0)
@@ -2199,6 +2155,75 @@ contains
     call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
 
   end subroutine handle_parameters
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_basal_physics(section, model)
+
+    ! Basal physics: the sliding law and its friction parameters, beta limits,
+    ! and the effective pressure used by the sliding laws.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'sliding_law',               model%options%which_ho_babc)
+    call GetValue(section,'use_c_space_factor',        model%options%use_c_space_factor)
+    call GetValue(section,'beta_limit_method',         model%options%which_ho_beta_limit)
+    call GetValue(section,'powerlaw_c_method',         model%options%which_ho_powerlaw_c)
+    call GetValue(section,'coulomb_c_method',          model%options%which_ho_coulomb_c)
+    call GetValue(section,'elevation_based_coulomb_c', model%options%elevation_based_coulomb_c)
+    call GetValue(section,'effecpress_method',         model%options%which_ho_effecpress)
+
+    ! basal traction for the local SIA solver (Glide-style; inverse sense of beta)
+    call GetValue(section,'btrc_method', model%options%whichbtrc)
+    call GetValue(section,'btrc_const',  model%paramets%btrc_const)
+
+    ! beta parameters
+    call GetValue(section,'beta_grounded_min', model%basal_physics%beta_grounded_min)
+    call GetValue(section,'beta_const',        model%basal_physics%ho_beta_const)
+    call GetValue(section,'beta_small',        model%basal_physics%ho_beta_small)
+    call GetValue(section,'beta_large',        model%basal_physics%ho_beta_large)
+
+    ! basal friction parameters
+    call GetValue(section,'powerlaw_c_const',        model%basal_physics%powerlaw_c_const)
+    call GetValue(section,'powerlaw_c_max',          model%basal_physics%powerlaw_c_max)
+    call GetValue(section,'powerlaw_c_min',          model%basal_physics%powerlaw_c_min)
+    call GetValue(section,'powerlaw_m',              model%basal_physics%powerlaw_m)
+    call GetValue(section,'coulomb_c_const',         model%basal_physics%coulomb_c_const)
+    call GetValue(section,'coulomb_c_max',           model%basal_physics%coulomb_c_max)
+    call GetValue(section,'coulomb_c_min',           model%basal_physics%coulomb_c_min)
+    call GetValue(section,'coulomb_c_hi',            model%basal_physics%coulomb_c_hi)
+    call GetValue(section,'coulomb_c_lo',            model%basal_physics%coulomb_c_lo)
+    call GetValue(section,'coulomb_c_bed_hi',        model%basal_physics%coulomb_c_bed_hi)
+    call GetValue(section,'coulomb_c_bed_lo',        model%basal_physics%coulomb_c_bed_lo)
+    call GetValue(section,'schoof_n',                model%basal_physics%schoof_n)
+    call GetValue(section,'schoof_gamma',            model%basal_physics%schoof_gamma)
+    call GetValue(section,'schoof_p',                model%basal_physics%schoof_p)
+    call GetValue(section,'beta_powerlaw_umax',      model%basal_physics%beta_powerlaw_umax)
+    call GetValue(section,'zoet_iverson_ut',         model%basal_physics%zoet_iverson_ut)
+    call GetValue(section,'zoet_iverson_nmax',       model%basal_physics%zoet_iverson_nmax)
+    call GetValue(section,'friction_powerlaw_k',     model%basal_physics%friction_powerlaw_k)
+    call GetValue(section,'coulomb_bump_max_slope',  model%basal_physics%coulomb_bump_max_slope)
+    call GetValue(section,'coulomb_bump_wavelength', model%basal_physics%coulomb_bump_wavelength)
+
+    ! effective pressure: penetration of ocean water pressure
+    call GetValue(section,'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
+
+    ! pseudo-plastic parameters
+    call GetValue(section,'pseudo_plastic_q',      model%basal_physics%pseudo_plastic_q)
+    call GetValue(section,'pseudo_plastic_u0',     model%basal_physics%pseudo_plastic_u0)
+    !WHL TODO - During the config reorg, the next four should be removed
+    call GetValue(section,'pseudo_plastic_phimin', model%basal_physics%pseudo_plastic_phimin)
+    call GetValue(section,'pseudo_plastic_phimax', model%basal_physics%pseudo_plastic_phimax)
+    call GetValue(section,'pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin)
+    call GetValue(section,'pseudo_plastic_bedmax', model%basal_physics%pseudo_plastic_bedmax)
+
+  end subroutine handle_basal_physics
 
 !--------------------------------------------------------------------------------
 
@@ -2712,7 +2737,7 @@ contains
          (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .and. &
           model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) ) then
        call write_log('Cannot invert for powerlaw_c and coulomb_c independently')
-       write(message,*) 'Please set which_ho_powerlaw_c =', HO_POWERLAW_C_FUNCTION_COULOMB_C
+       write(message,*) 'Please set powerlaw_c_method =', HO_POWERLAW_C_FUNCTION_COULOMB_C
        call write_log(message, GM_FATAL)
     endif
 
@@ -3238,7 +3263,7 @@ contains
           write(message,*) 'till drainage rate (m/yr)     : ', model%basal_hydro%c_drainage
           call write_log(message)
        else
-          write(message,*) 'local till option must use which_ho_effecpress =', HO_EFFECPRESS_BWAT_BVP
+          write(message,*) 'local till option must use effecpress_method =', HO_EFFECPRESS_BWAT_BVP
           call write_log(message, GM_FATAL)
        endif
     elseif (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
