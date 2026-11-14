@@ -69,6 +69,30 @@ MOVES = {
     # [removal]
     ('ho_options', 'remove_ice_caps'): ('removal', 'remove_ice_caps'),
     ('ho_options', 'force_retreat'): ('removal', 'force_retreat'),
+    # [climate]
+    ('options', 'smb_input'): ('climate', 'smb_input'),
+    ('options', 'smb_input_function'): ('climate', 'smb_input_function'),
+    ('options', 'artm_input_function'): ('climate', 'artm_input_function'),
+    ('options', 'enable_smb_anomaly'): ('climate', 'enable_smb_anomaly'),
+    ('options', 'enable_artm_anomaly'): ('climate', 'enable_artm_anomaly'),
+    ('options', 'enable_snow_anomaly'): ('climate', 'enable_snow_anomaly'),
+    ('options', 'enable_precip_anomaly'): ('climate', 'enable_precip_anomaly'),
+    ('options', 'overwrite_acab'): ('climate', 'overwrite_acab'),
+    ('options', 'enable_acab_dthck_dt_correction'): ('climate', 'enable_acab_dthck_dt_correction'),
+    ('ho_options', 'block_inception'): ('climate', 'block_inception'),
+    ('parameters', 't_lapse'): ('climate', 't_lapse'),
+    ('parameters', 'degree_factor'): ('climate', 'degree_factor'),
+    ('parameters', 'tmlt'): ('climate', 'tmlt'),
+    ('parameters', 'snow_threshold_min'): ('climate', 'snow_threshold_min'),
+    ('parameters', 'snow_threshold_max'): ('climate', 'snow_threshold_max'),
+    ('parameters', 'smb_factor'): ('climate', 'smb_factor'),
+    ('parameters', 'smb_anomaly_tstart'): ('climate', 'smb_anomaly_tstart'),
+    ('parameters', 'smb_anomaly_timescale'): ('climate', 'smb_anomaly_timescale'),
+    ('parameters', 'overwrite_acab_value'): ('climate', 'overwrite_acab_value'),
+    ('parameters', 'overwrite_acab_minthck'): ('climate', 'overwrite_acab_minthck'),
+    ('parameters', 'artm_anomaly_const'): ('climate', 'artm_anomaly_const'),
+    ('parameters', 'artm_anomaly_tstart'): ('climate', 'artm_anomaly_tstart'),
+    ('parameters', 'artm_anomaly_timescale'): ('climate', 'artm_anomaly_timescale'),
 }
 
 # Order of the new sections when they are created.

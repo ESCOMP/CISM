@@ -167,6 +167,12 @@ contains
        call handle_parameters(section, model)
     end if
 
+    ! read surface climate forcing (SMB, surface temperature)
+    call GetSection(config,section,'climate')
+    if (associated(section)) then
+       call handle_climate(section, model)
+    end if
+
     ! read calving
     call GetSection(config,section,'calving')
     if (associated(section)) then
@@ -878,15 +884,6 @@ contains
     call GetValue(section,'ocean_data_extrapolate',model%options%ocean_data_extrapolate)
     call GetValue(section,'enable_bmlt_anomaly',model%options%enable_bmlt_anomaly)
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
-    call GetValue(section,'smb_input',model%options%smb_input)
-    call GetValue(section,'smb_input_function',model%options%smb_input_function)
-    call GetValue(section,'artm_input_function',model%options%artm_input_function)
-    call GetValue(section,'enable_smb_anomaly',model%options%enable_smb_anomaly)
-    call GetValue(section,'enable_artm_anomaly',model%options%enable_artm_anomaly)
-    call GetValue(section,'enable_snow_anomaly',model%options%enable_snow_anomaly)
-    call GetValue(section,'enable_precip_anomaly',model%options%enable_precip_anomaly)
-    call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
-    call GetValue(section,'enable_acab_dthck_dt_correction',model%options%enable_acab_dthck_dt_correction)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'which_lateral_melt',model%options%which_lateral_melt)
@@ -946,7 +943,6 @@ contains
     call GetValue(section, 'which_ho_fground_no_glp',     model%options%which_ho_fground_no_glp)
     call GetValue(section, 'which_ho_ground_bmlt',        model%options%which_ho_ground_bmlt)
     call GetValue(section, 'which_ho_flotation_function', model%options%which_ho_flotation_function)
-    call GetValue(section, 'block_inception',             model%options%block_inception)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'enable_glaciers',             model%options%enable_glaciers)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
@@ -2089,13 +2085,7 @@ contains
     call GetValue(section,'effstrain_min',      model%paramets%effstrain_min)
     call GetValue(section,'max_slope',          model%paramets%max_slope)
 
-    ! SMB and BMB parameters
-    call GetValue(section,'t_lapse',            model%climate%t_lapse)
-    call GetValue(section,'degree_factor',      model%climate%degree_factor)
-    call GetValue(section,'tmlt',               model%climate%tmlt)
-    call GetValue(section,'snow_threshold_min', model%climate%snow_threshold_min)
-    call GetValue(section,'snow_threshold_max', model%climate%snow_threshold_max)
-    call GetValue(section,'smb_factor',         model%climate%smb_factor)
+    ! BMB parameters
     call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
 
     ! NOTE: btrc_const is used for several slip_coeff options in the local SIA solver
@@ -2187,15 +2177,6 @@ contains
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
     call GetValue(section,'periodic_offset_ns',model%numerics%periodic_offset_ns)
 
-    ! parameters for acab/artm anomaly and overwrite options
-    call GetValue(section,'smb_anomaly_tstart',    model%climate%smb_anomaly_tstart)
-    call GetValue(section,'smb_anomaly_timescale', model%climate%smb_anomaly_timescale)
-    call GetValue(section,'overwrite_acab_value',   model%climate%overwrite_acab_value)
-    call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
-    call GetValue(section,'artm_anomaly_const',     model%climate%artm_anomaly_const)
-    call GetValue(section,'artm_anomaly_tstart',    model%climate%artm_anomaly_tstart)
-    call GetValue(section,'artm_anomaly_timescale', model%climate%artm_anomaly_timescale)
-
     ! basal melting parameters
     call GetValue(section,'bmlt_cavity_h0',         model%basal_melt%bmlt_cavity_h0)
     call GetValue(section,'bmlt_anomaly_tstart',    model%basal_melt%bmlt_anomaly_tstart)
@@ -2218,6 +2199,51 @@ contains
     call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
 
   end subroutine handle_parameters
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_climate(section, model)
+
+    ! Surface climate forcing: SMB and surface air temperature (input options, anomalies,
+    ! overwrites, and the parameters of the internal SMB functions).
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'smb_input',                       model%options%smb_input)
+    call GetValue(section,'smb_input_function',              model%options%smb_input_function)
+    call GetValue(section,'artm_input_function',             model%options%artm_input_function)
+    call GetValue(section,'enable_smb_anomaly',              model%options%enable_smb_anomaly)
+    call GetValue(section,'enable_artm_anomaly',             model%options%enable_artm_anomaly)
+    call GetValue(section,'enable_snow_anomaly',             model%options%enable_snow_anomaly)
+    call GetValue(section,'enable_precip_anomaly',           model%options%enable_precip_anomaly)
+    call GetValue(section,'overwrite_acab',                  model%options%overwrite_acab)
+    call GetValue(section,'enable_acab_dthck_dt_correction', model%options%enable_acab_dthck_dt_correction)
+    call GetValue(section,'block_inception',                 model%options%block_inception)
+
+    ! parameters of the internal SMB and artm functions
+    call GetValue(section,'t_lapse',            model%climate%t_lapse)
+    call GetValue(section,'degree_factor',      model%climate%degree_factor)
+    call GetValue(section,'tmlt',               model%climate%tmlt)
+    call GetValue(section,'snow_threshold_min', model%climate%snow_threshold_min)
+    call GetValue(section,'snow_threshold_max', model%climate%snow_threshold_max)
+    call GetValue(section,'smb_factor',         model%climate%smb_factor)
+
+    ! anomaly and overwrite parameters
+    call GetValue(section,'smb_anomaly_tstart',     model%climate%smb_anomaly_tstart)
+    call GetValue(section,'smb_anomaly_timescale',  model%climate%smb_anomaly_timescale)
+    call GetValue(section,'overwrite_acab_value',   model%climate%overwrite_acab_value)
+    call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
+    call GetValue(section,'artm_anomaly_const',     model%climate%artm_anomaly_const)
+    call GetValue(section,'artm_anomaly_tstart',    model%climate%artm_anomaly_tstart)
+    call GetValue(section,'artm_anomaly_timescale', model%climate%artm_anomaly_timescale)
+
+  end subroutine handle_climate
 
 !--------------------------------------------------------------------------------
 
