@@ -17,10 +17,6 @@ dycore = 2                   # 0 = glide, 1 = glam, 2=glissade
 restart_extend_velo = 1      # 1 = write uvel/vvel on extended grid
 # restart = 1
 
-[parameters]
-coulomb_c = 0.2332
-
-
 [calving]
 calving_law = 4            # 4 = topographic threshold, 5 = calving mask
 marine_limit = -890             ; depth past which ice is lost
@@ -28,6 +24,7 @@ marine_limit = -890             ; depth past which ice is lost
 [basal_physics]
 sliding_law = 10                # 9 = Powerlaw, 11 = Coulomb w/const basal flwa, 12= Tsai
 effecpress_method = 3           # ocean connection
+coulomb_c_const = 0.2332
 coulomb_bump_max_slope = 0.5    ; maximum bed obstacle slope
 coulomb_bump_wavelength = 2.0   ; bedrock wavelength
 p_ocean_penetration = 0.        ; p values for coulomb friction law
