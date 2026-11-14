@@ -142,6 +142,39 @@ MOVES = {
     ('parameters', 'artm_anomaly_const'): ('climate', 'artm_anomaly_const'),
     ('parameters', 'artm_anomaly_tstart'): ('climate', 'artm_anomaly_tstart'),
     ('parameters', 'artm_anomaly_timescale'): ('climate', 'artm_anomaly_timescale'),
+    # [basal_melt]
+    ('options', 'bmlt_float'): ('basal_melt', 'bmlt_float_method'),
+    ('options', 'bmlt_float_thermal_forcing_param'): ('basal_melt', 'bmlt_float_thermal_forcing_param'),
+    ('options', 'bmlt_float_init'): ('basal_melt', 'bmlt_float_init'),
+    ('ho_options', 'which_ho_deltaT_ocn'): ('basal_melt', 'deltaT_ocn_method'),
+    ('options', 'enable_bmlt_anomaly'): ('basal_melt', 'enable_bmlt_anomaly'),
+    ('options', 'basal_mass_balance'): ('basal_melt', 'basal_mass_balance'),
+    ('parameters', 'bmlt_float_factor'): ('basal_melt', 'bmlt_float_factor'),
+    ('parameters', 'bmlt_cavity_h0'): ('basal_melt', 'bmlt_cavity_h0'),
+    ('parameters', 'bmlt_anomaly_tstart'): ('basal_melt', 'bmlt_anomaly_tstart'),
+    ('parameters', 'bmlt_anomaly_timescale'): ('basal_melt', 'bmlt_anomaly_timescale'),
+    ('parameters', 'bmlt_float_omega'): ('basal_melt', 'bmlt_float_omega'),
+    ('parameters', 'bmlt_float_h0'): ('basal_melt', 'bmlt_float_h0'),
+    ('parameters', 'bmlt_float_z0'): ('basal_melt', 'bmlt_float_z0'),
+    ('parameters', 'bmlt_float_const'): ('basal_melt', 'bmlt_float_const'),
+    ('parameters', 'bmlt_float_xlim'): ('basal_melt', 'bmlt_float_xlim'),
+    ('parameters', 'bmlt_float_depth_meltmax'): ('basal_melt', 'bmlt_float_depth_meltmax'),
+    ('parameters', 'bmlt_float_depth_frzmax'): ('basal_melt', 'bmlt_float_depth_frzmax'),
+    ('parameters', 'bmlt_float_depth_zmeltmax'): ('basal_melt', 'bmlt_float_depth_zmeltmax'),
+    ('parameters', 'bmlt_float_depth_zmelt0'): ('basal_melt', 'bmlt_float_depth_zmelt0'),
+    ('parameters', 'bmlt_float_depth_zfrzmax'): ('basal_melt', 'bmlt_float_depth_zfrzmax'),
+    ('parameters', 'bmlt_float_depth_meltmin'): ('basal_melt', 'bmlt_float_depth_meltmin'),
+    ('parameters', 'bmlt_float_depth_zmeltmin'): ('basal_melt', 'bmlt_float_depth_zmeltmin'),
+    # [ocean_data]
+    ('options', 'ocean_data_domain'): ('ocean_data', 'ocean_data_domain'),
+    ('options', 'ocean_data_extrapolate'): ('ocean_data', 'ocean_data_extrapolate'),
+    ('parameters', 'gamma0'): ('ocean_data', 'gamma0'),
+    ('parameters', 'thermal_forcing_basin_min'): ('ocean_data', 'thermal_forcing_basin_min'),
+    ('parameters', 'thermal_forcing_basin_max'): ('ocean_data', 'thermal_forcing_basin_max'),
+    ('parameters', 'thermal_forcing_anomaly'): ('ocean_data', 'thermal_forcing_anomaly'),
+    ('parameters', 'thermal_forcing_anomaly_tstart'): ('ocean_data', 'thermal_forcing_anomaly_tstart'),
+    ('parameters', 'thermal_forcing_anomaly_timescale'): ('ocean_data', 'thermal_forcing_anomaly_timescale'),
+    ('parameters', 'thermal_forcing_anomaly_basin'): ('ocean_data', 'thermal_forcing_anomaly_basin'),
 }
 
 # Order of the new sections when they are created.
@@ -176,6 +209,9 @@ USER_NL_RENAMES = {
     # [basal_hydro]
     'which_ho_bwat': 'bwat_method',
     'ho_flux_routing_scheme': 'flux_routing_method',
+    # [basal_melt]
+    'bmlt_float': 'bmlt_float_method',
+    'which_ho_deltaT_ocn': 'deltaT_ocn_method',
 }
 
 # Match the CISM reader (glimmer_config.F90): a section header is a line starting with '[' in

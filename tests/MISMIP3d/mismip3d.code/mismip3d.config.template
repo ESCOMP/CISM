@@ -17,8 +17,6 @@ dycore = 2                   # 0 = glide, 1 = glam, 2=glissade
 evolution = 3                # 3 = remapping, 4 = first order upwind
 flow_law = 0                 # 0 = constant, 2 = Paterson-Budd
 temperature = 0              # 1 = prognostic, 3 = enthalpy
-basal_mass_balance = 1       # 1 = include basal mass balance in continuity eqn
-bmlt_float = 0               # 0 = no melting of floating ice
 restart_extend_velo = 1      # 1 = write uvel/vvel on extended grid
 # restart = 1
 
@@ -60,6 +58,10 @@ p_ocean_penetration = 0.        ; p values for coulomb friction law
 [grounding_line]
 flotation_function = 0   # 0 = f_pattyn, 1 = 1/f_pattyn
 grounding_line_param = 1               # 0 = no GLP, 1 = GLP
+
+[basal_melt]
+basal_mass_balance = 1       # 1 = include basal mass balance in continuity eqn
+bmlt_float_method = 0               # 0 = no melting of floating ice
 
 [CF default]
 comment = created with mismip3dInit.py 

@@ -18,7 +18,6 @@ dycore = 2               # 0 = glide, 1 = glam, 2 = glissade
 flow_law = 0             # 0 = flow_law option needs to be 0 for the test case to work properly.
 evolution = 3            # 2 = iterated diffusion, 3 = IR
 temperature = 0          # 0 = isothermal temp evolution, if turned on, will not affect flwa because default_flwa is specified below.
-basal_mass_balance = 0   # 0 = bmlt not in continuity equation
 
 [ho_options]
 which_ho_approx = 4      # 4 = DIVA
@@ -37,6 +36,9 @@ calving_law = 0        # 0 = no calving
 
 [basal_physics]
 sliding_law = 4        # 4 = no-slip at bed
+
+[basal_melt]
+basal_mass_balance = 0   # 0 = bmlt not in continuity equation
 
 [CF default]
 comment = created with halfar.py 

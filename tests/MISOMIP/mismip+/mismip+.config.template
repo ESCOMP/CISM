@@ -19,8 +19,6 @@ dycore = 2              # 0 = glide, 2 = glissade
 evolution = 3           # 3 = remapping, 4 = first order upwind
 flow_law = 0            # 0 = constant, 2 = Paterson-Budd
 temperature = 0         # 0 = sfc air temp, 1 = prognostic, 3 = enthalpy
-basal_mass_balance = 1  # 1 = include basal mass balance in continuity eqn
-bmlt_float = 0          # 0 = no melting of floating ice, 1 = Ice1 melting, 2 = Ice2 melting
 restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
 restart = 0             # 0 = not a restart
 
@@ -47,11 +45,6 @@ flow_factor_ground = 1.
 flow_factor_float = 1.
 ice_limit = 1.                  #min thickness (m) for dynamics
 default_flwa = 2.0e-17
-bmlt_float_omega = 0.2          # parameter for Ice1
-bmlt_float_z0 = -100.           # parameter for Ice1
-bmlt_float_h0 = 75.             # parameter for Ice1
-bmlt_float_const = 100.         # parameter for Ice2
-bmlt_float_xlim = 480000.       # parameter for Ice2
 
 [calving]
 calving_law = 5       # 4 = topographic threshold, 5 = calving mask
@@ -69,6 +62,15 @@ powerlaw_m = 3                  # exponent for the power law stress
 grounding_line_param = 1               # 0 = no GLP, 1 = GLP
 grounding_line_bmlt = 0          # 0 = no bmlt GLP, 1 = bmlt GLP
 flotation_function = 2   # 0 = f_pattyn, 2 = linear
+
+[basal_melt]
+basal_mass_balance = 1  # 1 = include basal mass balance in continuity eqn
+bmlt_float_method = 0          # 0 = no melting of floating ice, 1 = Ice1 melting, 2 = Ice2 melting
+bmlt_float_omega = 0.2          # parameter for Ice1
+bmlt_float_z0 = -100.           # parameter for Ice1
+bmlt_float_h0 = 75.             # parameter for Ice1
+bmlt_float_const = 100.         # parameter for Ice2
+bmlt_float_xlim = 480000.       # parameter for Ice2
 
 [CF default]
 comment = created with mismip+Init.py 

@@ -21,8 +21,6 @@ evolution = 3           # 3 = remapping, 4 = first order upwind
 flow_law = 0            # 0 = constant, 2 = Paterson-Budd
 temperature = 0         # 0 = sfc air temp, 1 = prognostic
 temp_init = 4           # 4 = read from external file
-basal_mass_balance = 0  # 1 = include basal mass balance in continuity eqn
-bmlt_float = 0          # 0 = no melting of floating ice
 dm_dt_diag = 1          # 0 = kg/s, 1 = Gt/yr
 restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
 restart = 0             # 0 = no restart, 1 = standard restart, 2 = hybrid restart
@@ -74,6 +72,10 @@ beta_grounded_min = 1.
 grounding_line_param = 1               # 0 = no GLP, 1 = GLP
 grounding_line_bmlt = 0          # 0 = no bmlt GLP, 1 = bmlt GLP
 flotation_function = 2   # 0 = f_pattyn, 2 = linear
+
+[basal_melt]
+basal_mass_balance = 0  # 1 = include basal mass balance in continuity eqn
+bmlt_float_method = 0          # 0 = no melting of floating ice
 
 [CF default]
 comment = created with calvingMIP.Setup.py

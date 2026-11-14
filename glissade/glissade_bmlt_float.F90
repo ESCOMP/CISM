@@ -576,7 +576,7 @@ module glissade_bmlt_float
           if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_CALIBRATE_BASIN) then
 
              if (parallel_is_zero(model%basal_melt%bmlt_float_target)) then
-                call write_log('This value of which_ho_deltaT_ocn requires an input bmlt_float_target', GM_FATAL)
+                call write_log('This value of deltaT_ocn_method requires an input bmlt_float_target', GM_FATAL)
              endif
 
              ! Call the driver subruotine to calibrate deltaT_ocn and compute the resulting bmlt_float.
@@ -708,7 +708,7 @@ module glissade_bmlt_float
        !       of the restart following a spin-up, without taking any prognostic timesteps.
 
        if (parallel_is_zero(model%geometry%dthck_dt_obs)) then
-          call write_log('This which_ho_deltaT_ocn option requires an input dthck_dt_obs', GM_FATAL)
+          call write_log('This deltaT_ocn_method option requires an input dthck_dt_obs', GM_FATAL)
        endif
 
        call compute_bmlt_float_thermal_forcing(&

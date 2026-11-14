@@ -185,6 +185,18 @@ contains
        call handle_climate(section, model)
     end if
 
+    ! read basal melting of floating ice
+    call GetSection(config,section,'basal_melt')
+    if (associated(section)) then
+       call handle_basal_melt(section, model)
+    end if
+
+    ! read ocean data (thermal forcing) used by the basal melt parameterizations
+    call GetSection(config,section,'ocean_data')
+    if (associated(section)) then
+       call handle_ocean_data(section, model)
+    end if
+
     ! read calving
     call GetSection(config,section,'calving')
     if (associated(section)) then
@@ -888,13 +900,6 @@ contains
     call GetValue(section,'temperature',model%options%whichtemp)
     call GetValue(section,'temp_init',model%options%temp_init)
     call GetValue(section,'flow_law',model%options%whichflwa)
-    call GetValue(section,'bmlt_float',model%options%whichbmlt_float)
-    call GetValue(section,'bmlt_float_thermal_forcing_param',model%options%bmlt_float_thermal_forcing_param)
-    call GetValue(section,'bmlt_float_init',model%options%bmlt_float_init)
-    call GetValue(section,'ocean_data_domain',model%options%ocean_data_domain)
-    call GetValue(section,'ocean_data_extrapolate',model%options%ocean_data_extrapolate)
-    call GetValue(section,'enable_bmlt_anomaly',model%options%enable_bmlt_anomaly)
-    call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'which_lateral_melt',model%options%which_lateral_melt)
@@ -928,7 +933,6 @@ contains
     call GetValue(section, 'which_ho_efvs',               model%options%which_ho_efvs)
     call GetValue(section, 'which_ho_disp',               model%options%which_ho_disp)
     call GetValue(section, 'which_ho_thermal_timestep',   model%options%which_ho_thermal_timestep)
-    call GetValue(section, 'which_ho_deltaT_ocn',         model%options%which_ho_deltaT_ocn)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
     call GetValue(section, 'which_ho_nonlinear',          model%options%which_ho_nonlinear)
     call GetValue(section, 'which_ho_sparse',             model%options%which_ho_sparse)
@@ -1007,11 +1011,11 @@ contains
          'constant where bwat > 0', &
          'constant where T = Tpmp' /)
 
-    character(len=*), dimension(0:1), parameter :: b_mbal = (/ &
+    character(len=*), dimension(0:1), parameter :: basal_mass_balance = (/ &
          'not in continuity eqn', &
          'in continuity eqn    ' /)
 
-    character(len=*), dimension(0:6), parameter :: which_bmlt_float = (/ &
+    character(len=*), dimension(0:6), parameter :: bmlt_float_method = (/ &
          'none                                  ', &
          'MISMIP+ melt rate profile             ', &
          'constant melt rate                    ', &
@@ -1151,7 +1155,7 @@ contains
          'read friction parameter Cc from file        ', &
          'invert for basin-scale friction parameter Cc' /)
 
-    character(len=*), dimension(0:5), parameter :: ho_deltaT_ocn = (/ &
+    character(len=*), dimension(0:5), parameter :: deltaT_ocn_method = (/ &
          'deltaT_ocn = 0                              ', &
          'invert for 2D deltaT_ocn based on thck      ', &
          'read deltaT_ocn from external file          ', &
@@ -1469,15 +1473,15 @@ contains
     call write_log(message)
 
 
-    if (model%options%whichbmlt_float < 0 .or. model%options%whichbmlt_float >= size(which_bmlt_float)) then
-       call write_log('Error, bmlt_float out of range',GM_FATAL)
+    if (model%options%whichbmlt_float < 0 .or. model%options%whichbmlt_float >= size(bmlt_float_method)) then
+       call write_log('Error, bmlt_float_method out of range',GM_FATAL)
     end if
 
-    write(message,*) 'basal melt, floating ice: ',model%options%whichbmlt_float, which_bmlt_float(model%options%whichbmlt_float)
+    write(message,*) 'basal melt, floating ice: ',model%options%whichbmlt_float, bmlt_float_method(model%options%whichbmlt_float)
     call write_log(message)
 
     if (model%options%whichbmlt_float == 5) then   ! formerly the MISOMIP plume option, now removed
-       call write_log('Error, bmlt_float = 5 (MISOMIP plume model) is no longer supported', GM_FATAL)
+       call write_log('Error, bmlt_float_method = 5 (MISOMIP plume model) is no longer supported', GM_FATAL)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
        write(message,*) 'melt parameterization   : ', model%options%bmlt_float_thermal_forcing_param, &
             bmlt_float_thermal_forcing_param(model%options%bmlt_float_thermal_forcing_param)
@@ -1488,9 +1492,9 @@ contains
        write(message,*) 'ocean data extrapolate  : ', model%options%ocean_data_extrapolate, &
             ocean_data_extrapolate(model%options%ocean_data_extrapolate)
        call write_log(message)
-    endif   ! which_bmlt_float
+    endif   ! bmlt_float_method
 
-    if (model%options%basal_mbal < 0 .or. model%options%basal_mbal >= size(b_mbal)) then
+    if (model%options%basal_mbal < 0 .or. model%options%basal_mbal >= size(basal_mass_balance)) then
        call write_log('Error, basal_mass_balance out of range',GM_FATAL)
     end if
 
@@ -1498,7 +1502,7 @@ contains
        call write_log('bmlt_float anomaly forcing is enabled')
     endif
 
-    write(message,*) 'basal mass balance      : ',model%options%basal_mbal,b_mbal(model%options%basal_mbal)
+    write(message,*) 'basal mass balance      : ',model%options%basal_mbal,basal_mass_balance(model%options%basal_mbal)
     call write_log(message)
 
     if (model%options%smb_input < 0 .or. model%options%smb_input >= size(smb_input)) then
@@ -1744,12 +1748,12 @@ contains
 
     if (model%options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
 
-       write(message,*) 'ho_deltaT_ocn           : ',model%options%which_ho_deltaT_ocn,  &
-                         ho_deltaT_ocn(model%options%which_ho_deltaT_ocn)
+       write(message,*) 'deltaT_ocn_method       : ',model%options%which_ho_deltaT_ocn,  &
+                         deltaT_ocn_method(model%options%which_ho_deltaT_ocn)
        call write_log(message)
 
        if (model%options%whichbmlt_float /= BMLT_FLOAT_THERMAL_FORCING) then
-          write(message,*) 'deltaT_ocn options are supported only for bmlt_float = ', &
+          write(message,'(a,i2)') 'deltaT_ocn_method options are supported only for bmlt_float_method = ', &
                BMLT_FLOAT_THERMAL_FORCING
           call write_log(message)
           call write_log('User setting will be ignored')
@@ -1759,15 +1763,15 @@ contains
           if (model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_LOCAL .and. &
               model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_NONLOCAL .and. &
               model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-             write(message,*) 'deltaT_ocn dthck_dt options supported only for ISMIP6 bmlt_float schemes'
+             write(message,*) 'deltaT_ocn_method dthck_dt option supported only for ISMIP6 bmlt_float schemes'
              call write_log(message, GM_FATAL)
           endif
        endif
     endif
 
     if (model%options%which_ho_deltaT_ocn < 0 .or. &
-         model%options%which_ho_deltaT_ocn >= size(ho_deltaT_ocn)) then
-       call write_log('Error, ho_deltaT_ocn out of range', GM_FATAL)
+         model%options%which_ho_deltaT_ocn >= size(deltaT_ocn_method)) then
+       call write_log('Error, deltaT_ocn_method out of range', GM_FATAL)
     end if
 
     if (model%options%which_ho_bwat /= HO_BWAT_NONE) then
@@ -2082,19 +2086,6 @@ contains
     call GetValue(section,'effstrain_min',      model%paramets%effstrain_min)
     call GetValue(section,'max_slope',          model%paramets%max_slope)
 
-    ! BMB parameters
-    call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
-
-
-    ! ocean data parameters
-    call GetValue(section, 'gamma0', model%ocean_data%gamma0)
-    call GetValue(section, 'thermal_forcing_basin_min', model%ocean_data%thermal_forcing_basin_min)
-    call GetValue(section, 'thermal_forcing_basin_max', model%ocean_data%thermal_forcing_basin_max)
-    call GetValue(section, 'thermal_forcing_anomaly', model%ocean_data%thermal_forcing_anomaly)
-    call GetValue(section, 'thermal_forcing_anomaly_tstart', model%ocean_data%thermal_forcing_anomaly_tstart)
-    call GetValue(section, 'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
-    call GetValue(section, 'thermal_forcing_anomaly_basin', model%ocean_data%thermal_forcing_anomaly_basin)
-
     ! parameters to adjust input topography
     call GetValue(section, 'adjust_topg_xmin', model%paramets%adjust_topg_xmin)
     call GetValue(section, 'adjust_topg_xmax', model%paramets%adjust_topg_xmax)
@@ -2131,27 +2122,6 @@ contains
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
     call GetValue(section,'periodic_offset_ns',model%numerics%periodic_offset_ns)
-
-    ! basal melting parameters
-    call GetValue(section,'bmlt_cavity_h0',         model%basal_melt%bmlt_cavity_h0)
-    call GetValue(section,'bmlt_anomaly_tstart',    model%basal_melt%bmlt_anomaly_tstart)
-    call GetValue(section,'bmlt_anomaly_timescale', model%basal_melt%bmlt_anomaly_timescale)
-
-    ! MISMIP+ basal melting parameters
-    call GetValue(section,'bmlt_float_omega', model%basal_melt%bmlt_float_omega)
-    call GetValue(section,'bmlt_float_h0', model%basal_melt%bmlt_float_h0)
-    call GetValue(section,'bmlt_float_z0', model%basal_melt%bmlt_float_z0)
-    call GetValue(section,'bmlt_float_const', model%basal_melt%bmlt_float_const)
-    call GetValue(section,'bmlt_float_xlim', model%basal_melt%bmlt_float_xlim)
-
-    ! depth-dependent basal melting parameters
-    call GetValue(section,'bmlt_float_depth_meltmax', model%basal_melt%bmlt_float_depth_meltmax)
-    call GetValue(section,'bmlt_float_depth_frzmax', model%basal_melt%bmlt_float_depth_frzmax)
-    call GetValue(section,'bmlt_float_depth_zmeltmax', model%basal_melt%bmlt_float_depth_zmeltmax)
-    call GetValue(section,'bmlt_float_depth_zmelt0', model%basal_melt%bmlt_float_depth_zmelt0)
-    call GetValue(section,'bmlt_float_depth_zfrzmax', model%basal_melt%bmlt_float_depth_zfrzmax)
-    call GetValue(section,'bmlt_float_depth_meltmin', model%basal_melt%bmlt_float_depth_meltmin)
-    call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
 
   end subroutine handle_parameters
 
@@ -2290,6 +2260,80 @@ contains
     call GetValue(section,'artm_anomaly_timescale', model%climate%artm_anomaly_timescale)
 
   end subroutine handle_climate
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_basal_melt(section, model)
+
+    ! Basal melting of floating ice: the bmlt_float scheme and its parameters,
+    ! anomaly forcing, and whether basal melt enters the continuity equation.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'bmlt_float_method',                model%options%whichbmlt_float)
+    call GetValue(section,'bmlt_float_thermal_forcing_param', model%options%bmlt_float_thermal_forcing_param)
+    call GetValue(section,'bmlt_float_init',                  model%options%bmlt_float_init)
+    call GetValue(section,'deltaT_ocn_method',                model%options%which_ho_deltaT_ocn)
+    call GetValue(section,'enable_bmlt_anomaly',              model%options%enable_bmlt_anomaly)
+    call GetValue(section,'basal_mass_balance',               model%options%basal_mbal)
+
+    ! general parameters
+    call GetValue(section,'bmlt_float_factor',      model%basal_melt%bmlt_float_factor)
+    call GetValue(section,'bmlt_cavity_h0',         model%basal_melt%bmlt_cavity_h0)
+    call GetValue(section,'bmlt_anomaly_tstart',    model%basal_melt%bmlt_anomaly_tstart)
+    call GetValue(section,'bmlt_anomaly_timescale', model%basal_melt%bmlt_anomaly_timescale)
+
+    ! MISMIP+ basal melting parameters
+    call GetValue(section,'bmlt_float_omega', model%basal_melt%bmlt_float_omega)
+    call GetValue(section,'bmlt_float_h0',    model%basal_melt%bmlt_float_h0)
+    call GetValue(section,'bmlt_float_z0',    model%basal_melt%bmlt_float_z0)
+    call GetValue(section,'bmlt_float_const', model%basal_melt%bmlt_float_const)
+    call GetValue(section,'bmlt_float_xlim',  model%basal_melt%bmlt_float_xlim)
+
+    ! depth-dependent basal melting parameters
+    call GetValue(section,'bmlt_float_depth_meltmax',  model%basal_melt%bmlt_float_depth_meltmax)
+    call GetValue(section,'bmlt_float_depth_frzmax',   model%basal_melt%bmlt_float_depth_frzmax)
+    call GetValue(section,'bmlt_float_depth_zmeltmax', model%basal_melt%bmlt_float_depth_zmeltmax)
+    call GetValue(section,'bmlt_float_depth_zmelt0',   model%basal_melt%bmlt_float_depth_zmelt0)
+    call GetValue(section,'bmlt_float_depth_zfrzmax',  model%basal_melt%bmlt_float_depth_zfrzmax)
+    call GetValue(section,'bmlt_float_depth_meltmin',  model%basal_melt%bmlt_float_depth_meltmin)
+    call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
+
+  end subroutine handle_basal_melt
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_ocean_data(section, model)
+
+    ! Ocean data (thermal forcing) for the thermal-forcing basal melt schemes.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'ocean_data_domain',      model%options%ocean_data_domain)
+    call GetValue(section,'ocean_data_extrapolate', model%options%ocean_data_extrapolate)
+
+    ! parameters
+    call GetValue(section,'gamma0',                            model%ocean_data%gamma0)
+    call GetValue(section,'thermal_forcing_basin_min',         model%ocean_data%thermal_forcing_basin_min)
+    call GetValue(section,'thermal_forcing_basin_max',         model%ocean_data%thermal_forcing_basin_max)
+    call GetValue(section,'thermal_forcing_anomaly',           model%ocean_data%thermal_forcing_anomaly)
+    call GetValue(section,'thermal_forcing_anomaly_tstart',    model%ocean_data%thermal_forcing_anomaly_tstart)
+    call GetValue(section,'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
+    call GetValue(section,'thermal_forcing_anomaly_basin',     model%ocean_data%thermal_forcing_anomaly_basin)
+
+  end subroutine handle_ocean_data
 
 !--------------------------------------------------------------------------------
 
