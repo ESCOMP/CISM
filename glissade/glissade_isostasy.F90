@@ -168,7 +168,7 @@ contains
        if (model%options%is_restart == STANDARD_RESTART) then
            ! relx should have been read from the restart file
            if (parallel_is_zero(model%isostasy%relx)) then
-              call write_log ('Failed to read relx on restart with which_relaxed = RELAXED_TOPO_COMPUTE', &
+              call write_log ('Failed to read relx on restart with input_topg_method = RELAXED_TOPO_COMPUTE', &
                    GM_FATAL)
            endif
         else
@@ -176,8 +176,8 @@ contains
            ! Note: For a hybrid restart with 'relx' present in the input restart file,
            !       the user should set which_relaxed = RELAXED_TOPO_DEFAULT instead.
            if (.not.parallel_is_zero(model%isostasy%relx)) then
-              call write_log ('Do not set which_relaxed = RELAXED_TOPO_COMPUTE if relx is in the input file')
-              call write_log ('Either remove relx or set which_relaxed = RELAXED_TOPO_DEFAULT', GM_FATAL)
+              call write_log ('Do not set input_topg_method = RELAXED_TOPO_COMPUTE if relx is in the input file')
+              call write_log ('Either remove relx or set input_topg_method = RELAXED_TOPO_DEFAULT', GM_FATAL)
            endif
            ! Compute the load, then compute relx = topg + load
            call isostasy_relaxed(model)

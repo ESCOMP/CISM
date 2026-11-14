@@ -269,6 +269,20 @@ MOVES = {
     # [diagnostics]
     ('options', 'dm_dt_diag'): ('diagnostics', 'dm_dt_diag'),
     ('options', 'diag_minthck'): ('diagnostics', 'diag_minthck'),
+    # [isostasy], [lateral_melt], [glaciers]: section switches move in; keys renamed in place
+    ('options', 'isostasy'): ('isostasy', 'isostasy'),
+    ('isostasy', 'lithosphere'): ('isostasy', 'lithosphere_method'),
+    ('isostasy', 'asthenosphere'): ('isostasy', 'asthenosphere_method'),
+    ('isostasy', 'which_relaxed'): ('isostasy', 'input_topg_method'),
+    ('options', 'which_lateral_melt'): ('lateral_melt', 'lateral_melt_method'),
+    ('ho_options', 'enable_glaciers'): ('glaciers', 'enable_glaciers'),
+    ('glaciers', 'set_mu_star'): ('glaciers', 'mu_star_method'),
+    ('glaciers', 'set_alpha_snow'): ('glaciers', 'alpha_snow_method'),
+    ('glaciers', 'set_powerlaw_c'): ('glaciers', 'glacier_powerlaw_c_method'),
+    ('glaciers', 'snow_calc'): ('glaciers', 'snow_method'),
+    ('glaciers', 'tmlt'): ('glaciers', 'glacier_tmlt'),
+    ('glaciers', 'snow_threshold_min'): ('glaciers', 'glacier_snow_threshold_min'),
+    ('glaciers', 'snow_threshold_max'): ('glaciers', 'glacier_snow_threshold_max'),
 }
 
 # Order of the new sections when they are created.
@@ -332,6 +346,18 @@ USER_NL_RENAMES = {
     'geothermal': 'geothermal_flux',
     # [grid]
     'sigma': 'sigma_method',
+    # [isostasy], [lateral_melt], [glaciers] (in CESM, tmlt and snow_threshold_* are the glacier keys)
+    'which_lateral_melt': 'lateral_melt_method',
+    'which_relaxed': 'input_topg_method',
+    'lithosphere': 'lithosphere_method',
+    'asthenosphere': 'asthenosphere_method',
+    'set_mu_star': 'mu_star_method',
+    'set_alpha_snow': 'alpha_snow_method',
+    'set_powerlaw_c': 'glacier_powerlaw_c_method',
+    'snow_calc': 'snow_method',
+    'tmlt': 'glacier_tmlt',
+    'snow_threshold_min': 'glacier_snow_threshold_min',
+    'snow_threshold_max': 'glacier_snow_threshold_max',
     # [inversion]: wrapper names that CISM never read (the wrapper now uses the CISM names)
     'deltaT_basin_relax': 'inversion_deltaT_basin_relax',
     'inversion_bmlt_basin_flotation_threshold': 'inversion_basin_flotation_threshold',

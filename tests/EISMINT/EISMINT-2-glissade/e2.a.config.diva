@@ -12,7 +12,6 @@ dns = 25000
 
 [options]
 dycore = 2                 # 2 = Glissade
-isostasy = 0
 basal_water = 1
 vertical_integration = 0   # glissade does not support option 1
 
@@ -56,6 +55,9 @@ geothermal_flux = -42.e-3
 
 [numerics]
 ice_limit = 1.
+
+[isostasy]
+isostasy = 0
 
 [CF default]
 title: EISMINT-2 Exp A

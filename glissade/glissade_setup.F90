@@ -148,11 +148,6 @@ contains
        call handle_options(section, model)
     end if
 
-    ! read options for higher-order computation
-    call GetSection(config,section,'ho_options')
-    if (associated(section)) then
-        call handle_ho_options(section, model)
-    end if
 
     ! External dycores (BISICLES, Albany-FELIX) are no longer supported
     call GetSection(config,section,'external_dycore_options')
@@ -964,28 +959,12 @@ contains
     call glimmer_set_msg_level(loglevel)
 
     call GetValue(section,'dycore',model%options%whichdycore)
-    call GetValue(section,'isostasy',model%options%isostasy)
-    call GetValue(section,'which_lateral_melt',model%options%which_lateral_melt)
     call GetValue(section,'ioparams',model%funits%ncfile)
     call GetValue(section,'forcewrite_final', model%options%forcewrite_final)
     call GetValue(section,'restart',model%options%is_restart)
     call GetValue(section,'restart_extend_velo',model%options%restart_extend_velo)
 
   end subroutine handle_options
-
-!--------------------------------------------------------------------------------
-
-  !Higher order options
-  subroutine handle_ho_options(section, model)
-    use glimmer_config
-    use glissade_types
-    implicit none
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type) :: model
-    
-    call GetValue(section, 'enable_glaciers',             model%options%enable_glaciers)
-
-  end subroutine handle_ho_options
 
 !--------------------------------------------------------------------------------
 
@@ -3326,9 +3305,10 @@ contains
     type(ConfigSection), pointer :: section
     type(glissade_global_type)  :: model
 
-    call GetValue(section,'lithosphere',model%isostasy%lithosphere)
-    call GetValue(section,'asthenosphere',model%isostasy%asthenosphere)
-    call GetValue(section,'which_relaxed',model%isostasy%which_relaxed)
+    call GetValue(section,'isostasy',model%options%isostasy)
+    call GetValue(section,'lithosphere_method',model%isostasy%lithosphere)
+    call GetValue(section,'asthenosphere_method',model%isostasy%asthenosphere)
+    call GetValue(section,'input_topg_method',model%isostasy%which_relaxed)
     call GetValue(section,'tau_relax_const',model%isostasy%tau_relax_const)
     call GetValue(section,'load_update_interval',model%isostasy%load_update_interval)
     call GetValue(section,'flexural_rigidity',model%isostasy%rbel%d)
@@ -3346,16 +3326,16 @@ contains
     type(glissade_global_type)  :: model
     character(len=100) :: message
 
-    character(len=*), dimension(0:1), parameter :: lithosphere = (/ &
+    character(len=*), dimension(0:1), parameter :: lithosphere_method = (/ &
          'local lithosphere         ', &
          'elastic lithosphere       ' /)
 
-    character(len=*), dimension(0:2), parameter :: asthenosphere = (/ &
+    character(len=*), dimension(0:2), parameter :: asthenosphere_method = (/ &
          'fluid asthenosphere                ', &
          'relaxing with constant timescale   ', &
          'relaxing with lat varying timescale' /)
 
-    character(len=*), dimension(0:2), parameter :: which_relaxed = (/ &
+    character(len=*), dimension(0:2), parameter :: input_topg_method = (/ &
          'read both topg and relx from input file', &
          'set relx to input topg                 ', &
          'compute relx = input topg + load       ' /)
@@ -3365,11 +3345,11 @@ contains
        call write_log('Isostasy')
        call write_log('--------')
 
-       if (model%isostasy%lithosphere < 0 .or. model%isostasy%lithosphere >= size(lithosphere)) then
-          call write_log('Error, lithosphere option out of range', GM_FATAL)
+       if (model%isostasy%lithosphere < 0 .or. model%isostasy%lithosphere >= size(lithosphere_method)) then
+          call write_log('Error, lithosphere_method out of range', GM_FATAL)
        else
-          write(message,*) 'lithosphere                 : ',model%isostasy%lithosphere,  &
-               lithosphere(model%isostasy%lithosphere)
+          write(message,*) 'lithosphere_method          : ',model%isostasy%lithosphere,  &
+               lithosphere_method(model%isostasy%lithosphere)
           call write_log(message)
        endif
 
@@ -3380,19 +3360,19 @@ contains
           call write_log(message)
        end if
 
-       if (model%isostasy%asthenosphere < 0 .or. model%isostasy%asthenosphere >= size(asthenosphere)) then
-          call write_log('Error, asthenosphere option out of range', GM_FATAL)
+       if (model%isostasy%asthenosphere < 0 .or. model%isostasy%asthenosphere >= size(asthenosphere_method)) then
+          call write_log('Error, asthenosphere_method out of range', GM_FATAL)
        else
-          write(message,*) 'asthenosphere               : ',model%isostasy%asthenosphere,  &
-               asthenosphere(model%isostasy%asthenosphere)
+          write(message,*) 'asthenosphere_method        : ',model%isostasy%asthenosphere,  &
+               asthenosphere_method(model%isostasy%asthenosphere)
           call write_log(message)
        endif
 
-       if (model%isostasy%which_relaxed < 0 .or. model%isostasy%which_relaxed >= size(which_relaxed)) then
-          call write_log('Error, which_relaxed option out of range', GM_FATAL)
+       if (model%isostasy%which_relaxed < 0 .or. model%isostasy%which_relaxed >= size(input_topg_method)) then
+          call write_log('Error, input_topg_method out of range', GM_FATAL)
        else
-          write(message,*) 'which_relaxed               : ',model%isostasy%which_relaxed,  &
-               which_relaxed(model%isostasy%which_relaxed)
+          write(message,*) 'input_topg_method           : ',model%isostasy%which_relaxed,  &
+               input_topg_method(model%isostasy%which_relaxed)
           call write_log(message)
        endif
 
@@ -3417,6 +3397,7 @@ contains
     type(ConfigSection), pointer :: section
     type(glissade_global_type)  :: model
 
+    call GetValue(section, 'lateral_melt_method', model%options%which_lateral_melt)
     call GetValue(section, 'melt_rate_const', model%lateral_melt%melt_rate_const)
     call GetValue(section, 'melt_factor', model%lateral_melt%melt_factor)
     call GetValue(section, 'runoff_from_ablation', model%lateral_melt%runoff_from_ablation)
@@ -3437,16 +3418,16 @@ contains
     type(glissade_global_type)  :: model
     character(len=100) :: message
 
-    character(len=*), dimension(0:2), parameter :: which_lateral_melt = (/ &
+    character(len=*), dimension(0:2), parameter :: lateral_melt_method = (/ &
          'no lateral melt at marine margin         ', &
          'constant lateral melt rate               ', &
          'ISMIP lateral melt from TF and discharge ' /)
 
-    if (model%options%which_lateral_melt < 0 .or. model%options%which_lateral_melt >= size(which_lateral_melt)) then
+    if (model%options%which_lateral_melt < 0 .or. model%options%which_lateral_melt >= size(lateral_melt_method)) then
        call write_log('Error, lateral melt option out of range', GM_FATAL)
     else
-       write(message,*) 'which_lateral_melt            : ',model%options%which_lateral_melt,  &
-            which_lateral_melt(model%options%which_lateral_melt)
+       write(message,*) 'lateral_melt_method           : ',model%options%which_lateral_melt,  &
+            lateral_melt_method(model%options%which_lateral_melt)
        call write_log(message)
     endif
 
@@ -3670,13 +3651,14 @@ contains
     type(ConfigSection), pointer :: section
     type(glissade_global_type)  :: model
 
-    call GetValue(section,'set_mu_star',             model%glacier%set_mu_star)
-    call GetValue(section,'set_alpha_snow',          model%glacier%set_alpha_snow)
-    call GetValue(section,'set_powerlaw_c',          model%glacier%set_powerlaw_c)
-    call GetValue(section,'snow_calc',               model%glacier%snow_calc)
+    call GetValue(section,'enable_glaciers',         model%options%enable_glaciers)
+    call GetValue(section,'mu_star_method',          model%glacier%set_mu_star)
+    call GetValue(section,'alpha_snow_method',       model%glacier%set_alpha_snow)
+    call GetValue(section,'glacier_powerlaw_c_method', model%glacier%set_powerlaw_c)
+    call GetValue(section,'snow_method',             model%glacier%snow_calc)
     call GetValue(section,'scale_area',              model%glacier%scale_area)
     call GetValue(section,'length_scale_factor',     model%glacier%length_scale_factor)
-    call GetValue(section,'tmlt',                    model%glacier%tmlt)
+    call GetValue(section,'glacier_tmlt',            model%glacier%tmlt)
     call GetValue(section,'mu_star_const',           model%glacier%mu_star_const)
     call GetValue(section,'mu_star_min',             model%glacier%mu_star_min)
     call GetValue(section,'mu_star_max',             model%glacier%mu_star_max)
@@ -3685,8 +3667,8 @@ contains
     call GetValue(section,'alpha_snow_max',          model%glacier%alpha_snow_max)
     call GetValue(section,'beta_artm_max',           model%glacier%beta_artm_max)
     call GetValue(section,'beta_artm_increment',     model%glacier%beta_artm_increment)
-    call GetValue(section,'snow_threshold_min',      model%glacier%snow_threshold_min)
-    call GetValue(section,'snow_threshold_max',      model%glacier%snow_threshold_max)
+    call GetValue(section,'glacier_snow_threshold_min', model%glacier%snow_threshold_min)
+    call GetValue(section,'glacier_snow_threshold_max', model%glacier%snow_threshold_max)
     call GetValue(section,'baseline_date',           model%glacier%baseline_date)
     call GetValue(section,'rgi_date',                model%glacier%rgi_date)
     call GetValue(section,'recent_date',             model%glacier%recent_date)
@@ -3710,22 +3692,22 @@ contains
 
     ! glacier options
 
-    character(len=*), dimension(0:2), parameter :: glacier_set_mu_star = (/ &
+    character(len=*), dimension(0:2), parameter :: mu_star_method = (/ &
          'spatially uniform glacier parameter mu_star', &
          'glacier-specific mu_star found by inversion', &
          'glacier-specific mu_star read from file    ' /)
 
-    character(len=*), dimension(0:2), parameter :: glacier_set_alpha_snow = (/ &
+    character(len=*), dimension(0:2), parameter :: alpha_snow_method = (/ &
          'spatially uniform glacier parameter alpha_snow', &
          'glacier-specific alpha_snow found by inversion', &
          'glacier-specific alpha_snow read from file    ' /)
 
-    character(len=*), dimension(0:2), parameter :: glacier_set_powerlaw_c = (/ &
+    character(len=*), dimension(0:2), parameter :: glacier_powerlaw_c_method = (/ &
          'spatially uniform glacier parameter Cp', &
          'Cp for glaciers found by inversion    ', &
          'Cp for glaciers read from file        ' /)
 
-    character(len=*), dimension(0:1), parameter :: glacier_snow_calc = (/ &
+    character(len=*), dimension(0:1), parameter :: snow_method = (/ &
          'read in snowfall rate directly            ', &
          'compute snowfall rate from precip and artm' /)
 
@@ -3737,46 +3719,46 @@ contains
 
        call write_log('Glacier tracking and tuning is enabled')
 
-       write(message,*) 'set_mu_star               : ', model%glacier%set_mu_star, &
-            glacier_set_mu_star(model%glacier%set_mu_star)
+       write(message,*) 'mu_star_method            : ', model%glacier%set_mu_star, &
+            mu_star_method(model%glacier%set_mu_star)
        call write_log(message)
        if (model%glacier%set_mu_star < 0 .or. &
-           model%glacier%set_mu_star >= size(glacier_set_mu_star)) then
+           model%glacier%set_mu_star >= size(mu_star_method)) then
           call write_log('Error, glacier_set_mu_star option out of range', GM_FATAL)
        end if
 
-       write(message,*) 'set_alpha_snow            : ', model%glacier%set_alpha_snow, &
-            glacier_set_alpha_snow(model%glacier%set_alpha_snow)
+       write(message,*) 'alpha_snow_method         : ', model%glacier%set_alpha_snow, &
+            alpha_snow_method(model%glacier%set_alpha_snow)
        call write_log(message)
        if (model%glacier%set_alpha_snow < 0 .or. &
-           model%glacier%set_alpha_snow >= size(glacier_set_alpha_snow)) then
+           model%glacier%set_alpha_snow >= size(alpha_snow_method)) then
           call write_log('Error, glacier_set_alpha_snow option out of range', GM_FATAL)
        end if
 
-       write(message,*) 'set_powerlaw_c            : ', model%glacier%set_powerlaw_c, &
-            glacier_set_powerlaw_c(model%glacier%set_powerlaw_c)
+       write(message,*) 'glacier_powerlaw_c_method : ', model%glacier%set_powerlaw_c, &
+            glacier_powerlaw_c_method(model%glacier%set_powerlaw_c)
        call write_log(message)
        if (model%glacier%set_powerlaw_c < 0 .or. &
-           model%glacier%set_powerlaw_c >= size(glacier_set_powerlaw_c)) then
+           model%glacier%set_powerlaw_c >= size(glacier_powerlaw_c_method)) then
           call write_log('Error, glacier_set_powerlaw_c option out of range', GM_FATAL)
        end if
 
-       write(message,*) 'snow_calc                 : ', model%glacier%snow_calc, &
-            glacier_snow_calc(model%glacier%snow_calc)
+       write(message,*) 'snow_method               : ', model%glacier%snow_calc, &
+            snow_method(model%glacier%snow_calc)
        call write_log(message)
        if (model%glacier%snow_calc < 0 .or. &
-           model%glacier%snow_calc >= size(glacier_snow_calc)) then
+           model%glacier%snow_calc >= size(snow_method)) then
           call write_log('Error, glacier_snow_calc option out of range', GM_FATAL)
        end if
 
        if (model%glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
-          write(message,*) 'snow_threshold_min (deg C)  : ', model%glacier%snow_threshold_min
+          write(message,*) 'glacier_snow_threshold_min (deg C): ', model%glacier%snow_threshold_min
           call write_log(message)
-          write(message,*) 'snow_threshold_max (deg C)  : ', model%glacier%snow_threshold_max
+          write(message,*) 'glacier_snow_threshold_max (deg C): ', model%glacier%snow_threshold_max
           call write_log(message)
        endif
 
-       write(message,*) 'glc tmlt (deg C)            :  ', model%glacier%tmlt
+       write(message,*) 'glacier_tmlt (deg C)        :  ', model%glacier%tmlt
        call write_log(message)
 
        if (model%glacier%scale_area) then
