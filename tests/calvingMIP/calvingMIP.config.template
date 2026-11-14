@@ -26,7 +26,6 @@ rhoi = 917.0                    # ice density
 rhoo = 1028.0                   # ocean density
 grav = 9.81	                # gravitational acceleration
 ice_limit = 1.                  # min thickness (m) for dynamics
-geothermal = 0.
 
 [calving]
 calving_law = 6       # 5 = calving mask, 6 = prescribed advance/retreat rate
@@ -84,6 +83,9 @@ default_flwa = 2.9377e-18
 [temperature]
 temperature_method = 0         # 0 = sfc air temp, 1 = prognostic
 temp_init = 4           # 4 = read from external file
+
+[geothermal]
+geothermal_flux = 0.
 
 [CF default]
 comment = created with calvingMIP.Setup.py

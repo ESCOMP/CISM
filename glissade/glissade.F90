@@ -578,7 +578,7 @@ contains
        ! (by checking whether the flux is nonuniform over the domain)
        if (abs(maxval(model%temper%bheatflx) - minval(model%temper%bheatflx)) > 1.d-6) then
           call write_log('Setting uniform prescribed geothermal flux')
-          call write_log('(Set gthf = 1 to read geothermal flux field from input file)')
+          call write_log('(Set geothermal_method = 1 to read geothermal flux field from input file)')
        endif
 
        ! set uniform basal heat flux (positive down)

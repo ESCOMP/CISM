@@ -215,6 +215,25 @@ MOVES = {
     ('ho_options', 'which_ho_thermal_timestep'): ('temperature', 'thermal_timestep'),
     ('parameters', 'pmp_offset'): ('temperature', 'pmp_offset'),
     ('parameters', 'pmp_threshold'): ('temperature', 'pmp_threshold'),
+    # [inversion]
+    ('parameters', 'inversion_thck_flotation_buffer'): ('inversion', 'inversion_thck_flotation_buffer'),
+    ('parameters', 'inversion_thck_threshold'): ('inversion', 'inversion_thck_threshold'),
+    ('parameters', 'inversion_damping_factor'): ('inversion', 'inversion_damping_factor'),
+    ('parameters', 'inversion_babc_timescale'): ('inversion', 'inversion_babc_timescale'),
+    ('parameters', 'inversion_babc_thck_scale'): ('inversion', 'inversion_babc_thck_scale'),
+    ('parameters', 'inversion_babc_length_scale'): ('inversion', 'inversion_babc_length_scale'),
+    ('parameters', 'inversion_babc_relax_factor'): ('inversion', 'inversion_babc_relax_factor'),
+    ('parameters', 'inversion_deltaT_ocn_timescale'): ('inversion', 'inversion_deltaT_ocn_timescale'),
+    ('parameters', 'inversion_deltaT_ocn_thck_scale'): ('inversion', 'inversion_deltaT_ocn_thck_scale'),
+    ('parameters', 'inversion_deltaT_ocn_length_scale'): ('inversion', 'inversion_deltaT_ocn_length_scale'),
+    ('parameters', 'inversion_deltaT_ocn_temp_scale'): ('inversion', 'inversion_deltaT_ocn_temp_scale'),
+    ('parameters', 'inversion_deltaT_basin_relax'): ('inversion', 'inversion_deltaT_basin_relax'),
+    ('parameters', 'inversion_basin_flotation_threshold'): ('inversion', 'inversion_basin_flotation_threshold'),
+    ('parameters', 'inversion_basin_mass_correction'): ('inversion', 'inversion_basin_mass_correction'),
+    ('parameters', 'inversion_basin_number_mass_correction'): ('inversion', 'inversion_basin_number_mass_correction'),
+    # [geothermal]
+    ('options', 'gthf'): ('geothermal', 'geothermal_method'),
+    ('parameters', 'geothermal'): ('geothermal', 'geothermal_flux'),
 }
 
 # Order of the new sections when they are created.
@@ -273,6 +292,14 @@ USER_NL_RENAMES = {
     'temperature': 'temperature_method',
     'which_ho_disp': 'dissipation_method',
     'which_ho_thermal_timestep': 'thermal_timestep',
+    # [geothermal]
+    'gthf': 'geothermal_method',
+    'geothermal': 'geothermal_flux',
+    # [inversion]: wrapper names that CISM never read (the wrapper now uses the CISM names)
+    'deltaT_basin_relax': 'inversion_deltaT_basin_relax',
+    'inversion_bmlt_basin_flotation_threshold': 'inversion_basin_flotation_threshold',
+    'inversion_bmlt_basin_mass_correction': 'inversion_basin_mass_correction',
+    'inversion_bmlt_basin_number_mass_correction': 'inversion_basin_number_mass_correction',
 }
 
 # Match the CISM reader (glimmer_config.F90): a section header is a line starting with '[' in

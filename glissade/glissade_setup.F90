@@ -239,6 +239,18 @@ contains
        call handle_removal(section, model)
     end if
 
+    ! read inversion parameters (basal friction and ocean temperature inversions)
+    call GetSection(config,section,'inversion')
+    if (associated(section)) then
+       call handle_inversion(section, model)
+    end if
+
+    ! read geothermal heat flux options
+    call GetSection(config,section,'geothermal')
+    if (associated(section)) then
+       call handle_geothermal(section, model)
+    end if
+
 
     ! Read the sections for optional features whenever they are present.
     ! Note: A section's presence does not turn its feature on; the feature's switch does.
@@ -926,7 +938,6 @@ contains
     type(glissade_global_type)  :: model
 
     call GetValue(section,'dycore',model%options%whichdycore)
-    call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'which_lateral_melt',model%options%which_lateral_melt)
     call GetValue(section,'adjust_input_thickness', model%options%adjust_input_thickness)
@@ -1065,10 +1076,10 @@ contains
          'overwrite acab where input thck <= minthck', &
          'overwrite acab based on input mask        ' /)
 
-    ! NOTE: Set gthf = 1 in the config file to read the geothermal heat flux from an input file.
+    ! NOTE: Set geothermal_method = 1 in the config file to read the geothermal heat flux from an input file.
     !       Otherwise it will be overwritten, even if the 'bheatflx' field is present.
 
-    character(len=*), dimension(0:1), parameter :: gthf = (/ &
+    character(len=*), dimension(0:1), parameter :: geothermal_method = (/ &
          'uniform geothermal flux         ', &
          'read flux from file, if present ' /)
 
@@ -1586,11 +1597,11 @@ contains
        call write_log('acab correction based on dthck_dt_obs is enabled')
     endif
 
-    if (model%options%gthf < 0 .or. model%options%gthf >= size(gthf)) then
+    if (model%options%gthf < 0 .or. model%options%gthf >= size(geothermal_method)) then
        call write_log('Error, geothermal flux option out of range',GM_FATAL)
     end if
 
-    write(message,*) 'geothermal heat flux    : ',model%options%gthf,gthf(model%options%gthf)
+    write(message,*) 'geothermal heat flux    : ',model%options%gthf,geothermal_method(model%options%gthf)
     call write_log(message)
 
     if (model%options%isostasy < 0 .or. model%options%isostasy >= size(isostasy)) then
@@ -2078,7 +2089,6 @@ contains
     call GetValue(section,'ice_limit',          model%numerics%thklim)
     call GetValue(section,'ice_limit_temp',     model%numerics%thklim_temp)
     call GetValue(section,'thck_gradient_ramp', model%numerics%thck_gradient_ramp)
-    call GetValue(section,'geothermal',         model%paramets%geot)
 
     ! parameters to adjust input topography
     call GetValue(section, 'adjust_topg_xmin', model%paramets%adjust_topg_xmin)
@@ -2088,30 +2098,6 @@ contains
     call GetValue(section, 'adjust_topg_no_adjust',  model%paramets%adjust_topg_no_adjust)
     call GetValue(section, 'adjust_topg_max_adjust', model%paramets%adjust_topg_max_adjust)
     call GetValue(section, 'adjust_topg_delta',   model%paramets%adjust_topg_delta)
-
-    ! inversion parameters
-    !TODO - Put inversion parameters in a separate section
-    call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
-    call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
-    call GetValue(section, 'inversion_damping_factor', model%inversion%damping_factor)
-
-    call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
-    call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
-    call GetValue(section, 'inversion_babc_length_scale', model%inversion%babc_length_scale)
-    call GetValue(section, 'inversion_babc_relax_factor', model%inversion%babc_relax_factor)
-
-    call GetValue(section, 'inversion_deltaT_ocn_timescale', model%inversion%deltaT_ocn_timescale)
-    call GetValue(section, 'inversion_deltaT_ocn_thck_scale', model%inversion%deltaT_ocn_thck_scale)
-    call GetValue(section, 'inversion_deltaT_ocn_length_scale', model%inversion%deltaT_ocn_length_scale)
-    call GetValue(section, 'inversion_deltaT_ocn_temp_scale', model%inversion%deltaT_ocn_temp_scale)
-    call GetValue(section, 'inversion_deltaT_basin_relax', model%inversion%deltaT_basin_relax)
-    call GetValue(section, 'inversion_basin_flotation_threshold', &
-         model%inversion%basin_flotation_threshold)
-
-    call GetValue(section, 'inversion_basin_mass_correction', &
-         model%inversion%basin_mass_correction)
-    call GetValue(section, 'inversion_basin_number_mass_correction', &
-         model%inversion%basin_number_mass_correction)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
@@ -2531,6 +2517,65 @@ contains
     call GetValue(section,'force_retreat',   model%options%force_retreat)
 
   end subroutine handle_removal
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_inversion(section, model)
+
+    ! Parameters of the inversions for the basal friction parameters (powerlaw_c, coulomb_c)
+    ! and for the ocean temperature correction deltaT_ocn.
+    ! The inversions themselves are selected in [basal_physics] (powerlaw_c_method,
+    ! coulomb_c_method) and [basal_melt] (deltaT_ocn_method).
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! general
+    call GetValue(section,'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
+    call GetValue(section,'inversion_thck_threshold',        model%inversion%thck_threshold)
+    call GetValue(section,'inversion_damping_factor',        model%inversion%damping_factor)
+
+    ! basal friction inversion
+    call GetValue(section,'inversion_babc_timescale',    model%inversion%babc_timescale)
+    call GetValue(section,'inversion_babc_thck_scale',   model%inversion%babc_thck_scale)
+    call GetValue(section,'inversion_babc_length_scale', model%inversion%babc_length_scale)
+    call GetValue(section,'inversion_babc_relax_factor', model%inversion%babc_relax_factor)
+
+    ! deltaT_ocn inversion
+    call GetValue(section,'inversion_deltaT_ocn_timescale',    model%inversion%deltaT_ocn_timescale)
+    call GetValue(section,'inversion_deltaT_ocn_thck_scale',   model%inversion%deltaT_ocn_thck_scale)
+    call GetValue(section,'inversion_deltaT_ocn_length_scale', model%inversion%deltaT_ocn_length_scale)
+    call GetValue(section,'inversion_deltaT_ocn_temp_scale',   model%inversion%deltaT_ocn_temp_scale)
+    call GetValue(section,'inversion_deltaT_basin_relax',      model%inversion%deltaT_basin_relax)
+
+    ! basin-scale deltaT_ocn inversion
+    call GetValue(section,'inversion_basin_flotation_threshold',    model%inversion%basin_flotation_threshold)
+    call GetValue(section,'inversion_basin_mass_correction',        model%inversion%basin_mass_correction)
+    call GetValue(section,'inversion_basin_number_mass_correction', model%inversion%basin_number_mass_correction)
+
+  end subroutine handle_inversion
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_geothermal(section, model)
+
+    ! Geothermal heat flux: uniform (geothermal_flux) or read from the input file.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    call GetValue(section,'geothermal_method', model%options%gthf)
+    call GetValue(section,'geothermal_flux',   model%paramets%geot)
+
+  end subroutine handle_geothermal
 
 !--------------------------------------------------------------------------------
 
