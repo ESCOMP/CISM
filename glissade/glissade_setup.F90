@@ -173,6 +173,12 @@ contains
        call handle_calving(section, model)
     end if
 
+    ! read ice removal (other than calving)
+    call GetSection(config,section,'removal')
+    if (associated(section)) then
+       call handle_removal(section, model)
+    end if
+
 
     ! Read the sections for optional features whenever they are present.
     ! Note: A section's presence does not turn its feature on; the feature's switch does.
@@ -941,8 +947,6 @@ contains
     call GetValue(section, 'which_ho_ground_bmlt',        model%options%which_ho_ground_bmlt)
     call GetValue(section, 'which_ho_flotation_function', model%options%which_ho_flotation_function)
     call GetValue(section, 'block_inception',             model%options%block_inception)
-    call GetValue(section, 'remove_ice_caps',             model%options%remove_ice_caps)
-    call GetValue(section, 'force_retreat',               model%options%force_retreat)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'enable_glaciers',             model%options%enable_glaciers)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
@@ -2262,6 +2266,25 @@ contains
     call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
 
   end subroutine handle_calving
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_removal(section, model)
+
+    ! Ice removal that is not calving: removal of ice caps, and forced retreat.
+    ! The removed ice is tracked separately from the calving flux.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    call GetValue(section,'remove_ice_caps', model%options%remove_ice_caps)
+    call GetValue(section,'force_retreat',   model%options%force_retreat)
+
+  end subroutine handle_removal
 
 !--------------------------------------------------------------------------------
 

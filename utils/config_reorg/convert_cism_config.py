@@ -66,6 +66,9 @@ MOVES = {
     ('parameters', 'cf_advance_retreat_amplitude'): ('calving', 'cf_advance_retreat_amplitude'),
     ('parameters', 'cf_advance_retreat_period'): ('calving', 'cf_advance_retreat_period'),
     ('parameters', 'f_ground_threshold'): ('calving', 'f_ground_threshold'),
+    # [removal]
+    ('ho_options', 'remove_ice_caps'): ('removal', 'remove_ice_caps'),
+    ('ho_options', 'force_retreat'): ('removal', 'force_retreat'),
 }
 
 # Order of the new sections when they are created.
