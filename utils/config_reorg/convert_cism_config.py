@@ -87,8 +87,11 @@ USER_NL_RENAMES = {
     'length_scale': 'calving_length_scale',
 }
 
-SECTION_RE = re.compile(r'^\s*\[([^\]]+)\]\s*$')
-KEY_RE = re.compile(r'^(\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*[=:].*)$')
+# Match the CISM reader (glimmer_config.F90): a section header is a line starting with '[' in
+# column 1, named by the text before the first ']' (anything after it is ignored); a key line
+# starts in column 1 (lines starting with a space are ignored by CISM, so they are never moved).
+SECTION_RE = re.compile(r'^\[([^\]]*)\]')
+KEY_RE = re.compile(r'^()([A-Za-z_][A-Za-z0-9_]*)(\s*[=:].*)$')
 COMMENT_RE = re.compile(r'^\s*[#;!]')
 NAMELIST_KEY_RE = re.compile(r'^(\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*=.*)$')
 
@@ -249,6 +252,11 @@ def self_test():
     nl, c = convert_user_nl("which_ho_babc = 9\n! comment\nice_limit = 1.\n", {'which_ho_babc': 'sliding_law'})
     assert nl == "sliding_law = 9\n! comment\nice_limit = 1.\n" and c == ['which_ho_babc -> sliding_law'], nl
     assert convert_config(old, {})[0] == old                    # empty table: no change
+    commented = old.replace('[ho_options]', '[ho_options]   # Higher order options').replace(
+        'dycore = 2', 'dycore = 2\n marine_margin = 1')
+    new2, _ = convert_config(commented, moves)                  # header with a trailing comment
+    assert '[basal_physics]\nsliding_law = 9\n' in new2 and '[ho_options]' not in new2, new2
+    assert ' marine_margin = 1' in new2                         # indented key (ignored by CISM) left alone
     glide = old.replace('dycore = 2', 'dycore = 0   # Glide')
     assert convert_config(glide, moves) == (glide, [])          # Glide config: no change
     print('self-test passed')
