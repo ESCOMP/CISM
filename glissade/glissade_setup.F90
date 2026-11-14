@@ -318,6 +318,12 @@ contains
     call print_grid(model)
     call print_time(model)
     call print_options(model)
+    call print_numerics(model)
+    call print_velocity(model)
+    call print_velocity_solver(model)
+    call print_advection(model)
+    call print_flow_law(model)
+    call print_temperature(model)
     call print_parameters(model)
     call print_lateral_melt(model)
     call print_isostasy(model)
@@ -972,8 +978,6 @@ contains
 
     use glissade_types
     use glimmer_log
-    use glimmer_physcon, only: scyr
-    use cism_parallel, only: tasks
 
     implicit none
 
@@ -984,35 +988,6 @@ contains
 
     ! Glissade is the only dycore option here (dycore = 2)
     character(len=*), parameter :: dycore = 'glissade           '  ! finite element
-
-    character(len=*), dimension(0:2), parameter :: compute_blocks = (/ &
-         'compute on all blocks              ', &
-         'compute on active blocks only      ', &
-         'inquire the number of active blocks'/)
-
-    !WHL TODO - Renumber during the config reorg
-    character(len=*), dimension(3:5), parameter :: advection_method = (/ &
-         'incremental remapping                 ', &   
-         '1st order upwind                      ', &
-         'thickness fixed at initial value      '  /)
-
-    character(len=*), dimension(0:3), parameter :: temperature_method = (/ &
-         'isothermal            ', &
-         'prognostic temperature', &
-         'constant in time      ', &
-         'prognostic enthalpy   ' /)
-
-    character(len=*), dimension(0:4), parameter :: temp_init = (/ &
-         'set to 0 C                  ', &
-         'set to surface air temp     ', &
-         'linear vertical profile     ', &
-         'advective-diffusive balance ',&
-         'temp from external file     ' /)
-
-    character(len=*), dimension(0:2), parameter :: flow_law = (/ &
-         'uniform factor flwa         ', &
-         'Paterson and Budd (T = -5 C)', &
-         'Paterson and Budd           ' /)
 
     ! Note: Glide also supports 'linear function of bmlt' (4) and 'tanh function of bwat' (5)
     character(len=*), dimension(0:3), parameter :: btrc_method = (/ &
@@ -1113,23 +1088,6 @@ contains
          'include cells with H > 0 in global diagnostics     ', &
          'include cells with H > thklim in global diagnostics'/)
 
-    ! higher-order options
-
-    character(len=*), dimension(0:2), parameter :: efvs_method = (/ &
-         'constant value                 ', & 
-         'multiple of flow factor        ', &
-         'nonlinear, from eff strain rate' /)
-
-    character(len=*), dimension(-1:1), parameter :: dissipation_method = (/ &
-         'no dissipation                    ', &
-         '0-order SIA                       ', &
-         'first-order model (Blatter-Pattyn)' /)
-
-    character(len=*), dimension(0:2), parameter :: thermal_timestep = (/ &
-         'vertical thermal solve before transport    ', &
-         'vertical thermal solve after transport     ', &
-         'vertical thermal solve split into two parts' /)
-
     !WHL TODO - Remove option 3 (and maybe others) during the config reorg
     character(len=*), dimension(0:14), parameter :: sliding_law = (/ &
          'constant beta                                    ', &
@@ -1193,70 +1151,6 @@ contains
          'reduced effecpress where bwat > 0 (B/vP)             ', &
          'reduced effecpress near pressure melting point       '/)
 
-    character(len=*), dimension(0:1), parameter :: nonlinear_method = (/ &
-         'use standard Picard iteration          ', &
-         'use Picard iteration with acceleration '/)
-
-    character(len=*), dimension(0:4), parameter :: nonlinear_residual = (/ &
-         'max value                   ', &
-         'max value ignoring ubas     ', &
-         'mean value                  ', &
-         'L2 norm of Ax-b = resid     ', &
-         'relative L2 norm, |Ax-b|/|b|' /)
-
-    character(len=*), dimension(-1:3), parameter :: linear_solver = (/ &
-         'PCG with incomplete Cholesky preconditioner', &
-         'BiCG with LU preconditioner                ', &
-         'GMRES with LU preconditioner               ', &
-         'Native PCG solver, standard                ', &
-         'Native PCG solver, Chronopoulos-Gear       '/)
-
-    character(len=*), dimension(-1:5), parameter :: stokes_approx = (/ &
-         'SIA only (glissade_velo_sia)                     ', &
-         'SIA only (glissade_velo_higher)                  ', &
-         'SSA only (glissade_velo_higher)                  ', &
-         'Blatter-Pattyn HO (glissade_velo_higher)         ', &
-         'Depth-integrated L1L2 (glissade_velo_higher)     ', &
-         'Depth-integrated viscosity (glissade_velo_higher)', &
-         'Hybrid SIA/SSA                                   ' /)
-
-    character(len=*), dimension(0:4), parameter :: preconditioner = (/ &
-         'No preconditioner (native PCG)                ', &
-         'Diagonal preconditioner (native PCG)          ', &
-         'SIA preconditioner (native PCG)               ', &
-         'Local tridiagonal preconditioner (native PCG) ', &
-         'Global tridiagonal preconditioner (native PCG)' /)
-
-    character(len=*), dimension(0:2), parameter :: surface_gradient_method = (/ &
-         'centered gradient (glissade)             ', &
-         'first-order upstream gradient (glissade) ', &
-         'second-order upstream gradient (glissade)' /)
-
-    character(len=*), dimension(0:2), parameter :: surface_gradient_margin_method = (/ &
-         'compute edge gradient when either cell has ice         ', &
-         'compute edge gradient when ice lies above ice-free land', & 
-         'compute edge gradient when both cells have ice         ' /)
-
-    character(len=*), dimension(0:1), parameter :: vertical_remap_order = (/ &
-         'first-order accurate  ', &
-         'second-order accurate ' /)
-
-    character(len=*), dimension(0:1), parameter :: assemble_beta = (/ &
-         'standard finite-element assembly (glissade dycore) ', &
-         'use local beta at each vertex (glissade dycore)    '  /)
-
-    character(len=*), dimension(0:1), parameter :: assemble_taud = (/ &
-         'standard finite-element assembly (glissade dycore)       ', &
-         'use local driving stress at each vertex (glissade dycore)'  /)
-
-    character(len=*), dimension(0:1), parameter :: assemble_bfric = (/ &
-         'standard finite-element assembly (glissade dycore)       ', &
-         'use local basal friction at each vertex (glissade dycore)'  /)
-
-    character(len=*), dimension(0:1), parameter :: assemble_lateral = (/ &
-         'standard finite-element assembly (glissade dycore)         ', &
-         'use local thck and usrf on each cell face (glissade dycore)'  /)
-
     character(len=*), dimension(0:1), parameter :: subgrid_calving_front = (/ &
          'no subgrid calving front parameterization', &
          'subgrid calving front                    ' /)
@@ -1285,10 +1179,6 @@ contains
          '1/fpattyn = (rhoi*H)/(-rhoo*b)    ', &
          'linear = -b - (rhoi/rhoo)*H       ' /)
 
-    character(len=*), dimension(0:1), parameter :: compute_ice_age = (/ &
-         'ice age computation off', &
-         'ice age computation on ' /)
-
     call write_log('Dycore options')
     call write_log('-------------')
 
@@ -1299,80 +1189,6 @@ contains
        call write_log('Error, the Glissade dycore requires dycore = 2',GM_FATAL)
     end if
     write(message,*) 'Dycore                  : ',model%options%whichdycore,dycore
-    call write_log(message)
-
-    ! Forbidden options for running in parallel
-    ! Note: The local SIA solver does not use a sparse linear solver, so which_ho_sparse is ignored.
-    if (tasks > 1 .and. model%options%which_ho_approx /= HO_APPROX_LOCAL_SIA .and.  &
-                        (model%options%which_ho_sparse==HO_SPARSE_BICG  .or.  &
-                         model%options%which_ho_sparse==HO_SPARSE_GMRES .or.  &
-                         model%options%which_ho_sparse==HO_SPARSE_PCG_INCH) ) then
-       call write_log('Error, SLAP solver not supported for more than one processor', GM_FATAL)
-    end if
-
-    ! Forbidden options associated with Glissade dycore
-   
-    if ( (model%options%which_ho_approx == HO_APPROX_SSA  .or.  &
-          model%options%which_ho_approx == HO_APPROX_L1L2 .or.  &
-          model%options%which_ho_approx == HO_APPROX_DIVA .or.  &
-          model%options%which_ho_approx == HO_APPROX_HYBRID)    &
-                             .and.                            &
-          (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.    &
-           model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
-       if (model%options%which_ho_precond == HO_PRECOND_SIA) then
-          !TODO - Change default to tridiagonal if it turns out to be faster than diagonal
-          model%options%which_ho_precond = HO_PRECOND_DIAG
-          call write_log('Warning, cannot use SIA preconditioning for 2D solve')
-          call write_log('Defaulting to diagonal preconditioner')
-       endif
-    endif
-
-    if (model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
-       
-       if (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
-          call write_log('Error, cannot use no-penetration BC with local SIA solver', GM_FATAL)
-       endif
-
-       if (model%options%which_ho_disp == HO_DISP_FIRSTORDER ) then
-          model%options%which_ho_disp = HO_DISP_SIA
-          call write_log('Warning: Cannot use first-order dissipation with local SIA solver')
-          call write_log('Defaulting to SIA dissipation')
-       endif
-
-    endif  ! Glissade local SIA solver
-
-    if (model%options%which_ho_approx == HO_APPROX_DIVA) then
-       if (model%options%diva_slope_correction) then
-          call write_log('DIVA solver includes a correction for steep slopes')
-       endif
-    endif
-
-    !NOTE : Old option 3 (TEMP_REMAP_ADV) has been removed.
-    ! If this has been set, then change to option 1 (TEMP_PROGNOSTIC), which applies to any dycore.
-
-    if (model%options%whichtemp < 0 .or. model%options%whichtemp >= size(temperature_method)) then
-       call write_log('Error, temperature_method out of range',GM_FATAL)
-    end if
-    write(message,*) 'temperature calculation : ',model%options%whichtemp,temperature_method(model%options%whichtemp)
-    call write_log(message)
-
-    ! unsupported temperature options
-    if (model%options%whichtemp == TEMP_ENTHALPY) then
-      call write_log('WARNING: Enthalpy-based formulation for solving temperature evolution is not currently &
-           &scientifically supported. USE AT YOUR OWN RISK.', GM_WARNING)
-    endif
-
-    if (model%options%temp_init < 0 .or. model%options%temp_init >= size(temp_init)) then
-       call write_log('Error, temp_init option out of range',GM_FATAL)
-    end if
-    ! Note: If reading temperature from an input or restart file, the temp_init option is overridden,
-    !        in which case it could be confusing here to write the option to the log file.
-    !       The method actually used is written to the log file by glissade_init_temp.
-
-    if (model%options%whichflwa < 0 .or. model%options%whichflwa >= size(flow_law)) then
-       call write_log('Error, flow_law out of range',GM_FATAL)
-    end if
-    write(message,*) 'flow law                : ',model%options%whichflwa,flow_law(model%options%whichflwa)
     call write_log(message)
 
     if (model%options%whichcalving < 0 .or. model%options%whichcalving >= size(calving_law)) then
@@ -1461,15 +1277,6 @@ contains
        call write_log(message)
     endif
 
-    !WHL TODO: Renumber during the config reorg and restore the following commented-out line
-!!    if (model%options%whichevol < 0 .or. model%options%whichevol >= size(advection_method)) then
-    if (model%options%whichevol < EVOL_INC_REMAP .or. model%options%whichevol > EVOL_NO_THICKNESS) then
-       call write_log('Error, advection_method out of range',GM_FATAL)
-    end if
-
-    write(message,*) 'advection_method        : ', model%options%whichevol, advection_method(model%options%whichevol)
-    call write_log(message)
-
     if (model%options%dm_dt_diag < 0 .or. model%options%dm_dt_diag >= size(dm_dt_diag)) then
        call write_log('Error, dm_dt_diag out of range',GM_FATAL)
     end if
@@ -1481,7 +1288,6 @@ contains
     write(message,*) 'minthck for diagnostics : ',model%options%diag_minthck, &
          diag_minthck(model%options%diag_minthck)
     call write_log(message)
-
 
     if (model%options%whichbmlt_float < 0 .or. model%options%whichbmlt_float >= size(bmlt_float_method)) then
        call write_log('Error, bmlt_float_method out of range',GM_FATAL)
@@ -1625,41 +1431,6 @@ contains
     call write_log(' ')
     call write_log('Higher-order options:')
     call write_log('----------')
-
-    if (model%options%compute_blocks /= 0) then
-       write(message,*) 'compute_blocks          : ', model%options%compute_blocks, &
-            compute_blocks(model%options%compute_blocks)
-       call write_log(message)
-       if (model%general%nx_block < 1 .or. model%general%ny_block < 1) then
-          write(message,*) 'Must set nx_block and ny_block > 0 for this compute_blocks option'
-          call write_log(message, GM_FATAL)
-       endif
-    endif
-    if (model%options%compute_blocks < 0 .or. model%options%compute_blocks >= size(compute_blocks)) then
-       call write_log('Error, compute_blocks out of range',GM_FATAL)
-    end if
-
-    write(message,*) 'efvs_method             : ',model%options%which_ho_efvs,  &
-                      efvs_method(model%options%which_ho_efvs)
-    call write_log(message)
-    if (model%options%which_ho_efvs < 0 .or. model%options%which_ho_efvs >= size(efvs_method)) then
-       call write_log('Error, HO effective viscosity input out of range', GM_FATAL)
-    end if
-
-    write(message,*) 'dissipation_method      : ',model%options%which_ho_disp,  &
-                      dissipation_method(model%options%which_ho_disp)
-    call write_log(message)
-    if (model%options%which_ho_disp < -1 .or. model%options%which_ho_disp >= size(dissipation_method)-1) then
-       call write_log('Error, HO dissipation input out of range', GM_FATAL)
-    end if
-
-    write(message,*) 'thermal_timestep        : ',model%options%which_ho_thermal_timestep,  &
-                      thermal_timestep(model%options%which_ho_thermal_timestep)
-    call write_log(message)
-    if (model%options%which_ho_thermal_timestep < 0 .or. &
-         model%options%which_ho_thermal_timestep >= size(thermal_timestep)) then
-       call write_log('Error, HO thermal timestep input out of range', GM_FATAL)
-    end if
 
     write(message,*) 'sliding_law             : ',model%options%which_ho_babc,  &
                       sliding_law(model%options%which_ho_babc)
@@ -1815,103 +1586,6 @@ contains
        call write_log('Error, HO effective pressure input out of range', GM_FATAL)
     end if
 
-    write(message,*) 'nonlinear_method        : ',model%options%which_ho_nonlinear,  &
-                      nonlinear_method(model%options%which_ho_nonlinear)
-    call write_log(message)
-    if (model%options%which_ho_nonlinear < 0 .or. model%options%which_ho_nonlinear >= size(nonlinear_method)) then
-       call write_log('Error, HO nonlinear solution input out of range', GM_FATAL)
-    end if
-
-    write(message,*) 'nonlinear_residual      : ',model%options%which_ho_resid,  &
-                      nonlinear_residual(model%options%which_ho_resid)
-    call write_log(message)
-    if (model%options%which_ho_resid < 0 .or. model%options%which_ho_resid >= size(nonlinear_residual)) then
-       call write_log('Error, HO residual input out of range', GM_FATAL)
-    end if
-    ! unsupported resid options
-    if (model%options%which_ho_resid == HO_RESID_MAXU) then
-      call write_log('Residual as max. value of normalized velocity vector update is not currently scientifically supported.  &
-           &USE AT YOUR OWN RISK.', GM_WARNING)
-    endif
-    if (model%options%which_ho_resid == HO_RESID_MAXU_NO_UBAS) then
-      call write_log('Residual as max. value of normalized velocity vector update with basal velocity omitted is not currently &
-           &scientifically supported.  USE AT YOUR OWN RISK.', GM_WARNING)
-    endif
-    if (model%options%which_ho_resid == HO_RESID_MEANU) then
-      call write_log('Residual as mean value of normalized velocity vector update is not currently scientifically supported.  &
-           &USE AT YOUR OWN RISK.', GM_WARNING)
-    endif
-
-    if (model%options%which_ho_sparse < lbound(linear_solver,1) .or. &
-        model%options%which_ho_sparse > ubound(linear_solver,1)) then
-       call write_log('Error, HO sparse solver input out of range', GM_FATAL)
-    end if
-    write(message,*) 'linear_solver           : ',model%options%which_ho_sparse,  &
-                      linear_solver(model%options%which_ho_sparse)
-    call write_log(message)
-
-    write(message,*) 'stokes_approx           : ',model%options%which_ho_approx,  &
-                      stokes_approx(model%options%which_ho_approx)
-    call write_log(message)
-    if (model%options%which_ho_approx < -1 .or. model%options%which_ho_approx >= size(stokes_approx)-1) then
-       call write_log('Error, Stokes approximation out of range for glissade dycore', GM_FATAL)
-    end if
-
-    write(message,*) 'surface_gradient_method : ',model%options%which_ho_gradient,  &
-                      surface_gradient_method(model%options%which_ho_gradient)
-    call write_log(message)
-    if (model%options%which_ho_gradient < 0 .or. model%options%which_ho_gradient >= size(surface_gradient_method)) then
-       call write_log('Error, gradient option out of range for glissade dycore', GM_FATAL)
-    end if
-
-    write(message,*) 'surface_gradient_margin_method: ',model%options%which_ho_gradient_margin,  &
-                      surface_gradient_margin_method(model%options%which_ho_gradient_margin)
-    call write_log(message)
-    if (model%options%which_ho_gradient_margin < 0 .or. &
-        model%options%which_ho_gradient_margin >= size(surface_gradient_margin_method)) then
-       call write_log('Error, gradient margin option out of range for glissade dycore', GM_FATAL)
-    end if
-
-    write(message,*) 'vertical_remap_order    : ',model%options%which_ho_vertical_remap,  &
-                      vertical_remap_order(model%options%which_ho_vertical_remap)
-    call write_log(message)
-    if (model%options%which_ho_vertical_remap < 0 .or. &
-        model%options%which_ho_vertical_remap >= size(vertical_remap_order)) then
-       call write_log('Error, vertical remap option out of range for glissade dycore', GM_FATAL)
-    end if
-
-    write(message,*) 'assemble_beta           : ',model%options%which_ho_assemble_beta,  &
-                      assemble_beta(model%options%which_ho_assemble_beta)
-    call write_log(message)
-    if (model%options%which_ho_assemble_beta < 0 .or. &
-        model%options%which_ho_assemble_beta >= size(assemble_beta)) then
-       call write_log('Error, beta assembly option out of range for glissade dycore', GM_FATAL)
-    end if
-
-    write(message,*) 'assemble_taud           : ',model%options%which_ho_assemble_taud,  &
-                      assemble_taud(model%options%which_ho_assemble_taud)
-    call write_log(message)
-    if (model%options%which_ho_assemble_taud < 0 .or. &
-        model%options%which_ho_assemble_taud >= size(assemble_taud)) then
-       call write_log('Error, driving-stress assembly option out of range for glissade dycore', GM_FATAL)
-    end if
-
-    write(message,*) 'assemble_bfric          : ',model%options%which_ho_assemble_bfric,  &
-                      assemble_bfric(model%options%which_ho_assemble_bfric)
-    call write_log(message)
-    if (model%options%which_ho_assemble_bfric < 0 .or. &
-        model%options%which_ho_assemble_bfric >= size(assemble_bfric)) then
-       call write_log('Error, basal-friction assembly option out of range for glissade dycore', GM_FATAL)
-    end if
-
-    write(message,*) 'assemble_lateral        : ',model%options%which_ho_assemble_lateral,  &
-                      assemble_lateral(model%options%which_ho_assemble_lateral)
-    call write_log(message)
-    if (model%options%which_ho_assemble_lateral < 0 .or. &
-        model%options%which_ho_assemble_lateral >= size(assemble_lateral)) then
-       call write_log('Error, lateral-stress assembly option out of range for glissade dycore', GM_FATAL)
-    end if
-
     write(message,*) 'subgrid_calving_front   : ',model%options%which_ho_calving_front,  &
                       subgrid_calving_front(model%options%which_ho_calving_front)
     call write_log(message)
@@ -1994,11 +1668,331 @@ contains
        endif
     endif
 
-    write(message,*) 'compute_ice_age         : ',model%options%which_ho_ice_age,  &
-                      compute_ice_age(model%options%which_ho_ice_age)
+    if (model%options%which_ho_ground == HO_GROUND_NO_GLP .and. &
+        model%options%which_ho_flotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
+       write(message,*) 'WARNING: Pattyn flotation function with no GLP tends to be unstable'
+       call write_log(message, GM_WARNING)
+    endif
+
+  end subroutine print_options
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_numerics(model)
+
+    ! Numerical options and parameters
+
+    use glissade_types
+    use glimmer_log
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+    character(len=500) :: message
+
+    character(len=*), dimension(0:2), parameter :: compute_blocks = (/ &
+         'compute on all blocks              ', &
+         'compute on active blocks only      ', &
+         'inquire the number of active blocks'/)
+
+    if (model%options%compute_blocks /= 0) then
+       write(message,*) 'compute_blocks          : ', model%options%compute_blocks, &
+            compute_blocks(model%options%compute_blocks)
+       call write_log(message)
+       if (model%general%nx_block < 1 .or. model%general%ny_block < 1) then
+          write(message,*) 'Must set nx_block and ny_block > 0 for this compute_blocks option'
+          call write_log(message, GM_FATAL)
+       endif
+    endif
+    if (model%options%compute_blocks < 0 .or. model%options%compute_blocks >= size(compute_blocks)) then
+       call write_log('Error, compute_blocks out of range',GM_FATAL)
+    end if
+
+    if (model%options%reproducible_sums) then
+       call write_log('Global sums will be reproducible')
+    endif
+
+    write(message,*) 'thickness limit for dynamically active ice (m) : ', model%numerics%thklim
     call write_log(message)
-    if (model%options%which_ho_ice_age < 0 .or. model%options%which_ho_ice_age >= size(compute_ice_age)) then
-       call write_log('Error, compute_ice_age option out of range for glissade dycore', GM_FATAL)
+
+    !Note: The Glissade dycore is known to crash for thklim = 0, but has not
+    !      been extensively tested for small values of thklim.
+    !      Values smaller than 1 mm may be OK, but no guarantees.
+    if (model%numerics%thklim < 1.d-3) then   ! 1 mm
+       call write_log('ice limit (thklim) is too small for Glissade dycore', GM_FATAL)
+    endif
+
+    if (model%numerics%adaptive_cfl_threshold > 0.0d0) then
+       write(message,*) 'Advection will be subcycled when CFL >', model%numerics%adaptive_cfl_threshold
+       call write_log(message)
+       if (model%numerics%subcyc /= 1) then  ! set subcyc = 1 with adaptive CFL subcycling
+          model%numerics%subcyc = 1
+          write(message,*) 'Setting numerics%subcyc = 1; subcycling is adaptive only'
+          call write_log(message)
+       endif
+    endif
+
+    write(message,*) 'thickness limit for temperature calculations (m) : ', model%numerics%thklim_temp
+    call write_log(message)
+    if (model%numerics%thck_gradient_ramp > 0.0d0) then
+       write(message,*) 'thickness scale for gradient ramp (m):', model%numerics%thck_gradient_ramp
+       call write_log(message)
+    endif
+
+    ! ISMIP-HOM parameters
+    if (model%numerics%periodic_offset_ew /= 0.d0) then
+       write(message,*) 'periodic offset_ew (m)  : ',model%numerics%periodic_offset_ew
+       call write_log(message)
+    endif
+
+    if (model%numerics%periodic_offset_ns /= 0.d0) then
+       write(message,*) 'periodic offset_ns (m)  : ',model%numerics%periodic_offset_ns
+       call write_log(message)
+    endif
+
+  end subroutine print_numerics
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_velocity(model)
+
+    ! Velocity options and parameters
+
+    use glissade_types
+    use glimmer_log
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+    character(len=500) :: message
+
+    ! higher-order options
+
+    character(len=*), dimension(0:2), parameter :: efvs_method = (/ &
+         'constant value                 ', & 
+         'multiple of flow factor        ', &
+         'nonlinear, from eff strain rate' /)
+
+    character(len=*), dimension(-1:5), parameter :: stokes_approx = (/ &
+         'SIA only (glissade_velo_sia)                     ', &
+         'SIA only (glissade_velo_higher)                  ', &
+         'SSA only (glissade_velo_higher)                  ', &
+         'Blatter-Pattyn HO (glissade_velo_higher)         ', &
+         'Depth-integrated L1L2 (glissade_velo_higher)     ', &
+         'Depth-integrated viscosity (glissade_velo_higher)', &
+         'Hybrid SIA/SSA                                   ' /)
+
+    character(len=*), dimension(0:2), parameter :: surface_gradient_method = (/ &
+         'centered gradient (glissade)             ', &
+         'first-order upstream gradient (glissade) ', &
+         'second-order upstream gradient (glissade)' /)
+
+    character(len=*), dimension(0:2), parameter :: surface_gradient_margin_method = (/ &
+         'compute edge gradient when either cell has ice         ', &
+         'compute edge gradient when ice lies above ice-free land', & 
+         'compute edge gradient when both cells have ice         ' /)
+
+    if (model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
+       if (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
+          call write_log('Error, cannot use no-penetration BC with local SIA solver', GM_FATAL)
+       endif
+    endif  ! Glissade local SIA solver
+
+    if (model%options%which_ho_approx == HO_APPROX_DIVA) then
+       if (model%options%diva_slope_correction) then
+          call write_log('DIVA solver includes a correction for steep slopes')
+       endif
+    endif
+
+    write(message,*) 'efvs_method             : ',model%options%which_ho_efvs,  &
+                      efvs_method(model%options%which_ho_efvs)
+    call write_log(message)
+    if (model%options%which_ho_efvs < 0 .or. model%options%which_ho_efvs >= size(efvs_method)) then
+       call write_log('Error, HO effective viscosity input out of range', GM_FATAL)
+    end if
+
+    write(message,*) 'stokes_approx           : ',model%options%which_ho_approx,  &
+                      stokes_approx(model%options%which_ho_approx)
+    call write_log(message)
+    if (model%options%which_ho_approx < -1 .or. model%options%which_ho_approx >= size(stokes_approx)-1) then
+       call write_log('Error, Stokes approximation out of range for glissade dycore', GM_FATAL)
+    end if
+
+    write(message,*) 'surface_gradient_method : ',model%options%which_ho_gradient,  &
+                      surface_gradient_method(model%options%which_ho_gradient)
+    call write_log(message)
+    if (model%options%which_ho_gradient < 0 .or. model%options%which_ho_gradient >= size(surface_gradient_method)) then
+       call write_log('Error, gradient option out of range for glissade dycore', GM_FATAL)
+    end if
+
+    write(message,*) 'surface_gradient_margin_method: ',model%options%which_ho_gradient_margin,  &
+                      surface_gradient_margin_method(model%options%which_ho_gradient_margin)
+    call write_log(message)
+    if (model%options%which_ho_gradient_margin < 0 .or. &
+        model%options%which_ho_gradient_margin >= size(surface_gradient_margin_method)) then
+       call write_log('Error, gradient margin option out of range for glissade dycore', GM_FATAL)
+    end if
+
+    write(message,*) 'max surface slope             : ', model%paramets%max_slope
+    call write_log(message)
+
+    if (model%options%which_ho_efvs == HO_EFVS_CONSTANT) then
+       write(message,*) 'constant effec viscosity (Pa yr)   :', model%paramets%efvs_constant
+       call write_log(message)
+    elseif (model%options%which_ho_efvs == HO_EFVS_NONLINEAR) then
+       write(message,*) 'min effective strain rate (yr^-1)  :', model%paramets%effstrain_min
+       call write_log(message)
+    end if
+
+  end subroutine print_velocity
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_velocity_solver(model)
+
+    ! Velocity solver options
+
+    use glissade_types
+    use glimmer_log
+    use cism_parallel, only: tasks
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+    character(len=500) :: message
+
+    character(len=*), dimension(0:1), parameter :: nonlinear_method = (/ &
+         'use standard Picard iteration          ', &
+         'use Picard iteration with acceleration '/)
+
+    character(len=*), dimension(0:4), parameter :: nonlinear_residual = (/ &
+         'max value                   ', &
+         'max value ignoring ubas     ', &
+         'mean value                  ', &
+         'L2 norm of Ax-b = resid     ', &
+         'relative L2 norm, |Ax-b|/|b|' /)
+
+    character(len=*), dimension(-1:3), parameter :: linear_solver = (/ &
+         'PCG with incomplete Cholesky preconditioner', &
+         'BiCG with LU preconditioner                ', &
+         'GMRES with LU preconditioner               ', &
+         'Native PCG solver, standard                ', &
+         'Native PCG solver, Chronopoulos-Gear       '/)
+
+    character(len=*), dimension(0:4), parameter :: preconditioner = (/ &
+         'No preconditioner (native PCG)                ', &
+         'Diagonal preconditioner (native PCG)          ', &
+         'SIA preconditioner (native PCG)               ', &
+         'Local tridiagonal preconditioner (native PCG) ', &
+         'Global tridiagonal preconditioner (native PCG)' /)
+
+    character(len=*), dimension(0:1), parameter :: assemble_beta = (/ &
+         'standard finite-element assembly (glissade dycore) ', &
+         'use local beta at each vertex (glissade dycore)    '  /)
+
+    character(len=*), dimension(0:1), parameter :: assemble_taud = (/ &
+         'standard finite-element assembly (glissade dycore)       ', &
+         'use local driving stress at each vertex (glissade dycore)'  /)
+
+    character(len=*), dimension(0:1), parameter :: assemble_bfric = (/ &
+         'standard finite-element assembly (glissade dycore)       ', &
+         'use local basal friction at each vertex (glissade dycore)'  /)
+
+    character(len=*), dimension(0:1), parameter :: assemble_lateral = (/ &
+         'standard finite-element assembly (glissade dycore)         ', &
+         'use local thck and usrf on each cell face (glissade dycore)'  /)
+
+    ! Forbidden options for running in parallel
+    ! Note: The local SIA solver does not use a sparse linear solver, so which_ho_sparse is ignored.
+    if (tasks > 1 .and. model%options%which_ho_approx /= HO_APPROX_LOCAL_SIA .and.  &
+                        (model%options%which_ho_sparse==HO_SPARSE_BICG  .or.  &
+                         model%options%which_ho_sparse==HO_SPARSE_GMRES .or.  &
+                         model%options%which_ho_sparse==HO_SPARSE_PCG_INCH) ) then
+       call write_log('Error, SLAP solver not supported for more than one processor', GM_FATAL)
+    end if
+
+    ! Forbidden options associated with Glissade dycore
+   
+    if ( (model%options%which_ho_approx == HO_APPROX_SSA  .or.  &
+          model%options%which_ho_approx == HO_APPROX_L1L2 .or.  &
+          model%options%which_ho_approx == HO_APPROX_DIVA .or.  &
+          model%options%which_ho_approx == HO_APPROX_HYBRID)    &
+                             .and.                            &
+          (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.    &
+           model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
+       if (model%options%which_ho_precond == HO_PRECOND_SIA) then
+          !TODO - Change default to tridiagonal if it turns out to be faster than diagonal
+          model%options%which_ho_precond = HO_PRECOND_DIAG
+          call write_log('Warning, cannot use SIA preconditioning for 2D solve')
+          call write_log('Defaulting to diagonal preconditioner')
+       endif
+    endif
+
+    write(message,*) 'nonlinear_method        : ',model%options%which_ho_nonlinear,  &
+                      nonlinear_method(model%options%which_ho_nonlinear)
+    call write_log(message)
+    if (model%options%which_ho_nonlinear < 0 .or. model%options%which_ho_nonlinear >= size(nonlinear_method)) then
+       call write_log('Error, HO nonlinear solution input out of range', GM_FATAL)
+    end if
+
+    write(message,*) 'nonlinear_residual      : ',model%options%which_ho_resid,  &
+                      nonlinear_residual(model%options%which_ho_resid)
+    call write_log(message)
+    if (model%options%which_ho_resid < 0 .or. model%options%which_ho_resid >= size(nonlinear_residual)) then
+       call write_log('Error, HO residual input out of range', GM_FATAL)
+    end if
+    ! unsupported resid options
+    if (model%options%which_ho_resid == HO_RESID_MAXU) then
+      call write_log('Residual as max. value of normalized velocity vector update is not currently scientifically supported.  &
+           &USE AT YOUR OWN RISK.', GM_WARNING)
+    endif
+    if (model%options%which_ho_resid == HO_RESID_MAXU_NO_UBAS) then
+      call write_log('Residual as max. value of normalized velocity vector update with basal velocity omitted is not currently &
+           &scientifically supported.  USE AT YOUR OWN RISK.', GM_WARNING)
+    endif
+    if (model%options%which_ho_resid == HO_RESID_MEANU) then
+      call write_log('Residual as mean value of normalized velocity vector update is not currently scientifically supported.  &
+           &USE AT YOUR OWN RISK.', GM_WARNING)
+    endif
+
+    if (model%options%which_ho_sparse < lbound(linear_solver,1) .or. &
+        model%options%which_ho_sparse > ubound(linear_solver,1)) then
+       call write_log('Error, HO sparse solver input out of range', GM_FATAL)
+    end if
+    write(message,*) 'linear_solver           : ',model%options%which_ho_sparse,  &
+                      linear_solver(model%options%which_ho_sparse)
+    call write_log(message)
+
+    write(message,*) 'assemble_beta           : ',model%options%which_ho_assemble_beta,  &
+                      assemble_beta(model%options%which_ho_assemble_beta)
+    call write_log(message)
+    if (model%options%which_ho_assemble_beta < 0 .or. &
+        model%options%which_ho_assemble_beta >= size(assemble_beta)) then
+       call write_log('Error, beta assembly option out of range for glissade dycore', GM_FATAL)
+    end if
+
+    write(message,*) 'assemble_taud           : ',model%options%which_ho_assemble_taud,  &
+                      assemble_taud(model%options%which_ho_assemble_taud)
+    call write_log(message)
+    if (model%options%which_ho_assemble_taud < 0 .or. &
+        model%options%which_ho_assemble_taud >= size(assemble_taud)) then
+       call write_log('Error, driving-stress assembly option out of range for glissade dycore', GM_FATAL)
+    end if
+
+    write(message,*) 'assemble_bfric          : ',model%options%which_ho_assemble_bfric,  &
+                      assemble_bfric(model%options%which_ho_assemble_bfric)
+    call write_log(message)
+    if (model%options%which_ho_assemble_bfric < 0 .or. &
+        model%options%which_ho_assemble_bfric >= size(assemble_bfric)) then
+       call write_log('Error, basal-friction assembly option out of range for glissade dycore', GM_FATAL)
+    end if
+
+    write(message,*) 'assemble_lateral        : ',model%options%which_ho_assemble_lateral,  &
+                      assemble_lateral(model%options%which_ho_assemble_lateral)
+    call write_log(message)
+    if (model%options%which_ho_assemble_lateral < 0 .or. &
+        model%options%which_ho_assemble_lateral >= size(assemble_lateral)) then
+       call write_log('Error, lateral-stress assembly option out of range for glissade dycore', GM_FATAL)
     end if
 
     write(message,*) 'nonlinear_maxiters      : ',model%options%glissade_maxiter
@@ -2012,16 +2006,6 @@ contains
 
     write(message,*) 'linear_tolerance        : ',model%options%linear_tolerance
     call write_log(message)
-
-    if (model%options%reproducible_sums) then
-       call write_log('Global sums will be reproducible')
-    endif
-
-    if (model%options%which_ho_ground == HO_GROUND_NO_GLP .and. &
-        model%options%which_ho_flotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
-       write(message,*) 'WARNING: Pattyn flotation function with no GLP tends to be unstable'
-       call write_log(message, GM_WARNING)
-    endif
 
     if ((model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.  &
          model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then 
@@ -2040,7 +2024,192 @@ contains
        end if
     end if
 
-  end subroutine print_options
+  end subroutine print_velocity_solver
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_advection(model)
+
+    ! Advection options
+
+    use glissade_types
+    use glimmer_log
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+    character(len=500) :: message
+
+    !WHL TODO - Renumber during the config reorg
+    character(len=*), dimension(3:5), parameter :: advection_method = (/ &
+         'incremental remapping                 ', &   
+         '1st order upwind                      ', &
+         'thickness fixed at initial value      '  /)
+
+    character(len=*), dimension(0:1), parameter :: vertical_remap_order = (/ &
+         'first-order accurate  ', &
+         'second-order accurate ' /)
+
+    character(len=*), dimension(0:1), parameter :: compute_ice_age = (/ &
+         'ice age computation off', &
+         'ice age computation on ' /)
+
+    !WHL TODO: Renumber during the config reorg and restore the following commented-out line
+!!    if (model%options%whichevol < 0 .or. model%options%whichevol >= size(advection_method)) then
+    if (model%options%whichevol < EVOL_INC_REMAP .or. model%options%whichevol > EVOL_NO_THICKNESS) then
+       call write_log('Error, advection_method out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'advection_method        : ', model%options%whichevol, advection_method(model%options%whichevol)
+    call write_log(message)
+
+    write(message,*) 'vertical_remap_order    : ',model%options%which_ho_vertical_remap,  &
+                      vertical_remap_order(model%options%which_ho_vertical_remap)
+    call write_log(message)
+    if (model%options%which_ho_vertical_remap < 0 .or. &
+        model%options%which_ho_vertical_remap >= size(vertical_remap_order)) then
+       call write_log('Error, vertical remap option out of range for glissade dycore', GM_FATAL)
+    end if
+
+    write(message,*) 'compute_ice_age         : ',model%options%which_ho_ice_age,  &
+                      compute_ice_age(model%options%which_ho_ice_age)
+    call write_log(message)
+    if (model%options%which_ho_ice_age < 0 .or. model%options%which_ho_ice_age >= size(compute_ice_age)) then
+       call write_log('Error, compute_ice_age option out of range for glissade dycore', GM_FATAL)
+    end if
+
+  end subroutine print_advection
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_flow_law(model)
+
+    ! Flow law options and parameters
+
+    use glissade_types
+    use glimmer_log
+    use glimmer_physcon, only: n_glen
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+    character(len=500) :: message
+
+    character(len=*), dimension(0:2), parameter :: flow_law = (/ &
+         'uniform factor flwa         ', &
+         'Paterson and Budd (T = -5 C)', &
+         'Paterson and Budd           ' /)
+
+    if (model%options%whichflwa < 0 .or. model%options%whichflwa >= size(flow_law)) then
+       call write_log('Error, flow_law out of range',GM_FATAL)
+    end if
+    write(message,*) 'flow law                : ',model%options%whichflwa,flow_law(model%options%whichflwa)
+    call write_log(message)
+
+    write(message,*) 'Glen flow law exponent        : ', n_glen
+    call write_log(message)
+
+    write(message,*) 'flow factor (grounded ice)    : ', model%paramets%flow_enhancement_factor_ground
+    call write_log(message)
+
+    write(message,*) 'flow factor (floating ice)    : ', model%paramets%flow_enhancement_factor_float
+    call write_log(message)
+
+    if (model%options%whichflwa == FLWA_CONST_FLWA) then
+       write(message,*) 'constant flow factor (Pa^-n yr^-1) :', model%paramets%default_flwa
+       call write_log(message)
+    end if
+
+  end subroutine print_flow_law
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_temperature(model)
+
+    ! Temperature options and parameters
+
+    use glissade_types
+    use glimmer_log
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+    character(len=500) :: message
+
+    character(len=*), dimension(0:3), parameter :: temperature_method = (/ &
+         'isothermal            ', &
+         'prognostic temperature', &
+         'constant in time      ', &
+         'prognostic enthalpy   ' /)
+
+    character(len=*), dimension(0:4), parameter :: temp_init = (/ &
+         'set to 0 C                  ', &
+         'set to surface air temp     ', &
+         'linear vertical profile     ', &
+         'advective-diffusive balance ',&
+         'temp from external file     ' /)
+
+    character(len=*), dimension(-1:1), parameter :: dissipation_method = (/ &
+         'no dissipation                    ', &
+         '0-order SIA                       ', &
+         'first-order model (Blatter-Pattyn)' /)
+
+    character(len=*), dimension(0:2), parameter :: thermal_timestep = (/ &
+         'vertical thermal solve before transport    ', &
+         'vertical thermal solve after transport     ', &
+         'vertical thermal solve split into two parts' /)
+
+    if (model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
+       if (model%options%which_ho_disp == HO_DISP_FIRSTORDER ) then
+          model%options%which_ho_disp = HO_DISP_SIA
+          call write_log('Warning: Cannot use first-order dissipation with local SIA solver')
+          call write_log('Defaulting to SIA dissipation')
+       endif
+    endif  ! Glissade local SIA solver
+
+    !NOTE : Old option 3 (TEMP_REMAP_ADV) has been removed.
+    ! If this has been set, then change to option 1 (TEMP_PROGNOSTIC), which applies to any dycore.
+
+    if (model%options%whichtemp < 0 .or. model%options%whichtemp >= size(temperature_method)) then
+       call write_log('Error, temperature_method out of range',GM_FATAL)
+    end if
+    write(message,*) 'temperature calculation : ',model%options%whichtemp,temperature_method(model%options%whichtemp)
+    call write_log(message)
+
+    ! unsupported temperature options
+    if (model%options%whichtemp == TEMP_ENTHALPY) then
+      call write_log('WARNING: Enthalpy-based formulation for solving temperature evolution is not currently &
+           &scientifically supported. USE AT YOUR OWN RISK.', GM_WARNING)
+    endif
+
+    if (model%options%temp_init < 0 .or. model%options%temp_init >= size(temp_init)) then
+       call write_log('Error, temp_init option out of range',GM_FATAL)
+    end if
+    ! Note: If reading temperature from an input or restart file, the temp_init option is overridden,
+    !        in which case it could be confusing here to write the option to the log file.
+    !       The method actually used is written to the log file by glissade_init_temp.
+
+    write(message,*) 'dissipation_method      : ',model%options%which_ho_disp,  &
+                      dissipation_method(model%options%which_ho_disp)
+    call write_log(message)
+    if (model%options%which_ho_disp < -1 .or. model%options%which_ho_disp >= size(dissipation_method)-1) then
+       call write_log('Error, HO dissipation input out of range', GM_FATAL)
+    end if
+
+    write(message,*) 'thermal_timestep        : ',model%options%which_ho_thermal_timestep,  &
+                      thermal_timestep(model%options%which_ho_thermal_timestep)
+    call write_log(message)
+    if (model%options%which_ho_thermal_timestep < 0 .or. &
+         model%options%which_ho_thermal_timestep >= size(thermal_timestep)) then
+       call write_log('Error, HO thermal timestep input out of range', GM_FATAL)
+    end if
+
+    write(message,*) 'pmp threshold for temperature (K): ', model%temper%pmp_threshold
+    call write_log(message)
+
+  end subroutine print_temperature
+
+!--------------------------------------------------------------------------------
 
 !--------------------------------------------------------------------------------
 
@@ -2641,35 +2810,6 @@ contains
     call write_log('Parameters')
     call write_log('----------')
 
-    write(message,*) 'thickness limit for dynamically active ice (m) : ', model%numerics%thklim
-    call write_log(message)
-
-    !Note: The Glissade dycore is known to crash for thklim = 0, but has not
-    !      been extensively tested for small values of thklim.
-    !      Values smaller than 1 mm may be OK, but no guarantees.
-    if (model%numerics%thklim < 1.d-3) then   ! 1 mm
-       call write_log('ice limit (thklim) is too small for Glissade dycore', GM_FATAL)
-    endif
-
-    if (model%numerics%adaptive_cfl_threshold > 0.0d0) then
-       write(message,*) 'Advection will be subcycled when CFL >', model%numerics%adaptive_cfl_threshold
-       call write_log(message)
-       if (model%numerics%subcyc /= 1) then  ! set subcyc = 1 with adaptive CFL subcycling
-          model%numerics%subcyc = 1
-          write(message,*) 'Setting numerics%subcyc = 1; subcycling is adaptive only'
-          call write_log(message)
-       endif
-    endif
-
-    write(message,*) 'thickness limit for temperature calculations (m) : ', model%numerics%thklim_temp
-    call write_log(message)
-    if (model%numerics%thck_gradient_ramp > 0.0d0) then
-       write(message,*) 'thickness scale for gradient ramp (m):', model%numerics%thck_gradient_ramp
-       call write_log(message)
-    endif
-    write(message,*) 'pmp threshold for temperature (K): ', model%temper%pmp_threshold
-    call write_log(message)
-
     if (model%climate%smb_factor /= 1.0d0) then
        write(message,*) 'Input smb multiplied by      :', model%climate%smb_factor
        call write_log(message)
@@ -2803,33 +2943,8 @@ contains
     write(message,*) 'triple point of water (K)     : ', trpt
     call write_log(message)
 
-    write(message,*) 'Glen flow law exponent        : ', n_glen
-    call write_log(message)
-
     write(message,*) 'geothermal flux  (W/m^2)      : ', model%paramets%geot
     call write_log(message)
-
-    write(message,*) 'flow factor (grounded ice)    : ', model%paramets%flow_enhancement_factor_ground
-    call write_log(message)
-
-    write(message,*) 'flow factor (floating ice)    : ', model%paramets%flow_enhancement_factor_float
-    call write_log(message)
-
-    write(message,*) 'max surface slope             : ', model%paramets%max_slope
-    call write_log(message)
- 
-    if (model%options%whichflwa == FLWA_CONST_FLWA) then
-       write(message,*) 'constant flow factor (Pa^-n yr^-1) :', model%paramets%default_flwa
-       call write_log(message)
-    end if
-
-    if (model%options%which_ho_efvs == HO_EFVS_CONSTANT) then
-       write(message,*) 'constant effec viscosity (Pa yr)   :', model%paramets%efvs_constant
-       call write_log(message)
-    elseif (model%options%which_ho_efvs == HO_EFVS_NONLINEAR) then
-       write(message,*) 'min effective strain rate (yr^-1)  :', model%paramets%effstrain_min
-       call write_log(message)
-    end if
 
     if (model%options%whichbtrc == BTRC_CONSTANT      .or.  &
         model%options%whichbtrc == BTRC_CONSTANT_BWAT .or.  &
@@ -3137,17 +3252,6 @@ contains
                                         .or.                                                     &
         model%numerics%jdiag < 1 .or. model%numerics%jdiag > model%general%nsn) then
         call write_log('Error, global diagnostic point (idiag, jdiag) is out of bounds', GM_FATAL)
-    endif
-
-    ! ISMIP-HOM parameters
-    if (model%numerics%periodic_offset_ew /= 0.d0) then
-       write(message,*) 'periodic offset_ew (m)  : ',model%numerics%periodic_offset_ew
-       call write_log(message)
-    endif
-
-    if (model%numerics%periodic_offset_ns /= 0.d0) then
-       write(message,*) 'periodic offset_ns (m)  : ',model%numerics%periodic_offset_ns
-       call write_log(message)
     endif
 
     ! initMIP parameters
