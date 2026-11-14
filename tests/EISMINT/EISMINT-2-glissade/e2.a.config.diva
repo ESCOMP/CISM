@@ -19,12 +19,6 @@ evolution = 3              # 3 = incremental remapping
 basal_water = 1
 vertical_integration = 0   # glissade does not support option 1
 
-[ho_options]
-which_ho_approx = 4        # 4 = DIVA
-which_ho_sparse = 3        # 3 = parallel PCG
-which_ho_nonlinear = 1     # 1 = accelerated Picard
-which_ho_precond = 1       # 1 = diagonal
-
 [time]
 tend = 200000.
 dt = 5.
@@ -46,6 +40,14 @@ sliding_law = 4          # 4 = no slip
 
 [basal_melt]
 basal_mass_balance = 0
+
+[velocity]
+stokes_approx = 4        # 4 = DIVA
+
+[velocity_solver]
+linear_solver = 3        # 3 = parallel PCG
+nonlinear_method = 1     # 1 = accelerated Picard
+preconditioner = 1       # 1 = diagonal
 
 [CF default]
 title: EISMINT-2 Exp A

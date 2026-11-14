@@ -65,7 +65,7 @@ string in quotes in line 122 of the `runStream.py` script.
 Depending on the horizontal and vertical resolution of the problem, you may need
 to increase the maximum number of non-linear solver iterations above the default
 value in order for the model to converge. If this is necessary, increase the
-value of `glissade_maxiter` in the `stream.config` file.
+value of `nonlinear_maxiters` in the `stream.config` file.
 
 If the number of grid cells in the across-flow direction is too small, one may
 also experience problems and for this reason we recommend not decreasing this

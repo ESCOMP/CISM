@@ -411,7 +411,7 @@ else:
     which_ho_approx = 4
     print( 'Defaulting to DIVA velocity solver')
 
-config.set('ho_options', 'which_ho_approx', str(which_ho_approx))
+config.set('velocity', 'stokes_approx', str(which_ho_approx))
 
 # Config settings related to basal friction law.
 # Note: Each of these friction laws is associate with certain basal parameters.

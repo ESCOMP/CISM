@@ -175,6 +175,28 @@ MOVES = {
     ('parameters', 'thermal_forcing_anomaly_tstart'): ('ocean_data', 'thermal_forcing_anomaly_tstart'),
     ('parameters', 'thermal_forcing_anomaly_timescale'): ('ocean_data', 'thermal_forcing_anomaly_timescale'),
     ('parameters', 'thermal_forcing_anomaly_basin'): ('ocean_data', 'thermal_forcing_anomaly_basin'),
+    # [velocity]
+    ('ho_options', 'which_ho_approx'): ('velocity', 'stokes_approx'),
+    ('ho_options', 'diva_slope_correction'): ('velocity', 'diva_slope_correction'),
+    ('ho_options', 'which_ho_efvs'): ('velocity', 'efvs_method'),
+    ('ho_options', 'which_ho_gradient'): ('velocity', 'surface_gradient_method'),
+    ('ho_options', 'which_ho_gradient_margin'): ('velocity', 'surface_gradient_margin_method'),
+    ('parameters', 'efvs_constant'): ('velocity', 'efvs_constant'),
+    ('parameters', 'effstrain_min'): ('velocity', 'effstrain_min'),
+    ('parameters', 'max_slope'): ('velocity', 'max_slope'),
+    # [velocity_solver]
+    ('ho_options', 'which_ho_nonlinear'): ('velocity_solver', 'nonlinear_method'),
+    ('ho_options', 'which_ho_resid'): ('velocity_solver', 'nonlinear_residual'),
+    ('ho_options', 'glissade_maxiter'): ('velocity_solver', 'nonlinear_maxiters'),
+    ('ho_options', 'which_ho_sparse'): ('velocity_solver', 'linear_solver'),
+    ('ho_options', 'which_ho_precond'): ('velocity_solver', 'preconditioner'),
+    ('ho_options', 'linear_solve_ncheck'): ('velocity_solver', 'linear_solve_ncheck'),
+    ('ho_options', 'linear_maxiters'): ('velocity_solver', 'linear_maxiters'),
+    ('ho_options', 'linear_tolerance'): ('velocity_solver', 'linear_tolerance'),
+    ('ho_options', 'which_ho_assemble_beta'): ('velocity_solver', 'assemble_beta'),
+    ('ho_options', 'which_ho_assemble_taud'): ('velocity_solver', 'assemble_taud'),
+    ('ho_options', 'which_ho_assemble_bfric'): ('velocity_solver', 'assemble_bfric'),
+    ('ho_options', 'which_ho_assemble_lateral'): ('velocity_solver', 'assemble_lateral'),
 }
 
 # Order of the new sections when they are created.
@@ -212,6 +234,20 @@ USER_NL_RENAMES = {
     # [basal_melt]
     'bmlt_float': 'bmlt_float_method',
     'which_ho_deltaT_ocn': 'deltaT_ocn_method',
+    # [velocity], [velocity_solver]
+    'which_ho_approx': 'stokes_approx',
+    'which_ho_efvs': 'efvs_method',
+    'which_ho_gradient': 'surface_gradient_method',
+    'which_ho_gradient_margin': 'surface_gradient_margin_method',
+    'which_ho_nonlinear': 'nonlinear_method',
+    'which_ho_resid': 'nonlinear_residual',
+    'glissade_maxiter': 'nonlinear_maxiters',
+    'which_ho_sparse': 'linear_solver',
+    'which_ho_precond': 'preconditioner',
+    'which_ho_assemble_beta': 'assemble_beta',
+    'which_ho_assemble_taud': 'assemble_taud',
+    'which_ho_assemble_bfric': 'assemble_bfric',
+    'which_ho_assemble_lateral': 'assemble_lateral',
 }
 
 # Match the CISM reader (glimmer_config.F90): a section header is a line starting with '[' in

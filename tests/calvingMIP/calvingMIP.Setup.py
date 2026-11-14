@@ -260,7 +260,7 @@ else:
     which_ho_approx = 4
     print( 'Defaulting to DIVA velocity solver')
 
-config.set('ho_options', 'which_ho_approx', str(which_ho_approx))
+config.set('velocity', 'stokes_approx', str(which_ho_approx))
 
 
 # Note: Only one option is supported for the basal sliding law:

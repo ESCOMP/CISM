@@ -246,7 +246,7 @@ def main():
             # For test case F we need to make a few additional adjustments to the config
             if experiment in ('f'):
                 # Set to efvs to be the constant value of 2336041.42829 hardcoded for this option - this corresponds to the value needed for this test case
-                config_parser.set('ho_options', 'which_ho_efvs', '0')
+                config_parser.set('velocity', 'efvs_method', '0')
                 # 2.4 yr is the longest dt ok for diffusive CFL, when using dx=dy=2500.0
                 config_parser.set('time', 'dt', '2.2')  
                 # Need to run to steady-state...  

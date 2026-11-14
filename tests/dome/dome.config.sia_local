@@ -19,16 +19,18 @@ flow_law = 2                # 0 = isothermal, 2 = temperature dependent
 evolution = 3               # 3 = inc. remapping, 4 = FO upwind
 temperature = 1             # 0 = set column to surf. air temp, 1 = prognostic, 2 = hold at init. values             
 
-[ho_options]
-which_ho_approx = -1        # -1 = local SIA
-which_ho_efvs = 2           # 2 = nonlinear eff. visc. w/ n=3
-which_ho_sparse = 3         # 3 = glissade parallel PCG (not used by local SIA)
-
 [parameters]
 ice_limit = 1.              # min thickness (m) for dynamics
 
 [basal_physics]
 sliding_law = 4           # 4 = no-slip at bed
+
+[velocity]
+stokes_approx = -1        # -1 = local SIA
+efvs_method = 2           # 2 = nonlinear eff. visc. w/ n=3
+
+[velocity_solver]
+linear_solver = 3         # 3 = glissade parallel PCG (not used by local SIA)
 
 [CF default]
 comment = created with runDome.py

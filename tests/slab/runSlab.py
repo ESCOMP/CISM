@@ -349,7 +349,7 @@ def main():
     elif (args.approx == 'HYBRID'):
         approx = 5
 
-    config_parser.set('ho_options', 'which_ho_approx', str(approx))
+    config_parser.set('velocity', 'stokes_approx', str(approx))
 
     config_parser.set('CF input', 'name', file_name)
     config_parser.set('CF output', 'name', out_name)

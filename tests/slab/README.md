@@ -28,7 +28,7 @@ with support for n = 1.  They came with warnings that the test is not supported.
 The test is now supported, and the scripts include some new features:
 
 * The user may specify any n >= 1 (not necessarily an integer).
-  The tests assume which_ho_efvs = 2 (nonlinear viscosity) with flow_law = 0 (constant A).
+  The tests assume efvs_method = 2 (nonlinear viscosity) with flow_law = 0 (constant A).
 * Physics parameters are no longer hard-coded.  The user can enter the ice thickness,
   beta, viscosity coefficient (mu_n), and slope angle (theta) on the command line.
 * The user can specify time parameters dt (the dynamic time step) and nt (number of steps).

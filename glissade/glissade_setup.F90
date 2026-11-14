@@ -167,6 +167,18 @@ contains
        call handle_parameters(section, model)
     end if
 
+    ! read velocity options (Stokes approximation, viscosity, surface gradient)
+    call GetSection(config,section,'velocity')
+    if (associated(section)) then
+       call handle_velocity(section, model)
+    end if
+
+    ! read velocity solver options (nonlinear and linear solvers, matrix assembly)
+    call GetSection(config,section,'velocity_solver')
+    if (associated(section)) then
+       call handle_velocity_solver(section, model)
+    end if
+
     ! read basal physics (sliding laws and basal friction parameters)
     call GetSection(config,section,'basal_physics')
     if (associated(section)) then
@@ -930,28 +942,11 @@ contains
     type(glissade_global_type) :: model
     
     call GetValue(section, 'compute_blocks',              model%options%compute_blocks)
-    call GetValue(section, 'which_ho_efvs',               model%options%which_ho_efvs)
     call GetValue(section, 'which_ho_disp',               model%options%which_ho_disp)
     call GetValue(section, 'which_ho_thermal_timestep',   model%options%which_ho_thermal_timestep)
-    call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
-    call GetValue(section, 'which_ho_nonlinear',          model%options%which_ho_nonlinear)
-    call GetValue(section, 'which_ho_sparse',             model%options%which_ho_sparse)
-    call GetValue(section, 'which_ho_approx',             model%options%which_ho_approx)
-    call GetValue(section, 'diva_slope_correction',       model%options%diva_slope_correction)
-    call GetValue(section, 'which_ho_precond',            model%options%which_ho_precond)
-    call GetValue(section, 'which_ho_gradient',           model%options%which_ho_gradient)
-    call GetValue(section, 'which_ho_gradient_margin',    model%options%which_ho_gradient_margin)
     call GetValue(section, 'which_ho_vertical_remap',     model%options%which_ho_vertical_remap)
-    call GetValue(section, 'which_ho_assemble_beta',      model%options%which_ho_assemble_beta)
-    call GetValue(section, 'which_ho_assemble_taud',      model%options%which_ho_assemble_taud)
-    call GetValue(section, 'which_ho_assemble_bfric',     model%options%which_ho_assemble_bfric)
-    call GetValue(section, 'which_ho_assemble_lateral',   model%options%which_ho_assemble_lateral)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'enable_glaciers',             model%options%enable_glaciers)
-    call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
-    call GetValue(section, 'linear_solve_ncheck',         model%options%linear_solve_ncheck)
-    call GetValue(section, 'linear_maxiters',             model%options%linear_maxiters)
-    call GetValue(section, 'linear_tolerance',            model%options%linear_tolerance)
     call GetValue(section, 'reproducible_sums',           model%options%reproducible_sums)
 
   end subroutine handle_ho_options
@@ -1105,7 +1100,7 @@ contains
 
     ! higher-order options
 
-    character(len=*), dimension(0:2), parameter :: ho_whichefvs = (/ &
+    character(len=*), dimension(0:2), parameter :: efvs_method = (/ &
          'constant value                 ', & 
          'multiple of flow factor        ', &
          'nonlinear, from eff strain rate' /)
@@ -1183,25 +1178,25 @@ contains
          'reduced effecpress where bwat > 0 (B/vP)             ', &
          'reduced effecpress near pressure melting point       '/)
 
-    character(len=*), dimension(0:1), parameter :: which_ho_nonlinear = (/ &
+    character(len=*), dimension(0:1), parameter :: nonlinear_method = (/ &
          'use standard Picard iteration          ', &
          'use Picard iteration with acceleration '/)
 
-    character(len=*), dimension(0:4), parameter :: ho_whichresid = (/ &
+    character(len=*), dimension(0:4), parameter :: nonlinear_residual = (/ &
          'max value                   ', &
          'max value ignoring ubas     ', &
          'mean value                  ', &
          'L2 norm of Ax-b = resid     ', &
          'relative L2 norm, |Ax-b|/|b|' /)
 
-    character(len=*), dimension(-1:3), parameter :: ho_whichsparse = (/ &
+    character(len=*), dimension(-1:3), parameter :: linear_solver = (/ &
          'PCG with incomplete Cholesky preconditioner', &
          'BiCG with LU preconditioner                ', &
          'GMRES with LU preconditioner               ', &
          'Native PCG solver, standard                ', &
          'Native PCG solver, Chronopoulos-Gear       '/)
 
-    character(len=*), dimension(-1:5), parameter :: ho_whichapprox = (/ &
+    character(len=*), dimension(-1:5), parameter :: stokes_approx = (/ &
          'SIA only (glissade_velo_sia)                     ', &
          'SIA only (glissade_velo_higher)                  ', &
          'SSA only (glissade_velo_higher)                  ', &
@@ -1210,19 +1205,19 @@ contains
          'Depth-integrated viscosity (glissade_velo_higher)', &
          'Hybrid SIA/SSA                                   ' /)
 
-    character(len=*), dimension(0:4), parameter :: ho_whichprecond = (/ &
+    character(len=*), dimension(0:4), parameter :: preconditioner = (/ &
          'No preconditioner (native PCG)                ', &
          'Diagonal preconditioner (native PCG)          ', &
          'SIA preconditioner (native PCG)               ', &
          'Local tridiagonal preconditioner (native PCG) ', &
          'Global tridiagonal preconditioner (native PCG)' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichgradient = (/ &
+    character(len=*), dimension(0:2), parameter :: surface_gradient_method = (/ &
          'centered gradient (glissade)             ', &
          'first-order upstream gradient (glissade) ', &
          'second-order upstream gradient (glissade)' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichgradient_margin = (/ &
+    character(len=*), dimension(0:2), parameter :: surface_gradient_margin_method = (/ &
          'compute edge gradient when either cell has ice         ', &
          'compute edge gradient when ice lies above ice-free land', & 
          'compute edge gradient when both cells have ice         ' /)
@@ -1231,19 +1226,19 @@ contains
          'first-order accurate  ', &
          'second-order accurate ' /)
 
-    character(len=*), dimension(0:1), parameter :: ho_whichassemble_beta = (/ &
+    character(len=*), dimension(0:1), parameter :: assemble_beta = (/ &
          'standard finite-element assembly (glissade dycore) ', &
          'use local beta at each vertex (glissade dycore)    '  /)
 
-    character(len=*), dimension(0:1), parameter :: ho_whichassemble_taud = (/ &
+    character(len=*), dimension(0:1), parameter :: assemble_taud = (/ &
          'standard finite-element assembly (glissade dycore)       ', &
          'use local driving stress at each vertex (glissade dycore)'  /)
 
-    character(len=*), dimension(0:1), parameter :: ho_whichassemble_bfric = (/ &
+    character(len=*), dimension(0:1), parameter :: assemble_bfric = (/ &
          'standard finite-element assembly (glissade dycore)       ', &
          'use local basal friction at each vertex (glissade dycore)'  /)
 
-    character(len=*), dimension(0:1), parameter :: ho_whichassemble_lateral = (/ &
+    character(len=*), dimension(0:1), parameter :: assemble_lateral = (/ &
          'standard finite-element assembly (glissade dycore)         ', &
          'use local thck and usrf on each cell face (glissade dycore)'  /)
 
@@ -1629,10 +1624,10 @@ contains
        call write_log('Error, compute_blocks out of range',GM_FATAL)
     end if
 
-    write(message,*) 'ho_whichefvs            : ',model%options%which_ho_efvs,  &
-                      ho_whichefvs(model%options%which_ho_efvs)
+    write(message,*) 'efvs_method             : ',model%options%which_ho_efvs,  &
+                      efvs_method(model%options%which_ho_efvs)
     call write_log(message)
-    if (model%options%which_ho_efvs < 0 .or. model%options%which_ho_efvs >= size(ho_whichefvs)) then
+    if (model%options%which_ho_efvs < 0 .or. model%options%which_ho_efvs >= size(efvs_method)) then
        call write_log('Error, HO effective viscosity input out of range', GM_FATAL)
     end if
 
@@ -1805,17 +1800,17 @@ contains
        call write_log('Error, HO effective pressure input out of range', GM_FATAL)
     end if
 
-    write(message,*) 'which_ho_nonlinear      : ',model%options%which_ho_nonlinear,  &
-                      which_ho_nonlinear(model%options%which_ho_nonlinear)
+    write(message,*) 'nonlinear_method        : ',model%options%which_ho_nonlinear,  &
+                      nonlinear_method(model%options%which_ho_nonlinear)
     call write_log(message)
-    if (model%options%which_ho_nonlinear < 0 .or. model%options%which_ho_nonlinear >= size(which_ho_nonlinear)) then
+    if (model%options%which_ho_nonlinear < 0 .or. model%options%which_ho_nonlinear >= size(nonlinear_method)) then
        call write_log('Error, HO nonlinear solution input out of range', GM_FATAL)
     end if
 
-    write(message,*) 'ho_whichresid           : ',model%options%which_ho_resid,  &
-                      ho_whichresid(model%options%which_ho_resid)
+    write(message,*) 'nonlinear_residual      : ',model%options%which_ho_resid,  &
+                      nonlinear_residual(model%options%which_ho_resid)
     call write_log(message)
-    if (model%options%which_ho_resid < 0 .or. model%options%which_ho_resid >= size(ho_whichresid)) then
+    if (model%options%which_ho_resid < 0 .or. model%options%which_ho_resid >= size(nonlinear_residual)) then
        call write_log('Error, HO residual input out of range', GM_FATAL)
     end if
     ! unsupported resid options
@@ -1832,33 +1827,33 @@ contains
            &USE AT YOUR OWN RISK.', GM_WARNING)
     endif
 
-    if (model%options%which_ho_sparse < lbound(ho_whichsparse,1) .or. &
-        model%options%which_ho_sparse > ubound(ho_whichsparse,1)) then
+    if (model%options%which_ho_sparse < lbound(linear_solver,1) .or. &
+        model%options%which_ho_sparse > ubound(linear_solver,1)) then
        call write_log('Error, HO sparse solver input out of range', GM_FATAL)
     end if
-    write(message,*) 'ho_whichsparse          : ',model%options%which_ho_sparse,  &
-                      ho_whichsparse(model%options%which_ho_sparse)
+    write(message,*) 'linear_solver           : ',model%options%which_ho_sparse,  &
+                      linear_solver(model%options%which_ho_sparse)
     call write_log(message)
 
-    write(message,*) 'ho_whichapprox          : ',model%options%which_ho_approx,  &
-                      ho_whichapprox(model%options%which_ho_approx)
+    write(message,*) 'stokes_approx           : ',model%options%which_ho_approx,  &
+                      stokes_approx(model%options%which_ho_approx)
     call write_log(message)
-    if (model%options%which_ho_approx < -1 .or. model%options%which_ho_approx >= size(ho_whichapprox)-1) then
+    if (model%options%which_ho_approx < -1 .or. model%options%which_ho_approx >= size(stokes_approx)-1) then
        call write_log('Error, Stokes approximation out of range for glissade dycore', GM_FATAL)
     end if
 
-    write(message,*) 'ho_whichgradient        : ',model%options%which_ho_gradient,  &
-                      ho_whichgradient(model%options%which_ho_gradient)
+    write(message,*) 'surface_gradient_method : ',model%options%which_ho_gradient,  &
+                      surface_gradient_method(model%options%which_ho_gradient)
     call write_log(message)
-    if (model%options%which_ho_gradient < 0 .or. model%options%which_ho_gradient >= size(ho_whichgradient)) then
+    if (model%options%which_ho_gradient < 0 .or. model%options%which_ho_gradient >= size(surface_gradient_method)) then
        call write_log('Error, gradient option out of range for glissade dycore', GM_FATAL)
     end if
 
-    write(message,*) 'ho_whichgradient_margin : ',model%options%which_ho_gradient_margin,  &
-                      ho_whichgradient_margin(model%options%which_ho_gradient_margin)
+    write(message,*) 'surface_gradient_margin_method: ',model%options%which_ho_gradient_margin,  &
+                      surface_gradient_margin_method(model%options%which_ho_gradient_margin)
     call write_log(message)
     if (model%options%which_ho_gradient_margin < 0 .or. &
-        model%options%which_ho_gradient_margin >= size(ho_whichgradient_margin)) then
+        model%options%which_ho_gradient_margin >= size(surface_gradient_margin_method)) then
        call write_log('Error, gradient margin option out of range for glissade dycore', GM_FATAL)
     end if
 
@@ -1870,35 +1865,35 @@ contains
        call write_log('Error, vertical remap option out of range for glissade dycore', GM_FATAL)
     end if
 
-    write(message,*) 'ho_whichassemble_beta   : ',model%options%which_ho_assemble_beta,  &
-                      ho_whichassemble_beta(model%options%which_ho_assemble_beta)
+    write(message,*) 'assemble_beta           : ',model%options%which_ho_assemble_beta,  &
+                      assemble_beta(model%options%which_ho_assemble_beta)
     call write_log(message)
     if (model%options%which_ho_assemble_beta < 0 .or. &
-        model%options%which_ho_assemble_beta >= size(ho_whichassemble_beta)) then
+        model%options%which_ho_assemble_beta >= size(assemble_beta)) then
        call write_log('Error, beta assembly option out of range for glissade dycore', GM_FATAL)
     end if
 
-    write(message,*) 'ho_whichassemble_taud   : ',model%options%which_ho_assemble_taud,  &
-                      ho_whichassemble_taud(model%options%which_ho_assemble_taud)
+    write(message,*) 'assemble_taud           : ',model%options%which_ho_assemble_taud,  &
+                      assemble_taud(model%options%which_ho_assemble_taud)
     call write_log(message)
     if (model%options%which_ho_assemble_taud < 0 .or. &
-        model%options%which_ho_assemble_taud >= size(ho_whichassemble_taud)) then
+        model%options%which_ho_assemble_taud >= size(assemble_taud)) then
        call write_log('Error, driving-stress assembly option out of range for glissade dycore', GM_FATAL)
     end if
 
-    write(message,*) 'ho_whichassemble_bfric  : ',model%options%which_ho_assemble_bfric,  &
-                      ho_whichassemble_bfric(model%options%which_ho_assemble_bfric)
+    write(message,*) 'assemble_bfric          : ',model%options%which_ho_assemble_bfric,  &
+                      assemble_bfric(model%options%which_ho_assemble_bfric)
     call write_log(message)
     if (model%options%which_ho_assemble_bfric < 0 .or. &
-        model%options%which_ho_assemble_bfric >= size(ho_whichassemble_bfric)) then
+        model%options%which_ho_assemble_bfric >= size(assemble_bfric)) then
        call write_log('Error, basal-friction assembly option out of range for glissade dycore', GM_FATAL)
     end if
 
-    write(message,*) 'ho_whichassemble_lateral: ',model%options%which_ho_assemble_lateral,  &
-                      ho_whichassemble_lateral(model%options%which_ho_assemble_lateral)
+    write(message,*) 'assemble_lateral        : ',model%options%which_ho_assemble_lateral,  &
+                      assemble_lateral(model%options%which_ho_assemble_lateral)
     call write_log(message)
     if (model%options%which_ho_assemble_lateral < 0 .or. &
-        model%options%which_ho_assemble_lateral >= size(ho_whichassemble_lateral)) then
+        model%options%which_ho_assemble_lateral >= size(assemble_lateral)) then
        call write_log('Error, lateral-stress assembly option out of range for glissade dycore', GM_FATAL)
     end if
 
@@ -1991,7 +1986,7 @@ contains
        call write_log('Error, ice_age option out of range for glissade dycore', GM_FATAL)
     end if
 
-    write(message,*) 'glissade_maxiter        : ',model%options%glissade_maxiter
+    write(message,*) 'nonlinear_maxiters      : ',model%options%glissade_maxiter
     call write_log(message)
 
     write(message,*) 'linear_solve_ncheck     : ',model%options%linear_solve_ncheck
@@ -2022,10 +2017,10 @@ contains
              call write_log ('Please choose a different preconditioner (e.g., diagonal)', GM_FATAL)
           endif
        endif
-       write(message,*) 'ho_whichprecond         : ',model%options%which_ho_precond,  &
-            ho_whichprecond(model%options%which_ho_precond)
+       write(message,*) 'preconditioner          : ',model%options%which_ho_precond,  &
+            preconditioner(model%options%which_ho_precond)
        call write_log(message)
-       if (model%options%which_ho_precond < 0 .or. model%options%which_ho_precond >= size(ho_whichprecond)) then
+       if (model%options%which_ho_precond < 0 .or. model%options%which_ho_precond >= size(preconditioner)) then
           call write_log('Error, glissade preconditioner out of range', GM_FATAL)
        end if
     end if
@@ -2082,9 +2077,6 @@ contains
     call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
     !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     call GetValue(section,'default_flwa',       model%paramets%default_flwa)
-    call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
-    call GetValue(section,'effstrain_min',      model%paramets%effstrain_min)
-    call GetValue(section,'max_slope',          model%paramets%max_slope)
 
     ! parameters to adjust input topography
     call GetValue(section, 'adjust_topg_xmin', model%paramets%adjust_topg_xmin)
@@ -2124,6 +2116,67 @@ contains
     call GetValue(section,'periodic_offset_ns',model%numerics%periodic_offset_ns)
 
   end subroutine handle_parameters
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_velocity(section, model)
+
+    ! Velocity options: Stokes approximation, effective viscosity, and surface gradient.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'stokes_approx',                  model%options%which_ho_approx)
+    call GetValue(section,'diva_slope_correction',          model%options%diva_slope_correction)
+    call GetValue(section,'efvs_method',                    model%options%which_ho_efvs)
+    call GetValue(section,'surface_gradient_method',        model%options%which_ho_gradient)
+    call GetValue(section,'surface_gradient_margin_method', model%options%which_ho_gradient_margin)
+
+    ! parameters
+    call GetValue(section,'efvs_constant', model%paramets%efvs_constant)
+    call GetValue(section,'effstrain_min', model%paramets%effstrain_min)
+    call GetValue(section,'max_slope',     model%paramets%max_slope)
+
+  end subroutine handle_velocity
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_velocity_solver(section, model)
+
+    ! Velocity solver options: nonlinear iteration, linear solver and preconditioner,
+    ! and the assembly of the matrix terms.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! nonlinear iteration
+    call GetValue(section,'nonlinear_method',    model%options%which_ho_nonlinear)
+    call GetValue(section,'nonlinear_residual',  model%options%which_ho_resid)
+    call GetValue(section,'nonlinear_maxiters',  model%options%glissade_maxiter)
+
+    ! linear solver
+    call GetValue(section,'linear_solver',       model%options%which_ho_sparse)
+    call GetValue(section,'preconditioner',      model%options%which_ho_precond)
+    call GetValue(section,'linear_solve_ncheck', model%options%linear_solve_ncheck)
+    call GetValue(section,'linear_maxiters',     model%options%linear_maxiters)
+    call GetValue(section,'linear_tolerance',    model%options%linear_tolerance)
+
+    ! matrix assembly
+    call GetValue(section,'assemble_beta',       model%options%which_ho_assemble_beta)
+    call GetValue(section,'assemble_taud',       model%options%which_ho_assemble_taud)
+    call GetValue(section,'assemble_bfric',      model%options%which_ho_assemble_bfric)
+    call GetValue(section,'assemble_lateral',    model%options%which_ho_assemble_lateral)
+
+  end subroutine handle_velocity_solver
 
 !--------------------------------------------------------------------------------
 
@@ -2643,12 +2696,12 @@ contains
        endif
        if (model%options%which_ho_assemble_beta == HO_ASSEMBLE_BETA_STANDARD) then
           call write_log('WARNING: local beta assembly is recommended for the pseudo-plastic sliding law')
-          write(message,*) 'Set which_ho_assemble_beta =', HO_ASSEMBLE_BETA_LOCAL
+          write(message,*) 'Set assemble_beta =', HO_ASSEMBLE_BETA_LOCAL
           call write_log(message, GM_WARNING)
        endif
        if (model%options%which_ho_assemble_bfric == HO_ASSEMBLE_BFRIC_STANDARD) then
           call write_log('WARNING: local bfric assembly is recommended for the pseudo-plastic sliding law')
-          write(message,*) 'Set which_ho_assemble_bfric =', HO_ASSEMBLE_BFRIC_LOCAL
+          write(message,*) 'Set assemble_bfric =', HO_ASSEMBLE_BFRIC_LOCAL
           call write_log(message, GM_WARNING)
        endif
        if (model%options%which_ho_thermal_timestep == HO_THERMAL_BEFORE_TRANSPORT) then
