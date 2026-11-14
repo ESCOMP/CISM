@@ -16,9 +16,6 @@ jdiag = 10
 [options]
 dycore = 2               # 0 = glide, 1 = glam, 2 = glissade
 
-[parameters]
-ice_limit = 1.           # min thickness (m) for dynamics
-
 [calving]
 calving_law = 0        # 0 = no calving
 
@@ -47,6 +44,9 @@ default_flwa = 1.0e-16   # NOTE: The Halfar testing script requires that flwa is
 
 [temperature]
 temperature_method = 0          # 0 = isothermal temp evolution, if turned on, will not affect flwa because default_flwa is specified below.
+
+[numerics]
+ice_limit = 1.           # min thickness (m) for dynamics
 
 [CF default]
 comment = created with halfar.py 

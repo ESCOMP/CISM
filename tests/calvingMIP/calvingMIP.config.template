@@ -17,15 +17,8 @@ jdiag = 311
 
 [options]
 dycore = 2              # 0 = glide, 2 = glissade
-dm_dt_diag = 1          # 0 = kg/s, 1 = Gt/yr
 restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
 restart = 0             # 0 = no restart, 1 = standard restart, 2 = hybrid restart
-
-[parameters]
-rhoi = 917.0                    # ice density
-rhoo = 1028.0                   # ocean density
-grav = 9.81	                # gravitational acceleration
-ice_limit = 1.                  # min thickness (m) for dynamics
 
 [calving]
 calving_law = 6       # 5 = calving mask, 6 = prescribed advance/retreat rate
@@ -86,6 +79,17 @@ temp_init = 4           # 4 = read from external file
 
 [geothermal]
 geothermal_flux = 0.
+
+[numerics]
+ice_limit = 1.                  # min thickness (m) for dynamics
+
+[constants]
+rhoi = 917.0                    # ice density
+rhoo = 1028.0                   # ocean density
+grav = 9.81	                # gravitational acceleration
+
+[diagnostics]
+dm_dt_diag = 1          # 0 = kg/s, 1 = Gt/yr
 
 [CF default]
 comment = created with calvingMIP.Setup.py

@@ -19,12 +19,6 @@ dycore = 2              # 0 = glide, 2 = glissade
 restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
 restart = 0             # 0 = not a restart
 
-[parameters]
-rhoi = 918.0            # MISMIP+ ice density
-rhoo = 1028.0           # MISMIP+ ocean density
-grav = 9.8              # MISMIP+ gravitational acceleration
-ice_limit = 1.                  #min thickness (m) for dynamics
-
 [calving]
 calving_law = 5       # 4 = topographic threshold, 5 = calving mask
 calving_front_x = 640000.       # 640 km for mismip+
@@ -79,6 +73,14 @@ default_flwa = 2.0e-17
 
 [temperature]
 temperature_method = 0         # 0 = sfc air temp, 1 = prognostic, 3 = enthalpy
+
+[numerics]
+ice_limit = 1.                  #min thickness (m) for dynamics
+
+[constants]
+rhoi = 918.0            # MISMIP+ ice density
+rhoo = 1028.0           # MISMIP+ ocean density
+grav = 9.8              # MISMIP+ gravitational acceleration
 
 [CF default]
 comment = created with mismip+Init.py 

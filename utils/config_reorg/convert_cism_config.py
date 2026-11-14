@@ -234,6 +234,41 @@ MOVES = {
     # [geothermal]
     ('options', 'gthf'): ('geothermal', 'geothermal_method'),
     ('parameters', 'geothermal'): ('geothermal', 'geothermal_flux'),
+    # [options]
+    ('parameters', 'log_level'): ('options', 'log_level'),
+    # [grid]
+    ('options', 'read_lat_lon'): ('grid', 'read_lat_lon'),
+    ('options', 'sigma'): ('grid', 'sigma_method'),
+    # [numerics]
+    ('ho_options', 'compute_blocks'): ('numerics', 'compute_blocks'),
+    ('ho_options', 'reproducible_sums'): ('numerics', 'reproducible_sums'),
+    ('parameters', 'ice_limit'): ('numerics', 'ice_limit'),
+    ('parameters', 'ice_limit_temp'): ('numerics', 'ice_limit_temp'),
+    ('parameters', 'thck_gradient_ramp'): ('numerics', 'thck_gradient_ramp'),
+    ('parameters', 'periodic_offset_ew'): ('numerics', 'periodic_offset_ew'),
+    ('parameters', 'periodic_offset_ns'): ('numerics', 'periodic_offset_ns'),
+    # [constants]
+    ('parameters', 'rhoi'): ('constants', 'rhoi'),
+    ('parameters', 'rhoo'): ('constants', 'rhoo'),
+    ('parameters', 'grav'): ('constants', 'grav'),
+    ('parameters', 'shci'): ('constants', 'shci'),
+    ('parameters', 'lhci'): ('constants', 'lhci'),
+    ('parameters', 'trpt'): ('constants', 'trpt'),
+    # [initialization]
+    ('options', 'adjust_input_thickness'): ('initialization', 'adjust_input_thickness'),
+    ('options', 'smooth_input_topography'): ('initialization', 'smooth_input_topography'),
+    ('options', 'smooth_input_usrf'): ('initialization', 'smooth_input_usrf'),
+    ('options', 'adjust_input_topography'): ('initialization', 'adjust_input_topography'),
+    ('parameters', 'adjust_topg_xmin'): ('initialization', 'adjust_topg_xmin'),
+    ('parameters', 'adjust_topg_xmax'): ('initialization', 'adjust_topg_xmax'),
+    ('parameters', 'adjust_topg_ymin'): ('initialization', 'adjust_topg_ymin'),
+    ('parameters', 'adjust_topg_ymax'): ('initialization', 'adjust_topg_ymax'),
+    ('parameters', 'adjust_topg_no_adjust'): ('initialization', 'adjust_topg_no_adjust'),
+    ('parameters', 'adjust_topg_max_adjust'): ('initialization', 'adjust_topg_max_adjust'),
+    ('parameters', 'adjust_topg_delta'): ('initialization', 'adjust_topg_delta'),
+    # [diagnostics]
+    ('options', 'dm_dt_diag'): ('diagnostics', 'dm_dt_diag'),
+    ('options', 'diag_minthck'): ('diagnostics', 'diag_minthck'),
 }
 
 # Order of the new sections when they are created.
@@ -295,6 +330,8 @@ USER_NL_RENAMES = {
     # [geothermal]
     'gthf': 'geothermal_method',
     'geothermal': 'geothermal_flux',
+    # [grid]
+    'sigma': 'sigma_method',
     # [inversion]: wrapper names that CISM never read (the wrapper now uses the CISM names)
     'deltaT_basin_relax': 'inversion_deltaT_basin_relax',
     'inversion_bmlt_basin_flotation_threshold': 'inversion_basin_flotation_threshold',

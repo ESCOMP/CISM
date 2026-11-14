@@ -230,7 +230,9 @@ def main():
                 elif experiment in ('f'):
                     offset = float(size)*1000.0 * tan(3.0 * pi/180.0)
 
-                config_parser.set('parameters', 'periodic_offset_ew', str(offset))
+                if not config_parser.has_section('numerics'):
+                    config_parser.add_section('numerics')
+                config_parser.set('numerics', 'periodic_offset_ew', str(offset))
 
 #            if experiment in ('c' 'd'):
             if experiment in ('d'):

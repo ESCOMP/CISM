@@ -16,9 +16,6 @@ jdiag = 10
 [options]
 dycore = 2                  # 1 = glam, 2 = glissade
 
-[parameters]
-ice_limit = 1.              # min thickness (m) for dynamics
-
 [basal_physics]
 sliding_law = 4           # 4 = no-slip at bed
 
@@ -37,6 +34,9 @@ flow_law = 2                # 0 = isothermal, 2 = temperature dependent
 
 [temperature]
 temperature_method = 1             # 0 = set column to surf. air temp, 1 = prognostic, 2 = hold at init. values             
+
+[numerics]
+ice_limit = 1.              # min thickness (m) for dynamics
 
 [CF default]
 comment = created with runDome.py

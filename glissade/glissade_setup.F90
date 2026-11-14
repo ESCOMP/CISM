@@ -160,11 +160,28 @@ contains
        call write_log('Error, external dycores are no longer supported', GM_FATAL)
     end if
 
-    ! read parameters
-    !TODO - Put some sets of related parameters in their own section
-    call GetSection(config,section,'parameters')
+    ! read numerical options and parameters
+    call GetSection(config,section,'numerics')
     if (associated(section)) then
-       call handle_parameters(section, model)
+       call handle_numerics(section, model)
+    end if
+
+    ! read physical constants
+    call GetSection(config,section,'constants')
+    if (associated(section)) then
+       call handle_constants(section, model)
+    end if
+
+    ! read options for adjusting the input fields at initialization
+    call GetSection(config,section,'initialization')
+    if (associated(section)) then
+       call handle_initialization(section, model)
+    end if
+
+    ! read diagnostic options
+    call GetSection(config,section,'diagnostics')
+    if (associated(section)) then
+       call handle_diagnostics(section, model)
     end if
 
     ! read velocity options (Stokes approximation, viscosity, surface gradient)
@@ -281,8 +298,6 @@ contains
     if (associated(section)) then
        call handle_glaciers(section, model)
     end if
-
-    !TODO - Create handle_basal_physics, handle_calving, etc.?
 
     ! Construct the list of necessary restart variables based on the config options 
     ! selected by the user in the config file.
@@ -770,6 +785,11 @@ contains
        model%options%which_sigma = SIGMA_EXTERNAL
     end if
 
+    ! Note: sigma_method is read after sigma_file, so that an explicit sigma_method overrides
+    !       the SIGMA_EXTERNAL setting above (as when the sigma option was read from [options]).
+    call GetValue(section,'sigma_method',model%options%which_sigma)
+    call GetValue(section,'read_lat_lon',model%options%read_lat_lon)
+
   end subroutine handle_grid
 
 !--------------------------------------------------------------------------------
@@ -932,22 +952,20 @@ contains
 
     use glimmer_config
     use glissade_types
+    use glimmer_log
 
     implicit none
     type(ConfigSection), pointer :: section
     type(glissade_global_type)  :: model
+    integer :: loglevel
+
+    loglevel = GM_levels-GM_ERROR
+    call GetValue(section,'log_level',loglevel)
+    call glimmer_set_msg_level(loglevel)
 
     call GetValue(section,'dycore',model%options%whichdycore)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'which_lateral_melt',model%options%which_lateral_melt)
-    call GetValue(section,'adjust_input_thickness', model%options%adjust_input_thickness)
-    call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
-    call GetValue(section,'smooth_input_usrf', model%options%smooth_input_usrf)
-    call GetValue(section,'adjust_input_topography', model%options%adjust_input_topography)
-    call GetValue(section,'read_lat_lon',model%options%read_lat_lon)
-    call GetValue(section,'dm_dt_diag',model%options%dm_dt_diag)
-    call GetValue(section,'diag_minthck',model%options%diag_minthck)
-    call GetValue(section,'sigma',model%options%which_sigma)
     call GetValue(section,'ioparams',model%funits%ncfile)
     call GetValue(section,'forcewrite_final', model%options%forcewrite_final)
     call GetValue(section,'restart',model%options%is_restart)
@@ -965,9 +983,7 @@ contains
     type(ConfigSection), pointer :: section
     type(glissade_global_type) :: model
     
-    call GetValue(section, 'compute_blocks',              model%options%compute_blocks)
     call GetValue(section, 'enable_glaciers',             model%options%enable_glaciers)
-    call GetValue(section, 'reproducible_sums',           model%options%reproducible_sums)
 
   end subroutine handle_ho_options
 
@@ -2050,19 +2066,37 @@ contains
 !--------------------------------------------------------------------------------
 
   ! parameters
-  subroutine handle_parameters(section, model)
+  subroutine handle_numerics(section, model)
+
+    ! Numerical options and parameters: computational blocks, reproducible sums,
+    ! thickness limits, and the periodic offsets used by ISMIP-HOM.
 
     use glimmer_config
     use glissade_types
-    use glimmer_log
-    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt
-
     implicit none
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)  :: model
-    integer :: loglevel
 
-    !TODO - Reorganize parameters into sections based on relevant physics
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'compute_blocks',    model%options%compute_blocks)
+    call GetValue(section,'reproducible_sums', model%options%reproducible_sums)
+
+    ! parameters
+    !TODO - Change 'ice_limit' to 'thklim'?
+    call GetValue(section,'ice_limit',          model%numerics%thklim)
+    call GetValue(section,'ice_limit_temp',     model%numerics%thklim_temp)
+    call GetValue(section,'thck_gradient_ramp', model%numerics%thck_gradient_ramp)
+    call GetValue(section,'periodic_offset_ew', model%numerics%periodic_offset_ew)
+    call GetValue(section,'periodic_offset_ns', model%numerics%periodic_offset_ns)
+
+  end subroutine handle_numerics
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_constants(section, model)
+
+    ! Physical constants.
     !Note: The following physical constants have default values in glimmer_physcon.F90.
     !      Some test cases (e.g., MISMIP) specify different values. The default values
     !       can therefore be overridden by the user in the config file.
@@ -2072,6 +2106,15 @@ contains
     !      If running multiple instances, the user should either use the default values
     !       or specify identical values in each config file.  Otherwise, the run will use
     !       whatever values are specified in the last config file to be read.
+
+    use glimmer_config
+    use glissade_types
+    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
 #ifndef CCSMCOUPLED
     call GetValue(section,'rhoi', rhoi)
     call GetValue(section,'rhoo', rhoo)
@@ -2081,29 +2124,56 @@ contains
     call GetValue(section,'trpt', trpt)
 #endif
 
-    loglevel = GM_levels-GM_ERROR
-    call GetValue(section,'log_level',loglevel)
-    call glimmer_set_msg_level(loglevel)
+  end subroutine handle_constants
 
-    !TODO - Change 'ice_limit' to 'thklim'?
-    call GetValue(section,'ice_limit',          model%numerics%thklim)
-    call GetValue(section,'ice_limit_temp',     model%numerics%thklim_temp)
-    call GetValue(section,'thck_gradient_ramp', model%numerics%thck_gradient_ramp)
+!--------------------------------------------------------------------------------
+
+  subroutine handle_initialization(section, model)
+
+    ! Adjustments of the input fields at initialization: thickness, topography and
+    ! upper surface.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'adjust_input_thickness',  model%options%adjust_input_thickness)
+    call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
+    call GetValue(section,'smooth_input_usrf',       model%options%smooth_input_usrf)
+    call GetValue(section,'adjust_input_topography', model%options%adjust_input_topography)
 
     ! parameters to adjust input topography
-    call GetValue(section, 'adjust_topg_xmin', model%paramets%adjust_topg_xmin)
-    call GetValue(section, 'adjust_topg_xmax', model%paramets%adjust_topg_xmax)
-    call GetValue(section, 'adjust_topg_ymin', model%paramets%adjust_topg_ymin)
-    call GetValue(section, 'adjust_topg_ymax', model%paramets%adjust_topg_ymax)
-    call GetValue(section, 'adjust_topg_no_adjust',  model%paramets%adjust_topg_no_adjust)
-    call GetValue(section, 'adjust_topg_max_adjust', model%paramets%adjust_topg_max_adjust)
-    call GetValue(section, 'adjust_topg_delta',   model%paramets%adjust_topg_delta)
+    call GetValue(section,'adjust_topg_xmin',       model%paramets%adjust_topg_xmin)
+    call GetValue(section,'adjust_topg_xmax',       model%paramets%adjust_topg_xmax)
+    call GetValue(section,'adjust_topg_ymin',       model%paramets%adjust_topg_ymin)
+    call GetValue(section,'adjust_topg_ymax',       model%paramets%adjust_topg_ymax)
+    call GetValue(section,'adjust_topg_no_adjust',  model%paramets%adjust_topg_no_adjust)
+    call GetValue(section,'adjust_topg_max_adjust', model%paramets%adjust_topg_max_adjust)
+    call GetValue(section,'adjust_topg_delta',      model%paramets%adjust_topg_delta)
 
-    ! ISMIP-HOM parameters
-    call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
-    call GetValue(section,'periodic_offset_ns',model%numerics%periodic_offset_ns)
+  end subroutine handle_initialization
 
-  end subroutine handle_parameters
+!--------------------------------------------------------------------------------
+
+  subroutine handle_diagnostics(section, model)
+
+    ! Diagnostic options.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    call GetValue(section,'dm_dt_diag',   model%options%dm_dt_diag)
+    call GetValue(section,'diag_minthck', model%options%diag_minthck)
+
+  end subroutine handle_diagnostics
 
 !--------------------------------------------------------------------------------
 

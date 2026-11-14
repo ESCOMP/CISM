@@ -294,18 +294,20 @@ def main():
     eta = (beta * thickness / mu_n**gn) * (rhoi * grav * thickness)**(gn-1)
 
     # periodic offset; depends on theta, phi, and dx
+    if not config_parser.has_section('numerics'):
+        config_parser.add_section('numerics')
     if phi == 0.:
         offset =  1.0 * float(nx)*dx * tan(theta_rad)
-        config_parser.set('parameters', 'periodic_offset_ew', str(offset))
+        config_parser.set('numerics', 'periodic_offset_ew', str(offset))
     elif phi == 90.:
         offset =  1.0 * float(ny)*dy * tan(theta_rad)
-        config_parser.set('parameters', 'periodic_offset_ns', str(offset))
+        config_parser.set('numerics', 'periodic_offset_ns', str(offset))
     elif phi == 180.:
         offset = -1.0 * float(nx)*dx * tan(theta_rad)
-        config_parser.set('parameters', 'periodic_offset_ew', str(offset))
+        config_parser.set('numerics', 'periodic_offset_ew', str(offset))
     elif phi == 270.:
         offset = -1.0 * float(ny)*dy * tan(theta_rad)
-        config_parser.set('parameters', 'periodic_offset_ns', str(offset))
+        config_parser.set('numerics', 'periodic_offset_ns', str(offset))
 
     # Print some values
     print('nx   = ' + str(nx))
@@ -327,8 +329,10 @@ def main():
 
     # Write some options and parameters to the config file
 
-    config_parser.set('parameters', 'rhoi', str(rhoi))
-    config_parser.set('parameters', 'grav', str(grav))
+    if not config_parser.has_section('constants'):
+        config_parser.add_section('constants')
+    config_parser.set('constants', 'rhoi', str(rhoi))
+    config_parser.set('constants', 'grav', str(grav))
     config_parser.set('flow_law', 'n_glen', str(gn))
     config_parser.set('flow_law', 'default_flwa', str(flwa))
 

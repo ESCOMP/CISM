@@ -17,10 +17,6 @@ restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
 # restart = 0
 
 [parameters]
-rhoi = 900.0            # MISMIP ice density
-rhoo = 1000.0           # MISMIP ocean density
-grav = 9.80             # MISMIP gravitational acceleration
-ice_limit = 1.                 ; min thickness (m) for dynamics
 powerlaw_c = 2.4131e4
 coulomb_c = 0.1778
 
@@ -70,6 +66,14 @@ default_flwa = 1.0e-17
 
 [temperature]
 temperature_method = 0         # 1 = prognostic, 3 = enthalpy
+
+[numerics]
+ice_limit = 1.                 ; min thickness (m) for dynamics
+
+[constants]
+rhoi = 900.0            # MISMIP ice density
+rhoo = 1000.0           # MISMIP ocean density
+grav = 9.80             # MISMIP gravitational acceleration
 
 [CF default]
 comment = created with mismipInit.py 
