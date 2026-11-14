@@ -319,22 +319,27 @@ contains
     call print_time(model)
     call print_options(model)
     call print_numerics(model)
+    call print_constants(model)
+    call print_initialization(model)
     call print_velocity(model)
     call print_velocity_solver(model)
     call print_advection(model)
     call print_flow_law(model)
     call print_temperature(model)
     call print_basal_physics(model)
+    call print_basal_hydro(model)
     call print_grounding_line(model)
     call print_basal_melt(model)
     call print_ocean_data(model)
+    call print_climate(model)
+    call print_calving(model)
+    call print_removal(model)
+    call print_lateral_melt(model)
     call print_inversion(model)
     call print_geothermal(model)
-    call print_parameters(model)
-    call print_lateral_melt(model)
     call print_isostasy(model)
-    call print_basal_hydro(model)
     call print_glaciers(model)
+    call print_diagnostics(model)
 
   end subroutine glissade_printconfig
 
@@ -850,6 +855,11 @@ contains
     call write_log(trim(message))
     call write_log('')
 
+    if (model%options%read_lat_lon) then
+       write(message,*) ' Lat and lon fields will be read from input files and written to restart'
+       call write_log(message)
+    endif
+
   end subroutine print_grid
 
 !--------------------------------------------------------------------------------
@@ -950,6 +960,12 @@ contains
 
     call write_log('')
 
+    if (model%numerics%idiag < 1 .or. model%numerics%idiag > model%general%ewn     &
+                                        .or.                                                     &
+        model%numerics%jdiag < 1 .or. model%numerics%jdiag > model%general%nsn) then
+        call write_log('Error, global diagnostic point (idiag, jdiag) is out of bounds', GM_FATAL)
+    endif
+
   end subroutine print_time
 
 !--------------------------------------------------------------------------------
@@ -995,72 +1011,6 @@ contains
     ! Glissade is the only dycore option here (dycore = 2)
     character(len=*), parameter :: dycore = 'glissade           '  ! finite element
 
-    character(len=*), dimension(0:1), parameter :: smb_input = (/ &
-         'SMB input in units of m/yr ice  ', &
-         'SMB input in units of mm/yr w.e.' /)
-
-    character(len=*), dimension(0:3), parameter :: smb_input_function = (/ &
-         'SMB input as function of (x,y)              ', &
-         'SMB and d(SMB)/dz input as function of (x,y)', &
-         'SMB input as function of (x,y,z)            ', &
-         'SMB computed with positive-degree scheme    ' /)
-
-    character(len=*), dimension(0:3), parameter :: artm_input_function = (/ &
-         'artm input as function of (x,y)               ', &
-         'artm and d(artm)/dz input as function of (x,y)', &
-         'artm input as function of (x,y,z)             ', &
-         'artm input as function of (x,y) w/ lapse rate ' /)
-
-    character(len=*), dimension(0:3), parameter :: overwrite_acab = (/ &
-         'do not overwrite acab anywhere            ', &
-         'overwrite acab where input acab = 0       ', &
-         'overwrite acab where input thck <= minthck', &
-         'overwrite acab based on input mask        ' /)
-
-    ! NOTE: This option has replaced the old do_isos option
-    character(len=*), dimension(0:1), parameter :: isostasy = (/ &
-         'no isostasy calculation         ', &
-         'compute isostasy with model     ' /)
-
-    character(len=*), dimension(0:11), parameter :: calving_law = (/ &
-         'no calving law                    ', &
-         'remove all floating ice           ', &
-         'remove fraction of floating ice   ', &
-         'relaxed bedrock threshold         ', &
-         'present bedrock threshold         ', &
-         'calving based on grid location    ', &
-         'prescribe CF advance/retreat rate ', &
-         'ice thickness threshold           ', &
-         'deterministic stress-based calving', &
-         'stochastic stress-based calving   ', &
-         'damage-based calving scheme       ', &
-         'strain-rate (eigencalving)        ' /)
-
-    character(len=*), dimension(0:1), parameter :: calving_init = (/ &
-         'no calving at initialization    ', &
-         'ice calves at initialization    ' /)
-
-    character(len=*), dimension(0:1), parameter :: calving_domain = (/ &
-         'calving only at the ocean edge             ',  &
-         'calving in all cells where criterion is met'/)
-
-    character(len=*), dimension(0:1), parameter :: dm_dt_diag = (/ &
-         'write dmass/dt diagnostic in units of kg/s ',  &
-         'write dmass/dt diagnostic in units of Gt/yr'/)
-
-    character(len=*), dimension(0:1), parameter :: diag_minthck = (/ &
-         'include cells with H > 0 in global diagnostics     ', &
-         'include cells with H > thklim in global diagnostics'/)
-
-    character(len=*), dimension(0:1), parameter :: subgrid_calving_front = (/ &
-         'no subgrid calving front parameterization', &
-         'subgrid calving front                    ' /)
-
-    character(len=*), dimension(0:2), parameter :: calvingmip_domain = (/ &
-         'none       ', &
-         'circular   ', &
-         'Thule      '  /)
-
     call write_log('Dycore options')
     call write_log('-------------')
 
@@ -1071,179 +1021,6 @@ contains
        call write_log('Error, the Glissade dycore requires dycore = 2',GM_FATAL)
     end if
     write(message,*) 'Dycore                  : ',model%options%whichdycore,dycore
-    call write_log(message)
-
-    if (model%options%whichcalving < 0 .or. model%options%whichcalving >= size(calving_law)) then
-       call write_log('Error, calving_law out of range',GM_FATAL)
-    end if
-    write(message,*) 'calving_law             : ', model%options%whichcalving, calving_law(model%options%whichcalving)
-    call write_log(message)
-
-    if (model%options%calving_init < 0 .or. model%options%calving_init >= size(calving_init)) then
-       call write_log('Error, calving_init out of range',GM_FATAL)
-    end if
-    write(message,*) 'calving_init            : ', model%options%calving_init, calving_init(model%options%calving_init)
-    call write_log(message)
-
-    if (model%options%calving_domain < 0 .or. model%options%calving_domain >= size(calving_domain)) then
-       call write_log('Error, calving_domain out of range',GM_FATAL)
-    end if
-    write(message,*) 'calving_domain          : ', model%options%calving_domain, calving_domain(model%options%calving_domain)
-    call write_log(message)
-
-    if (model%options%read_lat_lon) then
-       write(message,*) ' Lat and lon fields will be read from input files and written to restart'
-       call write_log(message)
-    endif
-
-    if (model%options%apply_calving_mask) then
-       call write_log(' A calving mask will be applied')
-    endif
-
-    if (model%options%remove_icebergs) then
-       call write_log(' Icebergs will be removed')
-       write(message,*) ' f_ground_threshold =', model%calving%f_ground_threshold
-       call write_log(message)
-    else
-       call write_log(' Icebergs will not be removed')
-    endif
-
-    if (model%options%remove_isthmuses) then
-       call write_log(' Isthmuses will be removed')
-       write(message,*) ' f_ground_threshold =', model%calving%f_ground_threshold
-       call write_log(message)
-       if (.not.model%options%remove_icebergs) then
-          model%options%remove_icebergs = .true.
-          write(message,*) ' Setting remove_icebergs = T for stability when remove_isthmuses = T'
-          call write_log(message)
-       endif
-    endif
-    
-    if (model%options%limit_marine_cliffs) then
-       call write_log(' The thickness of marine ice cliffs will be limited')
-    else
-       call write_log(' The thickness of marine ice cliffs will not be limited')
-    endif
-
-    if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
-       write(message,*) 'WARNING: calving float fraction option deprecated with Glissade_dycore; set calving_timescale instead'
-       call write_log(message, GM_WARNING)
-    endif
-
-    if (model%options%adjust_input_thickness) then
-       write(message,*) ' Input ice thickness will be adjusted based on surface and bed topography'
-       call write_log(message)
-    endif
-
-    if (model%options%smooth_input_usrf) then
-       write(message,*) ' Input usrf will be smoothed'
-       call write_log(message)
-    endif
-
-    if (model%options%smooth_input_topography) then
-       write(message,*) ' Input topography will be smoothed'
-       call write_log(message)
-    endif
-
-    if (model%options%adjust_input_topography) then
-       write(message,*) ' Input topography in a selected region will be adjusted'
-       call write_log(message)
-    endif
-
-    if (model%options%dm_dt_diag < 0 .or. model%options%dm_dt_diag >= size(dm_dt_diag)) then
-       call write_log('Error, dm_dt_diag out of range',GM_FATAL)
-    end if
-
-    if (model%options%diag_minthck < 0 .or. model%options%diag_minthck >= size(diag_minthck)) then
-       call write_log('Error, diag_minthck out of range',GM_FATAL)
-    end if
-
-    write(message,*) 'minthck for diagnostics : ',model%options%diag_minthck, &
-         diag_minthck(model%options%diag_minthck)
-    call write_log(message)
-
-    if (model%options%smb_input < 0 .or. model%options%smb_input >= size(smb_input)) then
-       call write_log('Error, smb_input option out of range',GM_FATAL)
-    end if
-
-    write(message,*) 'smb input units         : ',model%options%smb_input,smb_input(model%options%smb_input)
-    call write_log(message)
-    if (model%options%smb_input_function < 0 .or. model%options%smb_input_function >= size(smb_input_function)) then
-       call write_log('Error, smb_input_function option out of range',GM_FATAL)
-    end if
-
-    if (model%options%smb_input == SMB_INPUT_MYR_ICE) then
-       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
-           model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
-           model%climate%smb_factor /= 1.0d0 .or. &
-           model%options%enable_smb_anomaly .or. &
-           model%options%enable_glaciers) then
-          write(message,*) 'Error, input SMB must have units of mm/yr w.e., smb_input =', SMB_INPUT_MMYR_WE
-          call write_log(message, GM_FATAL)
-       endif
-    endif
-
-    write(message,*) 'smb input function      : ', &
-         model%options%smb_input_function, smb_input_function(model%options%smb_input_function)
-    call write_log(message)
-    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-       write(message,*) 'number of atmosphere levels : ', model%climate%nzatm
-       call write_log(message)
-    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
-       write(message,*) 'Degree factor (mm/yr/deg C) : ', model%climate%degree_factor
-       call write_log(message)
-       write(message,*) 'Melt threshold (deg C)      : ', model%climate%tmlt
-       call write_log(message)
-       write(message,*) 'Min snow threshold (deg C)  : ', model%climate%snow_threshold_min
-       call write_log(message)
-       write(message,*) 'Max snow threshold (deg C)  : ', model%climate%snow_threshold_max
-       call write_log(message)
-    endif
-
-    if (model%options%artm_input_function < 0 .or. model%options%artm_input_function >= size(artm_input_function)) then
-       call write_log('Error, artm_input_function option out of range',GM_FATAL)
-    end if
-
-    write(message,*) 'artm input function     : ', &
-         model%options%artm_input_function, artm_input_function(model%options%artm_input_function)
-    call write_log(message)
-    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
-       write(message,*) 'artm lapse rate (deg C/m)   : ', model%climate%t_lapse
-       call write_log(message)
-    endif
-
-    if (model%options%enable_smb_anomaly) then
-       call write_log('SMB anomaly forcing is enabled')
-    endif
-
-    if (model%options%enable_artm_anomaly) then
-       call write_log('artm anomaly forcing is enabled')
-    endif
-
-    if (model%options%enable_snow_anomaly) then
-       call write_log('snow anomaly forcing is enabled')
-    endif
-
-    if (model%options%enable_precip_anomaly) then
-       call write_log('precip anomaly forcing is enabled')
-    endif
-
-    if (model%options%overwrite_acab < 0 .or. model%options%overwrite_acab >= size(overwrite_acab)) then
-       call write_log('Error, overwrite_acab option out of range',GM_FATAL)
-    end if
-
-    write(message,*) 'overwrite_acab          : ',model%options%overwrite_acab,overwrite_acab(model%options%overwrite_acab)
-    call write_log(message)
-
-    if (model%options%enable_acab_dthck_dt_correction) then
-       call write_log('acab correction based on dthck_dt_obs is enabled')
-    endif
-
-    if (model%options%isostasy < 0 .or. model%options%isostasy >= size(isostasy)) then
-       call write_log('Error, isostasy option out of range',GM_FATAL)
-    end if
-
-    write(message,*) 'isostasy                : ',model%options%isostasy,isostasy(model%options%isostasy)
     call write_log(message)
 
     if (model%options%forcewrite_final) then
@@ -1261,49 +1038,6 @@ contains
           call write_log('Using extended velocity fields for restart')
        endif
     end if
-
-    call write_log(' ')
-    call write_log('Higher-order options:')
-    call write_log('----------')
-
-    write(message,*) 'subgrid_calving_front   : ',model%options%which_ho_calving_front,  &
-                      subgrid_calving_front(model%options%which_ho_calving_front)
-    call write_log(message)
-    if (model%options%which_ho_calving_front < 0 .or. &
-         model%options%which_ho_calving_front >= size(subgrid_calving_front)) then
-       call write_log('Error, calving front option out of range for glissade dycore', GM_FATAL)
-    end if
-
-    if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
-       write(message,*) 'calvingmip_domain       : ',model%options%which_ho_calvingmip_domain,  &
-            calvingmip_domain(model%options%which_ho_calvingmip_domain)
-       call write_log(message)
-       if (model%options%which_ho_calvingmip_domain < 0 .or. &
-            model%options%which_ho_calvingmip_domain >= size(calvingmip_domain)) then
-          call write_log('Error, calvingMIP domain option out of range for glissade dycore', GM_FATAL)
-       end if
-    end if
-
-    if (model%options%block_inception) then
-       write(message,*) 'Inception outside the main ice sheet will be blocked'
-       call write_log(message)
-    endif
-
-    if (model%options%remove_ice_caps) then
-       write(message,*) 'Ice caps will be removed and added to the removal flux'
-       call write_log(message)
-    endif
-
-    if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE) then
-       write(message,*) 'Ice retreat will be forced using ice_fraction_retreat_mask'
-       call write_log(message)
-    elseif (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE) then
-       write(message,*) 'Floating ice retreat will be forced using ice_fraction_retreat_mask'
-       call write_log(message)
-       if (.not.model%options%remove_isthmuses) then
-          call write_log('  Warning: Can be unstable when remove_isthmuses = F')
-       endif
-    endif
 
   end subroutine print_options
 
@@ -1382,6 +1116,95 @@ contains
     endif
 
   end subroutine print_numerics
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_constants(model)
+
+    ! Physical constants
+
+    use glissade_types
+    use glimmer_log
+    use glimmer_physcon, only: rhoi, rhoo, lhci, shci, trpt, grav
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+    character(len=500) :: message
+
+    write(message,*) 'ice density (kg/m^3)          : ', rhoi
+    call write_log(message)
+
+    write(message,*) 'ocean density (kg/m^3)        : ', rhoo
+    call write_log(message)
+
+    write(message,*) 'gravitational accel (m/s^2)   : ', grav
+    call write_log(message)
+
+    write(message,*) 'heat capacity of ice (J/kg/K) : ', shci
+    call write_log(message)
+
+    write(message,*) 'latent heat of ice (J/kg)     : ', lhci
+    call write_log(message)
+
+    write(message,*) 'triple point of water (K)     : ', trpt
+    call write_log(message)
+
+  end subroutine print_constants
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_initialization(model)
+
+    ! Options and parameters for adjusting the input fields at initialization
+
+    use glissade_types
+    use glimmer_log
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+    character(len=500) :: message
+
+    if (model%options%adjust_input_thickness) then
+       write(message,*) ' Input ice thickness will be adjusted based on surface and bed topography'
+       call write_log(message)
+    endif
+
+    if (model%options%smooth_input_usrf) then
+       write(message,*) ' Input usrf will be smoothed'
+       call write_log(message)
+    endif
+
+    if (model%options%smooth_input_topography) then
+       write(message,*) ' Input topography will be smoothed'
+       call write_log(message)
+    endif
+
+    if (model%options%adjust_input_topography) then
+       write(message,*) ' Input topography in a selected region will be adjusted'
+       call write_log(message)
+    endif
+
+    if (model%options%adjust_input_topography) then
+       call write_log('Input topography will be adjusted')
+       write(message,*) 'adjust_topg_xmin (m)                    : ', model%paramets%adjust_topg_xmin
+       call write_log(message)
+       write(message,*) 'adjust_topg_xmax (m)                    : ', model%paramets%adjust_topg_xmax
+       call write_log(message)
+       write(message,*) 'adjust_topg_ymin (m)                    : ', model%paramets%adjust_topg_ymin
+       call write_log(message)
+       write(message,*) 'adjust_topg_ymax (m)                    : ', model%paramets%adjust_topg_ymax
+       call write_log(message)
+       write(message,*) 'adjust_topg_no_adjust (m)               : ', model%paramets%adjust_topg_no_adjust
+       call write_log(message)
+       write(message,*) 'adjust_topg_max_adjust (m)              : ', model%paramets%adjust_topg_max_adjust
+       call write_log(message)
+       write(message,*) 'adjust_topg_delta (m)                   : ', model%paramets%adjust_topg_delta
+       call write_log(message)
+    endif
+
+  end subroutine print_initialization
 
 !--------------------------------------------------------------------------------
 
@@ -2517,6 +2340,421 @@ contains
 
 !--------------------------------------------------------------------------------
 
+  subroutine print_climate(model)
+
+    ! Surface climate (SMB and surface temperature) options and parameters
+
+    use glissade_types
+    use glimmer_log
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+    character(len=500) :: message
+
+    character(len=*), dimension(0:1), parameter :: smb_input = (/ &
+         'SMB input in units of m/yr ice  ', &
+         'SMB input in units of mm/yr w.e.' /)
+
+    character(len=*), dimension(0:3), parameter :: smb_input_function = (/ &
+         'SMB input as function of (x,y)              ', &
+         'SMB and d(SMB)/dz input as function of (x,y)', &
+         'SMB input as function of (x,y,z)            ', &
+         'SMB computed with positive-degree scheme    ' /)
+
+    character(len=*), dimension(0:3), parameter :: artm_input_function = (/ &
+         'artm input as function of (x,y)               ', &
+         'artm and d(artm)/dz input as function of (x,y)', &
+         'artm input as function of (x,y,z)             ', &
+         'artm input as function of (x,y) w/ lapse rate ' /)
+
+    character(len=*), dimension(0:3), parameter :: overwrite_acab = (/ &
+         'do not overwrite acab anywhere            ', &
+         'overwrite acab where input acab = 0       ', &
+         'overwrite acab where input thck <= minthck', &
+         'overwrite acab based on input mask        ' /)
+
+    if (model%options%smb_input < 0 .or. model%options%smb_input >= size(smb_input)) then
+       call write_log('Error, smb_input option out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'smb input units         : ',model%options%smb_input,smb_input(model%options%smb_input)
+    call write_log(message)
+    if (model%options%smb_input_function < 0 .or. model%options%smb_input_function >= size(smb_input_function)) then
+       call write_log('Error, smb_input_function option out of range',GM_FATAL)
+    end if
+
+    if (model%options%smb_input == SMB_INPUT_MYR_ICE) then
+       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
+           model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
+           model%climate%smb_factor /= 1.0d0 .or. &
+           model%options%enable_smb_anomaly .or. &
+           model%options%enable_glaciers) then
+          write(message,*) 'Error, input SMB must have units of mm/yr w.e., smb_input =', SMB_INPUT_MMYR_WE
+          call write_log(message, GM_FATAL)
+       endif
+    endif
+
+    write(message,*) 'smb input function      : ', &
+         model%options%smb_input_function, smb_input_function(model%options%smb_input_function)
+    call write_log(message)
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+       write(message,*) 'number of atmosphere levels : ', model%climate%nzatm
+       call write_log(message)
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+       write(message,*) 'Degree factor (mm/yr/deg C) : ', model%climate%degree_factor
+       call write_log(message)
+       write(message,*) 'Melt threshold (deg C)      : ', model%climate%tmlt
+       call write_log(message)
+       write(message,*) 'Min snow threshold (deg C)  : ', model%climate%snow_threshold_min
+       call write_log(message)
+       write(message,*) 'Max snow threshold (deg C)  : ', model%climate%snow_threshold_max
+       call write_log(message)
+    endif
+
+    if (model%options%artm_input_function < 0 .or. model%options%artm_input_function >= size(artm_input_function)) then
+       call write_log('Error, artm_input_function option out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'artm input function     : ', &
+         model%options%artm_input_function, artm_input_function(model%options%artm_input_function)
+    call write_log(message)
+    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+       write(message,*) 'artm lapse rate (deg C/m)   : ', model%climate%t_lapse
+       call write_log(message)
+    endif
+
+    if (model%options%enable_smb_anomaly) then
+       call write_log('SMB anomaly forcing is enabled')
+    endif
+
+    if (model%options%enable_artm_anomaly) then
+       call write_log('artm anomaly forcing is enabled')
+    endif
+
+    if (model%options%enable_snow_anomaly) then
+       call write_log('snow anomaly forcing is enabled')
+    endif
+
+    if (model%options%enable_precip_anomaly) then
+       call write_log('precip anomaly forcing is enabled')
+    endif
+
+    if (model%options%overwrite_acab < 0 .or. model%options%overwrite_acab >= size(overwrite_acab)) then
+       call write_log('Error, overwrite_acab option out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'overwrite_acab          : ',model%options%overwrite_acab,overwrite_acab(model%options%overwrite_acab)
+    call write_log(message)
+
+    if (model%options%enable_acab_dthck_dt_correction) then
+       call write_log('acab correction based on dthck_dt_obs is enabled')
+    endif
+
+    if (model%options%block_inception) then
+       write(message,*) 'Inception outside the main ice sheet will be blocked'
+       call write_log(message)
+    endif
+
+    if (model%climate%smb_factor /= 1.0d0) then
+       write(message,*) 'Input smb multiplied by      :', model%climate%smb_factor
+       call write_log(message)
+    endif
+
+    ! initMIP parameters
+    if (model%climate%smb_anomaly_timescale > 0.0d0) then
+       write(message,*) 'smb_anomaly start time (yr): ', model%climate%smb_anomaly_tstart
+       call write_log(message)
+       write(message,*) 'smb_anomaly_timescale (yr) : ', model%climate%smb_anomaly_timescale
+       call write_log(message)
+    endif
+
+    if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
+       write(message,*) 'overwrite_acab_value (m/yr)   : ', model%climate%overwrite_acab_value
+       call write_log(message)
+       if (model%options%overwrite_acab == OVERWRITE_ACAB_THCKMIN) then
+          write(message,*) 'overwrite_acab_minthck (m)    : ', model%climate%overwrite_acab_minthck
+          call write_log(message)
+       endif
+    endif
+
+    ! parameters for artm anomaly option
+    if (model%options%enable_artm_anomaly) then
+       if (model%climate%artm_anomaly_const /= 0.0d0) then
+          write(message,*) 'artm_anomaly_const (degC): ', model%climate%artm_anomaly_const
+          call write_log(message)
+       endif
+       if (model%climate%artm_anomaly_timescale > 0.0d0) then
+          write(message,*) 'artm_anomaly start time (yr): ', model%climate%artm_anomaly_tstart
+          call write_log(message)
+          write(message,*) 'artm_anomaly_timescale (yr): ', model%climate%artm_anomaly_timescale
+          call write_log(message)
+       endif
+    endif
+
+  end subroutine print_climate
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_calving(model)
+
+    ! Calving options and parameters
+
+    use glissade_types
+    use glimmer_log
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+    character(len=500) :: message
+
+    character(len=*), dimension(0:11), parameter :: calving_law = (/ &
+         'no calving law                    ', &
+         'remove all floating ice           ', &
+         'remove fraction of floating ice   ', &
+         'relaxed bedrock threshold         ', &
+         'present bedrock threshold         ', &
+         'calving based on grid location    ', &
+         'prescribe CF advance/retreat rate ', &
+         'ice thickness threshold           ', &
+         'deterministic stress-based calving', &
+         'stochastic stress-based calving   ', &
+         'damage-based calving scheme       ', &
+         'strain-rate (eigencalving)        ' /)
+
+    character(len=*), dimension(0:1), parameter :: calving_init = (/ &
+         'no calving at initialization    ', &
+         'ice calves at initialization    ' /)
+
+    character(len=*), dimension(0:1), parameter :: calving_domain = (/ &
+         'calving only at the ocean edge             ',  &
+         'calving in all cells where criterion is met'/)
+
+    character(len=*), dimension(0:1), parameter :: subgrid_calving_front = (/ &
+         'no subgrid calving front parameterization', &
+         'subgrid calving front                    ' /)
+
+    character(len=*), dimension(0:2), parameter :: calvingmip_domain = (/ &
+         'none       ', &
+         'circular   ', &
+         'Thule      '  /)
+
+    if (model%options%whichcalving < 0 .or. model%options%whichcalving >= size(calving_law)) then
+       call write_log('Error, calving_law out of range',GM_FATAL)
+    end if
+    write(message,*) 'calving_law             : ', model%options%whichcalving, calving_law(model%options%whichcalving)
+    call write_log(message)
+
+    if (model%options%calving_init < 0 .or. model%options%calving_init >= size(calving_init)) then
+       call write_log('Error, calving_init out of range',GM_FATAL)
+    end if
+    write(message,*) 'calving_init            : ', model%options%calving_init, calving_init(model%options%calving_init)
+    call write_log(message)
+
+    if (model%options%calving_domain < 0 .or. model%options%calving_domain >= size(calving_domain)) then
+       call write_log('Error, calving_domain out of range',GM_FATAL)
+    end if
+    write(message,*) 'calving_domain          : ', model%options%calving_domain, calving_domain(model%options%calving_domain)
+    call write_log(message)
+
+    if (model%options%apply_calving_mask) then
+       call write_log(' A calving mask will be applied')
+    endif
+
+    if (model%options%remove_icebergs) then
+       call write_log(' Icebergs will be removed')
+       write(message,*) ' f_ground_threshold =', model%calving%f_ground_threshold
+       call write_log(message)
+    else
+       call write_log(' Icebergs will not be removed')
+    endif
+
+    if (model%options%remove_isthmuses) then
+       call write_log(' Isthmuses will be removed')
+       write(message,*) ' f_ground_threshold =', model%calving%f_ground_threshold
+       call write_log(message)
+       if (.not.model%options%remove_icebergs) then
+          model%options%remove_icebergs = .true.
+          write(message,*) ' Setting remove_icebergs = T for stability when remove_isthmuses = T'
+          call write_log(message)
+       endif
+    endif
+    
+    if (model%options%limit_marine_cliffs) then
+       call write_log(' The thickness of marine ice cliffs will be limited')
+    else
+       call write_log(' The thickness of marine ice cliffs will not be limited')
+    endif
+
+    if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
+       write(message,*) 'WARNING: calving float fraction option deprecated with Glissade_dycore; set calving_timescale instead'
+       call write_log(message, GM_WARNING)
+    endif
+
+    write(message,*) 'subgrid_calving_front   : ',model%options%which_ho_calving_front,  &
+                      subgrid_calving_front(model%options%which_ho_calving_front)
+    call write_log(message)
+    if (model%options%which_ho_calving_front < 0 .or. &
+         model%options%which_ho_calving_front >= size(subgrid_calving_front)) then
+       call write_log('Error, calving front option out of range for glissade dycore', GM_FATAL)
+    end if
+
+    if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
+       write(message,*) 'calvingmip_domain       : ',model%options%which_ho_calvingmip_domain,  &
+            calvingmip_domain(model%options%which_ho_calvingmip_domain)
+       call write_log(message)
+       if (model%options%which_ho_calvingmip_domain < 0 .or. &
+            model%options%which_ho_calvingmip_domain >= size(calvingmip_domain)) then
+          call write_log('Error, calvingMIP domain option out of range for glissade dycore', GM_FATAL)
+       end if
+    end if
+
+    ! calving options
+
+    if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
+       write(message,*) 'ice fraction lost in calving  : ', model%calving%calving_fraction
+       call write_log(message)
+    end if
+
+    if (model%options%whichcalving == CALVING_RELX_THRESHOLD .or.  &
+        model%options%whichcalving == CALVING_TOPG_THRESHOLD) then
+       write(message,*) 'marine depth limit (m)        : ', model%calving%marine_limit
+       call write_log(message)
+    endif
+
+    if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE    .or.  &
+        model%options%whichcalving == CALVING_THCK_THRESHOLD     .or.  &
+        model%options%whichcalving == CALVING_STRESS             .or.  &
+        model%options%whichcalving == CALVING_STRESS_STOCHASTIC  .or.  &
+        model%options%whichcalving == EIGEN_CALVING              .or.  &
+        model%options%whichcalving == CALVING_DAMAGE) then
+
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+          write(message,*) &
+               'Calving option ', model%options%whichcalving, ' requires a subgrid calving front'
+          call write_log(message, GM_FATAL)
+       endif
+
+       if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
+          write(message,*) 'calving minthck (m)           : ', model%calving%minthck
+          call write_log(message)
+          if (model%calving%minthck <= 0.0d0) then
+             write(message,*) 'Error, this calving option needs calving_minthck > 0'
+             call write_log(message, GM_FATAL)
+          endif
+       elseif (model%options%whichcalving == EIGEN_CALVING) then
+          write(message,*) 'eigenconstant (m)             : ', model%calving%eigenconstant
+          call write_log(message)
+       elseif (model%options%whichcalving == CALVING_STRESS) then
+          write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
+          call write_log(message)
+          write(message,*) 'tau_eigenconstant 2           : ', model%calving%tau_eigenconstant2
+          call write_log(message)
+          write(message,*) 'stress_threshold (Pa)         : ', model%calving%stress_threshold
+          call write_log(message)
+          write(message,*) 'lateral_rate_min (m/yr)       : ', model%calving%lateral_rate_min
+          call write_log(message)
+       elseif (model%options%whichcalving == CALVING_STRESS_STOCHASTIC) then
+          write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
+          call write_log(message)
+          write(message,*) 'tau_eigenconstant 2           : ', model%calving%tau_eigenconstant2
+          call write_log(message)
+          write(message,*) 'stress_threshold (Pa)         : ', model%calving%stress_threshold
+          call write_log(message)
+          write(message,*) 'effec_stress_min (m/yr)       : ', model%calving%effec_stress_min
+          call write_log(message)
+          write(message,*) 'calving_length_scale (m)      : ', model%calving%length_scale
+          call write_log(message)
+       elseif (model%options%whichcalving == CALVING_DAMAGE) then
+          write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
+          call write_log(message)
+          write(message,*) 'tau_eigenconstant 2           : ', model%calving%tau_eigenconstant2
+          call write_log(message)
+          write(message,*) 'damage-flwa feedback          : ', model%options%damage_flwa_feedback
+          call write_log(message)
+       elseif (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+          write(message,*) 'CF advance/retreat amplitude (m/yr): ', model%calving%cf_advance_retreat_amplitude
+          call write_log(message)
+          write(message,*) 'CF advance/retreat period (yr)     : ', model%calving%cf_advance_retreat_period
+          call write_log(message)
+       endif
+
+    endif   ! calving options: thck_threshold, eigencalving, stress-based, etc.
+
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       write(message,*) 'subgrid dthck_dx_cf           : ', model%calving%dthck_dx_cf
+       call write_log(message)
+       write(message,*) 'thck_effective_min (m)        : ', model%calving%thck_effective_min
+       call write_log(message)
+       if (.not.model%options%remove_icebergs) then
+          write(message,*) 'Set remove_icebergs = T for stability when using subgrid calving_front scheme'
+          call write_log(message, GM_FATAL)
+       endif
+    endif
+
+    if (model%options%limit_marine_cliffs) then
+       write(message,*) 'taumax_cliff                  : ', model%calving%taumax_cliff
+       call write_log(message)
+       write(message,*) 'cliff time scale (yr)         : ', model%calving%cliff_timescale
+       call write_log(message)
+    endif
+
+    if (model%options%whichcalving == CALVING_GRID_MASK) then
+       if (model%calving%calving_front_x > 0.0d0) then
+          write(message,*) 'x calving front (m)           : ', model%calving%calving_front_x
+          call write_log(message)
+       endif
+       if (model%calving%calving_front_y > 0.0d0) then
+          write(message,*) 'y calving front (m)           : ', model%calving%calving_front_y
+          call write_log(message)
+       endif
+       if (model%calving%calving_front_radius > 0.0d0) then
+          write(message,*) 'calving front radius (m)      : ', model%calving%calving_front_radius
+          call write_log(message)
+       endif
+    endif
+
+    if (model%calving%timescale > 0.0d0) then
+       write(message,*) 'calving time scale (yr)       : ', model%calving%timescale
+       call write_log(message)
+    endif
+
+  end subroutine print_calving
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_removal(model)
+
+    ! Ice removal options
+
+    use glissade_types
+    use glimmer_log
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+    character(len=500) :: message
+
+    if (model%options%remove_ice_caps) then
+       write(message,*) 'Ice caps will be removed and added to the removal flux'
+       call write_log(message)
+    endif
+
+    if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE) then
+       write(message,*) 'Ice retreat will be forced using ice_fraction_retreat_mask'
+       call write_log(message)
+    elseif (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE) then
+       write(message,*) 'Floating ice retreat will be forced using ice_fraction_retreat_mask'
+       call write_log(message)
+       if (.not.model%options%remove_isthmuses) then
+          call write_log('  Warning: Can be unstable when remove_isthmuses = F')
+       endif
+    endif
+
+  end subroutine print_removal
+
+!--------------------------------------------------------------------------------
+
   subroutine print_inversion(model)
 
     ! Inversion parameters
@@ -2637,6 +2875,42 @@ contains
     call write_log(message)
 
   end subroutine print_geothermal
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_diagnostics(model)
+
+    ! Diagnostic options
+
+    use glissade_types
+    use glimmer_log
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+    character(len=500) :: message
+
+    character(len=*), dimension(0:1), parameter :: dm_dt_diag = (/ &
+         'write dmass/dt diagnostic in units of kg/s ',  &
+         'write dmass/dt diagnostic in units of Gt/yr'/)
+
+    character(len=*), dimension(0:1), parameter :: diag_minthck = (/ &
+         'include cells with H > 0 in global diagnostics     ', &
+         'include cells with H > thklim in global diagnostics'/)
+
+    if (model%options%dm_dt_diag < 0 .or. model%options%dm_dt_diag >= size(dm_dt_diag)) then
+       call write_log('Error, dm_dt_diag out of range',GM_FATAL)
+    end if
+
+    if (model%options%diag_minthck < 0 .or. model%options%diag_minthck >= size(diag_minthck)) then
+       call write_log('Error, diag_minthck out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'minthck for diagnostics : ',model%options%diag_minthck, &
+         diag_minthck(model%options%diag_minthck)
+    call write_log(message)
+
+  end subroutine print_diagnostics
 
 !--------------------------------------------------------------------------------
 
@@ -3226,210 +3500,6 @@ contains
 
 !--------------------------------------------------------------------------------
 
-  subroutine print_parameters(model)
-
-    use glimmer_physcon, only: rhoi, rhoo, lhci, shci, trpt, grav, n_glen
-    use glissade_types
-    use glimmer_log
-    implicit none
-    type(glissade_global_type)  :: model
-    character(len=100) :: message
-
-    call write_log(' ')
-    call write_log('Parameters')
-    call write_log('----------')
-
-    if (model%climate%smb_factor /= 1.0d0) then
-       write(message,*) 'Input smb multiplied by      :', model%climate%smb_factor
-       call write_log(message)
-    endif
-
-    ! calving options
-
-    if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
-       write(message,*) 'ice fraction lost in calving  : ', model%calving%calving_fraction
-       call write_log(message)
-    end if
-
-    if (model%options%whichcalving == CALVING_RELX_THRESHOLD .or.  &
-        model%options%whichcalving == CALVING_TOPG_THRESHOLD) then
-       write(message,*) 'marine depth limit (m)        : ', model%calving%marine_limit
-       call write_log(message)
-    endif
-
-    if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE    .or.  &
-        model%options%whichcalving == CALVING_THCK_THRESHOLD     .or.  &
-        model%options%whichcalving == CALVING_STRESS             .or.  &
-        model%options%whichcalving == CALVING_STRESS_STOCHASTIC  .or.  &
-        model%options%whichcalving == EIGEN_CALVING              .or.  &
-        model%options%whichcalving == CALVING_DAMAGE) then
-
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
-          write(message,*) &
-               'Calving option ', model%options%whichcalving, ' requires a subgrid calving front'
-          call write_log(message, GM_FATAL)
-       endif
-
-       if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-          write(message,*) 'calving minthck (m)           : ', model%calving%minthck
-          call write_log(message)
-          if (model%calving%minthck <= 0.0d0) then
-             write(message,*) 'Error, this calving option needs calving_minthck > 0'
-             call write_log(message, GM_FATAL)
-          endif
-       elseif (model%options%whichcalving == EIGEN_CALVING) then
-          write(message,*) 'eigenconstant (m)             : ', model%calving%eigenconstant
-          call write_log(message)
-       elseif (model%options%whichcalving == CALVING_STRESS) then
-          write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
-          call write_log(message)
-          write(message,*) 'tau_eigenconstant 2           : ', model%calving%tau_eigenconstant2
-          call write_log(message)
-          write(message,*) 'stress_threshold (Pa)         : ', model%calving%stress_threshold
-          call write_log(message)
-          write(message,*) 'lateral_rate_min (m/yr)       : ', model%calving%lateral_rate_min
-          call write_log(message)
-       elseif (model%options%whichcalving == CALVING_STRESS_STOCHASTIC) then
-          write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
-          call write_log(message)
-          write(message,*) 'tau_eigenconstant 2           : ', model%calving%tau_eigenconstant2
-          call write_log(message)
-          write(message,*) 'stress_threshold (Pa)         : ', model%calving%stress_threshold
-          call write_log(message)
-          write(message,*) 'effec_stress_min (m/yr)       : ', model%calving%effec_stress_min
-          call write_log(message)
-          write(message,*) 'calving_length_scale (m)      : ', model%calving%length_scale
-          call write_log(message)
-       elseif (model%options%whichcalving == CALVING_DAMAGE) then
-          write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
-          call write_log(message)
-          write(message,*) 'tau_eigenconstant 2           : ', model%calving%tau_eigenconstant2
-          call write_log(message)
-          write(message,*) 'damage-flwa feedback          : ', model%options%damage_flwa_feedback
-          call write_log(message)
-       elseif (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
-          write(message,*) 'CF advance/retreat amplitude (m/yr): ', model%calving%cf_advance_retreat_amplitude
-          call write_log(message)
-          write(message,*) 'CF advance/retreat period (yr)     : ', model%calving%cf_advance_retreat_period
-          call write_log(message)
-       endif
-
-    endif   ! calving options: thck_threshold, eigencalving, stress-based, etc.
-
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-       write(message,*) 'subgrid dthck_dx_cf           : ', model%calving%dthck_dx_cf
-       call write_log(message)
-       write(message,*) 'thck_effective_min (m)        : ', model%calving%thck_effective_min
-       call write_log(message)
-       if (.not.model%options%remove_icebergs) then
-          write(message,*) 'Set remove_icebergs = T for stability when using subgrid calving_front scheme'
-          call write_log(message, GM_FATAL)
-       endif
-    endif
-
-    if (model%options%limit_marine_cliffs) then
-       write(message,*) 'taumax_cliff                  : ', model%calving%taumax_cliff
-       call write_log(message)
-       write(message,*) 'cliff time scale (yr)         : ', model%calving%cliff_timescale
-       call write_log(message)
-    endif
-
-    if (model%options%whichcalving == CALVING_GRID_MASK) then
-       if (model%calving%calving_front_x > 0.0d0) then
-          write(message,*) 'x calving front (m)           : ', model%calving%calving_front_x
-          call write_log(message)
-       endif
-       if (model%calving%calving_front_y > 0.0d0) then
-          write(message,*) 'y calving front (m)           : ', model%calving%calving_front_y
-          call write_log(message)
-       endif
-       if (model%calving%calving_front_radius > 0.0d0) then
-          write(message,*) 'calving front radius (m)      : ', model%calving%calving_front_radius
-          call write_log(message)
-       endif
-    endif
-
-    if (model%calving%timescale > 0.0d0) then
-       write(message,*) 'calving time scale (yr)       : ', model%calving%timescale
-       call write_log(message)
-    endif
-
-    write(message,*) 'ice density (kg/m^3)          : ', rhoi
-    call write_log(message)
-
-    write(message,*) 'ocean density (kg/m^3)        : ', rhoo
-    call write_log(message)
-
-    write(message,*) 'gravitational accel (m/s^2)   : ', grav
-    call write_log(message)
-
-    write(message,*) 'heat capacity of ice (J/kg/K) : ', shci
-    call write_log(message)
-
-    write(message,*) 'latent heat of ice (J/kg)     : ', lhci
-    call write_log(message)
-
-    write(message,*) 'triple point of water (K)     : ', trpt
-    call write_log(message)
-
-    if (model%options%adjust_input_topography) then
-       call write_log('Input topography will be adjusted')
-       write(message,*) 'adjust_topg_xmin (m)                    : ', model%paramets%adjust_topg_xmin
-       call write_log(message)
-       write(message,*) 'adjust_topg_xmax (m)                    : ', model%paramets%adjust_topg_xmax
-       call write_log(message)
-       write(message,*) 'adjust_topg_ymin (m)                    : ', model%paramets%adjust_topg_ymin
-       call write_log(message)
-       write(message,*) 'adjust_topg_ymax (m)                    : ', model%paramets%adjust_topg_ymax
-       call write_log(message)
-       write(message,*) 'adjust_topg_no_adjust (m)               : ', model%paramets%adjust_topg_no_adjust
-       call write_log(message)
-       write(message,*) 'adjust_topg_max_adjust (m)              : ', model%paramets%adjust_topg_max_adjust
-       call write_log(message)
-       write(message,*) 'adjust_topg_delta (m)                   : ', model%paramets%adjust_topg_delta
-       call write_log(message)
-    endif
-
-    if (model%numerics%idiag < 1 .or. model%numerics%idiag > model%general%ewn     &
-                                        .or.                                                     &
-        model%numerics%jdiag < 1 .or. model%numerics%jdiag > model%general%nsn) then
-        call write_log('Error, global diagnostic point (idiag, jdiag) is out of bounds', GM_FATAL)
-    endif
-
-    ! initMIP parameters
-    if (model%climate%smb_anomaly_timescale > 0.0d0) then
-       write(message,*) 'smb_anomaly start time (yr): ', model%climate%smb_anomaly_tstart
-       call write_log(message)
-       write(message,*) 'smb_anomaly_timescale (yr) : ', model%climate%smb_anomaly_timescale
-       call write_log(message)
-    endif
-
-    if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
-       write(message,*) 'overwrite_acab_value (m/yr)   : ', model%climate%overwrite_acab_value
-       call write_log(message)
-       if (model%options%overwrite_acab == OVERWRITE_ACAB_THCKMIN) then
-          write(message,*) 'overwrite_acab_minthck (m)    : ', model%climate%overwrite_acab_minthck
-          call write_log(message)
-       endif
-    endif
-
-    ! parameters for artm anomaly option
-    if (model%options%enable_artm_anomaly) then
-       if (model%climate%artm_anomaly_const /= 0.0d0) then
-          write(message,*) 'artm_anomaly_const (degC): ', model%climate%artm_anomaly_const
-          call write_log(message)
-       endif
-       if (model%climate%artm_anomaly_timescale > 0.0d0) then
-          write(message,*) 'artm_anomaly start time (yr): ', model%climate%artm_anomaly_tstart
-          call write_log(message)
-          write(message,*) 'artm_anomaly_timescale (yr): ', model%climate%artm_anomaly_timescale
-          call write_log(message)
-       endif
-    endif
-
-  end subroutine print_parameters
-
-!--------------------------------------------------------------------------------
 
   ! Sigma levels
   subroutine handle_sigma(section, model)
@@ -3501,6 +3571,10 @@ contains
     implicit none
     type(glissade_global_type)  :: model
     character(len=100) :: message
+    ! NOTE: This option has replaced the old do_isos option
+    character(len=*), dimension(0:1), parameter :: isostasy = (/ &
+         'no isostasy calculation         ', &
+         'compute isostasy with model     ' /)
 
     character(len=*), dimension(0:1), parameter :: lithosphere_method = (/ &
          'local lithosphere         ', &
@@ -3516,6 +3590,13 @@ contains
          'set relx to input topg                 ', &
          'compute relx = input topg + load       ' /)
     
+    if (model%options%isostasy < 0 .or. model%options%isostasy >= size(isostasy)) then
+       call write_log('Error, isostasy option out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'isostasy                : ',model%options%isostasy,isostasy(model%options%isostasy)
+    call write_log(message)
+
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
        call write_log(' ')
        call write_log('Isostasy')
