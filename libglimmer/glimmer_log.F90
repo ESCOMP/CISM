@@ -165,7 +165,9 @@ contains
     end if
 
     ! messages are always written to file log
-    if (main_task) write(glimmer_unit,*) trim(msg)
+    ! Note: An explicit format, rather than list-directed output, keeps long messages on one line.
+    !       The leading blank matches the list-directed output used before.
+    if (main_task) write(glimmer_unit,'(1x,a)') trim(msg)
 
     ! and maybe to std out
     ! Note: Messages are written only from the main task, unless the error is fatal.
@@ -187,7 +189,7 @@ contains
   subroutine write_log_div
 
     implicit none
-    if (main_task) write(glimmer_unit,*) '*******************************************************************************'
+    if (main_task) write(glimmer_unit,'(1x,a)') '*******************************************************************************'
   end subroutine write_log_div
 
   !> close log file
