@@ -1043,6 +1043,81 @@ contains
 
 !--------------------------------------------------------------------------------
 
+
+  ! Sigma levels
+  subroutine handle_sigma(section, model)
+
+    use glimmer_config
+    use glissade_types
+    use glimmer_log
+    implicit none
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)  :: model
+
+    if (model%options%which_sigma==SIGMA_EXTERNAL) then
+       call write_log('Sigma levels specified twice - use only'// &
+            ' config file or separate file, not both',GM_FATAL)
+    else
+       call GetValue(section,'sigma_levels',model%numerics%sigma,model%general%upn)
+    end if
+
+  end subroutine handle_sigma
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_sigma(model)
+    use glissade_types
+    use glimmer_log
+    implicit none
+    type(glissade_global_type)  :: model
+    character(len=100) :: message,temp
+    integer :: i
+
+    call write_log('Sigma levels:')
+    call write_log('------------------')
+    message=''
+    do i=1,model%general%upn
+       write(temp,'(f6.3)') model%numerics%sigma(i)
+       message=trim(message)//trim(temp)
+    enddo
+    call write_log(trim(message))
+    call write_log('')
+    
+  end subroutine print_sigma
+
+!--------------------------------------------------------------------------------
+
+!--------------------------------------------------------------------------------
+
+  ! parameters
+  subroutine handle_numerics(section, model)
+
+    ! Numerical options and parameters: computational blocks, reproducible sums,
+    ! thickness limits, and the periodic offsets used by ISMIP-HOM.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'compute_blocks',    model%options%compute_blocks)
+    call GetValue(section,'reproducible_sums', model%options%reproducible_sums)
+
+    ! parameters
+    !TODO - Change 'ice_limit' to 'thklim'?
+    call GetValue(section,'ice_limit',          model%numerics%thklim)
+    call GetValue(section,'ice_limit_temp',     model%numerics%thklim_temp)
+    call GetValue(section,'thck_gradient_ramp', model%numerics%thck_gradient_ramp)
+    call GetValue(section,'periodic_offset_ew', model%numerics%periodic_offset_ew)
+    call GetValue(section,'periodic_offset_ns', model%numerics%periodic_offset_ns)
+
+  end subroutine handle_numerics
+
+!--------------------------------------------------------------------------------
+
   subroutine print_numerics(model)
 
     ! Numerical options and parameters
@@ -1119,6 +1194,40 @@ contains
 
 !--------------------------------------------------------------------------------
 
+  subroutine handle_constants(section, model)
+
+    ! Physical constants.
+    !Note: The following physical constants have default values in glimmer_physcon.F90.
+    !      Some test cases (e.g., MISMIP) specify different values. The default values
+    !       can therefore be overridden by the user in the config file.
+    !      For coupled CESM runs, however, CISM uses the values in CESM's shr_const_mod,
+    !       which cannot be overridden.
+    !      These constants are *not* part of the model derived type.
+    !      If running multiple instances, the user should either use the default values
+    !       or specify identical values in each config file.  Otherwise, the run will use
+    !       whatever values are specified in the last config file to be read.
+
+    use glimmer_config
+    use glissade_types
+    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+#ifndef CCSMCOUPLED
+    call GetValue(section,'rhoi', rhoi)
+    call GetValue(section,'rhoo', rhoo)
+    call GetValue(section,'grav', grav)
+    call GetValue(section,'shci', shci)
+    call GetValue(section,'lhci', lhci)
+    call GetValue(section,'trpt', trpt)
+#endif
+
+  end subroutine handle_constants
+
+!--------------------------------------------------------------------------------
+
   subroutine print_constants(model)
 
     ! Physical constants
@@ -1151,6 +1260,37 @@ contains
     call write_log(message)
 
   end subroutine print_constants
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_initialization(section, model)
+
+    ! Adjustments of the input fields at initialization: thickness, topography and
+    ! upper surface.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'adjust_input_thickness',  model%options%adjust_input_thickness)
+    call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
+    call GetValue(section,'smooth_input_usrf',       model%options%smooth_input_usrf)
+    call GetValue(section,'adjust_input_topography', model%options%adjust_input_topography)
+
+    ! parameters to adjust input topography
+    call GetValue(section,'adjust_topg_xmin',       model%paramets%adjust_topg_xmin)
+    call GetValue(section,'adjust_topg_xmax',       model%paramets%adjust_topg_xmax)
+    call GetValue(section,'adjust_topg_ymin',       model%paramets%adjust_topg_ymin)
+    call GetValue(section,'adjust_topg_ymax',       model%paramets%adjust_topg_ymax)
+    call GetValue(section,'adjust_topg_no_adjust',  model%paramets%adjust_topg_no_adjust)
+    call GetValue(section,'adjust_topg_max_adjust', model%paramets%adjust_topg_max_adjust)
+    call GetValue(section,'adjust_topg_delta',      model%paramets%adjust_topg_delta)
+
+  end subroutine handle_initialization
 
 !--------------------------------------------------------------------------------
 
@@ -1205,6 +1345,33 @@ contains
     endif
 
   end subroutine print_initialization
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_velocity(section, model)
+
+    ! Velocity options: Stokes approximation, effective viscosity, and surface gradient.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'stokes_approx',                  model%options%which_ho_approx)
+    call GetValue(section,'diva_slope_correction',          model%options%diva_slope_correction)
+    call GetValue(section,'efvs_method',                    model%options%which_ho_efvs)
+    call GetValue(section,'surface_gradient_method',        model%options%which_ho_gradient)
+    call GetValue(section,'surface_gradient_margin_method', model%options%which_ho_gradient_margin)
+
+    ! parameters
+    call GetValue(section,'efvs_constant', model%paramets%efvs_constant)
+    call GetValue(section,'effstrain_min', model%paramets%effstrain_min)
+    call GetValue(section,'max_slope',     model%paramets%max_slope)
+
+  end subroutine handle_velocity
 
 !--------------------------------------------------------------------------------
 
@@ -1299,6 +1466,40 @@ contains
     end if
 
   end subroutine print_velocity
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_velocity_solver(section, model)
+
+    ! Velocity solver options: nonlinear iteration, linear solver and preconditioner,
+    ! and the assembly of the matrix terms.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! nonlinear iteration
+    call GetValue(section,'nonlinear_method',    model%options%which_ho_nonlinear)
+    call GetValue(section,'nonlinear_residual',  model%options%which_ho_resid)
+    call GetValue(section,'nonlinear_maxiters',  model%options%glissade_maxiter)
+
+    ! linear solver
+    call GetValue(section,'linear_solver',       model%options%which_ho_sparse)
+    call GetValue(section,'preconditioner',      model%options%which_ho_precond)
+    call GetValue(section,'linear_solve_ncheck', model%options%linear_solve_ncheck)
+    call GetValue(section,'linear_maxiters',     model%options%linear_maxiters)
+    call GetValue(section,'linear_tolerance',    model%options%linear_tolerance)
+
+    ! matrix assembly
+    call GetValue(section,'assemble_beta',       model%options%which_ho_assemble_beta)
+    call GetValue(section,'assemble_taud',       model%options%which_ho_assemble_taud)
+    call GetValue(section,'assemble_bfric',      model%options%which_ho_assemble_bfric)
+    call GetValue(section,'assemble_lateral',    model%options%which_ho_assemble_lateral)
+
+  end subroutine handle_velocity_solver
 
 !--------------------------------------------------------------------------------
 
@@ -1482,6 +1683,26 @@ contains
 
 !--------------------------------------------------------------------------------
 
+  subroutine handle_advection(section, model)
+
+    ! Ice advection: the thickness evolution (transport) scheme, vertical remapping,
+    ! and the ice age tracer.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    call GetValue(section,'advection_method',     model%options%whichevol)
+    call GetValue(section,'vertical_remap_order', model%options%which_ho_vertical_remap)
+    call GetValue(section,'compute_ice_age',      model%options%which_ho_ice_age)
+
+  end subroutine handle_advection
+
+!--------------------------------------------------------------------------------
+
   subroutine print_advection(model)
 
     ! Advection options
@@ -1536,6 +1757,34 @@ contains
 
 !--------------------------------------------------------------------------------
 
+  subroutine handle_flow_law(section, model)
+
+    ! Flow law: how the rate factor flwa is computed, its enhancement factors,
+    ! and the exponent in Glen's flow law.
+
+    use glimmer_config
+    use glissade_types
+    use glimmer_physcon, only: n_glen
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'flow_law',             model%options%whichflwa)
+    call GetValue(section,'damage_flwa_feedback', model%options%damage_flwa_feedback)
+
+    ! parameters
+    call GetValue(section,'n_glen',             n_glen)
+    call GetValue(section,'flow_factor_ground', model%paramets%flow_enhancement_factor_ground)
+    call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
+    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
+    call GetValue(section,'default_flwa',       model%paramets%default_flwa)
+
+  end subroutine handle_flow_law
+
+!--------------------------------------------------------------------------------
+
   subroutine print_flow_law(model)
 
     ! Flow law options and parameters
@@ -1575,6 +1824,33 @@ contains
     end if
 
   end subroutine print_flow_law
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_temperature(section, model)
+
+    ! Ice temperature: the temperature (or enthalpy) scheme, its initialization,
+    ! the dissipation term, the order of the thermal and transport solves, and
+    ! the pressure-melting-point parameters.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'temperature_method', model%options%whichtemp)
+    call GetValue(section,'temp_init',          model%options%temp_init)
+    call GetValue(section,'dissipation_method', model%options%which_ho_disp)
+    call GetValue(section,'thermal_timestep',   model%options%which_ho_thermal_timestep)
+
+    ! parameters
+    call GetValue(section,'pmp_offset',    model%temper%pmp_offset)
+    call GetValue(section,'pmp_threshold', model%temper%pmp_threshold)
+
+  end subroutine handle_temperature
 
 !--------------------------------------------------------------------------------
 
@@ -1662,6 +1938,75 @@ contains
     call write_log(message)
 
   end subroutine print_temperature
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_basal_physics(section, model)
+
+    ! Basal physics: the sliding law and its friction parameters, beta limits,
+    ! and the effective pressure used by the sliding laws.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'sliding_law',               model%options%which_ho_babc)
+    call GetValue(section,'use_c_space_factor',        model%options%use_c_space_factor)
+    call GetValue(section,'beta_limit_method',         model%options%which_ho_beta_limit)
+    call GetValue(section,'powerlaw_c_method',         model%options%which_ho_powerlaw_c)
+    call GetValue(section,'coulomb_c_method',          model%options%which_ho_coulomb_c)
+    call GetValue(section,'elevation_based_coulomb_c', model%options%elevation_based_coulomb_c)
+    call GetValue(section,'effecpress_method',         model%options%which_ho_effecpress)
+
+    ! basal traction for the local SIA solver (Glide-style; inverse sense of beta)
+    call GetValue(section,'btrc_method', model%options%whichbtrc)
+    call GetValue(section,'btrc_const',  model%paramets%btrc_const)
+
+    ! beta parameters
+    call GetValue(section,'beta_grounded_min', model%basal_physics%beta_grounded_min)
+    call GetValue(section,'beta_const',        model%basal_physics%ho_beta_const)
+    call GetValue(section,'beta_small',        model%basal_physics%ho_beta_small)
+    call GetValue(section,'beta_large',        model%basal_physics%ho_beta_large)
+
+    ! basal friction parameters
+    call GetValue(section,'powerlaw_c_const',        model%basal_physics%powerlaw_c_const)
+    call GetValue(section,'powerlaw_c_max',          model%basal_physics%powerlaw_c_max)
+    call GetValue(section,'powerlaw_c_min',          model%basal_physics%powerlaw_c_min)
+    call GetValue(section,'powerlaw_m',              model%basal_physics%powerlaw_m)
+    call GetValue(section,'coulomb_c_const',         model%basal_physics%coulomb_c_const)
+    call GetValue(section,'coulomb_c_max',           model%basal_physics%coulomb_c_max)
+    call GetValue(section,'coulomb_c_min',           model%basal_physics%coulomb_c_min)
+    call GetValue(section,'coulomb_c_hi',            model%basal_physics%coulomb_c_hi)
+    call GetValue(section,'coulomb_c_lo',            model%basal_physics%coulomb_c_lo)
+    call GetValue(section,'coulomb_c_bed_hi',        model%basal_physics%coulomb_c_bed_hi)
+    call GetValue(section,'coulomb_c_bed_lo',        model%basal_physics%coulomb_c_bed_lo)
+    call GetValue(section,'schoof_n',                model%basal_physics%schoof_n)
+    call GetValue(section,'schoof_gamma',            model%basal_physics%schoof_gamma)
+    call GetValue(section,'schoof_p',                model%basal_physics%schoof_p)
+    call GetValue(section,'beta_powerlaw_umax',      model%basal_physics%beta_powerlaw_umax)
+    call GetValue(section,'zoet_iverson_ut',         model%basal_physics%zoet_iverson_ut)
+    call GetValue(section,'zoet_iverson_nmax',       model%basal_physics%zoet_iverson_nmax)
+    call GetValue(section,'friction_powerlaw_k',     model%basal_physics%friction_powerlaw_k)
+    call GetValue(section,'coulomb_bump_max_slope',  model%basal_physics%coulomb_bump_max_slope)
+    call GetValue(section,'coulomb_bump_wavelength', model%basal_physics%coulomb_bump_wavelength)
+
+    ! effective pressure: penetration of ocean water pressure
+    call GetValue(section,'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
+
+    ! pseudo-plastic parameters
+    call GetValue(section,'pseudo_plastic_q',      model%basal_physics%pseudo_plastic_q)
+    call GetValue(section,'pseudo_plastic_u0',     model%basal_physics%pseudo_plastic_u0)
+    !WHL TODO - During the config reorg, the next four should be removed
+    call GetValue(section,'pseudo_plastic_phimin', model%basal_physics%pseudo_plastic_phimin)
+    call GetValue(section,'pseudo_plastic_phimax', model%basal_physics%pseudo_plastic_phimax)
+    call GetValue(section,'pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin)
+    call GetValue(section,'pseudo_plastic_bedmax', model%basal_physics%pseudo_plastic_bedmax)
+
+  end subroutine handle_basal_physics
 
 !--------------------------------------------------------------------------------
 
@@ -2040,6 +2385,233 @@ contains
 
 !--------------------------------------------------------------------------------
 
+  subroutine handle_basal_hydro(section, model)
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)  :: model
+
+    ! basal water option (the switch for this section)
+    call GetValue(section, 'bwat_method', model%options%which_ho_bwat)
+
+    ! constant basal water
+    call GetValue(section, 'const_bwat', model%basal_hydro%const_bwat)
+
+    ! local basal till
+    call GetValue(section, 'bwat_till_max', model%basal_hydro%bwat_till_max)
+    call GetValue(section, 'c_drainage', model%basal_hydro%c_drainage)
+
+    ! flux routing
+    call GetValue(section, 'flux_routing_method', model%basal_hydro%ho_flux_routing_scheme)
+    call GetValue(section, 'const_source', model%basal_hydro%const_source)
+    call GetValue(section, 'btemp_flow_scale', model%basal_hydro%btemp_flow_scale)
+    call GetValue(section, 'btemp_freeze_scale', model%basal_hydro%btemp_freeze_scale)
+
+    ! effective pressure options and parameters
+    call GetValue(section, 'effecpress_delta',   model%basal_hydro%effecpress_delta)
+    call GetValue(section, 'bwat_threshold', model%basal_hydro%bwat_threshold)
+    call GetValue(section, 'bpmp_threshold', model%basal_hydro%bpmp_threshold)
+    call GetValue(section, 'haf_threshold', model%basal_hydro%haf_threshold)
+    call GetValue(section, 'cavity_open_slide', model%basal_hydro%cavity_open_slide)
+    call GetValue(section, 'cavity_open_melt', model%basal_hydro%cavity_open_melt)
+    call GetValue(section, 'bump_height', model%basal_hydro%bump_height)
+    call GetValue(section, 'bump_wavelength', model%basal_hydro%bump_wavelength)
+    call GetValue(section, 'sliding_speed_fixed', model%basal_hydro%sliding_speed_fixed)
+    call GetValue(section, 'flwa_basal', model%basal_hydro%flwa_basal)
+    call GetValue(section, 'c_close', model%basal_hydro%c_close)
+
+  end subroutine handle_basal_hydro
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_basal_hydro(model)
+
+    use glissade_types
+    use glimmer_log
+
+    implicit none
+    type(glissade_global_type)  :: model
+    character(len=100) :: message
+
+    character(len=*), dimension(0:3), parameter :: bwat_method = (/ &
+         'zero basal water depth                           ', &
+         'constant basal water depth                       ', &
+         'basal water depth computed from local till model ', &
+         'steady-state flux routing                        ' /)
+
+    character(len=*), dimension(0:2), parameter :: flux_routing_method = (/ &
+         'D8; route flux to lowest-elevation neighbor      ', &
+         'Dinf; route flux to two lower-elevation neighbors', &
+         'FD8; route flux to all lower-elevation neighbors ' /)
+
+    character(len=*), dimension(0:2), parameter :: cavity_open_slide = (/ &
+         'no opening by sliding                           ', &
+         'opening by sliding with fixed u_b               ', &
+         'opening by sliding with dynamic u_b             ' /)
+
+    character(len=*), dimension(0:3), parameter :: cavity_open_melt = (/ &
+         'no opening by melting                           ', &
+         'opening by melting based on bmlt_ground         ', &
+         'opening by melting based on cavity dissipation  ', &
+         'opening based on bmlt_ground plus dissipation   ' /)
+
+    if (model%options%which_ho_bwat /= HO_BWAT_NONE) then
+       write(message,*) 'bwat_method             : ',model%options%which_ho_bwat,  &
+                         bwat_method(model%options%which_ho_bwat)
+       call write_log(message)
+    endif
+    if (model%options%which_ho_bwat < 0 .or. model%options%which_ho_bwat >= size(bwat_method)) then
+       call write_log('Error, HO basal water input out of range', GM_FATAL)
+    end if
+
+    if (model%options%which_ho_bwat == HO_BWAT_CONSTANT) then
+       write(message,*) 'constant basal water depth (m): ', model%basal_hydro%const_bwat
+       call write_log(message)
+    elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
+       write(message,*) 'maximum till water depth (m)  : ', model%basal_hydro%bwat_till_max
+       call write_log(message)
+       write(message,*) 'till drainage rate (m/yr)     : ', model%basal_hydro%c_drainage
+       call write_log(message)
+    elseif (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+       if (model%basal_hydro%ho_flux_routing_scheme < 0.or. &
+            model%basal_hydro%ho_flux_routing_scheme >= size(flux_routing_method)) then
+          call write_log('Error, HO flux routing scheme out of range', GM_FATAL)
+       end if
+    endif
+
+    call write_log(' ')
+    call write_log('Basal hydrology')
+    call write_log('--------')
+
+    write(message,*) 'bwat_method                   : ',model%options%which_ho_bwat,  &
+                      bwat_method(model%options%which_ho_bwat)
+    call write_log(message)
+    if (model%options%which_ho_bwat < 0 .or. model%options%which_ho_bwat >= size(bwat_method)) then
+       call write_log('Error, HO basal water input out of range', GM_FATAL)
+    end if
+
+    if (model%options%which_ho_bwat == HO_BWAT_CONSTANT) then
+       write(message,*) 'constant basal water depth (m): ', model%basal_hydro%const_bwat
+       call write_log(message)
+    elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
+       if (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT_BVP) then
+          write(message,*) 'effective pressure delta      : ', model%basal_hydro%effecpress_delta
+          call write_log(message)
+          write(message,*) 'maximum till water depth (m)  : ', model%basal_hydro%bwat_till_max
+          call write_log(message)
+          write(message,*) 'till drainage rate (m/yr)     : ', model%basal_hydro%c_drainage
+          call write_log(message)
+       else
+          write(message,*) 'local till option must use effecpress_method =', HO_EFFECPRESS_BWAT_BVP
+          call write_log(message, GM_FATAL)
+       endif
+    elseif (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+       if (model%basal_hydro%ho_flux_routing_scheme < 0.or. &
+            model%basal_hydro%ho_flux_routing_scheme >= size(flux_routing_method)) then
+          call write_log('Error, HO flux routing scheme out of range', GM_FATAL)
+       end if
+       if (model%options%reproducible_sums) then
+          if (model%basal_hydro%ho_flux_routing_scheme /= HO_FLUX_ROUTING_D8) then
+             call write_log('Error, this flux_routing scheme is not supported with reproducible sums')
+             call write_log('Please use D8 flux-routing or turn off reproducible sums', GM_FATAL)
+          endif
+          if (model%basal_hydro%btemp_freeze_scale > 0.0d0) then
+             call write_log('Error, flux-routing does not support refreezing with reproducible sums')
+             call write_log('Please set btemp_freeze_scale = 0 or turn off reproducible sums', GM_FATAL)
+          endif
+       endif  ! reproducible sums
+       write(message,*) 'flux_routing_method           : ',model%basal_hydro%ho_flux_routing_scheme,  &
+            flux_routing_method(model%basal_hydro%ho_flux_routing_scheme)
+       call write_log(message)
+       if (model%basal_hydro%const_source > 0.0d0) then
+          write(message,*) 'constant melt source at the bed (m/yr): ', model%basal_hydro%const_source
+          call write_log(message)
+       endif
+       if (model%basal_hydro%btemp_flow_scale > 0.0d0) then
+          write(message,*) 'temp scale (deg C) for flow around frozen bed: ', &
+               model%basal_hydro%btemp_flow_scale
+          call write_log(message)
+       endif
+       if (model%basal_hydro%btemp_freeze_scale > 0.0d0) then
+          write(message,*) 'temp scale (deg C) for refreezing at the bed: ', &
+               model%basal_hydro%btemp_freeze_scale
+          call write_log(message)
+       endif
+       if (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT) then
+          write(message,*) 'effective pressure delta      : ', model%basal_hydro%effecpress_delta
+          call write_log(message)
+          write(message,*) 'bwat threshold (m)            : ', model%basal_hydro%bwat_threshold
+          call write_log(message)
+       elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_CAVITY_SHEET) then
+          if (model%basal_hydro%cavity_open_slide < 0 .or. &
+               model%basal_hydro%cavity_open_slide >= size(cavity_open_slide)) then
+             call write_log('Error, cavity_open_slide out of range', GM_FATAL)
+          endif
+          write(message,*) 'cavity_open_slide             : ', &
+               cavity_open_slide(model%basal_hydro%cavity_open_slide)
+          call write_log(message)
+          if (model%basal_hydro%cavity_open_melt < 0 .or. &
+               model%basal_hydro%cavity_open_melt >= size(cavity_open_melt)) then
+             call write_log('Error, cavity_open_melt out of range', GM_FATAL)
+          endif
+          write(message,*) 'cavity_open_melt              : ', &
+               cavity_open_melt(model%basal_hydro%cavity_open_slide)
+          call write_log(message)
+          if (model%basal_hydro%cavity_open_slide /= CAVITY_OPEN_SLIDE_NONE) then
+             write(message,*) 'bump height                   : ', model%basal_hydro%bump_height
+             call write_log(message)
+             write(message,*) 'bump wavelength               : ', model%basal_hydro%bump_wavelength
+             call write_log(message)
+             if (model%basal_hydro%cavity_open_slide == CAVITY_OPEN_SLIDE_FIXED_UB) then
+                write(message,*) 'fixed sliding speed (m/yr)    : ', model%basal_hydro%sliding_speed_fixed
+                call write_log(message)
+             endif
+          endif   ! opening by sliding
+          write(message,*) 'flwa for closing (Pa-3 yr-1)  : ', model%basal_hydro%flwa_basal
+          call write_log(message)
+          write(message,*) 'constant for closing          : ', model%basal_hydro%c_close
+          call write_log(message)
+       endif   ! cavity-sheet parameterization
+    endif   ! which_ho_bwat
+
+    ! other effective pressure options
+
+    if (model%options%which_ho_effecpress == HO_EFFECPRESS_BPMP) then
+       write(message,*) 'effective pressure delta      : ', model%basal_hydro%effecpress_delta
+       call write_log(message)
+       write(message,*) 'bpmp threshold (K)            : ', model%basal_hydro%bpmp_threshold
+       call write_log(message)
+    endif
+
+  end subroutine print_basal_hydro
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_grounding_line(section, model)
+
+    ! Grounding-line options: the grounding-line parameterization (GLP) for basal stress,
+    ! the grounded fraction without GLP, subgrid basal melting near the grounding line,
+    ! and the flotation function.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    call GetValue(section,'grounding_line_param', model%options%which_ho_ground)
+    call GetValue(section,'fground_no_glp',       model%options%which_ho_fground_no_glp)
+    call GetValue(section,'grounding_line_bmlt',  model%options%which_ho_ground_bmlt)
+    call GetValue(section,'flotation_function',   model%options%which_ho_flotation_function)
+
+  end subroutine handle_grounding_line
+
+!--------------------------------------------------------------------------------
+
   subroutine print_grounding_line(model)
 
     ! Grounding-line options
@@ -2121,6 +2693,52 @@ contains
     endif
 
   end subroutine print_grounding_line
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_basal_melt(section, model)
+
+    ! Basal melting of floating ice: the bmlt_float scheme and its parameters,
+    ! anomaly forcing, and whether basal melt enters the continuity equation.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'bmlt_float_method',                model%options%whichbmlt_float)
+    call GetValue(section,'bmlt_float_thermal_forcing_param', model%options%bmlt_float_thermal_forcing_param)
+    call GetValue(section,'bmlt_float_init',                  model%options%bmlt_float_init)
+    call GetValue(section,'deltaT_ocn_method',                model%options%which_ho_deltaT_ocn)
+    call GetValue(section,'enable_bmlt_anomaly',              model%options%enable_bmlt_anomaly)
+    call GetValue(section,'basal_mass_balance',               model%options%basal_mbal)
+
+    ! general parameters
+    call GetValue(section,'bmlt_float_factor',      model%basal_melt%bmlt_float_factor)
+    call GetValue(section,'bmlt_cavity_h0',         model%basal_melt%bmlt_cavity_h0)
+    call GetValue(section,'bmlt_anomaly_tstart',    model%basal_melt%bmlt_anomaly_tstart)
+    call GetValue(section,'bmlt_anomaly_timescale', model%basal_melt%bmlt_anomaly_timescale)
+
+    ! MISMIP+ basal melting parameters
+    call GetValue(section,'bmlt_float_omega', model%basal_melt%bmlt_float_omega)
+    call GetValue(section,'bmlt_float_h0',    model%basal_melt%bmlt_float_h0)
+    call GetValue(section,'bmlt_float_z0',    model%basal_melt%bmlt_float_z0)
+    call GetValue(section,'bmlt_float_const', model%basal_melt%bmlt_float_const)
+    call GetValue(section,'bmlt_float_xlim',  model%basal_melt%bmlt_float_xlim)
+
+    ! depth-dependent basal melting parameters
+    call GetValue(section,'bmlt_float_depth_meltmax',  model%basal_melt%bmlt_float_depth_meltmax)
+    call GetValue(section,'bmlt_float_depth_frzmax',   model%basal_melt%bmlt_float_depth_frzmax)
+    call GetValue(section,'bmlt_float_depth_zmeltmax', model%basal_melt%bmlt_float_depth_zmeltmax)
+    call GetValue(section,'bmlt_float_depth_zmelt0',   model%basal_melt%bmlt_float_depth_zmelt0)
+    call GetValue(section,'bmlt_float_depth_zfrzmax',  model%basal_melt%bmlt_float_depth_zfrzmax)
+    call GetValue(section,'bmlt_float_depth_meltmin',  model%basal_melt%bmlt_float_depth_meltmin)
+    call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
+
+  end subroutine handle_basal_melt
 
 !--------------------------------------------------------------------------------
 
@@ -2274,6 +2892,34 @@ contains
 
 !--------------------------------------------------------------------------------
 
+  subroutine handle_ocean_data(section, model)
+
+    ! Ocean data (thermal forcing) for the thermal-forcing basal melt schemes.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'ocean_data_domain',      model%options%ocean_data_domain)
+    call GetValue(section,'ocean_data_extrapolate', model%options%ocean_data_extrapolate)
+
+    ! parameters
+    call GetValue(section,'gamma0',                            model%ocean_data%gamma0)
+    call GetValue(section,'thermal_forcing_basin_min',         model%ocean_data%thermal_forcing_basin_min)
+    call GetValue(section,'thermal_forcing_basin_max',         model%ocean_data%thermal_forcing_basin_max)
+    call GetValue(section,'thermal_forcing_anomaly',           model%ocean_data%thermal_forcing_anomaly)
+    call GetValue(section,'thermal_forcing_anomaly_tstart',    model%ocean_data%thermal_forcing_anomaly_tstart)
+    call GetValue(section,'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
+    call GetValue(section,'thermal_forcing_anomaly_basin',     model%ocean_data%thermal_forcing_anomaly_basin)
+
+  end subroutine handle_ocean_data
+
+!--------------------------------------------------------------------------------
+
   subroutine print_ocean_data(model)
 
     ! Ocean data (thermal forcing) options and parameters
@@ -2337,6 +2983,51 @@ contains
     endif
 
   end subroutine print_ocean_data
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_climate(section, model)
+
+    ! Surface climate forcing: SMB and surface air temperature (input options, anomalies,
+    ! overwrites, and the parameters of the internal SMB functions).
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'smb_input',                       model%options%smb_input)
+    call GetValue(section,'smb_input_function',              model%options%smb_input_function)
+    call GetValue(section,'artm_input_function',             model%options%artm_input_function)
+    call GetValue(section,'enable_smb_anomaly',              model%options%enable_smb_anomaly)
+    call GetValue(section,'enable_artm_anomaly',             model%options%enable_artm_anomaly)
+    call GetValue(section,'enable_snow_anomaly',             model%options%enable_snow_anomaly)
+    call GetValue(section,'enable_precip_anomaly',           model%options%enable_precip_anomaly)
+    call GetValue(section,'overwrite_acab',                  model%options%overwrite_acab)
+    call GetValue(section,'enable_acab_dthck_dt_correction', model%options%enable_acab_dthck_dt_correction)
+    call GetValue(section,'block_inception',                 model%options%block_inception)
+
+    ! parameters of the internal SMB and artm functions
+    call GetValue(section,'t_lapse',            model%climate%t_lapse)
+    call GetValue(section,'degree_factor',      model%climate%degree_factor)
+    call GetValue(section,'tmlt',               model%climate%tmlt)
+    call GetValue(section,'snow_threshold_min', model%climate%snow_threshold_min)
+    call GetValue(section,'snow_threshold_max', model%climate%snow_threshold_max)
+    call GetValue(section,'smb_factor',         model%climate%smb_factor)
+
+    ! anomaly and overwrite parameters
+    call GetValue(section,'smb_anomaly_tstart',     model%climate%smb_anomaly_tstart)
+    call GetValue(section,'smb_anomaly_timescale',  model%climate%smb_anomaly_timescale)
+    call GetValue(section,'overwrite_acab_value',   model%climate%overwrite_acab_value)
+    call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
+    call GetValue(section,'artm_anomaly_const',     model%climate%artm_anomaly_const)
+    call GetValue(section,'artm_anomaly_tstart',    model%climate%artm_anomaly_tstart)
+    call GetValue(section,'artm_anomaly_timescale', model%climate%artm_anomaly_timescale)
+
+  end subroutine handle_climate
 
 !--------------------------------------------------------------------------------
 
@@ -2493,6 +3184,54 @@ contains
     endif
 
   end subroutine print_climate
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_calving(section, model)
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! calving options
+    call GetValue(section,'calving_law',           model%options%whichcalving)
+    call GetValue(section,'calving_init',          model%options%calving_init)
+    call GetValue(section,'calving_domain',        model%options%calving_domain)
+    call GetValue(section,'apply_calving_mask',    model%options%apply_calving_mask)
+    call GetValue(section,'remove_icebergs',       model%options%remove_icebergs)
+    call GetValue(section,'remove_isthmuses',      model%options%remove_isthmuses)
+    call GetValue(section,'limit_marine_cliffs',   model%options%limit_marine_cliffs)
+    call GetValue(section,'subgrid_calving_front', model%options%which_ho_calving_front)
+    call GetValue(section,'calvingmip_domain',     model%options%which_ho_calvingmip_domain)
+
+    ! calving parameters
+    call GetValue(section,'marine_limit',       model%calving%marine_limit)
+    call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
+    call GetValue(section,'calving_timescale',  model%calving%timescale)
+    call GetValue(section,'calving_minthck',    model%calving%minthck)
+    call GetValue(section,'dthck_dx_cf',        model%calving%dthck_dx_cf)
+    call GetValue(section,'thck_effective_min', model%calving%thck_effective_min)
+    call GetValue(section,'eigenconstant',      model%calving%eigenconstant)
+    call GetValue(section,'tau_eigenconstant1', model%calving%tau_eigenconstant1)
+    call GetValue(section,'tau_eigenconstant2', model%calving%tau_eigenconstant2)
+    call GetValue(section,'stress_threshold',   model%calving%stress_threshold)
+    call GetValue(section,'lateral_rate_min',   model%calving%lateral_rate_min)
+    call GetValue(section,'effec_stress_min',   model%calving%effec_stress_min)
+    call GetValue(section,'calving_length_scale', model%calving%length_scale)
+    call GetValue(section,'damage_constant',    model%calving%damage_constant)
+    call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
+    call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
+    call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
+    call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
+    call GetValue(section,'calving_front_radius',         model%calving%calving_front_radius)
+    call GetValue(section,'cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude)
+    call GetValue(section,'cf_advance_retreat_period',    model%calving%cf_advance_retreat_period)
+    call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
+
+  end subroutine handle_calving
 
 !--------------------------------------------------------------------------------
 
@@ -2723,6 +3462,25 @@ contains
 
 !--------------------------------------------------------------------------------
 
+  subroutine handle_removal(section, model)
+
+    ! Ice removal that is not calving: removal of ice caps, and forced retreat.
+    ! The removed ice is tracked separately from the calving flux.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    call GetValue(section,'remove_ice_caps', model%options%remove_ice_caps)
+    call GetValue(section,'force_retreat',   model%options%force_retreat)
+
+  end subroutine handle_removal
+
+!--------------------------------------------------------------------------------
+
   subroutine print_removal(model)
 
     ! Ice removal options
@@ -2752,6 +3510,120 @@ contains
     endif
 
   end subroutine print_removal
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_lateral_melt(section, model)
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)  :: model
+
+    call GetValue(section, 'lateral_melt_method', model%options%which_lateral_melt)
+    call GetValue(section, 'melt_rate_const', model%lateral_melt%melt_rate_const)
+    call GetValue(section, 'melt_factor', model%lateral_melt%melt_factor)
+    call GetValue(section, 'runoff_from_ablation', model%lateral_melt%runoff_from_ablation)
+    call GetValue(section, 'thermal_forcing_avg_3d_to_2d', model%lateral_melt%thermal_forcing_avg_3d_to_2d)
+    call GetValue(section, 'ztop_tfavg', model%lateral_melt%ztop_tfavg)
+    call GetValue(section, 'zbot_tfavg', model%lateral_melt%zbot_tfavg)
+
+  end subroutine handle_lateral_melt
+
+  !--------------------------------------------------------------------------------
+
+  subroutine print_lateral_melt(model)
+
+    use glissade_types
+    use glimmer_log
+
+    implicit none
+    type(glissade_global_type)  :: model
+    character(len=100) :: message
+
+    character(len=*), dimension(0:2), parameter :: lateral_melt_method = (/ &
+         'no lateral melt at marine margin         ', &
+         'constant lateral melt rate               ', &
+         'ISMIP lateral melt from TF and discharge ' /)
+
+    if (model%options%which_lateral_melt < 0 .or. model%options%which_lateral_melt >= size(lateral_melt_method)) then
+       call write_log('Error, lateral melt option out of range', GM_FATAL)
+    else
+       write(message,*) 'lateral_melt_method           : ',model%options%which_lateral_melt,  &
+            lateral_melt_method(model%options%which_lateral_melt)
+       call write_log(message)
+    endif
+
+    if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
+
+       if (model%options%which_lateral_melt == LATERAL_MELT_CONSTANT) then
+          write(message,*) 'constant lateral melt rate (m/yr)     : ', model%lateral_melt%melt_rate_const
+          call write_log(message)
+       elseif (model%options%which_lateral_melt == LATERAL_MELT_ISMIP) then
+          write(message,*) 'lateral melt factor                   : ', model%lateral_melt%melt_factor
+          call write_log(message)
+          if (model%lateral_melt%runoff_from_ablation) then
+             call write_log('runoff will be computed from ablation')
+          else
+             call write_log('runoff will be read from an input file')
+          endif
+          if (model%lateral_melt%thermal_forcing_avg_3d_to_2d) then
+             call write_log('2d thermal_forcing will be averaged from 3d')
+             write(message,*) 'depth range for TF averaging, top     : ', model%lateral_melt%ztop_tfavg
+             call write_log(message)
+             write(message,*) 'depth range for TF averaging, bottom  : ', model%lateral_melt%zbot_tfavg
+             call write_log(message)
+          else
+             call write_log('2d thermal forcing will be read from an input file')
+          endif
+       endif
+
+    endif  ! which_lateral_melt /= lateral_melt_none
+
+  end subroutine print_lateral_melt
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_inversion(section, model)
+
+    ! Parameters of the inversions for the basal friction parameters (powerlaw_c, coulomb_c)
+    ! and for the ocean temperature correction deltaT_ocn.
+    ! The inversions themselves are selected in [basal_physics] (powerlaw_c_method,
+    ! coulomb_c_method) and [basal_melt] (deltaT_ocn_method).
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! general
+    call GetValue(section,'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
+    call GetValue(section,'inversion_thck_threshold',        model%inversion%thck_threshold)
+    call GetValue(section,'inversion_damping_factor',        model%inversion%damping_factor)
+
+    ! basal friction inversion
+    call GetValue(section,'inversion_babc_timescale',    model%inversion%babc_timescale)
+    call GetValue(section,'inversion_babc_thck_scale',   model%inversion%babc_thck_scale)
+    call GetValue(section,'inversion_babc_length_scale', model%inversion%babc_length_scale)
+    call GetValue(section,'inversion_babc_relax_factor', model%inversion%babc_relax_factor)
+
+    ! deltaT_ocn inversion
+    call GetValue(section,'inversion_deltaT_ocn_timescale',    model%inversion%deltaT_ocn_timescale)
+    call GetValue(section,'inversion_deltaT_ocn_thck_scale',   model%inversion%deltaT_ocn_thck_scale)
+    call GetValue(section,'inversion_deltaT_ocn_length_scale', model%inversion%deltaT_ocn_length_scale)
+    call GetValue(section,'inversion_deltaT_ocn_temp_scale',   model%inversion%deltaT_ocn_temp_scale)
+    call GetValue(section,'inversion_deltaT_basin_relax',      model%inversion%deltaT_basin_relax)
+
+    ! basin-scale deltaT_ocn inversion
+    call GetValue(section,'inversion_basin_flotation_threshold',    model%inversion%basin_flotation_threshold)
+    call GetValue(section,'inversion_basin_mass_correction',        model%inversion%basin_mass_correction)
+    call GetValue(section,'inversion_basin_number_mass_correction', model%inversion%basin_number_mass_correction)
+
+  end subroutine handle_inversion
 
 !--------------------------------------------------------------------------------
 
@@ -2845,6 +3717,24 @@ contains
 
 !--------------------------------------------------------------------------------
 
+  subroutine handle_geothermal(section, model)
+
+    ! Geothermal heat flux: uniform (geothermal_flux) or read from the input file.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    call GetValue(section,'geothermal_method', model%options%gthf)
+    call GetValue(section,'geothermal_flux',   model%paramets%geot)
+
+  end subroutine handle_geothermal
+
+!--------------------------------------------------------------------------------
+
   subroutine print_geothermal(model)
 
     ! Geothermal heat flux option and parameter
@@ -2875,672 +3765,6 @@ contains
     call write_log(message)
 
   end subroutine print_geothermal
-
-!--------------------------------------------------------------------------------
-
-  subroutine print_diagnostics(model)
-
-    ! Diagnostic options
-
-    use glissade_types
-    use glimmer_log
-
-    implicit none
-
-    type(glissade_global_type)  :: model
-    character(len=500) :: message
-
-    character(len=*), dimension(0:1), parameter :: dm_dt_diag = (/ &
-         'write dmass/dt diagnostic in units of kg/s ',  &
-         'write dmass/dt diagnostic in units of Gt/yr'/)
-
-    character(len=*), dimension(0:1), parameter :: diag_minthck = (/ &
-         'include cells with H > 0 in global diagnostics     ', &
-         'include cells with H > thklim in global diagnostics'/)
-
-    if (model%options%dm_dt_diag < 0 .or. model%options%dm_dt_diag >= size(dm_dt_diag)) then
-       call write_log('Error, dm_dt_diag out of range',GM_FATAL)
-    end if
-
-    if (model%options%diag_minthck < 0 .or. model%options%diag_minthck >= size(diag_minthck)) then
-       call write_log('Error, diag_minthck out of range',GM_FATAL)
-    end if
-
-    write(message,*) 'minthck for diagnostics : ',model%options%diag_minthck, &
-         diag_minthck(model%options%diag_minthck)
-    call write_log(message)
-
-  end subroutine print_diagnostics
-
-!--------------------------------------------------------------------------------
-
-!--------------------------------------------------------------------------------
-
-  ! parameters
-  subroutine handle_numerics(section, model)
-
-    ! Numerical options and parameters: computational blocks, reproducible sums,
-    ! thickness limits, and the periodic offsets used by ISMIP-HOM.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! options
-    call GetValue(section,'compute_blocks',    model%options%compute_blocks)
-    call GetValue(section,'reproducible_sums', model%options%reproducible_sums)
-
-    ! parameters
-    !TODO - Change 'ice_limit' to 'thklim'?
-    call GetValue(section,'ice_limit',          model%numerics%thklim)
-    call GetValue(section,'ice_limit_temp',     model%numerics%thklim_temp)
-    call GetValue(section,'thck_gradient_ramp', model%numerics%thck_gradient_ramp)
-    call GetValue(section,'periodic_offset_ew', model%numerics%periodic_offset_ew)
-    call GetValue(section,'periodic_offset_ns', model%numerics%periodic_offset_ns)
-
-  end subroutine handle_numerics
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_constants(section, model)
-
-    ! Physical constants.
-    !Note: The following physical constants have default values in glimmer_physcon.F90.
-    !      Some test cases (e.g., MISMIP) specify different values. The default values
-    !       can therefore be overridden by the user in the config file.
-    !      For coupled CESM runs, however, CISM uses the values in CESM's shr_const_mod,
-    !       which cannot be overridden.
-    !      These constants are *not* part of the model derived type.
-    !      If running multiple instances, the user should either use the default values
-    !       or specify identical values in each config file.  Otherwise, the run will use
-    !       whatever values are specified in the last config file to be read.
-
-    use glimmer_config
-    use glissade_types
-    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-#ifndef CCSMCOUPLED
-    call GetValue(section,'rhoi', rhoi)
-    call GetValue(section,'rhoo', rhoo)
-    call GetValue(section,'grav', grav)
-    call GetValue(section,'shci', shci)
-    call GetValue(section,'lhci', lhci)
-    call GetValue(section,'trpt', trpt)
-#endif
-
-  end subroutine handle_constants
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_initialization(section, model)
-
-    ! Adjustments of the input fields at initialization: thickness, topography and
-    ! upper surface.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! options
-    call GetValue(section,'adjust_input_thickness',  model%options%adjust_input_thickness)
-    call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
-    call GetValue(section,'smooth_input_usrf',       model%options%smooth_input_usrf)
-    call GetValue(section,'adjust_input_topography', model%options%adjust_input_topography)
-
-    ! parameters to adjust input topography
-    call GetValue(section,'adjust_topg_xmin',       model%paramets%adjust_topg_xmin)
-    call GetValue(section,'adjust_topg_xmax',       model%paramets%adjust_topg_xmax)
-    call GetValue(section,'adjust_topg_ymin',       model%paramets%adjust_topg_ymin)
-    call GetValue(section,'adjust_topg_ymax',       model%paramets%adjust_topg_ymax)
-    call GetValue(section,'adjust_topg_no_adjust',  model%paramets%adjust_topg_no_adjust)
-    call GetValue(section,'adjust_topg_max_adjust', model%paramets%adjust_topg_max_adjust)
-    call GetValue(section,'adjust_topg_delta',      model%paramets%adjust_topg_delta)
-
-  end subroutine handle_initialization
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_diagnostics(section, model)
-
-    ! Diagnostic options.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    call GetValue(section,'dm_dt_diag',   model%options%dm_dt_diag)
-    call GetValue(section,'diag_minthck', model%options%diag_minthck)
-
-  end subroutine handle_diagnostics
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_velocity(section, model)
-
-    ! Velocity options: Stokes approximation, effective viscosity, and surface gradient.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! options
-    call GetValue(section,'stokes_approx',                  model%options%which_ho_approx)
-    call GetValue(section,'diva_slope_correction',          model%options%diva_slope_correction)
-    call GetValue(section,'efvs_method',                    model%options%which_ho_efvs)
-    call GetValue(section,'surface_gradient_method',        model%options%which_ho_gradient)
-    call GetValue(section,'surface_gradient_margin_method', model%options%which_ho_gradient_margin)
-
-    ! parameters
-    call GetValue(section,'efvs_constant', model%paramets%efvs_constant)
-    call GetValue(section,'effstrain_min', model%paramets%effstrain_min)
-    call GetValue(section,'max_slope',     model%paramets%max_slope)
-
-  end subroutine handle_velocity
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_velocity_solver(section, model)
-
-    ! Velocity solver options: nonlinear iteration, linear solver and preconditioner,
-    ! and the assembly of the matrix terms.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! nonlinear iteration
-    call GetValue(section,'nonlinear_method',    model%options%which_ho_nonlinear)
-    call GetValue(section,'nonlinear_residual',  model%options%which_ho_resid)
-    call GetValue(section,'nonlinear_maxiters',  model%options%glissade_maxiter)
-
-    ! linear solver
-    call GetValue(section,'linear_solver',       model%options%which_ho_sparse)
-    call GetValue(section,'preconditioner',      model%options%which_ho_precond)
-    call GetValue(section,'linear_solve_ncheck', model%options%linear_solve_ncheck)
-    call GetValue(section,'linear_maxiters',     model%options%linear_maxiters)
-    call GetValue(section,'linear_tolerance',    model%options%linear_tolerance)
-
-    ! matrix assembly
-    call GetValue(section,'assemble_beta',       model%options%which_ho_assemble_beta)
-    call GetValue(section,'assemble_taud',       model%options%which_ho_assemble_taud)
-    call GetValue(section,'assemble_bfric',      model%options%which_ho_assemble_bfric)
-    call GetValue(section,'assemble_lateral',    model%options%which_ho_assemble_lateral)
-
-  end subroutine handle_velocity_solver
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_advection(section, model)
-
-    ! Ice advection: the thickness evolution (transport) scheme, vertical remapping,
-    ! and the ice age tracer.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    call GetValue(section,'advection_method',     model%options%whichevol)
-    call GetValue(section,'vertical_remap_order', model%options%which_ho_vertical_remap)
-    call GetValue(section,'compute_ice_age',      model%options%which_ho_ice_age)
-
-  end subroutine handle_advection
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_flow_law(section, model)
-
-    ! Flow law: how the rate factor flwa is computed, its enhancement factors,
-    ! and the exponent in Glen's flow law.
-
-    use glimmer_config
-    use glissade_types
-    use glimmer_physcon, only: n_glen
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! options
-    call GetValue(section,'flow_law',             model%options%whichflwa)
-    call GetValue(section,'damage_flwa_feedback', model%options%damage_flwa_feedback)
-
-    ! parameters
-    call GetValue(section,'n_glen',             n_glen)
-    call GetValue(section,'flow_factor_ground', model%paramets%flow_enhancement_factor_ground)
-    call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
-    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
-    call GetValue(section,'default_flwa',       model%paramets%default_flwa)
-
-  end subroutine handle_flow_law
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_temperature(section, model)
-
-    ! Ice temperature: the temperature (or enthalpy) scheme, its initialization,
-    ! the dissipation term, the order of the thermal and transport solves, and
-    ! the pressure-melting-point parameters.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! options
-    call GetValue(section,'temperature_method', model%options%whichtemp)
-    call GetValue(section,'temp_init',          model%options%temp_init)
-    call GetValue(section,'dissipation_method', model%options%which_ho_disp)
-    call GetValue(section,'thermal_timestep',   model%options%which_ho_thermal_timestep)
-
-    ! parameters
-    call GetValue(section,'pmp_offset',    model%temper%pmp_offset)
-    call GetValue(section,'pmp_threshold', model%temper%pmp_threshold)
-
-  end subroutine handle_temperature
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_basal_physics(section, model)
-
-    ! Basal physics: the sliding law and its friction parameters, beta limits,
-    ! and the effective pressure used by the sliding laws.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! options
-    call GetValue(section,'sliding_law',               model%options%which_ho_babc)
-    call GetValue(section,'use_c_space_factor',        model%options%use_c_space_factor)
-    call GetValue(section,'beta_limit_method',         model%options%which_ho_beta_limit)
-    call GetValue(section,'powerlaw_c_method',         model%options%which_ho_powerlaw_c)
-    call GetValue(section,'coulomb_c_method',          model%options%which_ho_coulomb_c)
-    call GetValue(section,'elevation_based_coulomb_c', model%options%elevation_based_coulomb_c)
-    call GetValue(section,'effecpress_method',         model%options%which_ho_effecpress)
-
-    ! basal traction for the local SIA solver (Glide-style; inverse sense of beta)
-    call GetValue(section,'btrc_method', model%options%whichbtrc)
-    call GetValue(section,'btrc_const',  model%paramets%btrc_const)
-
-    ! beta parameters
-    call GetValue(section,'beta_grounded_min', model%basal_physics%beta_grounded_min)
-    call GetValue(section,'beta_const',        model%basal_physics%ho_beta_const)
-    call GetValue(section,'beta_small',        model%basal_physics%ho_beta_small)
-    call GetValue(section,'beta_large',        model%basal_physics%ho_beta_large)
-
-    ! basal friction parameters
-    call GetValue(section,'powerlaw_c_const',        model%basal_physics%powerlaw_c_const)
-    call GetValue(section,'powerlaw_c_max',          model%basal_physics%powerlaw_c_max)
-    call GetValue(section,'powerlaw_c_min',          model%basal_physics%powerlaw_c_min)
-    call GetValue(section,'powerlaw_m',              model%basal_physics%powerlaw_m)
-    call GetValue(section,'coulomb_c_const',         model%basal_physics%coulomb_c_const)
-    call GetValue(section,'coulomb_c_max',           model%basal_physics%coulomb_c_max)
-    call GetValue(section,'coulomb_c_min',           model%basal_physics%coulomb_c_min)
-    call GetValue(section,'coulomb_c_hi',            model%basal_physics%coulomb_c_hi)
-    call GetValue(section,'coulomb_c_lo',            model%basal_physics%coulomb_c_lo)
-    call GetValue(section,'coulomb_c_bed_hi',        model%basal_physics%coulomb_c_bed_hi)
-    call GetValue(section,'coulomb_c_bed_lo',        model%basal_physics%coulomb_c_bed_lo)
-    call GetValue(section,'schoof_n',                model%basal_physics%schoof_n)
-    call GetValue(section,'schoof_gamma',            model%basal_physics%schoof_gamma)
-    call GetValue(section,'schoof_p',                model%basal_physics%schoof_p)
-    call GetValue(section,'beta_powerlaw_umax',      model%basal_physics%beta_powerlaw_umax)
-    call GetValue(section,'zoet_iverson_ut',         model%basal_physics%zoet_iverson_ut)
-    call GetValue(section,'zoet_iverson_nmax',       model%basal_physics%zoet_iverson_nmax)
-    call GetValue(section,'friction_powerlaw_k',     model%basal_physics%friction_powerlaw_k)
-    call GetValue(section,'coulomb_bump_max_slope',  model%basal_physics%coulomb_bump_max_slope)
-    call GetValue(section,'coulomb_bump_wavelength', model%basal_physics%coulomb_bump_wavelength)
-
-    ! effective pressure: penetration of ocean water pressure
-    call GetValue(section,'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
-
-    ! pseudo-plastic parameters
-    call GetValue(section,'pseudo_plastic_q',      model%basal_physics%pseudo_plastic_q)
-    call GetValue(section,'pseudo_plastic_u0',     model%basal_physics%pseudo_plastic_u0)
-    !WHL TODO - During the config reorg, the next four should be removed
-    call GetValue(section,'pseudo_plastic_phimin', model%basal_physics%pseudo_plastic_phimin)
-    call GetValue(section,'pseudo_plastic_phimax', model%basal_physics%pseudo_plastic_phimax)
-    call GetValue(section,'pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin)
-    call GetValue(section,'pseudo_plastic_bedmax', model%basal_physics%pseudo_plastic_bedmax)
-
-  end subroutine handle_basal_physics
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_grounding_line(section, model)
-
-    ! Grounding-line options: the grounding-line parameterization (GLP) for basal stress,
-    ! the grounded fraction without GLP, subgrid basal melting near the grounding line,
-    ! and the flotation function.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    call GetValue(section,'grounding_line_param', model%options%which_ho_ground)
-    call GetValue(section,'fground_no_glp',       model%options%which_ho_fground_no_glp)
-    call GetValue(section,'grounding_line_bmlt',  model%options%which_ho_ground_bmlt)
-    call GetValue(section,'flotation_function',   model%options%which_ho_flotation_function)
-
-  end subroutine handle_grounding_line
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_climate(section, model)
-
-    ! Surface climate forcing: SMB and surface air temperature (input options, anomalies,
-    ! overwrites, and the parameters of the internal SMB functions).
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! options
-    call GetValue(section,'smb_input',                       model%options%smb_input)
-    call GetValue(section,'smb_input_function',              model%options%smb_input_function)
-    call GetValue(section,'artm_input_function',             model%options%artm_input_function)
-    call GetValue(section,'enable_smb_anomaly',              model%options%enable_smb_anomaly)
-    call GetValue(section,'enable_artm_anomaly',             model%options%enable_artm_anomaly)
-    call GetValue(section,'enable_snow_anomaly',             model%options%enable_snow_anomaly)
-    call GetValue(section,'enable_precip_anomaly',           model%options%enable_precip_anomaly)
-    call GetValue(section,'overwrite_acab',                  model%options%overwrite_acab)
-    call GetValue(section,'enable_acab_dthck_dt_correction', model%options%enable_acab_dthck_dt_correction)
-    call GetValue(section,'block_inception',                 model%options%block_inception)
-
-    ! parameters of the internal SMB and artm functions
-    call GetValue(section,'t_lapse',            model%climate%t_lapse)
-    call GetValue(section,'degree_factor',      model%climate%degree_factor)
-    call GetValue(section,'tmlt',               model%climate%tmlt)
-    call GetValue(section,'snow_threshold_min', model%climate%snow_threshold_min)
-    call GetValue(section,'snow_threshold_max', model%climate%snow_threshold_max)
-    call GetValue(section,'smb_factor',         model%climate%smb_factor)
-
-    ! anomaly and overwrite parameters
-    call GetValue(section,'smb_anomaly_tstart',     model%climate%smb_anomaly_tstart)
-    call GetValue(section,'smb_anomaly_timescale',  model%climate%smb_anomaly_timescale)
-    call GetValue(section,'overwrite_acab_value',   model%climate%overwrite_acab_value)
-    call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
-    call GetValue(section,'artm_anomaly_const',     model%climate%artm_anomaly_const)
-    call GetValue(section,'artm_anomaly_tstart',    model%climate%artm_anomaly_tstart)
-    call GetValue(section,'artm_anomaly_timescale', model%climate%artm_anomaly_timescale)
-
-  end subroutine handle_climate
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_basal_melt(section, model)
-
-    ! Basal melting of floating ice: the bmlt_float scheme and its parameters,
-    ! anomaly forcing, and whether basal melt enters the continuity equation.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! options
-    call GetValue(section,'bmlt_float_method',                model%options%whichbmlt_float)
-    call GetValue(section,'bmlt_float_thermal_forcing_param', model%options%bmlt_float_thermal_forcing_param)
-    call GetValue(section,'bmlt_float_init',                  model%options%bmlt_float_init)
-    call GetValue(section,'deltaT_ocn_method',                model%options%which_ho_deltaT_ocn)
-    call GetValue(section,'enable_bmlt_anomaly',              model%options%enable_bmlt_anomaly)
-    call GetValue(section,'basal_mass_balance',               model%options%basal_mbal)
-
-    ! general parameters
-    call GetValue(section,'bmlt_float_factor',      model%basal_melt%bmlt_float_factor)
-    call GetValue(section,'bmlt_cavity_h0',         model%basal_melt%bmlt_cavity_h0)
-    call GetValue(section,'bmlt_anomaly_tstart',    model%basal_melt%bmlt_anomaly_tstart)
-    call GetValue(section,'bmlt_anomaly_timescale', model%basal_melt%bmlt_anomaly_timescale)
-
-    ! MISMIP+ basal melting parameters
-    call GetValue(section,'bmlt_float_omega', model%basal_melt%bmlt_float_omega)
-    call GetValue(section,'bmlt_float_h0',    model%basal_melt%bmlt_float_h0)
-    call GetValue(section,'bmlt_float_z0',    model%basal_melt%bmlt_float_z0)
-    call GetValue(section,'bmlt_float_const', model%basal_melt%bmlt_float_const)
-    call GetValue(section,'bmlt_float_xlim',  model%basal_melt%bmlt_float_xlim)
-
-    ! depth-dependent basal melting parameters
-    call GetValue(section,'bmlt_float_depth_meltmax',  model%basal_melt%bmlt_float_depth_meltmax)
-    call GetValue(section,'bmlt_float_depth_frzmax',   model%basal_melt%bmlt_float_depth_frzmax)
-    call GetValue(section,'bmlt_float_depth_zmeltmax', model%basal_melt%bmlt_float_depth_zmeltmax)
-    call GetValue(section,'bmlt_float_depth_zmelt0',   model%basal_melt%bmlt_float_depth_zmelt0)
-    call GetValue(section,'bmlt_float_depth_zfrzmax',  model%basal_melt%bmlt_float_depth_zfrzmax)
-    call GetValue(section,'bmlt_float_depth_meltmin',  model%basal_melt%bmlt_float_depth_meltmin)
-    call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
-
-  end subroutine handle_basal_melt
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_ocean_data(section, model)
-
-    ! Ocean data (thermal forcing) for the thermal-forcing basal melt schemes.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! options
-    call GetValue(section,'ocean_data_domain',      model%options%ocean_data_domain)
-    call GetValue(section,'ocean_data_extrapolate', model%options%ocean_data_extrapolate)
-
-    ! parameters
-    call GetValue(section,'gamma0',                            model%ocean_data%gamma0)
-    call GetValue(section,'thermal_forcing_basin_min',         model%ocean_data%thermal_forcing_basin_min)
-    call GetValue(section,'thermal_forcing_basin_max',         model%ocean_data%thermal_forcing_basin_max)
-    call GetValue(section,'thermal_forcing_anomaly',           model%ocean_data%thermal_forcing_anomaly)
-    call GetValue(section,'thermal_forcing_anomaly_tstart',    model%ocean_data%thermal_forcing_anomaly_tstart)
-    call GetValue(section,'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
-    call GetValue(section,'thermal_forcing_anomaly_basin',     model%ocean_data%thermal_forcing_anomaly_basin)
-
-  end subroutine handle_ocean_data
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_calving(section, model)
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! calving options
-    call GetValue(section,'calving_law',           model%options%whichcalving)
-    call GetValue(section,'calving_init',          model%options%calving_init)
-    call GetValue(section,'calving_domain',        model%options%calving_domain)
-    call GetValue(section,'apply_calving_mask',    model%options%apply_calving_mask)
-    call GetValue(section,'remove_icebergs',       model%options%remove_icebergs)
-    call GetValue(section,'remove_isthmuses',      model%options%remove_isthmuses)
-    call GetValue(section,'limit_marine_cliffs',   model%options%limit_marine_cliffs)
-    call GetValue(section,'subgrid_calving_front', model%options%which_ho_calving_front)
-    call GetValue(section,'calvingmip_domain',     model%options%which_ho_calvingmip_domain)
-
-    ! calving parameters
-    call GetValue(section,'marine_limit',       model%calving%marine_limit)
-    call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
-    call GetValue(section,'calving_timescale',  model%calving%timescale)
-    call GetValue(section,'calving_minthck',    model%calving%minthck)
-    call GetValue(section,'dthck_dx_cf',        model%calving%dthck_dx_cf)
-    call GetValue(section,'thck_effective_min', model%calving%thck_effective_min)
-    call GetValue(section,'eigenconstant',      model%calving%eigenconstant)
-    call GetValue(section,'tau_eigenconstant1', model%calving%tau_eigenconstant1)
-    call GetValue(section,'tau_eigenconstant2', model%calving%tau_eigenconstant2)
-    call GetValue(section,'stress_threshold',   model%calving%stress_threshold)
-    call GetValue(section,'lateral_rate_min',   model%calving%lateral_rate_min)
-    call GetValue(section,'effec_stress_min',   model%calving%effec_stress_min)
-    call GetValue(section,'calving_length_scale', model%calving%length_scale)
-    call GetValue(section,'damage_constant',    model%calving%damage_constant)
-    call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
-    call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
-    call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
-    call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
-    call GetValue(section,'calving_front_radius',         model%calving%calving_front_radius)
-    call GetValue(section,'cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude)
-    call GetValue(section,'cf_advance_retreat_period',    model%calving%cf_advance_retreat_period)
-    call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
-
-  end subroutine handle_calving
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_removal(section, model)
-
-    ! Ice removal that is not calving: removal of ice caps, and forced retreat.
-    ! The removed ice is tracked separately from the calving flux.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    call GetValue(section,'remove_ice_caps', model%options%remove_ice_caps)
-    call GetValue(section,'force_retreat',   model%options%force_retreat)
-
-  end subroutine handle_removal
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_inversion(section, model)
-
-    ! Parameters of the inversions for the basal friction parameters (powerlaw_c, coulomb_c)
-    ! and for the ocean temperature correction deltaT_ocn.
-    ! The inversions themselves are selected in [basal_physics] (powerlaw_c_method,
-    ! coulomb_c_method) and [basal_melt] (deltaT_ocn_method).
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! general
-    call GetValue(section,'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
-    call GetValue(section,'inversion_thck_threshold',        model%inversion%thck_threshold)
-    call GetValue(section,'inversion_damping_factor',        model%inversion%damping_factor)
-
-    ! basal friction inversion
-    call GetValue(section,'inversion_babc_timescale',    model%inversion%babc_timescale)
-    call GetValue(section,'inversion_babc_thck_scale',   model%inversion%babc_thck_scale)
-    call GetValue(section,'inversion_babc_length_scale', model%inversion%babc_length_scale)
-    call GetValue(section,'inversion_babc_relax_factor', model%inversion%babc_relax_factor)
-
-    ! deltaT_ocn inversion
-    call GetValue(section,'inversion_deltaT_ocn_timescale',    model%inversion%deltaT_ocn_timescale)
-    call GetValue(section,'inversion_deltaT_ocn_thck_scale',   model%inversion%deltaT_ocn_thck_scale)
-    call GetValue(section,'inversion_deltaT_ocn_length_scale', model%inversion%deltaT_ocn_length_scale)
-    call GetValue(section,'inversion_deltaT_ocn_temp_scale',   model%inversion%deltaT_ocn_temp_scale)
-    call GetValue(section,'inversion_deltaT_basin_relax',      model%inversion%deltaT_basin_relax)
-
-    ! basin-scale deltaT_ocn inversion
-    call GetValue(section,'inversion_basin_flotation_threshold',    model%inversion%basin_flotation_threshold)
-    call GetValue(section,'inversion_basin_mass_correction',        model%inversion%basin_mass_correction)
-    call GetValue(section,'inversion_basin_number_mass_correction', model%inversion%basin_number_mass_correction)
-
-  end subroutine handle_inversion
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_geothermal(section, model)
-
-    ! Geothermal heat flux: uniform (geothermal_flux) or read from the input file.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    call GetValue(section,'geothermal_method', model%options%gthf)
-    call GetValue(section,'geothermal_flux',   model%paramets%geot)
-
-  end subroutine handle_geothermal
-
-!--------------------------------------------------------------------------------
-
-
-  ! Sigma levels
-  subroutine handle_sigma(section, model)
-
-    use glimmer_config
-    use glissade_types
-    use glimmer_log
-    implicit none
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)  :: model
-
-    if (model%options%which_sigma==SIGMA_EXTERNAL) then
-       call write_log('Sigma levels specified twice - use only'// &
-            ' config file or separate file, not both',GM_FATAL)
-    else
-       call GetValue(section,'sigma_levels',model%numerics%sigma,model%general%upn)
-    end if
-
-  end subroutine handle_sigma
-
-!--------------------------------------------------------------------------------
-
-  subroutine print_sigma(model)
-    use glissade_types
-    use glimmer_log
-    implicit none
-    type(glissade_global_type)  :: model
-    character(len=100) :: message,temp
-    integer :: i
-
-    call write_log('Sigma levels:')
-    call write_log('------------------')
-    message=''
-    do i=1,model%general%upn
-       write(temp,'(f6.3)') model%numerics%sigma(i)
-       message=trim(message)//trim(temp)
-    enddo
-    call write_log(trim(message))
-    call write_log('')
-    
-  end subroutine print_sigma
 
 !--------------------------------------------------------------------------------
 
@@ -3642,284 +3866,6 @@ contains
     endif   ! compute isostasy
 
   end subroutine print_isostasy
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_lateral_melt(section, model)
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)  :: model
-
-    call GetValue(section, 'lateral_melt_method', model%options%which_lateral_melt)
-    call GetValue(section, 'melt_rate_const', model%lateral_melt%melt_rate_const)
-    call GetValue(section, 'melt_factor', model%lateral_melt%melt_factor)
-    call GetValue(section, 'runoff_from_ablation', model%lateral_melt%runoff_from_ablation)
-    call GetValue(section, 'thermal_forcing_avg_3d_to_2d', model%lateral_melt%thermal_forcing_avg_3d_to_2d)
-    call GetValue(section, 'ztop_tfavg', model%lateral_melt%ztop_tfavg)
-    call GetValue(section, 'zbot_tfavg', model%lateral_melt%zbot_tfavg)
-
-  end subroutine handle_lateral_melt
-
-  !--------------------------------------------------------------------------------
-
-  subroutine print_lateral_melt(model)
-
-    use glissade_types
-    use glimmer_log
-
-    implicit none
-    type(glissade_global_type)  :: model
-    character(len=100) :: message
-
-    character(len=*), dimension(0:2), parameter :: lateral_melt_method = (/ &
-         'no lateral melt at marine margin         ', &
-         'constant lateral melt rate               ', &
-         'ISMIP lateral melt from TF and discharge ' /)
-
-    if (model%options%which_lateral_melt < 0 .or. model%options%which_lateral_melt >= size(lateral_melt_method)) then
-       call write_log('Error, lateral melt option out of range', GM_FATAL)
-    else
-       write(message,*) 'lateral_melt_method           : ',model%options%which_lateral_melt,  &
-            lateral_melt_method(model%options%which_lateral_melt)
-       call write_log(message)
-    endif
-
-    if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
-
-       if (model%options%which_lateral_melt == LATERAL_MELT_CONSTANT) then
-          write(message,*) 'constant lateral melt rate (m/yr)     : ', model%lateral_melt%melt_rate_const
-          call write_log(message)
-       elseif (model%options%which_lateral_melt == LATERAL_MELT_ISMIP) then
-          write(message,*) 'lateral melt factor                   : ', model%lateral_melt%melt_factor
-          call write_log(message)
-          if (model%lateral_melt%runoff_from_ablation) then
-             call write_log('runoff will be computed from ablation')
-          else
-             call write_log('runoff will be read from an input file')
-          endif
-          if (model%lateral_melt%thermal_forcing_avg_3d_to_2d) then
-             call write_log('2d thermal_forcing will be averaged from 3d')
-             write(message,*) 'depth range for TF averaging, top     : ', model%lateral_melt%ztop_tfavg
-             call write_log(message)
-             write(message,*) 'depth range for TF averaging, bottom  : ', model%lateral_melt%zbot_tfavg
-             call write_log(message)
-          else
-             call write_log('2d thermal forcing will be read from an input file')
-          endif
-       endif
-
-    endif  ! which_lateral_melt /= lateral_melt_none
-
-  end subroutine print_lateral_melt
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_basal_hydro(section, model)
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)  :: model
-
-    ! basal water option (the switch for this section)
-    call GetValue(section, 'bwat_method', model%options%which_ho_bwat)
-
-    ! constant basal water
-    call GetValue(section, 'const_bwat', model%basal_hydro%const_bwat)
-
-    ! local basal till
-    call GetValue(section, 'bwat_till_max', model%basal_hydro%bwat_till_max)
-    call GetValue(section, 'c_drainage', model%basal_hydro%c_drainage)
-
-    ! flux routing
-    call GetValue(section, 'flux_routing_method', model%basal_hydro%ho_flux_routing_scheme)
-    call GetValue(section, 'const_source', model%basal_hydro%const_source)
-    call GetValue(section, 'btemp_flow_scale', model%basal_hydro%btemp_flow_scale)
-    call GetValue(section, 'btemp_freeze_scale', model%basal_hydro%btemp_freeze_scale)
-
-    ! effective pressure options and parameters
-    call GetValue(section, 'effecpress_delta',   model%basal_hydro%effecpress_delta)
-    call GetValue(section, 'bwat_threshold', model%basal_hydro%bwat_threshold)
-    call GetValue(section, 'bpmp_threshold', model%basal_hydro%bpmp_threshold)
-    call GetValue(section, 'haf_threshold', model%basal_hydro%haf_threshold)
-    call GetValue(section, 'cavity_open_slide', model%basal_hydro%cavity_open_slide)
-    call GetValue(section, 'cavity_open_melt', model%basal_hydro%cavity_open_melt)
-    call GetValue(section, 'bump_height', model%basal_hydro%bump_height)
-    call GetValue(section, 'bump_wavelength', model%basal_hydro%bump_wavelength)
-    call GetValue(section, 'sliding_speed_fixed', model%basal_hydro%sliding_speed_fixed)
-    call GetValue(section, 'flwa_basal', model%basal_hydro%flwa_basal)
-    call GetValue(section, 'c_close', model%basal_hydro%c_close)
-
-  end subroutine handle_basal_hydro
-
-!--------------------------------------------------------------------------------
-
-  subroutine print_basal_hydro(model)
-
-    use glissade_types
-    use glimmer_log
-
-    implicit none
-    type(glissade_global_type)  :: model
-    character(len=100) :: message
-
-    character(len=*), dimension(0:3), parameter :: bwat_method = (/ &
-         'zero basal water depth                           ', &
-         'constant basal water depth                       ', &
-         'basal water depth computed from local till model ', &
-         'steady-state flux routing                        ' /)
-
-    character(len=*), dimension(0:2), parameter :: flux_routing_method = (/ &
-         'D8; route flux to lowest-elevation neighbor      ', &
-         'Dinf; route flux to two lower-elevation neighbors', &
-         'FD8; route flux to all lower-elevation neighbors ' /)
-
-    character(len=*), dimension(0:2), parameter :: cavity_open_slide = (/ &
-         'no opening by sliding                           ', &
-         'opening by sliding with fixed u_b               ', &
-         'opening by sliding with dynamic u_b             ' /)
-
-    character(len=*), dimension(0:3), parameter :: cavity_open_melt = (/ &
-         'no opening by melting                           ', &
-         'opening by melting based on bmlt_ground         ', &
-         'opening by melting based on cavity dissipation  ', &
-         'opening based on bmlt_ground plus dissipation   ' /)
-
-    if (model%options%which_ho_bwat /= HO_BWAT_NONE) then
-       write(message,*) 'bwat_method             : ',model%options%which_ho_bwat,  &
-                         bwat_method(model%options%which_ho_bwat)
-       call write_log(message)
-    endif
-    if (model%options%which_ho_bwat < 0 .or. model%options%which_ho_bwat >= size(bwat_method)) then
-       call write_log('Error, HO basal water input out of range', GM_FATAL)
-    end if
-
-    if (model%options%which_ho_bwat == HO_BWAT_CONSTANT) then
-       write(message,*) 'constant basal water depth (m): ', model%basal_hydro%const_bwat
-       call write_log(message)
-    elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
-       write(message,*) 'maximum till water depth (m)  : ', model%basal_hydro%bwat_till_max
-       call write_log(message)
-       write(message,*) 'till drainage rate (m/yr)     : ', model%basal_hydro%c_drainage
-       call write_log(message)
-    elseif (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
-       if (model%basal_hydro%ho_flux_routing_scheme < 0.or. &
-            model%basal_hydro%ho_flux_routing_scheme >= size(flux_routing_method)) then
-          call write_log('Error, HO flux routing scheme out of range', GM_FATAL)
-       end if
-    endif
-
-    call write_log(' ')
-    call write_log('Basal hydrology')
-    call write_log('--------')
-
-    write(message,*) 'bwat_method                   : ',model%options%which_ho_bwat,  &
-                      bwat_method(model%options%which_ho_bwat)
-    call write_log(message)
-    if (model%options%which_ho_bwat < 0 .or. model%options%which_ho_bwat >= size(bwat_method)) then
-       call write_log('Error, HO basal water input out of range', GM_FATAL)
-    end if
-
-    if (model%options%which_ho_bwat == HO_BWAT_CONSTANT) then
-       write(message,*) 'constant basal water depth (m): ', model%basal_hydro%const_bwat
-       call write_log(message)
-    elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
-       if (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT_BVP) then
-          write(message,*) 'effective pressure delta      : ', model%basal_hydro%effecpress_delta
-          call write_log(message)
-          write(message,*) 'maximum till water depth (m)  : ', model%basal_hydro%bwat_till_max
-          call write_log(message)
-          write(message,*) 'till drainage rate (m/yr)     : ', model%basal_hydro%c_drainage
-          call write_log(message)
-       else
-          write(message,*) 'local till option must use effecpress_method =', HO_EFFECPRESS_BWAT_BVP
-          call write_log(message, GM_FATAL)
-       endif
-    elseif (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
-       if (model%basal_hydro%ho_flux_routing_scheme < 0.or. &
-            model%basal_hydro%ho_flux_routing_scheme >= size(flux_routing_method)) then
-          call write_log('Error, HO flux routing scheme out of range', GM_FATAL)
-       end if
-       if (model%options%reproducible_sums) then
-          if (model%basal_hydro%ho_flux_routing_scheme /= HO_FLUX_ROUTING_D8) then
-             call write_log('Error, this flux_routing scheme is not supported with reproducible sums')
-             call write_log('Please use D8 flux-routing or turn off reproducible sums', GM_FATAL)
-          endif
-          if (model%basal_hydro%btemp_freeze_scale > 0.0d0) then
-             call write_log('Error, flux-routing does not support refreezing with reproducible sums')
-             call write_log('Please set btemp_freeze_scale = 0 or turn off reproducible sums', GM_FATAL)
-          endif
-       endif  ! reproducible sums
-       write(message,*) 'flux_routing_method           : ',model%basal_hydro%ho_flux_routing_scheme,  &
-            flux_routing_method(model%basal_hydro%ho_flux_routing_scheme)
-       call write_log(message)
-       if (model%basal_hydro%const_source > 0.0d0) then
-          write(message,*) 'constant melt source at the bed (m/yr): ', model%basal_hydro%const_source
-          call write_log(message)
-       endif
-       if (model%basal_hydro%btemp_flow_scale > 0.0d0) then
-          write(message,*) 'temp scale (deg C) for flow around frozen bed: ', &
-               model%basal_hydro%btemp_flow_scale
-          call write_log(message)
-       endif
-       if (model%basal_hydro%btemp_freeze_scale > 0.0d0) then
-          write(message,*) 'temp scale (deg C) for refreezing at the bed: ', &
-               model%basal_hydro%btemp_freeze_scale
-          call write_log(message)
-       endif
-       if (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT) then
-          write(message,*) 'effective pressure delta      : ', model%basal_hydro%effecpress_delta
-          call write_log(message)
-          write(message,*) 'bwat threshold (m)            : ', model%basal_hydro%bwat_threshold
-          call write_log(message)
-       elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_CAVITY_SHEET) then
-          if (model%basal_hydro%cavity_open_slide < 0 .or. &
-               model%basal_hydro%cavity_open_slide >= size(cavity_open_slide)) then
-             call write_log('Error, cavity_open_slide out of range', GM_FATAL)
-          endif
-          write(message,*) 'cavity_open_slide             : ', &
-               cavity_open_slide(model%basal_hydro%cavity_open_slide)
-          call write_log(message)
-          if (model%basal_hydro%cavity_open_melt < 0 .or. &
-               model%basal_hydro%cavity_open_melt >= size(cavity_open_melt)) then
-             call write_log('Error, cavity_open_melt out of range', GM_FATAL)
-          endif
-          write(message,*) 'cavity_open_melt              : ', &
-               cavity_open_melt(model%basal_hydro%cavity_open_slide)
-          call write_log(message)
-          if (model%basal_hydro%cavity_open_slide /= CAVITY_OPEN_SLIDE_NONE) then
-             write(message,*) 'bump height                   : ', model%basal_hydro%bump_height
-             call write_log(message)
-             write(message,*) 'bump wavelength               : ', model%basal_hydro%bump_wavelength
-             call write_log(message)
-             if (model%basal_hydro%cavity_open_slide == CAVITY_OPEN_SLIDE_FIXED_UB) then
-                write(message,*) 'fixed sliding speed (m/yr)    : ', model%basal_hydro%sliding_speed_fixed
-                call write_log(message)
-             endif
-          endif   ! opening by sliding
-          write(message,*) 'flwa for closing (Pa-3 yr-1)  : ', model%basal_hydro%flwa_basal
-          call write_log(message)
-          write(message,*) 'constant for closing          : ', model%basal_hydro%c_close
-          call write_log(message)
-       endif   ! cavity-sheet parameterization
-    endif   ! which_ho_bwat
-
-    ! other effective pressure options
-
-    if (model%options%which_ho_effecpress == HO_EFFECPRESS_BPMP) then
-       write(message,*) 'effective pressure delta      : ', model%basal_hydro%effecpress_delta
-       call write_log(message)
-       write(message,*) 'bpmp threshold (K)            : ', model%basal_hydro%bpmp_threshold
-       call write_log(message)
-    endif
-
-  end subroutine print_basal_hydro
 
 !--------------------------------------------------------------------------------
 
@@ -4123,6 +4069,60 @@ contains
     endif   ! enable_glaciers
 
   end subroutine print_glaciers
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_diagnostics(section, model)
+
+    ! Diagnostic options.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    call GetValue(section,'dm_dt_diag',   model%options%dm_dt_diag)
+    call GetValue(section,'diag_minthck', model%options%diag_minthck)
+
+  end subroutine handle_diagnostics
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_diagnostics(model)
+
+    ! Diagnostic options
+
+    use glissade_types
+    use glimmer_log
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+    character(len=500) :: message
+
+    character(len=*), dimension(0:1), parameter :: dm_dt_diag = (/ &
+         'write dmass/dt diagnostic in units of kg/s ',  &
+         'write dmass/dt diagnostic in units of Gt/yr'/)
+
+    character(len=*), dimension(0:1), parameter :: diag_minthck = (/ &
+         'include cells with H > 0 in global diagnostics     ', &
+         'include cells with H > thklim in global diagnostics'/)
+
+    if (model%options%dm_dt_diag < 0 .or. model%options%dm_dt_diag >= size(dm_dt_diag)) then
+       call write_log('Error, dm_dt_diag out of range',GM_FATAL)
+    end if
+
+    if (model%options%diag_minthck < 0 .or. model%options%diag_minthck >= size(diag_minthck)) then
+       call write_log('Error, diag_minthck out of range',GM_FATAL)
+    end if
+
+    write(message,*) 'minthck for diagnostics : ',model%options%diag_minthck, &
+         diag_minthck(model%options%diag_minthck)
+    call write_log(message)
+
+  end subroutine print_diagnostics
 
 !--------------------------------------------------------------------------------
 
