@@ -569,6 +569,7 @@ contains
     use glimmer_config
     use glimmer_log
     use cism_parallel, only: main_task
+    use glissade_log_config
 
     implicit none
 
@@ -578,7 +579,6 @@ contains
     ! local variables
     type(ConfigSection), pointer :: section
     character(len=512) :: message
-    character(len=16) :: message_tmp
     integer :: k
 
     ! Check for section [grid_ocn]
@@ -589,10 +589,6 @@ contains
        call GetValue(section,'nzocn',model%ocean_data%nzocn)
        call GetValue(section,'dzocn',model%ocean_data%dzocn)     ! m
        call GetValue(section,'nbasin',model%ocean_data%nbasin)
-
-       call write_log(' ')
-       write(message,*) 'number of ocean levels        : ',model%ocean_data%nzocn
-       call write_log(trim(message))
 
        if (.not.associated(model%ocean_data%zocn)) &
             allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
@@ -611,14 +607,10 @@ contains
        !        The code aborts with an error message.
 
        if (model%ocean_data%dzocn > 0.0d0) then
-          call write_log (' Computing zocn levels based on dzocn')
-          write(message,*) 'dz (m) for ocean levels       : ',model%ocean_data%dzocn
-          call write_log(trim(message))
           do k = 1, model%ocean_data%nzocn
              model%ocean_data%zocn(k) = -model%ocean_data%dzocn * (real(k,dp) - 0.5d0)
           enddo
        else
-          call write_log (' Reading zocn levels from config file')
           call GetValue(section, 'zocn', model%ocean_data%zocn, model%ocean_data%nzocn)
           do k = 2, model%ocean_data%nzocn
              if (model%ocean_data%zocn(k-1) - model%ocean_data%zocn(k) < 1.0d0) then
@@ -630,24 +622,15 @@ contains
           enddo
        endif
 
-       if (model%ocean_data%nzocn > 1) then
-          call write_log('')
-          call write_log('zocn levels (m):')
-          call write_log('------------------')
-          message = ''
-          do k = 1, model%ocean_data%nzocn
-             write(message_tmp,'(f8.1)') model%ocean_data%zocn(k)
-             message = trim(message)//trim(message_tmp)
-          enddo
-          call write_log(trim(message))
-          call write_log('')
+       call log_section('grid_ocn')
+       call log_param('nzocn', model%ocean_data%nzocn)
+       if (model%ocean_data%dzocn > 0.0d0) then
+          call log_param('dzocn', model%ocean_data%dzocn, 'm; uniform level spacing')
+          call log_list('zocn', model%ocean_data%zocn, 'm; computed from dzocn')
+       else
+          call log_list('zocn', model%ocean_data%zocn, 'm')
        endif
-
-       if (model%ocean_data%nbasin > 1) then
-          call write_log('')
-          write(message,*) 'number of ocean basins: ', model%ocean_data%nbasin
-          call write_log(trim(message))
-       endif
+       call log_param('nbasin', model%ocean_data%nbasin)
 
     else    ! no 'grid_ocn' section
 
@@ -680,6 +663,7 @@ contains
     use glimmer_log
     use cism_parallel, only: main_task
 
+    use glissade_log_config
     implicit none
 
     type(glissade_global_type) :: model        !> model instance
@@ -688,7 +672,6 @@ contains
     ! local variables
     type(ConfigSection), pointer :: section
     character(len=512) :: message
-    character(len=16) :: message_tmp
     integer :: k
 
     ! Check for section [grid_atm]
@@ -697,10 +680,6 @@ contains
     if (associated(section)) then
 
        call GetValue(section,'nzatm',model%climate%nzatm)
-
-       call write_log(' ')
-       write(message,*) 'number of atmosphere levels   : ',model%climate%nzatm
-       call write_log(trim(message))
 
        if (.not.associated(model%climate%zatm)) allocate(model%climate%zatm(model%climate%nzatm))
 
@@ -719,7 +698,6 @@ contains
        ! TODO: Is it possible to get the levels from the netCDF file instead?
        ! Note: By convention, zatm increases with increasing k.
        !       If the input zatm levels do not satisfy this criterion, the code aborts.
-       call write_log (' Reading zatm levels from config file')
        call GetValue(section, 'zatm', model%climate%zatm, model%climate%nzatm)
        do k = 2, model%climate%nzatm
           if (model%climate%zatm(k) - model%climate%zatm(k-1) < 1.0d0) then
@@ -750,16 +728,12 @@ contains
     endif   ! associated(section)
 
     if (model%climate%nzatm > 1) then
-       call write_log('')
-       call write_log('zatm levels (m):')
-       call write_log('------------------')
-       message = ''
-       do k = 1, model%climate%nzatm
-          write(message_tmp,'(f8.1)') model%climate%zatm(k)
-          message = trim(message)//trim(message_tmp)
-       enddo
-       call write_log(trim(message))
-       call write_log('')
+       call log_section('grid_atm')
+       if (.not.associated(section)) then
+          call log_comment('no [grid_atm] section; using the standard CESM elevation classes')
+       endif
+       call log_param('nzatm', model%climate%nzatm)
+       call log_list('zatm', model%climate%zatm, 'm')
     endif
 
   end subroutine glissade_get_zatm
@@ -1063,23 +1037,17 @@ contains
 !--------------------------------------------------------------------------------
 
   subroutine print_sigma(model)
+
+    ! Sigma levels (from the [sigma] section, a sigma file, or computed; see sigma_method in [grid])
+
     use glissade_types
-    use glimmer_log
+    use glissade_log_config
     implicit none
     type(glissade_global_type)  :: model
-    character(len=100) :: message,temp
-    integer :: i
 
-    call write_log('Sigma levels:')
-    call write_log('------------------')
-    message=''
-    do i=1,model%general%upn
-       write(temp,'(f6.3)') model%numerics%sigma(i)
-       message=trim(message)//trim(temp)
-    enddo
-    call write_log(trim(message))
-    call write_log('')
-    
+    call log_section('sigma')
+    call log_list('sigma_levels', model%numerics%sigma(1:model%general%upn), digits=6)
+
   end subroutine print_sigma
 
 !--------------------------------------------------------------------------------
@@ -2844,6 +2812,7 @@ contains
 
     use glissade_types
     use glimmer_log
+    use glissade_log_config
 
     implicit none
 
@@ -2872,12 +2841,12 @@ contains
          'overwrite acab where input thck <= minthck', &
          'overwrite acab based on input mask        ' /)
 
+    ! check the options
+
     if (model%options%smb_input < 0 .or. model%options%smb_input >= size(smb_input)) then
        call write_log('Error, smb_input option out of range',GM_FATAL)
     end if
 
-    write(message,*) 'smb input units         : ',model%options%smb_input,smb_input(model%options%smb_input)
-    call write_log(message)
     if (model%options%smb_input_function < 0 .or. model%options%smb_input_function >= size(smb_input_function)) then
        call write_log('Error, smb_input_function option out of range',GM_FATAL)
     end if
@@ -2893,102 +2862,64 @@ contains
        endif
     endif
 
-    write(message,*) 'smb input function      : ', &
-         model%options%smb_input_function, smb_input_function(model%options%smb_input_function)
-    call write_log(message)
-    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-       write(message,*) 'number of atmosphere levels : ', model%climate%nzatm
-       call write_log(message)
-    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
-       write(message,*) 'Degree factor (mm/yr/deg C) : ', model%climate%degree_factor
-       call write_log(message)
-       write(message,*) 'Melt threshold (deg C)      : ', model%climate%tmlt
-       call write_log(message)
-       write(message,*) 'Min snow threshold (deg C)  : ', model%climate%snow_threshold_min
-       call write_log(message)
-       write(message,*) 'Max snow threshold (deg C)  : ', model%climate%snow_threshold_max
-       call write_log(message)
-    endif
-
     if (model%options%artm_input_function < 0 .or. model%options%artm_input_function >= size(artm_input_function)) then
        call write_log('Error, artm_input_function option out of range',GM_FATAL)
     end if
-
-    write(message,*) 'artm input function     : ', &
-         model%options%artm_input_function, artm_input_function(model%options%artm_input_function)
-    call write_log(message)
-    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
-       write(message,*) 'artm lapse rate (deg C/m)   : ', model%climate%t_lapse
-       call write_log(message)
-    endif
-
-    if (model%options%enable_smb_anomaly) then
-       call write_log('SMB anomaly forcing is enabled')
-    endif
-
-    if (model%options%enable_artm_anomaly) then
-       call write_log('artm anomaly forcing is enabled')
-    endif
-
-    if (model%options%enable_snow_anomaly) then
-       call write_log('snow anomaly forcing is enabled')
-    endif
-
-    if (model%options%enable_precip_anomaly) then
-       call write_log('precip anomaly forcing is enabled')
-    endif
 
     if (model%options%overwrite_acab < 0 .or. model%options%overwrite_acab >= size(overwrite_acab)) then
        call write_log('Error, overwrite_acab option out of range',GM_FATAL)
     end if
 
-    write(message,*) 'overwrite_acab          : ',model%options%overwrite_acab,overwrite_acab(model%options%overwrite_acab)
-    call write_log(message)
+    ! write the options and parameters
 
-    if (model%options%enable_acab_dthck_dt_correction) then
-       call write_log('acab correction based on dthck_dt_obs is enabled')
+    call log_section('climate')
+    call log_option('smb_input', model%options%smb_input, smb_input(model%options%smb_input))
+    call log_option('smb_input_function', model%options%smb_input_function, &
+         smb_input_function(model%options%smb_input_function))
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+       call log_param('degree_factor', model%climate%degree_factor, 'mm/yr w.e./deg C')
+       call log_param('tmlt', model%climate%tmlt, 'deg C; melt threshold')
+       call log_param('snow_threshold_min', model%climate%snow_threshold_min, 'deg C')
+       call log_param('snow_threshold_max', model%climate%snow_threshold_max, 'deg C')
     endif
-
-    if (model%options%block_inception) then
-       write(message,*) 'Inception outside the main ice sheet will be blocked'
-       call write_log(message)
+    call log_option('artm_input_function', model%options%artm_input_function, &
+         artm_input_function(model%options%artm_input_function))
+    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+       call log_param('t_lapse', model%climate%t_lapse, 'deg C/m; artm lapse rate')
     endif
-
     if (model%climate%smb_factor /= 1.0d0) then
-       write(message,*) 'Input smb multiplied by      :', model%climate%smb_factor
-       call write_log(message)
+       call log_param('smb_factor', model%climate%smb_factor, 'multiplies the input SMB')
     endif
 
-    ! initMIP parameters
+    call log_flag('enable_smb_anomaly', model%options%enable_smb_anomaly)
     if (model%climate%smb_anomaly_timescale > 0.0d0) then
-       write(message,*) 'smb_anomaly start time (yr): ', model%climate%smb_anomaly_tstart
-       call write_log(message)
-       write(message,*) 'smb_anomaly_timescale (yr) : ', model%climate%smb_anomaly_timescale
-       call write_log(message)
+       call log_param('smb_anomaly_tstart', model%climate%smb_anomaly_tstart, 'yr')
+       call log_param('smb_anomaly_timescale', model%climate%smb_anomaly_timescale, 'yr')
     endif
-
-    if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
-       write(message,*) 'overwrite_acab_value (m/yr)   : ', model%climate%overwrite_acab_value
-       call write_log(message)
-       if (model%options%overwrite_acab == OVERWRITE_ACAB_THCKMIN) then
-          write(message,*) 'overwrite_acab_minthck (m)    : ', model%climate%overwrite_acab_minthck
-          call write_log(message)
-       endif
-    endif
-
-    ! parameters for artm anomaly option
+    call log_flag('enable_artm_anomaly', model%options%enable_artm_anomaly)
     if (model%options%enable_artm_anomaly) then
        if (model%climate%artm_anomaly_const /= 0.0d0) then
-          write(message,*) 'artm_anomaly_const (degC): ', model%climate%artm_anomaly_const
-          call write_log(message)
+          call log_param('artm_anomaly_const', model%climate%artm_anomaly_const, 'deg C')
        endif
        if (model%climate%artm_anomaly_timescale > 0.0d0) then
-          write(message,*) 'artm_anomaly start time (yr): ', model%climate%artm_anomaly_tstart
-          call write_log(message)
-          write(message,*) 'artm_anomaly_timescale (yr): ', model%climate%artm_anomaly_timescale
-          call write_log(message)
+          call log_param('artm_anomaly_tstart', model%climate%artm_anomaly_tstart, 'yr')
+          call log_param('artm_anomaly_timescale', model%climate%artm_anomaly_timescale, 'yr')
        endif
     endif
+    call log_flag('enable_snow_anomaly', model%options%enable_snow_anomaly)
+    call log_flag('enable_precip_anomaly', model%options%enable_precip_anomaly)
+
+    call log_option('overwrite_acab', model%options%overwrite_acab, overwrite_acab(model%options%overwrite_acab))
+    if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
+       call log_param('overwrite_acab_value', model%climate%overwrite_acab_value, 'm/yr')
+       if (model%options%overwrite_acab == OVERWRITE_ACAB_THCKMIN) then
+          call log_param('overwrite_acab_minthck', model%climate%overwrite_acab_minthck, 'm')
+       endif
+    endif
+    call log_flag('enable_acab_dthck_dt_correction', model%options%enable_acab_dthck_dt_correction, &
+         'correct acab based on dthck_dt_obs')
+    call log_flag('block_inception', model%options%block_inception, &
+         'block inception outside the main ice sheet')
 
   end subroutine print_climate
 
@@ -3044,15 +2975,18 @@ contains
 
   subroutine print_calving(model)
 
-    ! Calving options and parameters
+    ! Calving options and parameters.
+    ! Note: If remove_isthmuses = .true., remove_icebergs is set to .true. here (for stability).
 
     use glissade_types
     use glimmer_log
+    use glissade_log_config
 
     implicit none
 
     type(glissade_global_type)  :: model
     character(len=500) :: message
+    logical :: icebergs_reset   ! true if remove_icebergs is reset to .true.
 
     character(len=*), dimension(0:11), parameter :: calving_law = (/ &
          'no calving law                    ', &
@@ -3085,87 +3019,35 @@ contains
          'circular   ', &
          'Thule      '  /)
 
+    ! check the options
+
     if (model%options%whichcalving < 0 .or. model%options%whichcalving >= size(calving_law)) then
        call write_log('Error, calving_law out of range',GM_FATAL)
     end if
-    write(message,*) 'calving_law             : ', model%options%whichcalving, calving_law(model%options%whichcalving)
-    call write_log(message)
 
     if (model%options%calving_init < 0 .or. model%options%calving_init >= size(calving_init)) then
        call write_log('Error, calving_init out of range',GM_FATAL)
     end if
-    write(message,*) 'calving_init            : ', model%options%calving_init, calving_init(model%options%calving_init)
-    call write_log(message)
 
     if (model%options%calving_domain < 0 .or. model%options%calving_domain >= size(calving_domain)) then
        call write_log('Error, calving_domain out of range',GM_FATAL)
     end if
-    write(message,*) 'calving_domain          : ', model%options%calving_domain, calving_domain(model%options%calving_domain)
-    call write_log(message)
 
-    if (model%options%apply_calving_mask) then
-       call write_log(' A calving mask will be applied')
-    endif
-
-    if (model%options%remove_icebergs) then
-       call write_log(' Icebergs will be removed')
-       write(message,*) ' f_ground_threshold =', model%calving%f_ground_threshold
-       call write_log(message)
-    else
-       call write_log(' Icebergs will not be removed')
-    endif
-
-    if (model%options%remove_isthmuses) then
-       call write_log(' Isthmuses will be removed')
-       write(message,*) ' f_ground_threshold =', model%calving%f_ground_threshold
-       call write_log(message)
-       if (.not.model%options%remove_icebergs) then
-          model%options%remove_icebergs = .true.
-          write(message,*) ' Setting remove_icebergs = T for stability when remove_isthmuses = T'
-          call write_log(message)
-       endif
-    endif
-    
-    if (model%options%limit_marine_cliffs) then
-       call write_log(' The thickness of marine ice cliffs will be limited')
-    else
-       call write_log(' The thickness of marine ice cliffs will not be limited')
-    endif
-
-    if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
-       write(message,*) 'WARNING: calving float fraction option deprecated with Glissade_dycore; set calving_timescale instead'
-       call write_log(message, GM_WARNING)
-    endif
-
-    write(message,*) 'subgrid_calving_front   : ',model%options%which_ho_calving_front,  &
-                      subgrid_calving_front(model%options%which_ho_calving_front)
-    call write_log(message)
     if (model%options%which_ho_calving_front < 0 .or. &
          model%options%which_ho_calving_front >= size(subgrid_calving_front)) then
        call write_log('Error, calving front option out of range for glissade dycore', GM_FATAL)
     end if
 
-    if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
-       write(message,*) 'calvingmip_domain       : ',model%options%which_ho_calvingmip_domain,  &
-            calvingmip_domain(model%options%which_ho_calvingmip_domain)
-       call write_log(message)
-       if (model%options%which_ho_calvingmip_domain < 0 .or. &
-            model%options%which_ho_calvingmip_domain >= size(calvingmip_domain)) then
-          call write_log('Error, calvingMIP domain option out of range for glissade dycore', GM_FATAL)
-       end if
+    if (model%options%which_ho_calvingmip_domain < 0 .or. &
+         model%options%which_ho_calvingmip_domain >= size(calvingmip_domain)) then
+       call write_log('Error, calvingMIP domain option out of range for glissade dycore', GM_FATAL)
     end if
 
-    ! calving options
-
-    if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
-       write(message,*) 'ice fraction lost in calving  : ', model%calving%calving_fraction
-       call write_log(message)
-    end if
-
-    if (model%options%whichcalving == CALVING_RELX_THRESHOLD .or.  &
-        model%options%whichcalving == CALVING_TOPG_THRESHOLD) then
-       write(message,*) 'marine depth limit (m)        : ', model%calving%marine_limit
-       call write_log(message)
+    ! for stability, remove icebergs when removing isthmuses
+    icebergs_reset = .false.
+    if (model%options%remove_isthmuses .and. .not.model%options%remove_icebergs) then
+       model%options%remove_icebergs = .true.
+       icebergs_reset = .true.
     endif
 
     if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE    .or.  &
@@ -3174,93 +3056,107 @@ contains
         model%options%whichcalving == CALVING_STRESS_STOCHASTIC  .or.  &
         model%options%whichcalving == EIGEN_CALVING              .or.  &
         model%options%whichcalving == CALVING_DAMAGE) then
-
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
           write(message,*) &
                'Calving option ', model%options%whichcalving, ' requires a subgrid calving front'
           call write_log(message, GM_FATAL)
        endif
+    endif
 
-       if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-          write(message,*) 'calving minthck (m)           : ', model%calving%minthck
-          call write_log(message)
-          if (model%calving%minthck <= 0.0d0) then
-             write(message,*) 'Error, this calving option needs calving_minthck > 0'
-             call write_log(message, GM_FATAL)
-          endif
-       elseif (model%options%whichcalving == EIGEN_CALVING) then
-          write(message,*) 'eigenconstant (m)             : ', model%calving%eigenconstant
-          call write_log(message)
-       elseif (model%options%whichcalving == CALVING_STRESS) then
-          write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
-          call write_log(message)
-          write(message,*) 'tau_eigenconstant 2           : ', model%calving%tau_eigenconstant2
-          call write_log(message)
-          write(message,*) 'stress_threshold (Pa)         : ', model%calving%stress_threshold
-          call write_log(message)
-          write(message,*) 'lateral_rate_min (m/yr)       : ', model%calving%lateral_rate_min
-          call write_log(message)
-       elseif (model%options%whichcalving == CALVING_STRESS_STOCHASTIC) then
-          write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
-          call write_log(message)
-          write(message,*) 'tau_eigenconstant 2           : ', model%calving%tau_eigenconstant2
-          call write_log(message)
-          write(message,*) 'stress_threshold (Pa)         : ', model%calving%stress_threshold
-          call write_log(message)
-          write(message,*) 'effec_stress_min (m/yr)       : ', model%calving%effec_stress_min
-          call write_log(message)
-          write(message,*) 'calving_length_scale (m)      : ', model%calving%length_scale
-          call write_log(message)
-       elseif (model%options%whichcalving == CALVING_DAMAGE) then
-          write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
-          call write_log(message)
-          write(message,*) 'tau_eigenconstant 2           : ', model%calving%tau_eigenconstant2
-          call write_log(message)
-       elseif (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
-          write(message,*) 'CF advance/retreat amplitude (m/yr): ', model%calving%cf_advance_retreat_amplitude
-          call write_log(message)
-          write(message,*) 'CF advance/retreat period (yr)     : ', model%calving%cf_advance_retreat_period
-          call write_log(message)
+    if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
+       if (model%calving%minthck <= 0.0d0) then
+          write(message,*) 'Error, this calving option needs calving_minthck > 0'
+          call write_log(message, GM_FATAL)
        endif
-
-    endif   ! calving options: thck_threshold, eigencalving, stress-based, etc.
+    endif
 
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-       write(message,*) 'subgrid dthck_dx_cf           : ', model%calving%dthck_dx_cf
-       call write_log(message)
-       write(message,*) 'thck_effective_min (m)        : ', model%calving%thck_effective_min
-       call write_log(message)
        if (.not.model%options%remove_icebergs) then
           write(message,*) 'Set remove_icebergs = T for stability when using subgrid calving_front scheme'
           call write_log(message, GM_FATAL)
        endif
     endif
 
-    if (model%options%limit_marine_cliffs) then
-       write(message,*) 'taumax_cliff                  : ', model%calving%taumax_cliff
-       call write_log(message)
-       write(message,*) 'cliff time scale (yr)         : ', model%calving%cliff_timescale
-       call write_log(message)
-    endif
+    ! write the options and parameters
 
-    if (model%options%whichcalving == CALVING_GRID_MASK) then
+    call log_section('calving')
+    call log_option('calving_law', model%options%whichcalving, calving_law(model%options%whichcalving))
+    call log_option('calving_init', model%options%calving_init, calving_init(model%options%calving_init))
+    call log_option('calving_domain', model%options%calving_domain, calving_domain(model%options%calving_domain))
+
+    ! parameters of the calving law
+    if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
+       call log_param('calving_fraction', model%calving%calving_fraction, 'ice fraction lost in calving')
+    elseif (model%options%whichcalving == CALVING_RELX_THRESHOLD .or.  &
+            model%options%whichcalving == CALVING_TOPG_THRESHOLD) then
+       call log_param('marine_limit', model%calving%marine_limit, 'm; marine depth limit')
+    elseif (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
+       call log_param('calving_minthck', model%calving%minthck, 'm')
+    elseif (model%options%whichcalving == EIGEN_CALVING) then
+       call log_param('eigenconstant', model%calving%eigenconstant, 'm')
+    elseif (model%options%whichcalving == CALVING_STRESS) then
+       call log_param('tau_eigenconstant1', model%calving%tau_eigenconstant1)
+       call log_param('tau_eigenconstant2', model%calving%tau_eigenconstant2)
+       call log_param('stress_threshold', model%calving%stress_threshold, 'Pa')
+       call log_param('lateral_rate_min', model%calving%lateral_rate_min, 'm/yr')
+    elseif (model%options%whichcalving == CALVING_STRESS_STOCHASTIC) then
+       call log_param('tau_eigenconstant1', model%calving%tau_eigenconstant1)
+       call log_param('tau_eigenconstant2', model%calving%tau_eigenconstant2)
+       call log_param('stress_threshold', model%calving%stress_threshold, 'Pa')
+       call log_param('effec_stress_min', model%calving%effec_stress_min)
+       call log_param('calving_length_scale', model%calving%length_scale, 'm')
+    elseif (model%options%whichcalving == CALVING_DAMAGE) then
+       call log_param('tau_eigenconstant1', model%calving%tau_eigenconstant1)
+       call log_param('tau_eigenconstant2', model%calving%tau_eigenconstant2)
+    elseif (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+       call log_param('cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude, 'm/yr')
+       call log_param('cf_advance_retreat_period', model%calving%cf_advance_retreat_period, 'yr')
+    elseif (model%options%whichcalving == CALVING_GRID_MASK) then
        if (model%calving%calving_front_x > 0.0d0) then
-          write(message,*) 'x calving front (m)           : ', model%calving%calving_front_x
-          call write_log(message)
+          call log_param('calving_front_x', model%calving%calving_front_x, 'm')
        endif
        if (model%calving%calving_front_y > 0.0d0) then
-          write(message,*) 'y calving front (m)           : ', model%calving%calving_front_y
-          call write_log(message)
+          call log_param('calving_front_y', model%calving%calving_front_y, 'm')
        endif
        if (model%calving%calving_front_radius > 0.0d0) then
-          write(message,*) 'calving front radius (m)      : ', model%calving%calving_front_radius
-          call write_log(message)
+          call log_param('calving_front_radius', model%calving%calving_front_radius, 'm')
        endif
     endif
-
     if (model%calving%timescale > 0.0d0) then
-       write(message,*) 'calving time scale (yr)       : ', model%calving%timescale
-       call write_log(message)
+       call log_param('calving_timescale', model%calving%timescale, 'yr')
+    endif
+
+    call log_option('subgrid_calving_front', model%options%which_ho_calving_front, &
+         subgrid_calving_front(model%options%which_ho_calving_front))
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       call log_param('dthck_dx_cf', model%calving%dthck_dx_cf)
+       call log_param('thck_effective_min', model%calving%thck_effective_min, 'm')
+    endif
+    if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
+       call log_option('calvingmip_domain', model%options%which_ho_calvingmip_domain, &
+            calvingmip_domain(model%options%which_ho_calvingmip_domain))
+    end if
+
+    call log_flag('apply_calving_mask', model%options%apply_calving_mask)
+    if (icebergs_reset) then
+       call log_flag('remove_icebergs', model%options%remove_icebergs, &
+            'reset from .false. for stability when remove_isthmuses = .true.')
+    else
+       call log_flag('remove_icebergs', model%options%remove_icebergs)
+    endif
+    call log_flag('remove_isthmuses', model%options%remove_isthmuses)
+    if (model%options%remove_icebergs .or. model%options%remove_isthmuses) then
+       call log_param('f_ground_threshold', model%calving%f_ground_threshold)
+    endif
+    call log_flag('limit_marine_cliffs', model%options%limit_marine_cliffs)
+    if (model%options%limit_marine_cliffs) then
+       call log_param('taumax_cliff', model%calving%taumax_cliff, 'Pa')
+       call log_param('cliff_timescale', model%calving%cliff_timescale, 'yr')
+    endif
+
+    if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
+       write(message,*) 'WARNING: calving float fraction option deprecated with Glissade_dycore; set calving_timescale instead'
+       call write_log(message, GM_WARNING)
     endif
 
   end subroutine print_calving
@@ -3292,26 +3188,27 @@ contains
 
     use glissade_types
     use glimmer_log
+    use glissade_log_config
 
     implicit none
 
     type(glissade_global_type)  :: model
-    character(len=500) :: message
 
-    if (model%options%remove_ice_caps) then
-       write(message,*) 'Ice caps will be removed and added to the removal flux'
-       call write_log(message)
-    endif
+    character(len=*), dimension(0:2), parameter :: force_retreat = (/ &
+         'no forced retreat                                  ', &
+         'force retreat of all ice with retreat mask         ', &
+         'force retreat of floating ice with retreat mask    ' /)
 
-    if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE) then
-       write(message,*) 'Ice retreat will be forced using ice_fraction_retreat_mask'
-       call write_log(message)
-    elseif (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE) then
-       write(message,*) 'Floating ice retreat will be forced using ice_fraction_retreat_mask'
-       call write_log(message)
-       if (.not.model%options%remove_isthmuses) then
-          call write_log('  Warning: Can be unstable when remove_isthmuses = F')
-       endif
+    if (model%options%force_retreat < 0 .or. model%options%force_retreat >= size(force_retreat)) then
+       call write_log('Error, force_retreat out of range', GM_FATAL)
+    end if
+
+    call log_section('removal')
+    call log_flag('remove_ice_caps', model%options%remove_ice_caps, 'removed ice goes to the removal flux')
+    call log_option('force_retreat', model%options%force_retreat, force_retreat(model%options%force_retreat))
+    if (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE .and. &
+        .not.model%options%remove_isthmuses) then
+       call log_comment('Warning: force_retreat = 2 can be unstable when remove_isthmuses = .false.')
     endif
 
   end subroutine print_removal
@@ -3341,12 +3238,14 @@ contains
 
   subroutine print_lateral_melt(model)
 
+    ! Lateral melt options and parameters
+
     use glissade_types
     use glimmer_log
+    use glissade_log_config
 
     implicit none
     type(glissade_global_type)  :: model
-    character(len=100) :: message
 
     character(len=*), dimension(0:2), parameter :: lateral_melt_method = (/ &
          'no lateral melt at marine margin         ', &
@@ -3355,37 +3254,25 @@ contains
 
     if (model%options%which_lateral_melt < 0 .or. model%options%which_lateral_melt >= size(lateral_melt_method)) then
        call write_log('Error, lateral melt option out of range', GM_FATAL)
-    else
-       write(message,*) 'lateral_melt_method           : ',model%options%which_lateral_melt,  &
-            lateral_melt_method(model%options%which_lateral_melt)
-       call write_log(message)
     endif
 
-    if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
+    call log_section('lateral_melt')
+    call log_option('lateral_melt_method', model%options%which_lateral_melt, &
+         lateral_melt_method(model%options%which_lateral_melt))
 
-       if (model%options%which_lateral_melt == LATERAL_MELT_CONSTANT) then
-          write(message,*) 'constant lateral melt rate (m/yr)     : ', model%lateral_melt%melt_rate_const
-          call write_log(message)
-       elseif (model%options%which_lateral_melt == LATERAL_MELT_ISMIP) then
-          write(message,*) 'lateral melt factor                   : ', model%lateral_melt%melt_factor
-          call write_log(message)
-          if (model%lateral_melt%runoff_from_ablation) then
-             call write_log('runoff will be computed from ablation')
-          else
-             call write_log('runoff will be read from an input file')
-          endif
-          if (model%lateral_melt%thermal_forcing_avg_3d_to_2d) then
-             call write_log('2d thermal_forcing will be averaged from 3d')
-             write(message,*) 'depth range for TF averaging, top     : ', model%lateral_melt%ztop_tfavg
-             call write_log(message)
-             write(message,*) 'depth range for TF averaging, bottom  : ', model%lateral_melt%zbot_tfavg
-             call write_log(message)
-          else
-             call write_log('2d thermal forcing will be read from an input file')
-          endif
+    if (model%options%which_lateral_melt == LATERAL_MELT_CONSTANT) then
+       call log_param('melt_rate_const', model%lateral_melt%melt_rate_const, 'm/yr')
+    elseif (model%options%which_lateral_melt == LATERAL_MELT_ISMIP) then
+       call log_param('melt_factor', model%lateral_melt%melt_factor)
+       call log_flag('runoff_from_ablation', model%lateral_melt%runoff_from_ablation, &
+            'if false, runoff is read from an input file')
+       call log_flag('thermal_forcing_avg_3d_to_2d', model%lateral_melt%thermal_forcing_avg_3d_to_2d, &
+            'if false, 2D thermal forcing is read from an input file')
+       if (model%lateral_melt%thermal_forcing_avg_3d_to_2d) then
+          call log_param('ztop_tfavg', model%lateral_melt%ztop_tfavg, 'm; top of the TF averaging range')
+          call log_param('zbot_tfavg', model%lateral_melt%zbot_tfavg, 'm; bottom of the TF averaging range')
        endif
-
-    endif  ! which_lateral_melt /= lateral_melt_none
+    endif
 
   end subroutine print_lateral_melt
 
@@ -3436,7 +3323,8 @@ contains
 
     ! Inversion parameters.
     ! The section is written only when an inversion is selected: powerlaw_c_method or
-    ! coulomb_c_method in [basal_physics], or deltaT_ocn_method in [basal_melt].
+    ! coulomb_c_method in [basal_physics], deltaT_ocn_method in [basal_melt], or
+    ! glacier_powerlaw_c_method in [glaciers].
 
     use glissade_types
     use glimmer_log
@@ -3448,6 +3336,7 @@ contains
 
     logical :: babc_inversion     ! true for an inversion for powerlaw_c or coulomb_c
     logical :: deltaT_inversion   ! true for an inversion for deltaT_ocn
+    logical :: glacier_inversion  ! true for an inversion for glacier powerlaw_c
 
     babc_inversion = (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
                       model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or. &
@@ -3457,14 +3346,19 @@ contains
     deltaT_inversion = (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION .or. &
                         model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN)
 
-    if (.not. (babc_inversion .or. deltaT_inversion)) return
+    glacier_inversion = (model%options%enable_glaciers .and. &
+                         model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION)
+
+    if (.not. (babc_inversion .or. deltaT_inversion .or. glacier_inversion)) return
 
     call log_section('inversion')
-    call log_param('inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer, 'm')
-    call log_param('inversion_thck_threshold', model%inversion%thck_threshold, 'm')
-    call log_param('inversion_damping_factor', model%inversion%damping_factor)
+    if (babc_inversion .or. deltaT_inversion) then
+       call log_param('inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer, 'm')
+       call log_param('inversion_thck_threshold', model%inversion%thck_threshold, 'm')
+       call log_param('inversion_damping_factor', model%inversion%damping_factor)
+    endif
 
-    if (babc_inversion) then
+    if (babc_inversion .or. glacier_inversion) then
        call log_param('inversion_babc_thck_scale', model%inversion%babc_thck_scale, 'm')
        call log_param('inversion_babc_timescale', model%inversion%babc_timescale, 'yr')
        call log_param('inversion_babc_length_scale', model%inversion%babc_length_scale, 'm')
@@ -3564,13 +3458,15 @@ contains
 
   subroutine print_isostasy(model)
 
+    ! Isostasy options and parameters
+
     use glissade_types
     use glimmer_log
+    use glissade_log_config
 
     implicit none
     type(glissade_global_type)  :: model
-    character(len=100) :: message
-    ! NOTE: This option has replaced the old do_isos option
+
     character(len=*), dimension(0:1), parameter :: isostasy = (/ &
          'no isostasy calculation         ', &
          'compute isostasy with model     ' /)
@@ -3588,56 +3484,44 @@ contains
          'read both topg and relx from input file', &
          'set relx to input topg                 ', &
          'compute relx = input topg + load       ' /)
-    
+
+    ! check the options
+
     if (model%options%isostasy < 0 .or. model%options%isostasy >= size(isostasy)) then
        call write_log('Error, isostasy option out of range',GM_FATAL)
     end if
 
-    write(message,*) 'isostasy                : ',model%options%isostasy,isostasy(model%options%isostasy)
-    call write_log(message)
-
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
-       call write_log(' ')
-       call write_log('Isostasy')
-       call write_log('--------')
-
        if (model%isostasy%lithosphere < 0 .or. model%isostasy%lithosphere >= size(lithosphere_method)) then
           call write_log('Error, lithosphere_method out of range', GM_FATAL)
-       else
-          write(message,*) 'lithosphere_method          : ',model%isostasy%lithosphere,  &
-               lithosphere_method(model%isostasy%lithosphere)
-          call write_log(message)
        endif
-
-       if (model%isostasy%lithosphere==LITHOSPHERE_ELASTIC) then
-          write(message,*) 'flexural rigidity (N m)     : ', model%isostasy%rbel%d
-          call write_log(message)
-          write(message,*) 'load update interval (yr)   : ', model%isostasy%load_update_interval
-          call write_log(message)
-       end if
-
        if (model%isostasy%asthenosphere < 0 .or. model%isostasy%asthenosphere >= size(asthenosphere_method)) then
           call write_log('Error, asthenosphere_method out of range', GM_FATAL)
-       else
-          write(message,*) 'asthenosphere_method        : ',model%isostasy%asthenosphere,  &
-               asthenosphere_method(model%isostasy%asthenosphere)
-          call write_log(message)
        endif
-
        if (model%isostasy%which_relaxed < 0 .or. model%isostasy%which_relaxed >= size(input_topg_method)) then
           call write_log('Error, input_topg_method out of range', GM_FATAL)
-       else
-          write(message,*) 'input_topg_method           : ',model%isostasy%which_relaxed,  &
-               input_topg_method(model%isostasy%which_relaxed)
-          call write_log(message)
        endif
+    endif
 
-       if (model%isostasy%asthenosphere==ASTHENOSPHERE_RELAXING_CONST) then
-          write(message,*) 'relaxation constant (yr)    : ', model%isostasy%tau_relax_const
-          call write_log(message)
-       else if (model%isostasy%asthenosphere==ASTHENOSPHERE_RELAXING_LATVAR) then
+    ! write the options and parameters
+
+    call log_section('isostasy')
+    call log_option('isostasy', model%options%isostasy, isostasy(model%options%isostasy))
+
+    if (model%options%isostasy == ISOSTASY_COMPUTE) then
+       call log_option('lithosphere_method', model%isostasy%lithosphere, &
+            lithosphere_method(model%isostasy%lithosphere))
+       if (model%isostasy%lithosphere == LITHOSPHERE_ELASTIC) then
+          call log_param('flexural_rigidity', model%isostasy%rbel%d, 'N m')
+          call log_param('load_update_interval', model%isostasy%load_update_interval, 'yr')
+       end if
+       call log_option('asthenosphere_method', model%isostasy%asthenosphere, &
+            asthenosphere_method(model%isostasy%asthenosphere))
+       if (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_CONST) then
+          call log_param('tau_relax_const', model%isostasy%tau_relax_const, 'yr; relaxation timescale')
        endif
-
+       call log_option('input_topg_method', model%isostasy%which_relaxed, &
+            input_topg_method(model%isostasy%which_relaxed))
     endif   ! compute isostasy
 
   end subroutine print_isostasy
@@ -3685,14 +3569,17 @@ contains
 
   subroutine print_glaciers(model)
 
+    ! Glacier options and parameters.
+    ! Note: If scale_area = .false., length_scale_factor is reset to 1 here.
+    ! The parameters of the glacier powerlaw_c inversion are written in [inversion].
+
     use glissade_types
     use glimmer_log
+    use glissade_log_config
 
     implicit none
     type(glissade_global_type)  :: model
-    character(len=100) :: message
-
-    ! glacier options
+    real(dp) :: length_scale_factor_in   ! length_scale_factor before a reset
 
     character(len=*), dimension(0:2), parameter :: mu_star_method = (/ &
          'spatially uniform glacier parameter mu_star', &
@@ -3713,135 +3600,95 @@ contains
          'read in snowfall rate directly            ', &
          'compute snowfall rate from precip and artm' /)
 
-    if (model%options%enable_glaciers) then
+    if (.not.model%options%enable_glaciers) then
+       call log_section('glaciers')
+       call log_flag('enable_glaciers', model%options%enable_glaciers)
+       return
+    endif
 
-       call write_log(' ')
-       call write_log('Glaciers')
-       call write_log('--------')
+    ! check the options
 
-       call write_log('Glacier tracking and tuning is enabled')
+    if (model%glacier%set_mu_star < 0 .or. &
+        model%glacier%set_mu_star >= size(mu_star_method)) then
+       call write_log('Error, glacier_set_mu_star option out of range', GM_FATAL)
+    end if
 
-       write(message,*) 'mu_star_method            : ', model%glacier%set_mu_star, &
-            mu_star_method(model%glacier%set_mu_star)
-       call write_log(message)
-       if (model%glacier%set_mu_star < 0 .or. &
-           model%glacier%set_mu_star >= size(mu_star_method)) then
-          call write_log('Error, glacier_set_mu_star option out of range', GM_FATAL)
-       end if
+    if (model%glacier%set_alpha_snow < 0 .or. &
+        model%glacier%set_alpha_snow >= size(alpha_snow_method)) then
+       call write_log('Error, glacier_set_alpha_snow option out of range', GM_FATAL)
+    end if
 
-       write(message,*) 'alpha_snow_method         : ', model%glacier%set_alpha_snow, &
-            alpha_snow_method(model%glacier%set_alpha_snow)
-       call write_log(message)
-       if (model%glacier%set_alpha_snow < 0 .or. &
-           model%glacier%set_alpha_snow >= size(alpha_snow_method)) then
-          call write_log('Error, glacier_set_alpha_snow option out of range', GM_FATAL)
-       end if
+    if (model%glacier%set_powerlaw_c < 0 .or. &
+        model%glacier%set_powerlaw_c >= size(glacier_powerlaw_c_method)) then
+       call write_log('Error, glacier_set_powerlaw_c option out of range', GM_FATAL)
+    end if
 
-       write(message,*) 'glacier_powerlaw_c_method : ', model%glacier%set_powerlaw_c, &
-            glacier_powerlaw_c_method(model%glacier%set_powerlaw_c)
-       call write_log(message)
-       if (model%glacier%set_powerlaw_c < 0 .or. &
-           model%glacier%set_powerlaw_c >= size(glacier_powerlaw_c_method)) then
-          call write_log('Error, glacier_set_powerlaw_c option out of range', GM_FATAL)
-       end if
+    if (model%glacier%snow_calc < 0 .or. &
+        model%glacier%snow_calc >= size(snow_method)) then
+       call write_log('Error, glacier_snow_calc option out of range', GM_FATAL)
+    end if
 
-       write(message,*) 'snow_method               : ', model%glacier%snow_calc, &
-            snow_method(model%glacier%snow_calc)
-       call write_log(message)
-       if (model%glacier%snow_calc < 0 .or. &
-           model%glacier%snow_calc >= size(snow_method)) then
-          call write_log('Error, glacier_snow_calc option out of range', GM_FATAL)
-       end if
-
-       if (model%glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
-          write(message,*) 'glacier_snow_threshold_min (deg C): ', model%glacier%snow_threshold_min
-          call write_log(message)
-          write(message,*) 'glacier_snow_threshold_max (deg C): ', model%glacier%snow_threshold_max
-          call write_log(message)
+    if (model%glacier%set_mu_star /= GLACIER_MU_STAR_INVERSION) then
+       if (model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+          call write_log('Error, must invert for mu_star if inverting for alpha_snow', GM_FATAL)
+       elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+          call write_log('Error, must invert for mu_star if inverting for powerlaw_c', GM_FATAL)
        endif
+    endif
 
-       write(message,*) 'glacier_tmlt (deg C)        :  ', model%glacier%tmlt
-       call write_log(message)
+    ! length_scale_factor is used only with scale_area
+    length_scale_factor_in = model%glacier%length_scale_factor
+    if (.not.model%glacier%scale_area) model%glacier%length_scale_factor = 1.0d0
 
-       if (model%glacier%scale_area) then
-          call write_log ('Glacier area will be scaled based on latitude')
+    ! write the options and parameters
+
+    call log_section('glaciers')
+    call log_flag('enable_glaciers', model%options%enable_glaciers, 'glacier tracking and tuning')
+    call log_option('mu_star_method', model%glacier%set_mu_star, mu_star_method(model%glacier%set_mu_star))
+    call log_option('alpha_snow_method', model%glacier%set_alpha_snow, &
+         alpha_snow_method(model%glacier%set_alpha_snow))
+    call log_option('glacier_powerlaw_c_method', model%glacier%set_powerlaw_c, &
+         glacier_powerlaw_c_method(model%glacier%set_powerlaw_c))
+    call log_option('snow_method', model%glacier%snow_calc, snow_method(model%glacier%snow_calc))
+    if (model%glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
+       call log_param('glacier_snow_threshold_min', model%glacier%snow_threshold_min, 'deg C')
+       call log_param('glacier_snow_threshold_max', model%glacier%snow_threshold_max, 'deg C')
+    endif
+    call log_param('glacier_tmlt', model%glacier%tmlt, 'deg C')
+
+    call log_flag('scale_area', model%glacier%scale_area, 'scale glacier area based on latitude')
+    if (model%glacier%scale_area) then
+       call log_param('length_scale_factor', model%glacier%length_scale_factor, 'scales dew and dns')
+    elseif (length_scale_factor_in /= 1.0d0) then
+       call log_param('length_scale_factor', model%glacier%length_scale_factor, &
+            'reset from ' // real_to_string(length_scale_factor_in) // '; used only with scale_area = .true.')
+    endif
+
+    call log_param('diagnostic_minthck', model%glacier%diagnostic_minthck, 'm')
+
+    call log_flag('redistribute_advanced_ice', model%glacier%redistribute_advanced_ice, &
+         'redistribute advanced ice in the accumulation zone')
+    if (model%glacier%redistribute_advanced_ice) then
+       call log_param('thinning_rate_advanced_ice', model%glacier%thinning_rate_advanced_ice, 'm/yr')
+    endif
+
+    if (model%glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
+       call log_param('smb_weight_advanced_ice', model%glacier%smb_weight_advanced_ice, &
+            'SMB weight in the advanced ablation zone')
+       call log_param('mu_star_const', model%glacier%mu_star_const, 'mm/yr w.e./deg C')
+       call log_param('mu_star_min', model%glacier%mu_star_min, 'mm/yr w.e./deg C')
+       call log_param('mu_star_max', model%glacier%mu_star_max, 'mm/yr w.e./deg C')
+       if (model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+          call log_param('alpha_snow_const', model%glacier%alpha_snow_const)
+          call log_param('alpha_snow_min', model%glacier%alpha_snow_min)
+          call log_param('alpha_snow_max', model%glacier%alpha_snow_max)
+          call log_param('beta_artm_max', model%glacier%beta_artm_max, 'deg C')
+          call log_param('beta_artm_increment', model%glacier%beta_artm_increment, 'deg C')
+          call log_param('baseline_date', model%glacier%baseline_date, 'yr; glaciers assumed in balance')
+          call log_param('rgi_date', model%glacier%rgi_date, 'yr; date of RGI observations')
+          call log_param('recent_date', model%glacier%recent_date, 'yr; date of recent SMB observations')
        endif
-
-       if (model%glacier%length_scale_factor /= 1.0d0) then
-          if (model%glacier%scale_area) then
-             write(message,*) 'dew and dns will be scaled by a factor of ', &
-                  model%glacier%length_scale_factor
-             call write_log(message)
-          else
-             model%glacier%length_scale_factor = 1.0d0
-             write(message,*) 'length_scale_factor will be ignored since glacier%scale_area = F'
-             write(message,*) 'Setting length_scale_factor = 1.0'
-          endif
-       endif
-
-       write(message,*) 'glc diagnostic minthck (m)  :  ', model%glacier%diagnostic_minthck
-       call write_log(message)
-
-       if (model%glacier%redistribute_advanced_ice) then
-          call write_log('Advanced ice in the accumulation zone will be redistributed')
-          write(message,*) '  thinning rate (m/yr)      : ', model%glacier%thinning_rate_advanced_ice
-          call write_log(message)
-       endif
-
-       ! Inversion options
-
-       if (model%glacier%set_mu_star /= GLACIER_MU_STAR_INVERSION) then
-          if (model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
-             call write_log('Error, must invert for mu_star if inverting for alpha_snow', GM_FATAL)
-          elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
-             call write_log('Error, must invert for mu_star if inverting for powerlaw_c', GM_FATAL)
-          endif
-       endif
-
-       if (model%glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
-
-          write(message,*) 'smb_weight, advanced ablation zone:  ', model%glacier%smb_weight_advanced_ice
-          call write_log(message)
-          write(message,*) 'mu_star_const (mm/yr/degC)  :  ', model%glacier%mu_star_const
-          call write_log(message)
-          write(message,*) 'mu_star_min (mm/yr/degC)    :  ', model%glacier%mu_star_min
-          call write_log(message)
-          write(message,*) 'mu_star_max (mm/yr/degC)    :  ', model%glacier%mu_star_max
-          call write_log(message)
-
-          if (model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
-             write(message,*) 'alpha_snow_const            :  ', model%glacier%alpha_snow_const
-             call write_log(message)
-             write(message,*) 'alpha_snow_min              :  ', model%glacier%alpha_snow_min
-             call write_log(message)
-             write(message,*) 'alpha_snow_max              :  ', model%glacier%alpha_snow_max
-             call write_log(message)
-             write(message,*) 'beta_artm_max (degC)        :  ', model%glacier%beta_artm_max
-             call write_log(message)
-             write(message,*) 'beta_artm_increment (degC)  :  ', model%glacier%beta_artm_increment
-             call write_log(message)
-             write(message,*) 'baseline date for inversion :  ', model%glacier%baseline_date
-             call write_log(message)
-             write(message,*) 'RGI date for inversion      :  ', model%glacier%rgi_date
-             call write_log(message)
-             write(message,*) 'recent date for inversion   :  ', model%glacier%recent_date
-             call write_log(message)
-          endif
-
-       endif
-
-       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
-          write(message,*) 'powerlaw_c_timescale (yr)       :  ', model%inversion%babc_timescale
-          call write_log(message)
-          write(message,*) 'powerlaw_c_thickness scale (m)  :  ', model%inversion%babc_thck_scale
-          call write_log(message)
-          write(message,*) 'powerlaw_c length scale (m)     :  ', model%inversion%babc_length_scale
-          call write_log(message)
-          write(message,*) 'powerlaw_c_relax_factor         :  ', model%inversion%babc_relax_factor
-          call write_log(message)
-       endif
-
-    endif   ! enable_glaciers
+    endif
 
   end subroutine print_glaciers
 
@@ -3871,11 +3718,11 @@ contains
 
     use glissade_types
     use glimmer_log
+    use glissade_log_config
 
     implicit none
 
     type(glissade_global_type)  :: model
-    character(len=500) :: message
 
     character(len=*), dimension(0:1), parameter :: dm_dt_diag = (/ &
          'write dmass/dt diagnostic in units of kg/s ',  &
@@ -3893,9 +3740,9 @@ contains
        call write_log('Error, diag_minthck out of range',GM_FATAL)
     end if
 
-    write(message,*) 'minthck for diagnostics : ',model%options%diag_minthck, &
-         diag_minthck(model%options%diag_minthck)
-    call write_log(message)
+    call log_section('diagnostics')
+    call log_option('dm_dt_diag', model%options%dm_dt_diag, dm_dt_diag(model%options%dm_dt_diag))
+    call log_option('diag_minthck', model%options%diag_minthck, diag_minthck(model%options%diag_minthck))
 
   end subroutine print_diagnostics
 

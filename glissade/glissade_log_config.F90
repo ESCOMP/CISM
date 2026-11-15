@@ -51,7 +51,7 @@ module glissade_log_config
   implicit none
   private
 
-  public :: log_section, log_comment, log_option, log_param, log_flag, log_string, real_to_string
+  public :: log_section, log_comment, log_option, log_param, log_flag, log_string, log_list, real_to_string
 
   interface log_param
      module procedure log_param_real, log_param_int
@@ -166,6 +166,29 @@ contains
     call write_key_value(key, trim(value), comment)
 
   end subroutine log_string
+
+!--------------------------------------------------------------------------------
+
+  subroutine log_list(key, values, comment, digits)
+
+    ! Write a list of reals separated by spaces, as in the config file (e.g. sigma_levels)
+
+    character(len=*), intent(in) :: key
+    real(dp), dimension(:), intent(in) :: values
+    character(len=*), intent(in), optional :: comment
+    integer, intent(in), optional :: digits
+
+    character(len=:), allocatable :: str
+    integer :: i
+
+    str = ''
+    do i = 1, size(values)
+       if (i > 1) str = str // ' '
+       str = str // real_to_string(values(i), digits)
+    enddo
+    call write_key_value(key, str, comment)
+
+  end subroutine log_list
 
 !--------------------------------------------------------------------------------
 
