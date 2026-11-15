@@ -815,9 +815,9 @@ contains
     call log_param('upn', model%general%upn)
     call log_param('dew', model%numerics%dew, 'm')
     call log_param('dns', model%numerics%dns, 'm')
-    if (model%general%nx_block > 0 .and. model%general%ny_block> 0) then
-       call log_param('nx_block', model%general%nx_block)
-       call log_param('ny_block', model%general%ny_block)
+    if (model%options%compute_blocks >= ACTIVE_BLOCKS_ONLY) then
+       call log_param('nx_block', model%general%nx_block, 'block size for compute_blocks')
+       call log_param('ny_block', model%general%ny_block, 'block size for compute_blocks')
     endif
     call log_option('global_bc', model%general%global_bc, global_bc(model%general%global_bc))
     if (model%options%which_sigma >= 0 .and. model%options%which_sigma < size(sigma_method)) then
@@ -903,6 +903,14 @@ contains
 
     character(len=100) :: note
 
+    character(len=*), dimension(0:1), parameter :: dt_input_option = (/ &
+         'dt (yr) set in the config file      ', &
+         'nsteps_per_year set in config file  ' /)
+
+    if (model%options%dt_input_option < 0 .or. model%options%dt_input_option >= size(dt_input_option)) then
+       call write_log('Error, dt_input_option out of range', GM_FATAL)
+    end if
+
     if ( (model%numerics%ntem < 1.0d0) .or. &
        (floor(model%numerics%ntem) /= model%numerics%ntem) ) then
        call write_log('ntem is a multiplier on the basic time step.  It should be a positive integer.  Aborting.',GM_FATAL)
@@ -926,20 +934,24 @@ contains
     call log_section('time')
     call log_param('tstart', model%numerics%tstart, 'yr')
     call log_param('tend', model%numerics%tend, 'yr')
-    call log_param('dt', model%numerics%tinc, 'yr')
-    if (model%numerics%nsteps_per_year > 0) then
+    call log_option('dt_input_option', model%options%dt_input_option, &
+         dt_input_option(model%options%dt_input_option))
+    if (model%options%dt_input_option == DT_STEPS_PER_YEAR) then
        call log_param('nsteps_per_year', model%numerics%nsteps_per_year)
+       call log_param('dt', model%numerics%tinc, 'yr; computed as 1/nsteps_per_year')
+    else
+       call log_param('dt', model%numerics%tinc, 'yr')
     endif
     call log_param('ntem', model%numerics%ntem, 'thermal time step / dt')
-    if (model%numerics%adaptive_cfl_threshold > 0.0d0) then
-       call log_param('adaptive_cfl_threshold', model%numerics%adaptive_cfl_threshold, &
-            'advection is subcycled when CFL exceeds this value')
-    endif
+    call log_param('adaptive_cfl_threshold', model%numerics%adaptive_cfl_threshold, &
+         'advection is subcycled when CFL exceeds this value; 0 = no adaptive subcycling')
     call log_param('subcyc', model%numerics%subcyc, note)
     if (model%numerics%dt_diag > 0.d0) then
        call log_param('dt_diag', model%numerics%dt_diag, 'yr')
     elseif (model%numerics%ndiag > 0) then
        call log_param('ndiag', model%numerics%ndiag, 'time steps')
+    else
+       call log_param('dt_diag', model%numerics%dt_diag, 'yr; 0 = no diagnostic output')
     endif
     ! Note: idiag and jdiag are written to the log in glissade_init_diag.
 
@@ -1122,13 +1134,10 @@ contains
     call log_flag('reproducible_sums', model%options%reproducible_sums)
     call log_param('ice_limit', model%numerics%thklim, 'm; thickness limit for dynamically active ice')
     call log_param('ice_limit_temp', model%numerics%thklim_temp, 'm; thickness limit for temperature calculations')
-    if (model%numerics%thck_gradient_ramp > 0.0d0) then
-       call log_param('thck_gradient_ramp', model%numerics%thck_gradient_ramp, 'm')
-    endif
-    if (model%numerics%periodic_offset_ew /= 0.d0) then
+    call log_param('thck_gradient_ramp', model%numerics%thck_gradient_ramp, &
+         'm; 0 = no ramp of land-margin thickness gradients')
+    if (model%general%global_bc == GLOBAL_BC_PERIODIC) then
        call log_param('periodic_offset_ew', model%numerics%periodic_offset_ew, 'm')
-    endif
-    if (model%numerics%periodic_offset_ns /= 0.d0) then
        call log_param('periodic_offset_ns', model%numerics%periodic_offset_ns, 'm')
     endif
 
@@ -2172,20 +2181,17 @@ contains
        call log_param('coulomb_c_bed_lo', model%basal_physics%coulomb_c_bed_lo, 'm')
     endif
 
-    if (model%basal_physics%beta_powerlaw_umax > 0.0d0) then
-       call log_param('beta_powerlaw_umax', model%basal_physics%beta_powerlaw_umax, 'm/yr; max ice speed when evaluating beta(u)')
-    endif
+    call log_param('beta_powerlaw_umax', model%basal_physics%beta_powerlaw_umax, &
+         'm/yr; max ice speed when evaluating beta(u); 0 = no limit')
 
-    if (model%basal_physics%beta_grounded_min > 0.d0) then
+    if (model%options%which_ho_beta_limit == HO_BETA_LIMIT_ABSOLUTE) then
        call log_param('beta_grounded_min', model%basal_physics%beta_grounded_min, 'Pa yr/m; min beta for grounded ice')
     endif
 
     ! ocean_p parameters
     !TODO - Move these to basal_hydro?
-    if (model%basal_physics%p_ocean_penetration > 0.0d0) then
-       call log_param('p_ocean_penetration', model%basal_physics%p_ocean_penetration, &
-            'ocean connection reduces the effective pressure')
-    endif
+    call log_param('p_ocean_penetration', model%basal_physics%p_ocean_penetration, &
+         'ocean connection reduces the effective pressure; 0 = off')
 
   end subroutine print_basal_physics
 
@@ -2320,17 +2326,11 @@ contains
     elseif (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
        call log_option('flux_routing_method', model%basal_hydro%ho_flux_routing_scheme, &
             flux_routing_method(model%basal_hydro%ho_flux_routing_scheme))
-       if (model%basal_hydro%const_source > 0.0d0) then
-          call log_param('const_source', model%basal_hydro%const_source, 'm/yr; constant melt source at the bed')
-       endif
-       if (model%basal_hydro%btemp_flow_scale > 0.0d0) then
-          call log_param('btemp_flow_scale', model%basal_hydro%btemp_flow_scale, &
-               'deg C; temperature scale for flow around frozen bed')
-       endif
-       if (model%basal_hydro%btemp_freeze_scale > 0.0d0) then
-          call log_param('btemp_freeze_scale', model%basal_hydro%btemp_freeze_scale, &
-               'deg C; temperature scale for refreezing at the bed')
-       endif
+       call log_param('const_source', model%basal_hydro%const_source, 'm/yr; constant melt source at the bed')
+       call log_param('btemp_flow_scale', model%basal_hydro%btemp_flow_scale, &
+            'deg C; temperature scale for flow around frozen bed; 0 = off')
+       call log_param('btemp_freeze_scale', model%basal_hydro%btemp_freeze_scale, &
+            'deg C; temperature scale for refreezing at the bed; 0 = off')
        if (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT) then
           call log_param('effecpress_delta', model%basal_hydro%effecpress_delta, &
                'min effective pressure relative to overburden')
@@ -2615,32 +2615,29 @@ contains
     call log_option('basal_mass_balance', model%options%basal_mbal, &
          basal_mass_balance(model%options%basal_mbal))
 
-    if (model%options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
-       if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
-          call log_option('deltaT_ocn_method', model%options%which_ho_deltaT_ocn, &
-               deltaT_ocn_method(model%options%which_ho_deltaT_ocn))
-       else
-          write(message,'(a,i0)') 'ignored; supported only for bmlt_float_method = ', BMLT_FLOAT_THERMAL_FORCING
-          call log_option('deltaT_ocn_method', model%options%which_ho_deltaT_ocn, trim(message))
-       endif
+    if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+       call log_option('deltaT_ocn_method', model%options%which_ho_deltaT_ocn, &
+            deltaT_ocn_method(model%options%which_ho_deltaT_ocn))
+    elseif (model%options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
+       write(message,'(a,i0)') 'ignored; supported only for bmlt_float_method = ', BMLT_FLOAT_THERMAL_FORCING
+       call log_option('deltaT_ocn_method', model%options%which_ho_deltaT_ocn, trim(message))
     endif
 
     call log_flag('enable_bmlt_anomaly', model%options%enable_bmlt_anomaly, 'bmlt_float anomaly forcing')
-    if (model%basal_melt%bmlt_anomaly_timescale > 0.0d0) then
+    if (model%options%enable_bmlt_anomaly) then
        call log_param('bmlt_anomaly_tstart', model%basal_melt%bmlt_anomaly_tstart, 'yr')
        call log_param('bmlt_anomaly_timescale', model%basal_melt%bmlt_anomaly_timescale, 'yr')
     endif
 
-    if (model%basal_melt%bmlt_cavity_h0 > 0.0d0 .and. &
+    if (model%options%whichbmlt_float /= BMLT_FLOAT_NONE .and. &
         model%options%whichbmlt_float /= BMLT_FLOAT_MISMIP) then
-       call log_param('bmlt_cavity_h0', model%basal_melt%bmlt_cavity_h0, 'm')
+       call log_param('bmlt_cavity_h0', model%basal_melt%bmlt_cavity_h0, &
+            'm; melt is reduced in cavities thinner than this; 0 = off')
     endif
 
     if (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
-       if (model%basal_melt%bmlt_float_factor /= 1.0d0) then
-          call log_param('bmlt_float_factor', model%basal_melt%bmlt_float_factor, &
-               'multiplies bmlt_float from the input file')
-       endif
+       call log_param('bmlt_float_factor', model%basal_melt%bmlt_float_factor, &
+            'multiplies bmlt_float from the input file')
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_CONSTANT) then
        call log_param('bmlt_float_const', model%basal_melt%bmlt_float_const, 'm/yr')
        call log_param('bmlt_float_xlim', model%basal_melt%bmlt_float_xlim, 'm')
@@ -2737,16 +2734,14 @@ contains
 
     if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
         model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-       if (model%ocean_data%thermal_forcing_basin_min > 0.0d0) then
-          call log_param('thermal_forcing_basin_min', model%ocean_data%thermal_forcing_basin_min, 'deg C')
-       endif
-       if (model%ocean_data%thermal_forcing_basin_max > 0.0d0) then
-          call log_param('thermal_forcing_basin_max', model%ocean_data%thermal_forcing_basin_max, 'deg C')
-       endif
+       call log_param('thermal_forcing_basin_min', model%ocean_data%thermal_forcing_basin_min, &
+            'deg C; min basin-scale TF; 0 = no limit')
+       call log_param('thermal_forcing_basin_max', model%ocean_data%thermal_forcing_basin_max, &
+            'deg C; max basin-scale TF; 0 = no limit')
     endif   ! nonlocal melt schemes
 
+    call log_param('thermal_forcing_anomaly', model%ocean_data%thermal_forcing_anomaly, 'deg C; 0 = no anomaly')
     if (model%ocean_data%thermal_forcing_anomaly /= 0.0d0) then
-       call log_param('thermal_forcing_anomaly', model%ocean_data%thermal_forcing_anomaly, 'deg C')
        call log_param('thermal_forcing_anomaly_tstart', model%ocean_data%thermal_forcing_anomaly_tstart, 'yr')
        call log_param('thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale, 'yr')
        if (model%ocean_data%thermal_forcing_anomaly_basin == 0) then
@@ -2887,24 +2882,18 @@ contains
     if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
        call log_param('t_lapse', model%climate%t_lapse, 'deg C/m; artm lapse rate')
     endif
-    if (model%climate%smb_factor /= 1.0d0) then
-       call log_param('smb_factor', model%climate%smb_factor, 'multiplies the input SMB')
-    endif
+    call log_param('smb_factor', model%climate%smb_factor, 'multiplies the input SMB')
 
     call log_flag('enable_smb_anomaly', model%options%enable_smb_anomaly)
-    if (model%climate%smb_anomaly_timescale > 0.0d0) then
+    if (model%options%enable_smb_anomaly) then
        call log_param('smb_anomaly_tstart', model%climate%smb_anomaly_tstart, 'yr')
        call log_param('smb_anomaly_timescale', model%climate%smb_anomaly_timescale, 'yr')
     endif
     call log_flag('enable_artm_anomaly', model%options%enable_artm_anomaly)
     if (model%options%enable_artm_anomaly) then
-       if (model%climate%artm_anomaly_const /= 0.0d0) then
-          call log_param('artm_anomaly_const', model%climate%artm_anomaly_const, 'deg C')
-       endif
-       if (model%climate%artm_anomaly_timescale > 0.0d0) then
-          call log_param('artm_anomaly_tstart', model%climate%artm_anomaly_tstart, 'yr')
-          call log_param('artm_anomaly_timescale', model%climate%artm_anomaly_timescale, 'yr')
-       endif
+       call log_param('artm_anomaly_const', model%climate%artm_anomaly_const, 'deg C')
+       call log_param('artm_anomaly_tstart', model%climate%artm_anomaly_tstart, 'yr')
+       call log_param('artm_anomaly_timescale', model%climate%artm_anomaly_timescale, 'yr')
     endif
     call log_flag('enable_snow_anomaly', model%options%enable_snow_anomaly)
     call log_flag('enable_precip_anomaly', model%options%enable_precip_anomaly)
@@ -3112,18 +3101,12 @@ contains
        call log_param('cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude, 'm/yr')
        call log_param('cf_advance_retreat_period', model%calving%cf_advance_retreat_period, 'yr')
     elseif (model%options%whichcalving == CALVING_GRID_MASK) then
-       if (model%calving%calving_front_x > 0.0d0) then
-          call log_param('calving_front_x', model%calving%calving_front_x, 'm')
-       endif
-       if (model%calving%calving_front_y > 0.0d0) then
-          call log_param('calving_front_y', model%calving%calving_front_y, 'm')
-       endif
-       if (model%calving%calving_front_radius > 0.0d0) then
-          call log_param('calving_front_radius', model%calving%calving_front_radius, 'm')
-       endif
+       call log_param('calving_front_x', model%calving%calving_front_x, 'm; 0 = not used')
+       call log_param('calving_front_y', model%calving%calving_front_y, 'm; 0 = not used')
+       call log_param('calving_front_radius', model%calving%calving_front_radius, 'm; 0 = not used')
     endif
-    if (model%calving%timescale > 0.0d0) then
-       call log_param('calving_timescale', model%calving%timescale, 'yr')
+    if (model%options%whichcalving /= CALVING_NONE) then
+       call log_param('calving_timescale', model%calving%timescale, 'yr; 0 = calve immediately')
     endif
 
     call log_option('subgrid_calving_front', model%options%which_ho_calving_front, &
@@ -3371,14 +3354,11 @@ contains
        call log_param('inversion_deltaT_ocn_temp_scale', model%inversion%deltaT_ocn_temp_scale, 'deg C')
        if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
           call log_param('inversion_basin_flotation_threshold', model%inversion%basin_flotation_threshold, 'm')
-          if (model%inversion%deltaT_basin_relax /= 0.0d0) then
-             call log_param('inversion_deltaT_basin_relax', model%inversion%deltaT_basin_relax, 'deg C')
-          endif
-          if (abs(model%inversion%basin_mass_correction) > 0.0d0 .and. &
-                  model%inversion%basin_number_mass_correction > 0) then
-             call log_param('inversion_basin_number_mass_correction', model%inversion%basin_number_mass_correction)
-             call log_param('inversion_basin_mass_correction', model%inversion%basin_mass_correction, 'Gt')
-          endif
+          call log_param('inversion_deltaT_basin_relax', model%inversion%deltaT_basin_relax, &
+               'deg C; value toward which deltaT_basin relaxes')
+          call log_param('inversion_basin_number_mass_correction', model%inversion%basin_number_mass_correction, &
+               '0 = no mass correction')
+          call log_param('inversion_basin_mass_correction', model%inversion%basin_mass_correction, 'Gt')
        else   ! 2D deltaT_ocn inversion
           call log_param('inversion_deltaT_ocn_length_scale', model%inversion%deltaT_ocn_length_scale, 'm')
        endif
