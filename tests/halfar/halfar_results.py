@@ -107,9 +107,14 @@ def main():
     # Get the value of flwa specified in the default_flwa parameter in the config file.
     # This is the only way this test case supports specifying flwa.
     try: 
-        flwa = float(config_parser.get('parameters','default_flwa'))
+        # Glissade configs have a [flow_law] section; Glide configs keep the old format.
+        if config_parser.has_section('flow_law'):
+            flwa_section = flow_law_section = 'flow_law'
+        else:
+            flwa_section, flow_law_section = 'parameters', 'options'
+        flwa = float(config_parser.get(flwa_section,'default_flwa'))
         print('Parameter used: ' + config_file + ' has specified a flwa value of ' + str(flwa))
-        flow_law = int(config_parser.get('options','flow_law'))
+        flow_law = int(config_parser.get(flow_law_section,'flow_law'))
         if flow_law != 0:
             sys.exit('Error: The option "flow_law" must be set to 0 for the test case to work properly.')
     except:

@@ -2408,7 +2408,6 @@ module glissade_therm
                                   temp,                             &
                                   flwa,                             &
                                   default_flwa,                     &
-                                  which_ho_flow_enhancement_factor, &
                                   flow_enhancement_factor,          &
                                   flow_enhancement_factor_ground,   &
                                   flow_enhancement_factor_float,    &
@@ -2459,15 +2458,9 @@ module glissade_therm
     real(dp),dimension(:,:,:), intent(inout) :: flwa      !> output $A$, in units of Pa^{-n} s^{-1}, allow input for data option
     real(dp),                  intent(in)    :: default_flwa        !> Glen's A to use in isothermal case, Pa^{-n} s^{-1}
 
-    !Note: For option 0, flow_enhancement_factor is computed here using one parameter for grounded ice, another for floating ice.
-    !      For option 1 or 2, flow_enhancement_factor is computed elsewhere and passed in.
+    !Note: flow_enhancement_factor is computed here using one parameter for grounded ice, another for floating ice.
 
-    integer,                   intent(in)    :: &
-         which_ho_flow_enhancement_factor           !> option for flow enhancement factor
-
-    !Note: flow_enhancement_factor should not be modified if which_ho_flow_enhancement_factor = 1 (inversion)
-    !      or = 2 (read external).
-    real(dp),dimension(:,:),   intent(inout) :: &
+    real(dp),dimension(:,:),   intent(out)   :: &
          flow_enhancement_factor                    !> flow enhancement factor, unitless
 
     real(dp),                  intent(in)    :: &
@@ -2508,56 +2501,31 @@ module glissade_therm
     real(dp), parameter :: flwa_damage_max = 0.95d0   ! max damage value used to enhance flwa
     real(dp), parameter :: nexp_damage = 1.0d0        ! exponent in damage-flwa relation
 
-    character(len=150) :: message
-
     !------------------------------------------------------------------------------------
    
     nlayers = size(flwa,1)   ! upn - 1
     ewn = size(flwa,2)
     nsn = size(flwa,3)
 
-    if (which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT) then
+    ! Set the flow enhancement factor, using one parameter for grounded ice, another parameter
+    !  for floating ice, and optionally a weighted average for partly floating cells.
 
-       ! Use one parameter for grounded ice, another parameter for floating ice,
-       ! and optionally a weighted average for partly floating cells.
+    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then  ! using a GLP for f_ground_cell
 
-       if (which_ho_ground == HO_GROUND_GLP_DELUXE) then  ! using a GLP for f_ground_cell
+       ! set flow_enhancement factor based on f_ground_cell, giving a weighted mean in partly floating cells
+       flow_enhancement_factor(:,:) = flow_enhancement_factor_ground * f_ground_cell(:,:) &
+                                    + flow_enhancement_factor_float * (1.0d0 - f_ground_cell(:,:))
 
-          ! set flow_enhancement factor based on f_ground_cell, giving a weighted mean in partly floating cells
-          flow_enhancement_factor(:,:) = flow_enhancement_factor_ground * f_ground_cell(:,:) &
-                                       + flow_enhancement_factor_float * (1.0d0 - f_ground_cell(:,:))
+    else
 
-       else
-
-          ! set enhancement factor in floating cells based on floating_mask
-          where (floating_mask == 1)
-             flow_enhancement_factor = flow_enhancement_factor_float
-          elsewhere
-             flow_enhancement_factor = flow_enhancement_factor_ground
-          endwhere
-
-       endif
+       ! set enhancement factor in floating cells based on floating_mask
+       where (floating_mask == 1)
+          flow_enhancement_factor = flow_enhancement_factor_float
+       elsewhere
+          flow_enhancement_factor = flow_enhancement_factor_ground
+       endwhere
 
     endif
-
-    ! Bug check: Make sure flow_enhancement_factor E /= 0 in cells with ice,
-    ! since E = 0 leads to flwa = 0, which gives NaNs in the velocity solver.
-    do ns = 1, nsn
-       do ew = 1, ewn
-          if (f_ground_cell(ew,ns) > 0.0d0 .or. floating_mask(ew,ns) == 1) then  ! ice-filled
-             if (flow_enhancement_factor(ew,ns) == 0.0d0) then
-!!                write(message,*) 'glissade_flow_factor, E = 0 in cell with ice, rank, i, j =', this_rank, ew, ns
-!!                call write_log(trim(message), GM_FATAL)
-                !WHL - Assign the default value
-                if (floating_mask(ew,ns) == 1) then
-                   flow_enhancement_factor(ew,ns) = flow_enhancement_factor_float
-                else
-                   flow_enhancement_factor(ew,ns) = flow_enhancement_factor_ground
-                endif
-             endif
-          endif
-       enddo
-    enddo
 
     ! Check that the temperature array has the desired vertical dimension
 

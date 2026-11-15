@@ -421,21 +421,6 @@ long_name:     flow enhancement factor
 data:          data%temper%flow_enhancement_factor
 load:          1
 
-#WHL - T_ambient and S_ambient are for a future MISOMIP option
-[T_ambient]
-dimensions:    time, y1, x1
-units:         degree_Celsius
-long_name:     ambient ocean temperature
-data:          data%plume%T_ambient(1:data%general%ewn,1:data%general%nsn)
-standard_name: ambient_ocean_temperature
-
-[S_ambient]
-dimensions:    time, y1, x1
-units:         psu
-long_name:     ambient ocean salinity
-data:          data%plume%S_ambient(1:data%general%ewn,1:data%general%nsn)
-standard_name: ambient ocean salinity
-
 [taudx]
 dimensions:    time, y0, x0
 units:         Pa

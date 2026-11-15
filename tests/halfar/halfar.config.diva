@@ -15,24 +15,38 @@ jdiag = 10
 
 [options]
 dycore = 2               # 0 = glide, 1 = glam, 2 = glissade
-flow_law = 0             # 0 = flow_law option needs to be 0 for the test case to work properly.
-evolution = 3            # 2 = iterated diffusion, 3 = IR
-temperature = 0          # 0 = isothermal temp evolution, if turned on, will not affect flwa because default_flwa is specified below.
-marine_margin = 0        # 0 = no calving
+
+[calving]
+calving_law = 0        # 0 = no calving
+
+[basal_physics]
+sliding_law = 4        # 4 = no-slip at bed
+
+[basal_melt]
 basal_mass_balance = 0   # 0 = bmlt not in continuity equation
 
-[ho_options]
-which_ho_approx = 4      # 4 = DIVA
-which_ho_babc = 4        # 4 = no-slip at bed
-which_ho_efvs = 2        # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
-which_ho_sparse = 3      # 1 = SLAP GMRES, 3 = glissade parallel PCG
-which_ho_nonlinear = 0   # 0 = Picard, 1 = accelerated Picard
-which_ho_precond = 2     # 1 = diagonal, 2 = physics-based SIA
-which_ho_gradient = 2    # 0 = centered, 1 = 1st order upstream, 2 = 2nd order upstream
+[velocity]
+stokes_approx = 4      # 4 = DIVA
+efvs_method = 2        # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
+surface_gradient_method = 2    # 0 = centered, 1 = 1st order upstream, 2 = 2nd order upstream
 
-[parameters]
-ice_limit = 1.           # min thickness (m) for dynamics
+[velocity_solver]
+linear_solver = 3      # 1 = SLAP GMRES, 3 = glissade parallel PCG
+nonlinear_method = 0   # 0 = Picard, 1 = accelerated Picard
+preconditioner = 2     # 1 = diagonal, 2 = physics-based SIA
+
+[advection]
+advection_method = 3            # 2 = iterated diffusion, 3 = IR
+
+[flow_law]
+flow_law = 0             # 0 = flow_law option needs to be 0 for the test case to work properly.
 default_flwa = 1.0e-16   # NOTE: The Halfar testing script requires that flwa is supplied here!
+
+[temperature]
+temperature_method = 0          # 0 = isothermal temp evolution, if turned on, will not affect flwa because default_flwa is specified below.
+
+[numerics]
+ice_limit = 1.           # min thickness (m) for dynamics
 
 [CF default]
 comment = created with halfar.py 

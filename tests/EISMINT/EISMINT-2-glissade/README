@@ -10,14 +10,14 @@ See module glissade_velo_sia.F90 for the solver algorithm.
 
 The different settings, compared to the Glide tests, are as follows:
 * dycore = 2 (Glissade)
-* evolution = 3 (IR transport)
+* advection_method = 3 (IR transport)
 * vertical_evolution = 0 (not constrained by upper kinematic BC)
-* which_ho_approx = -1 (Glissade local SIA solver)
-* which_ho_sparse = 3
+* stokes_approx = -1 (Glissade local SIA solver)
+* linear_solver = 3
 * ice_limit = 1 (minimum thickess for active ice = 1 m)
 
 Note: The Glissade local SIA scheme does not need a sparse solver,
-but the default value (which_ho_sparse = 0) triggers an error in parallel runs.
+but the default value (linear_solver = 0) triggers an error in parallel runs.
 
 Tests are typically run as follows:
 

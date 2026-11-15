@@ -91,15 +91,12 @@ module glissade_types
   integer, parameter :: BTRC_CONSTANT = 1
   integer, parameter :: BTRC_CONSTANT_BWAT = 2
   integer, parameter :: BTRC_CONSTANT_BPMP = 3
-  integer, parameter :: BTRC_LINEAR_BMLT = 4
-  integer, parameter :: BTRC_TANH_BWAT = 5
 
   integer, parameter :: BMLT_FLOAT_NONE = 0
   integer, parameter :: BMLT_FLOAT_MISMIP = 1
   integer, parameter :: BMLT_FLOAT_CONSTANT = 2
   integer, parameter :: BMLT_FLOAT_DEPTH = 3
   integer, parameter :: BMLT_FLOAT_EXTERNAL = 4
-  integer, parameter :: BMLT_FLOAT_MISOMIP = 5   ! not supported
   integer, parameter :: BMLT_FLOAT_THERMAL_FORCING = 6
 
   !TODO - Deprecate the quadratic option?
@@ -261,10 +258,6 @@ module glissade_types
   integer, parameter :: HO_DELTAT_OCN_INVERSION_BASIN = 3
   integer, parameter :: HO_DELTAT_OCN_CALIBRATE_BASIN = 4
   integer, parameter :: HO_DELTAT_OCN_DTHCK_DT = 5
-
-  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT = 0
-  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_INVERSION = 1
-  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_EXTERNAL = 2
 
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
@@ -493,7 +486,6 @@ module glissade_types
     !> \item[2] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
     !> \item[3] Depth-dependent basal melt rate for floating ice
     !> \item[4] External basal melt rate field (from input file or coupler)
-    !> \item[5] Basal melt rate for floating ice from MISOMIP ocean forcing with plume model (not supported)
     !> \item[6] Basal melt rate for floating ice derived from ocean thermal forcing
     !> \end{description}
 
@@ -845,13 +837,6 @@ module glissade_types
     !> \item[4] calibrate deltaT_ocean to match a basin-scale melt target
     !> \item[5] set deltaT_ocn to match a local dH/dt target
     !> \end{description}
-
-    integer :: which_ho_flow_enhancement_factor = 0
-    !> Flag for flow enhancement factor E
-    !> \begin{description}
-    !> \item[0] flow enhancement factor E = constant (typically lower for floating ice)
-    !> \item[1] invert for flow_enhancement factor E
-    !> \item[2] read flow_enhancement factor E from external file
 
     integer :: which_ho_bwat = 0
     !> Basal water depth:
@@ -1683,15 +1668,6 @@ module glissade_types
      integer ::  &
           basin_number_mass_correction = 0       !> integer ID for the basin receiving the correction
 
-     ! parameters for flow_enhancement_factor inversion
-     !WHL TODO - Remove flow_enhancement_factor inversion (maybe during the config reorg)
-     real(dp) ::  &
-          flow_enhancement_timescale = 200.d0,  & !> inversion timescale (yr)
-          flow_enhancement_velo_scale = 100.d0, & !> inversion velocity scale (m/yr)
-          flow_enhancement_thck_scale = 100.d0, & !> inversion thickness scale (m)
-          flow_enhancement_length_scale = 0.d0, & !> diffusive length scale (m) for inversion
-          flow_enhancement_relax_factor = 1.0d0   !> controls strength of relaxation to default values (unitless)
-
   end type glissade_inversion_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -2004,34 +1980,6 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_plume_type
-
-     !> Holds fields and parameters relating to a sub-shelf plume model
-     !> Used to hold more fields, but most were removed when the plume model was abandoned
-
-     real(dp),dimension(:,:), pointer :: T_ambient => null()     !> ambient ocean temperature below ice and plume (deg C)
-     real(dp),dimension(:,:), pointer :: S_ambient => null()     !> ambient ocean salinity below ice and plume (psu)
-
-     ! MISOMIP parameters
-     ! Note: T0, Tbot, S0, Sbot, gammaT and gammaS can be set in the config file.
-     !     - T0, Tbot, S0 and Sbot are prescribed for cold and warm profiles.
-     !     - gammaT is to be tuned to give a bmlt_float of the desired mean value.
-     !     - gammaS should equal gammaS/35.
-     real(dp) :: T0 = -1.9d0             !> sea surface temperature (deg C)
-     real(dp) :: Tbot =  1.0d0           !> temperature at the sea floor, warm profile (deg C)
-!     real(dp) :: Tbot = -1.9d0          !> temperature at the sea floor, cold profile (deg C)
-     real(dp) :: S0 = 33.8d0             !> sea surface salinity (psu)
-     real(dp) :: Sbot = 34.7d0           !> salinity at the sea floor, warm profile (psu)
-!     real(dp) :: Sbot = 34.55d0         !> salinity at the sea floor, cold profile (psu)
-     real(dp) :: gammaT = 2.2d-2         !> nondimensional heat transfer coefficient
-                                         !> value of 2.2e-2 suggested by Asay-Davis et al. as an initial guess
-     real(dp) :: gammaS = 2.2d-2/35.d0   !> nondimensional salt transfer coefficient
-                                         !> for MISOMIP, should be set to gammaT/35 
-
-  end type glissade_plume_type
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
   type glissade_basal_hydro_type
 
      !> Holds variables related to basal hydrology
@@ -2224,8 +2172,6 @@ module glissade_types
      !       which is functionally equivalent to the Schoof law.
      real(dp) :: coulomb_bump_wavelength = 2.0d0 !> bedrock wavelength at subgrid scale precision (m)
      real(dp) :: coulomb_bump_max_slope = 0.5d0  !> maximum bed bump slope at subgrid scale precision (no dimension)
-     real(dp) :: flwa_basal = 1.0d-16            !> Glen's A at the bed for Schoof (2005) Coulomb friction law (Pa^{-n} yr^{-1})
-                                                 !> = 3.1688d-24 Pa{-n} s{-1}, the value used by Leguy et al. (2014)
 
      ! parameter to limit the min value of beta for various power laws
      real(dp) :: beta_powerlaw_umax = 0.0d0      !> upper limit of ice speed (m/yr) when evaluating powerlaw beta
@@ -2358,7 +2304,7 @@ module glissade_types
   !TODO - Move these parameters to types associated with a certain kind of physics
   !WHL TODO - During the config reorg, change default geot to 0.0, so that idealized tests by default have no mass loss
   type glissade_paramets_type
-    real(dp) :: btrac_const = 0.d0     ! m yr^{-1} Pa^{-1} (gets scaled during init)
+    real(dp) :: btrc_const = 0.d0      ! m yr^{-1} Pa^{-1} (gets scaled during init)
     real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down  !TODO - Change default to 0.0?
     real(dp) :: flow_enhancement_factor_ground = 1.0d0   ! flow enhancement parameter for the Arrhenius relationship;
                                                          ! grounded ice only; typically > 1 for SIA models to speed up the ice
@@ -2414,7 +2360,6 @@ module glissade_types
     type(glissade_ocean_data_type)   :: ocean_data
     type(glissade_glacier_type)  :: glacier
     type(glissade_inversion_type):: inversion
-    type(glissade_plume_type)    :: plume
     type(glimmer_funits) :: funits
     type(glissade_numerics_type) :: numerics
     type(glissade_paramets_type) :: paramets
@@ -2681,10 +2626,6 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%ocean_data%bmb_float)
     call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
     allocate(model%ocean_data%deltaT_ocn_basin(model%ocean_data%nbasin))
-    if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
-       call coordsystem_allocate(model%general%ice_grid, model%plume%T_ambient)
-       call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
-    endif
 
     ! glacier options
     if (model%options%enable_glaciers) then
@@ -3225,12 +3166,6 @@ contains
         deallocate(model%inversion%floating_thck_target)
     if (associated(model%inversion%grounded_thck_target)) &
         deallocate(model%inversion%grounded_thck_target)
-
-    ! MISOMIP arrays
-    if (associated(model%plume%T_ambient)) &
-        deallocate(model%plume%T_ambient)
-    if (associated(model%plume%S_ambient)) &
-        deallocate(model%plume%S_ambient)
 
     ! geometry arrays
 

@@ -411,7 +411,7 @@ else:
     which_ho_approx = 4
     print( 'Defaulting to DIVA velocity solver')
 
-config.set('ho_options', 'which_ho_approx', str(which_ho_approx))
+config.set('velocity', 'stokes_approx', str(which_ho_approx))
 
 # Config settings related to basal friction law.
 # Note: Each of these friction laws is associate with certain basal parameters.
@@ -429,14 +429,14 @@ else:
     which_ho_babc = 9   # powerlaw is default
     print( 'Defaulting to powerlaw basal friction law')
 
-config.set('ho_options', 'which_ho_babc', str(which_ho_babc))
+config.set('basal_physics', 'sliding_law', str(which_ho_babc))
 
 # Config setting related to spin up time.
 yearsSpinup = float(options.yearsSpinup)
 config.set('time', 'tend', str(yearsSpinup))
 
 # Config setting related to presence of ice.
-config.set('parameters','marine_limit', str(marine_limit))
+config.set('calving', 'marine_limit', str(marine_limit))
 
 # Write to the master config file.
 with open(masterConfigFile, 'w') as configfile:
@@ -651,7 +651,7 @@ for expt in experiments:
     config.set('time', 'tend',   str(tend))
 
     # Set the default flwa value.
-    config.set('parameters', 'default_flwa', str(float(expt)))
+    config.set('flow_law', 'default_flwa', str(float(expt)))
 
     # Change the default comment.
     comment = 'MISMIP experiment ' + expt

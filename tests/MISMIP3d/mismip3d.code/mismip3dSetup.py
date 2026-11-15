@@ -163,7 +163,7 @@ else:
     which_ho_approx = 4
     print( 'Defaulting to DIVA velocity solver')
 
-config.set('ho_options', 'which_ho_approx', str(which_ho_approx))
+config.set('velocity', 'stokes_approx', str(which_ho_approx))
 
 # Config settings related to basal friction law.
 # Note: Each of these friction laws is associate with certain basal parameters.
@@ -178,7 +178,7 @@ else:
     p_ocean_penetration = 0   #  is default
     print( 'Defaulting to Powerlaw basal friction law')
 
-config.set('parameters', 'p_ocean_penetration', str(p_ocean_penetration))
+config.set('basal_physics', 'p_ocean_penetration', str(p_ocean_penetration))
 
 # Config setting related to spin up time.
 yearsStnd = float(options.yearsStnd)

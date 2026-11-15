@@ -578,7 +578,7 @@ contains
        ! (by checking whether the flux is nonuniform over the domain)
        if (abs(maxval(model%temper%bheatflx) - minval(model%temper%bheatflx)) > 1.d-6) then
           call write_log('Setting uniform prescribed geothermal flux')
-          call write_log('(Set gthf = 1 to read geothermal flux field from input file)')
+          call write_log('(Set geothermal_method = 1 to read geothermal flux field from input file)')
        endif
 
        ! set uniform basal heat flux (positive down)
@@ -954,8 +954,7 @@ contains
         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION        .or.  &
         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION_BASIN  .or.  &
         model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION       .or.  &
-        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN .or.  &
-        model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
+        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
 
        call glissade_inversion_init(model)
 
@@ -2248,8 +2247,7 @@ contains
 
     !TODO - Move up to glissade_tstep? Just remember not to invert on the first step after a restart.
     !       Not needed in the initialise calc?
-    ! If inverting for powerlaw_c, coulomb_c, deltaT_ocn, or flow_enhancement_factor,
-    !  do the inversion now.
+    ! If inverting for powerlaw_c, coulomb_c or deltaT_ocn, do the inversion now.
     !TODO - Move the inversion to the end of glissade_tstep? Doesn't need to be done during initialization.
     ! But do not invert on the first timestep after a restart.
 
@@ -2323,7 +2321,6 @@ contains
                               model%temper%temp(1:upn-1,:,:),     &
                               model%temper%flwa,                  &  ! Pa^{-n} s^{-1}
                               model%paramets%default_flwa / scyr, &  ! scale to Pa^{-n} s^{-1}
-                              model%options%which_ho_flow_enhancement_factor, &
                               model%temper%flow_enhancement_factor,           &
                               model%paramets%flow_enhancement_factor_ground,  &
                               model%paramets%flow_enhancement_factor_float,   &

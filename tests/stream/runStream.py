@@ -278,7 +278,9 @@ def main():
     config_parser.set('grid', 'dew', str(dx))
     config_parser.set('grid', 'dns', str(dy))
     
-    config_parser.set('parameters', 'periodic_offset_ew', str(offset))
+    if not config_parser.has_section('numerics'):
+        config_parser.add_section('numerics')
+    config_parser.set('numerics', 'periodic_offset_ew', str(offset))
 
     config_parser.set('CF input', 'name', file_name)
     config_parser.set('CF output', 'name', out_name)

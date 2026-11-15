@@ -67,6 +67,7 @@ module glimmer_config
   type ConfigValue
      character(len=namelen) :: name = ''         !< the key
      character(len=valuelen) :: value            !< the value
+     logical :: used = .false.                   !< flag used to check if the key is read by the code
      type(ConfigValue), pointer :: next=>NULL()  !< pointer to the next key-value pair
   end type ConfigValue
 
@@ -433,6 +434,7 @@ contains
        if (.not.associated(thisval)) exit
        if (trim(valname)==trim(thisval%name)) then
           val=trim(thisval%value)
+          thisval%used = .true.
           ConfigSectionHasValue=.true.
           exit
        else
@@ -469,19 +471,33 @@ contains
     end do
   end subroutine GetSection
 
-  !> traverse linked list and check that all sections have been used
+  !> traverse linked list and check that all sections have been used,
+  !> and that all keys in the used sections have been read
+  !> Note: A key that is in the config file but is not read by the code
+  !>       (e.g., a misspelled key, or a key in the wrong section) has no effect,
+  !>       so the default value is used instead.
   subroutine CheckSections(config)
     use glimmer_log
     implicit none
     type(ConfigSection), pointer :: config
-    
+
     ! local variables
     type(ConfigSection), pointer :: cf
+    type(ConfigValue), pointer :: val
 
     cf=>config
     do while(associated(cf))
        if (.not.cf%used) then
           call write_log('Unused section: '//trim(cf%name),GM_WARNING)
+       else
+          val=>cf%values
+          do while(associated(val))
+             if (.not.val%used) then
+                call write_log('Unused key in section ['//trim(cf%name)//']: '//trim(val%name)// &
+                     ' (not read by the code; check the spelling and section)', GM_WARNING)
+             end if
+             val=>val%next
+          end do
        end if
        cf=>cf%next
     end do
@@ -820,6 +836,7 @@ contains
     value=>section%values
     do while(associated(value))
        if (name == trim(value%name)) then
+          value%used = .true.
           val = strip_quotes(value%value)
           if ((len_trim(val) + 1) >= len(val)) then 
             ! Assume that if we get within one space of the variable length (excluding spaces) then we may be truncating the intended value.

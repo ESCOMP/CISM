@@ -294,18 +294,20 @@ def main():
     eta = (beta * thickness / mu_n**gn) * (rhoi * grav * thickness)**(gn-1)
 
     # periodic offset; depends on theta, phi, and dx
+    if not config_parser.has_section('numerics'):
+        config_parser.add_section('numerics')
     if phi == 0.:
         offset =  1.0 * float(nx)*dx * tan(theta_rad)
-        config_parser.set('parameters', 'periodic_offset_ew', str(offset))
+        config_parser.set('numerics', 'periodic_offset_ew', str(offset))
     elif phi == 90.:
         offset =  1.0 * float(ny)*dy * tan(theta_rad)
-        config_parser.set('parameters', 'periodic_offset_ns', str(offset))
+        config_parser.set('numerics', 'periodic_offset_ns', str(offset))
     elif phi == 180.:
         offset = -1.0 * float(nx)*dx * tan(theta_rad)
-        config_parser.set('parameters', 'periodic_offset_ew', str(offset))
+        config_parser.set('numerics', 'periodic_offset_ew', str(offset))
     elif phi == 270.:
         offset = -1.0 * float(ny)*dy * tan(theta_rad)
-        config_parser.set('parameters', 'periodic_offset_ns', str(offset))
+        config_parser.set('numerics', 'periodic_offset_ns', str(offset))
 
     # Print some values
     print('nx   = ' + str(nx))
@@ -327,15 +329,17 @@ def main():
 
     # Write some options and parameters to the config file
 
-    config_parser.set('parameters', 'rhoi', str(rhoi))
-    config_parser.set('parameters', 'grav', str(grav))
-    config_parser.set('parameters', 'n_glen', str(gn))
-    config_parser.set('parameters', 'default_flwa', str(flwa))
+    if not config_parser.has_section('constants'):
+        config_parser.add_section('constants')
+    config_parser.set('constants', 'rhoi', str(rhoi))
+    config_parser.set('constants', 'grav', str(grav))
+    config_parser.set('flow_law', 'n_glen', str(gn))
+    config_parser.set('flow_law', 'default_flwa', str(flwa))
 
     if (args.approx == 'SIALOC'):
         approx = -1             # Glissade local SIA; uses basal_tract_const = 1/beta
-        config_parser.set('options', 'slip_coeff', str(1))
-        config_parser.set('parameters', 'basal_tract_const', str(1./beta))
+        config_parser.set('basal_physics', 'btrc_method', str(1))
+        config_parser.set('basal_physics', 'btrc_const', str(1./beta))
     elif (args.approx == 'SIA'):
         approx = 0              # Glissade matrix-based SIA
     elif (args.approx == 'SSA'):
@@ -349,7 +353,7 @@ def main():
     elif (args.approx == 'HYBRID'):
         approx = 5
 
-    config_parser.set('ho_options', 'which_ho_approx', str(approx))
+    config_parser.set('velocity', 'stokes_approx', str(approx))
 
     config_parser.set('CF input', 'name', file_name)
     config_parser.set('CF output', 'name', out_name)

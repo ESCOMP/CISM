@@ -170,8 +170,8 @@ def main():
         config_parser = configparser.ConfigParser()
         config_parser.read( configpath )
 
-        gn = float(config_parser.get('parameters','n_glen'))
-        flwa = float(config_parser.get('parameters', 'default_flwa'))
+        gn = float(config_parser.get('flow_law','n_glen'))
+        flwa = float(config_parser.get('flow_law', 'default_flwa'))
 
     except configparser.Error as error:
         print("Error parsing " + args.config )
