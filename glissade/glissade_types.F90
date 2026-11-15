@@ -2234,7 +2234,7 @@ module glissade_types
 
      real(dp) :: tau_relax_const = 3000.d0    ! characteristic time constant of relaxing mantle (yr)
      real(dp) :: load_update_interval = 10.d0 ! update interval for elastic load (yr)
-     integer :: nlith                         ! update lithosphere every nlith time steps; tinc * nlith = lithosphere_period
+     integer :: nlith                         ! update the load every nlith time steps; tinc * nlith = load_update_interval
      logical :: new_load = .false.            ! set to true if there is a new surface load
      type(glissade_isos_elastic_type) :: rbel               ! structure holding elastic lithosphere setup
 
