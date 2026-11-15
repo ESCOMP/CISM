@@ -2046,10 +2046,10 @@ module glissade_types
                                                  !> could be used to represent an englacial or surface source
      real(dp) :: btemp_flow_scale = 0.0d0        !> temperature scale (degC) for transition between thawed and frozen bed;
                                                  !> used to route flow away from cells with a frozen bed;
-                                                 !> btemp_scale = 0 => temperature-independent flow
+                                                 !> btemp_flow_scale = 0 => temperature-independent flow
      real(dp) :: btemp_freeze_scale = 0.0d0      !> temperature scale (degC) for transition between thawed and frozen bed;
                                                  !> used to refreeze water beneath cells with a frozen bed;
-                                                 !> btemp_scale = 0 => temperature-independent flow
+                                                 !> btemp_freeze_scale = 0 => no refreezing
      ! parameters for macroporous sheet
      real(dp) :: bwat_threshold = 1.0d-3         !> scale over which N ramps down from overburden to a small value (m)
 
