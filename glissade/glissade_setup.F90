@@ -899,7 +899,7 @@ contains
     call GetValue(section,'log_level',loglevel)
     call glimmer_set_msg_level(loglevel)
 
-    call GetValue(section,'dycore',model%options%whichdycore)
+    call GetDycore(section,model%options%whichdycore)   ! 2 or glissade (see glimmer_config)
     call GetValue(section,'ioparams',model%funits%ncfile)
     call GetValue(section,'forcewrite_final', model%options%forcewrite_final)
     call GetValue(section,'restart',model%options%is_restart)
@@ -927,7 +927,7 @@ contains
          'hybrid restart (model time is reset)        ' /)
 
     if (model%options%whichdycore /= DYCORE_GLISSADE) then
-       call write_log('Error, the Glissade dycore requires dycore = 2',GM_FATAL)
+       call write_log('Error, the Glissade dycore requires dycore = 2 or glissade',GM_FATAL)
     end if
     if (model%options%is_restart < 0 .or. model%options%is_restart >= size(restart)) then
        call write_log('Error, restart option out of range', GM_FATAL)

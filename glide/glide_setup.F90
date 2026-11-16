@@ -508,7 +508,7 @@ contains
     type(ConfigSection), pointer :: section
     type(glide_global_type)  :: model
 
-    call GetValue(section,'dycore',model%options%whichdycore)
+    call GetDycore(section,model%options%whichdycore)   ! 0 or glide (see glimmer_config)
     call GetValue(section,'evolution',model%options%whichevol)
     call GetValue(section,'temperature',model%options%whichtemp)
     call GetValue(section,'temp_init',model%options%temp_init)

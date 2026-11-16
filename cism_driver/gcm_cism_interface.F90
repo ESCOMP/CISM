@@ -93,10 +93,11 @@ subroutine gci_init_interface(which_gcm,g2c)
   !       Either all instances are basic or all instances use glint; a mix is not supported.
   call ConfigRead(commandline_configname(1),config)
   call GetSection(config,section,'options')
-  call GetValue(section,'dycore',g2c%whichdycore)
+  ! Note: GetDycore accepts the dycore as an integer (0, 2) or a name (glide, glissade); see glimmer_config.
+  call GetDycore(section,g2c%whichdycore)
   if (main_task) write(iulog,*) 'CISM dycore type (0=Glide, 2=Glissade) = ', g2c%whichdycore
   if (g2c%whichdycore /= DYCORE_GLIDE .and. g2c%whichdycore /= DYCORE_GLISSADE) then
-     call write_log('Error, dycore must be 0 (Glide) or 2 (Glissade)', GM_FATAL)
+     call write_log('Error, dycore must be 0 or glide (Glide), or 2 or glissade (Glissade)', GM_FATAL)
   endif
 
   ! Check to see if running basic GCM or glint GCM.  Still need to add CESM GCM:
