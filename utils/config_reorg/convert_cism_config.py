@@ -24,7 +24,9 @@ How a config file is converted:
     followed by the [CF ...] sections and any other sections, in their original order.  Comment lines
     above a section header (after a blank line) move with that section.  Section contents are not
     changed.
-  - Keys not listed in MOVES are left where they are; the model warns about keys it does not read.
+  - Keys listed in REMOVED (keys the model no longer reads) are deleted; the report names the replacement,
+    if there is one, e.g. 'deleted [isostasy] lithosphere_period: removed; see load_update_interval'.
+  - Other keys are left where they are; the model warns about keys it does not read.
   - Converting a file that is already converted changes nothing.
   - Glide configs ([options] dycore = 0) are left unchanged: the Glide config format is frozen.
 
@@ -293,6 +295,26 @@ MOVES = {
     ('glaciers', 'snow_threshold_max'): ('glaciers', 'glacier_snow_threshold_max'),
 }
 
+# (section, key) -> note: keys that Glissade no longer reads.  The converter deletes them and reports the
+# note, which names the replacement if there is one.
+_FLOW_ENH = 'removed with the flow-enhancement-factor inversion'
+_PLUME = 'removed with the old plume model'
+REMOVED = {
+    ('ho_options', 'which_ho_flow_enhancement_factor'): 'removed (only the default behavior remains)',
+    ('parameters', 'inversion_flow_enhancement_timescale'): _FLOW_ENH,
+    ('parameters', 'inversion_flow_enhancement_velo_scale'): _FLOW_ENH,
+    ('parameters', 'inversion_flow_enhancement_thck_scale'): _FLOW_ENH,
+    ('parameters', 'inversion_flow_enhancement_length_scale'): _FLOW_ENH,
+    ('parameters', 'inversion_flow_enhancement_relax_factor'): _FLOW_ENH,
+    ('parameters', 'flwa_basal'): 'removed (unused; [basal_hydro] flwa_basal is a different key)',
+    ('parameters', 'T0'): _PLUME, ('parameters', 'Tbot'): _PLUME,
+    ('parameters', 'S0'): _PLUME, ('parameters', 'Sbot'): _PLUME,
+    ('parameters', 'gammaT'): _PLUME, ('parameters', 'gammaS'): _PLUME,
+    ('ho_options', 'deltaT_ocn_extrapolate'): 'removed (deltaT_ocn is no longer extrapolated)',
+    ('isostasy', 'lithosphere_period'): 'removed; see load_update_interval in [isostasy]',
+    ('options', 'enable_acab_anomaly'): 'removed; see enable_smb_anomaly in [climate]',
+}
+
 # Order of the Glissade sections in a converted config file: the order in which they are written
 # to the log (glissade_printconfig), with [sigma] after [grid].  Sections not listed here ([CF ...]
 # and any others) follow, in their original order.
@@ -469,9 +491,10 @@ def reorder_sections(sections):
     return True
 
 
-def convert_config(text, moves=None):
+def convert_config(text, moves=None, removed=None):
     """Return (new_text, list of changes) for a CISM config file.  Glide configs are returned unchanged."""
     moves = MOVES if moves is None else moves
+    removed = REMOVED if removed is None else removed
     sections = parse(text)
     if is_glide(sections):
         return text, []
@@ -494,6 +517,9 @@ def convert_config(text, moves=None):
                 moved.setdefault(new_sec, []).extend(carried + [new_key + m.group(3)])
                 emptied.add(s.name)
                 changes.append(f'[{s.name}] {m.group(2)} -> [{new_sec}] {new_key}')
+            elif m and not COMMENT_RE.match(line) and (s.name, m.group(2)) in removed:
+                emptied.add(s.name)
+                changes.append(f'deleted [{s.name}] {m.group(2)}: {removed[(s.name, m.group(2))]}')
             else:
                 kept.append(line)
         s.lines = kept
@@ -594,6 +620,15 @@ def self_test():
         '# basal friction', '[basal_physics]', 'sliding_law = 4', '#beta_large = 1.e10', '',
         '####', '# I/O configuration follows', '####', '[CF default]', 'title = test', '']), ordered
     assert convert_config(ordered, {}) == (ordered, [])          # already in order: unchanged
+
+    # removed keys are deleted and reported; a section left with no keys is removed
+    stale = '\n'.join(['[grid]', 'ewn = 31', '', '[ho_options]', 'deltaT_ocn_extrapolate = .true.', '',
+                        '[isostasy]', 'isostasy = 1', 'lithosphere_period = 10.   # yr', ''])
+    clean, ch = convert_config(stale, {})
+    assert clean == '\n'.join(['[grid]', 'ewn = 31', '', '[isostasy]', 'isostasy = 1', '']), clean
+    assert ch == ['deleted [ho_options] deltaT_ocn_extrapolate: removed (deltaT_ocn is no longer extrapolated)',
+                  'deleted [isostasy] lithosphere_period: removed; see load_update_interval in [isostasy]',
+                  'removed empty section [ho_options]'], ch
     print('self-test passed')
 
 
