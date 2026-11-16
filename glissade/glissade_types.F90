@@ -204,7 +204,7 @@ module glissade_types
   
   ! higher-order options
 
-  integer, parameter :: ALL_BLOCKS = 0            ! compute on all blocks in the global domain
+  integer, parameter :: ACTIVE_BLOCKS_ALL = 0     ! compute on all blocks in the global domain
   integer, parameter :: ACTIVE_BLOCKS_ONLY = 1    ! compute on active blocks only (where ice is potentially present)
   integer, parameter :: ACTIVE_BLOCKS_INQUIRE = 2 ! inquire how many active blocks there are for a given ice domain mask and block size
 
