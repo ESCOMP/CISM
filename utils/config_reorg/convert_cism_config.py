@@ -18,8 +18,12 @@ A file with no [section] lines is treated as a CESM user_nl_cism file, in which 
 How a config file is converted:
   - Each key listed in MOVES is moved to its new section, under its new name, with its value and
     inline comment.  Comment lines directly above the key (with no blank line in between) move with it.
-  - A new section is created if needed, before the first [CF ...] section (or at the end of the file).
+  - A new section is created if needed.
   - An old section left with no keys is removed, together with any comment lines left in it.
+  - The Glissade sections are put in the standard order (SECTION_ORDER: the order of the log file),
+    followed by the [CF ...] sections and any other sections, in their original order.  Comment lines
+    above a section header (after a blank line) move with that section.  Section contents are not
+    changed.
   - Keys not listed in MOVES are left where they are; the model warns about keys it does not read.
   - Converting a file that is already converted changes nothing.
   - Glide configs ([options] dycore = 0) are left unchanged: the Glide config format is frozen.
@@ -289,13 +293,14 @@ MOVES = {
     ('glaciers', 'snow_threshold_max'): ('glaciers', 'glacier_snow_threshold_max'),
 }
 
-# Order of the new sections when they are created.
+# Order of the Glissade sections in a converted config file: the order in which they are written
+# to the log (glissade_printconfig), with [sigma] after [grid].  Sections not listed here ([CF ...]
+# and any others) follow, in their original order.
 SECTION_ORDER = [
-    'grid', 'time', 'options', 'numerics', 'constants', 'initialization',
-    'velocity', 'velocity_solver', 'advection', 'flow_law', 'temperature',
-    'basal_physics', 'basal_hydro', 'grounding_line', 'basal_melt', 'ocean_data',
-    'climate', 'calving', 'removal', 'lateral_melt', 'inversion', 'geothermal',
-    'isostasy', 'glaciers', 'diagnostics',
+    'grid', 'sigma', 'time', 'diagnostics', 'options', 'numerics', 'constants', 'initialization',
+    'velocity', 'velocity_solver', 'advection', 'temperature', 'flow_law',
+    'basal_physics', 'basal_hydro', 'grounding_line', 'basal_melt', 'calving', 'lateral_melt', 'removal',
+    'grid_atm', 'climate', 'grid_ocn', 'ocean_data', 'geothermal', 'isostasy', 'inversion', 'glaciers',
 ]
 
 # CESM user_nl_cism: old key -> new key.  Kept separate from MOVES because a few key names occur in
@@ -422,6 +427,48 @@ def is_glide(sections):
     return False
 
 
+def reorder_sections(sections):
+    """Put the sections in SECTION_ORDER, followed by the other sections in their original order.
+
+    Returns True if the order changed.  If it did not, nothing is changed (not even whitespace).
+    Comment lines directly above a section header, separated from the previous section's content
+    by a blank line, move with the section below them (e.g. '# I/O configuration follows' above
+    [CF default]).  Lines before the first section stay at the top of the file.
+    """
+    head, body = sections[:1], sections[1:]          # sections[0] holds the lines before the first header
+    rank = {name: i for i, name in enumerate(SECTION_ORDER)}
+    order = sorted(range(len(body)), key=lambda i: (rank.get(body[i].name, len(SECTION_ORDER)), i))
+    if order == list(range(len(body))):
+        return False
+    # detach the comment block above each header from the end of the preceding section
+    lead = [[] for _ in body]
+    for i in range(1, len(body)):
+        prev = body[i - 1].lines
+        n = len(prev)
+        while n > 0 and prev[n - 1].strip() and COMMENT_RE.match(prev[n - 1]):
+            n -= 1
+        if n < len(prev) and (n == 0 or not prev[n - 1].strip()):
+            lead[i], body[i - 1].lines = prev[n:], prev[:n]
+    new = []
+    for k, i in enumerate(order):
+        s = body[i]
+        if k < len(order) - 1 and (not s.lines or s.lines[-1].strip()):
+            s.lines.append('')                        # keep a blank line between sections
+        new.append((lead[i], s))
+    sections[1:] = []
+    for comments, s in new:
+        if comments:
+            # the comment block goes above the header: store it at the end of the section before it
+            target = sections[-1]
+            target.lines.extend(comments)
+        sections.append(s)
+    # a file that ended with a newline still does
+    last = sections[-1].lines
+    if body and order[-1] != len(body) - 1 and (not last or last[-1] != ''):
+        last.append('')
+    return True
+
+
 def convert_config(text, moves=None):
     """Return (new_text, list of changes) for a CISM config file.  Glide configs are returned unchanged."""
     moves = MOVES if moves is None else moves
@@ -471,26 +518,15 @@ def convert_config(text, moves=None):
             n -= 1
         target.lines[n:n] = lines
 
-    # order newly created sections by SECTION_ORDER within the block where they were inserted
-    def order_key(s):
-        return SECTION_ORDER.index(s.name) if s.name in SECTION_ORDER else len(SECTION_ORDER)
-    new_names = {c[len('new section ['):-1] for c in changes if c.startswith('new section')}
-    i = 0
-    while i < len(sections):
-        if sections[i].name in new_names:
-            j = i
-            while j < len(sections) and sections[j].name in new_names:
-                j += 1
-            sections[i:j] = sorted(sections[i:j], key=order_key)
-            i = j
-        else:
-            i += 1
-
     # remove old sections that have no keys left
     for s in list(sections):
         if s.name in emptied and s.name not in moved and not has_keys(s):
             sections.remove(s)
             changes.append(f'removed empty section [{s.name}]')
+
+    # put the sections in the standard order
+    if reorder_sections(sections):
+        changes.append('sections reordered')
 
     return render(sections), changes
 
@@ -541,6 +577,23 @@ def self_test():
     assert ' marine_margin = 1' in new2                         # indented key (ignored by CISM) left alone
     glide = old.replace('dycore = 2', 'dycore = 0   # Glide')
     assert convert_config(glide, moves) == (glide, [])          # Glide config: no change
+
+    # section order: comment blocks above a header (after a blank line) move with the section below
+    unordered = '\n'.join([
+        '# dome test', '[options]', 'dycore = 2', '',
+        '# basal friction', '[basal_physics]', 'sliding_law = 4', '#beta_large = 1.e10',
+        '[grid]', 'ewn = 31', '',
+        '####', '# I/O configuration follows', '####', '[CF default]', 'title = test', '',
+        '[time]', 'dt = 1.', ''])
+    ordered, ch = convert_config(unordered, {})
+    assert ch == ['sections reordered'], ch
+    assert ordered == '\n'.join([
+        '# dome test', '[grid]', 'ewn = 31', '',
+        '[time]', 'dt = 1.', '',
+        '[options]', 'dycore = 2', '',
+        '# basal friction', '[basal_physics]', 'sliding_law = 4', '#beta_large = 1.e10', '',
+        '####', '# I/O configuration follows', '####', '[CF default]', 'title = test', '']), ordered
+    assert convert_config(ordered, {}) == (ordered, [])          # already in order: unchanged
     print('self-test passed')
 
 
