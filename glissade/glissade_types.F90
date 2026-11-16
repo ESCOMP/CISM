@@ -2626,6 +2626,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%ocean_data%bmb_float)
     call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
     allocate(model%ocean_data%deltaT_ocn_basin(model%ocean_data%nbasin))
+    model%ocean_data%deltaT_ocn_basin = 0.0d0   ! computed only for some deltaT_ocn options, but always written
 
     ! glacier options
     if (model%options%enable_glaciers) then
