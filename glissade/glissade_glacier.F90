@@ -967,10 +967,10 @@ contains
     ! The 'corrected' suffix means that anomaly forcing, if enabled, has already been included.
     ! When inverting for mu_star, the anomaly fields are used to form the 'recent' forcing fields below,
     !  but are not part of the baseline climate fields.
-    !  We have enable_acab_anomaly = enable_snow_anomaly = enable_snow_anomaly = F,
+    !  We have enable_artm_anomaly = enable_snow_anomaly = enable_precip_anomaly = F,
     !  and thus the anomaly fields are ignored in glissade.F90.
-    ! To include anomaly forcing in forward runs, we set enable_acab_anomaly = enable_snow_anomaly
-    !  = enable_snow_anomaly = T. Then the anomaly fields are added to the baseline fields in glissade.F90
+    ! To include anomaly forcing in forward runs, we set enable_artm_anomaly = enable_snow_anomaly
+    !  = enable_precip_anomaly = T. Then the anomaly fields are added to the baseline fields in glissade.F90
     !  to form the current fields.
 
     artm(:,:)   = model%climate%artm_corrected(:,:)

@@ -2046,10 +2046,10 @@ module glissade_types
                                                  !> could be used to represent an englacial or surface source
      real(dp) :: btemp_flow_scale = 0.0d0        !> temperature scale (degC) for transition between thawed and frozen bed;
                                                  !> used to route flow away from cells with a frozen bed;
-                                                 !> btemp_scale = 0 => temperature-independent flow
+                                                 !> btemp_flow_scale = 0 => temperature-independent flow
      real(dp) :: btemp_freeze_scale = 0.0d0      !> temperature scale (degC) for transition between thawed and frozen bed;
                                                  !> used to refreeze water beneath cells with a frozen bed;
-                                                 !> btemp_scale = 0 => temperature-independent flow
+                                                 !> btemp_freeze_scale = 0 => no refreezing
      ! parameters for macroporous sheet
      real(dp) :: bwat_threshold = 1.0d-3         !> scale over which N ramps down from overburden to a small value (m)
 
@@ -2234,7 +2234,7 @@ module glissade_types
 
      real(dp) :: tau_relax_const = 3000.d0    ! characteristic time constant of relaxing mantle (yr)
      real(dp) :: load_update_interval = 10.d0 ! update interval for elastic load (yr)
-     integer :: nlith                         ! update lithosphere every nlith time steps; tinc * nlith = lithosphere_period
+     integer :: nlith                         ! update the load every nlith time steps; tinc * nlith = load_update_interval
      logical :: new_load = .false.            ! set to true if there is a new surface load
      type(glissade_isos_elastic_type) :: rbel               ! structure holding elastic lithosphere setup
 
@@ -2626,6 +2626,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%ocean_data%bmb_float)
     call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
     allocate(model%ocean_data%deltaT_ocn_basin(model%ocean_data%nbasin))
+    model%ocean_data%deltaT_ocn_basin = 0.0d0   ! computed only for some deltaT_ocn options, but always written
 
     ! glacier options
     if (model%options%enable_glaciers) then
