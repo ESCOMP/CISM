@@ -17,25 +17,13 @@ dycore = 2                   # 0 = glide, 1 = glam, 2=glissade
 restart_extend_velo = 1      # 1 = write uvel/vvel on extended grid
 # restart = 1
 
-[calving]
-calving_law = 4            # 4 = topographic threshold, 5 = calving mask
-marine_limit = -890             ; depth past which ice is lost
+[numerics]
+ice_limit = 1.                  ; min thickness (m) for dynamics
 
-[basal_physics]
-sliding_law = 10                # 9 = Powerlaw, 11 = Coulomb w/const basal flwa, 12= Tsai
-effecpress_method = 3           # ocean connection
-coulomb_c_const = 0.2332
-coulomb_bump_max_slope = 0.5    ; maximum bed obstacle slope
-coulomb_bump_wavelength = 2.0   ; bedrock wavelength
-p_ocean_penetration = 0.        ; p values for coulomb friction law
-
-[grounding_line]
-flotation_function = 0   # 0 = f_pattyn, 1 = 1/f_pattyn
-grounding_line_param = 1               # 0 = no GLP, 1 = GLP
-
-[basal_melt]
-basal_mass_balance = 1       # 1 = include basal mass balance in continuity eqn
-bmlt_float_method = 0               # 0 = no melting of floating ice
+[constants]
+rhoi = 900.0                    ; MISMIP ice density
+rhoo = 1000.0                   ; MISMIP ocean density
+grav = 9.8                      ; MISMIP gravitational acceleration
 
 [velocity]
 efvs_method = 2                 # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
@@ -55,22 +43,34 @@ nonlinear_maxiters = 50
 [advection]
 advection_method = 3                # 3 = remapping, 4 = first order upwind
 
+[temperature]
+temperature_method = 0              # 1 = prognostic, 3 = enthalpy
+
 [flow_law]
 flow_law = 0                 # 0 = constant, 2 = Paterson-Budd
 flow_factor_ground = 1.
 flow_factor_float = 1.
 default_flwa = 3.1536e-18
 
-[temperature]
-temperature_method = 0              # 1 = prognostic, 3 = enthalpy
+[basal_physics]
+sliding_law = 10                # 9 = Powerlaw, 11 = Coulomb w/const basal flwa, 12= Tsai
+effecpress_method = 3           # ocean connection
+coulomb_c_const = 0.2332
+coulomb_bump_max_slope = 0.5    ; maximum bed obstacle slope
+coulomb_bump_wavelength = 2.0   ; bedrock wavelength
+p_ocean_penetration = 0.        ; p values for coulomb friction law
 
-[numerics]
-ice_limit = 1.                  ; min thickness (m) for dynamics
+[grounding_line]
+flotation_function = 0   # 0 = f_pattyn, 1 = 1/f_pattyn
+grounding_line_param = 1               # 0 = no GLP, 1 = GLP
 
-[constants]
-rhoi = 900.0                    ; MISMIP ice density
-rhoo = 1000.0                   ; MISMIP ocean density
-grav = 9.8                      ; MISMIP gravitational acceleration
+[basal_melt]
+basal_mass_balance = 1       # 1 = include basal mass balance in continuity eqn
+bmlt_float_method = 0               # 0 = no melting of floating ice
+
+[calving]
+calving_law = 4            # 4 = topographic threshold, 5 = calving mask
+marine_limit = -890             ; depth past which ice is lost
 
 [CF default]
 comment = created with mismip3dInit.py 
