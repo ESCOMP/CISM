@@ -570,222 +570,6 @@ contains
 
   end function glissade_calc_sigma_pattyn
 
-!-------------------------------------------------------------------------
-
-  subroutine glissade_get_zocn(model,config)
-
-    ! Read ocean grid information, if present, from the config file.
-    ! Called after glissade_readconfig and before glissade_printconfig (see print_grid_ocn)
-
-    use glissade_types
-    use glimmer_config
-    use glimmer_log
-    use cism_parallel, only: main_task
-
-    implicit none
-
-    type(glissade_global_type) :: model        !> model instance
-    type(ConfigSection), pointer :: config  !> structure holding sections of configuration file
-
-    ! local variables
-    type(ConfigSection), pointer :: section
-    character(len=512) :: message
-    integer :: k
-
-    ! Check for section [grid_ocn]
-    call GetSection(config,section,'grid_ocn')
-
-    if (associated(section)) then
-
-       call GetValue(section,'nzocn',model%ocean_data%nzocn)
-       call GetValue(section,'dzocn',model%ocean_data%dzocn)     ! m
-       call GetValue(section,'nbasin',model%ocean_data%nbasin)
-
-       if (.not.associated(model%ocean_data%zocn)) &
-            allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
-
-       if ( size(model%ocean_data%zocn) /= model%ocean_data%nzocn )then
-          write(message,*) 'size of zocn : ', size(model%ocean_data%zocn)
-          call write_log(trim(message))
-          call write_log ( 'zocn has the wrong size; must equal nzocn', GM_FATAL)
-       end if
-
-       ! There are two ways to get zocn levels:
-       ! (1) Compute uniform levels based on dzocn.  This is done if dzocn is set to a nonzero value in the config file.
-       ! (2) Load zocn levels from the config file.  This is done if dzocn = 0 (the default value).
-       ! Note: By convention, k = 1 is the top level, and z becomes more negative with increasing k.
-       !       If the input zocn levels do not satisfy this criterion (or if dzocn and zocn are not in the config file),
-       !        The code aborts with an error message.
-
-       if (model%ocean_data%dzocn > 0.0d0) then
-          do k = 1, model%ocean_data%nzocn
-             model%ocean_data%zocn(k) = -model%ocean_data%dzocn * (real(k,dp) - 0.5d0)
-          enddo
-       else
-          call GetValue(section, 'zocn', model%ocean_data%zocn, model%ocean_data%nzocn)
-          do k = 2, model%ocean_data%nzocn
-             if (model%ocean_data%zocn(k-1) - model%ocean_data%zocn(k) < 1.0d0) then
-                write(message,*) 'nzocn, zocn =', model%ocean_data%nzocn, model%ocean_data%zocn(:)
-                call write_log(trim(message))
-                write(message,*) 'Must have zocn decreasing with increasing k in the [grid_ocn] section'
-                call write_log(message, GM_FATAL)
-             endif
-          enddo
-       endif
-
-    else    ! no 'grid_ocn' section
-
-       ! Allocate and initialize model%ocean_data%zocn.
-       ! Note: Coupled CESM runs require this array to be allocated, even if CISM
-       !       is not receiving realistic ocean forcing fields (as of Jan. 2021).
-       model%ocean_data%nzocn = get_nzocn(model)
-       if (.not.associated(model%ocean_data%zocn)) &
-            allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
-       model%ocean_data%zocn(:) = 0.0d0
-
-       if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
-          write(message,*) 'Must have a [grid_ocn] section to use the thermal forcing option'
-          call write_log(message, GM_FATAL)
-       endif
-
-    endif   ! associated(section)
-
-  end subroutine glissade_get_zocn
-
-!--------------------------------------------------------------------------------
-
-  subroutine glissade_get_zatm(model,config)
-
-    ! Read atmosphere grid information, if present, from the config file.
-    ! Called after glissade_readconfig and before glissade_printconfig (see print_grid_atm)
-
-    use glissade_types
-    use glimmer_config
-    use glimmer_log
-    use cism_parallel, only: main_task
-
-    implicit none
-
-    type(glissade_global_type) :: model        !> model instance
-    type(ConfigSection), pointer :: config  !> structure holding sections of configuration file
-
-    ! local variables
-    type(ConfigSection), pointer :: section
-    character(len=512) :: message
-    integer :: k
-
-    ! Check for section [grid_atm]
-    call GetSection(config,section,'grid_atm')
-
-    if (associated(section)) then
-
-       call GetValue(section,'nzatm',model%climate%nzatm)
-
-       if (.not.associated(model%climate%zatm)) allocate(model%climate%zatm(model%climate%nzatm))
-
-       if (size(model%climate%zatm) /= model%climate%nzatm) then
-          write(message,*) 'size of zatm : ', size(model%climate%zatm)
-          call write_log(trim(message))
-          call write_log ( 'zatm has the wrong size; must equal nzatm', GM_FATAL)
-       end if
-
-       ! Load the zatm levels from the config file.
-       ! For example, the config file could have a section like this:
-       ! [grid_atm]
-       ! nzatm = 10
-       ! zatm = 100., 300., 550., 850., 1150., 1450., 1800., 2250., 2750., 3500.
-
-       ! TODO: Is it possible to get the levels from the netCDF file instead?
-       ! Note: By convention, zatm increases with increasing k.
-       !       If the input zatm levels do not satisfy this criterion, the code aborts.
-       call GetValue(section, 'zatm', model%climate%zatm, model%climate%nzatm)
-       do k = 2, model%climate%nzatm
-          if (model%climate%zatm(k) - model%climate%zatm(k-1) < 1.0d0) then
-             write(message,*) 'nzatm, zatm =', model%climate%nzatm, model%climate%zatm(:)
-             call write_log(trim(message))
-             write(message,*) 'Must have zatm increasing with increasing k in the [grid_atm] section'
-             call write_log(message, GM_FATAL)
-          endif
-       enddo
-
-    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
-            model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
-
-       ! Allocate and initialize model%climate%zatm using the standard CESM elevation classes.
-       model%climate%nzatm = 10
-       if (associated(model%climate%zatm)) deallocate(model%climate%zatm)
-       allocate(model%climate%zatm(model%climate%nzatm))
-       model%climate%zatm(:) = &
-            (/ 100.d0, 300.d0, 550.d0, 850.d0, 1150.d0, 1450.d0, 1800.d0, 2250.d0, 2750.d0, 3500.d0 /)
-
-    else   ! zatm not needed, but allocate and initialize to be safe
-
-       model%climate%nzatm = 1
-       if (associated(model%climate%zatm)) deallocate(model%climate%zatm)
-       allocate(model%climate%zatm(model%climate%nzatm))
-       model%climate%zatm(:) = (/ 0.0d0 /)
-
-    endif   ! associated(section)
-
-  end subroutine glissade_get_zatm
-
-!--------------------------------------------------------------------------------
-
-  subroutine print_grid_ocn(model, config)
-
-    ! Ocean grid ([grid_ocn]; read by glissade_get_zocn), written if the section is present
-
-    use glissade_types
-    use glimmer_config
-    use glissade_log_config
-    implicit none
-    type(glissade_global_type)   :: model
-    type(ConfigSection), pointer :: config
-
-    type(ConfigSection), pointer :: section
-
-    call GetSection(config,section,'grid_ocn')
-    if (.not.associated(section)) return
-
-    call log_section('grid_ocn')
-    call log_param('nzocn', model%ocean_data%nzocn)
-    if (model%ocean_data%dzocn > 0.0d0) then
-       call log_param('dzocn', model%ocean_data%dzocn, 'm; uniform level spacing')
-       call log_list('zocn', model%ocean_data%zocn, 'm; computed from dzocn')
-    else
-       call log_list('zocn', model%ocean_data%zocn, 'm')
-    endif
-    call log_param('nbasin', model%ocean_data%nbasin)
-
-  end subroutine print_grid_ocn
-
-!--------------------------------------------------------------------------------
-
-  subroutine print_grid_atm(model, config)
-
-    ! Atmosphere grid ([grid_atm]; read or set by glissade_get_zatm), written if there is more than one level
-
-    use glissade_types
-    use glimmer_config
-    use glissade_log_config
-    implicit none
-    type(glissade_global_type)   :: model
-    type(ConfigSection), pointer :: config
-
-    type(ConfigSection), pointer :: section
-
-    if (model%climate%nzatm <= 1) return
-
-    call GetSection(config,section,'grid_atm')
-    call log_section('grid_atm')
-    if (.not.associated(section)) then
-       call log_comment('no [grid_atm] section; using the standard CESM elevation classes')
-    endif
-    call log_param('nzatm', model%climate%nzatm)
-    call log_list('zatm', model%climate%zatm, 'm')
-
-  end subroutine print_grid_atm
-
 !--------------------------------------------------------------------------------
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -880,6 +664,44 @@ contains
          'if true, lat and lon are read from the input file and written to restart')
 
   end subroutine print_grid
+
+!--------------------------------------------------------------------------------
+
+
+  ! Sigma levels
+  subroutine handle_sigma(section, model)
+
+    use glimmer_config
+    use glissade_types
+    use glimmer_log
+    implicit none
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)  :: model
+
+    if (model%options%which_sigma==SIGMA_EXTERNAL) then
+       call write_log('Sigma levels specified twice - use only'// &
+            ' config file or separate file, not both',GM_FATAL)
+    else
+       call GetValue(section,'sigma_levels',model%numerics%sigma,model%general%upn)
+    end if
+
+  end subroutine handle_sigma
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_sigma(model)
+
+    ! Sigma levels (from the [sigma] section, a sigma file, or computed; see sigma_method in [grid])
+
+    use glissade_types
+    use glissade_log_config
+    implicit none
+    type(glissade_global_type)  :: model
+
+    call log_section('sigma')
+    call log_list('sigma_levels', model%numerics%sigma(1:model%general%upn), digits=6)
+
+  end subroutine print_sigma
 
 !--------------------------------------------------------------------------------
 
@@ -1007,6 +829,60 @@ contains
 
 !--------------------------------------------------------------------------------
 
+  subroutine handle_diagnostics(section, model)
+
+    ! Diagnostic options.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    call GetValue(section,'dm_dt_diag',   model%options%dm_dt_diag)
+    call GetValue(section,'diag_minthck', model%options%diag_minthck)
+
+  end subroutine handle_diagnostics
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_diagnostics(model)
+
+    ! Diagnostic options
+
+    use glissade_types
+    use glimmer_log
+    use glissade_log_config
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+
+    character(len=*), dimension(0:1), parameter :: dm_dt_diag = (/ &
+         'write dmass/dt diagnostic in units of kg/s ',  &
+         'write dmass/dt diagnostic in units of Gt/yr'/)
+
+    character(len=*), dimension(0:1), parameter :: diag_minthck = (/ &
+         'include cells with H > 0 in global diagnostics     ', &
+         'include cells with H > thklim in global diagnostics'/)
+
+    if (model%options%dm_dt_diag < 0 .or. model%options%dm_dt_diag >= size(dm_dt_diag)) then
+       call write_log('Error, dm_dt_diag out of range',GM_FATAL)
+    end if
+
+    if (model%options%diag_minthck < 0 .or. model%options%diag_minthck >= size(diag_minthck)) then
+       call write_log('Error, diag_minthck out of range',GM_FATAL)
+    end if
+
+    call log_section('diagnostics')
+    call log_option('dm_dt_diag', model%options%dm_dt_diag, dm_dt_diag(model%options%dm_dt_diag))
+    call log_option('diag_minthck', model%options%diag_minthck, diag_minthck(model%options%diag_minthck))
+
+  end subroutine print_diagnostics
+
+!--------------------------------------------------------------------------------
+
   ! options
   subroutine handle_options(section, model)
 
@@ -1071,44 +947,6 @@ contains
          'if true, force a write to output files when the run completes')
 
   end subroutine print_options
-
-!--------------------------------------------------------------------------------
-
-
-  ! Sigma levels
-  subroutine handle_sigma(section, model)
-
-    use glimmer_config
-    use glissade_types
-    use glimmer_log
-    implicit none
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)  :: model
-
-    if (model%options%which_sigma==SIGMA_EXTERNAL) then
-       call write_log('Sigma levels specified twice - use only'// &
-            ' config file or separate file, not both',GM_FATAL)
-    else
-       call GetValue(section,'sigma_levels',model%numerics%sigma,model%general%upn)
-    end if
-
-  end subroutine handle_sigma
-
-!--------------------------------------------------------------------------------
-
-  subroutine print_sigma(model)
-
-    ! Sigma levels (from the [sigma] section, a sigma file, or computed; see sigma_method in [grid])
-
-    use glissade_types
-    use glissade_log_config
-    implicit none
-    type(glissade_global_type)  :: model
-
-    call log_section('sigma')
-    call log_list('sigma_levels', model%numerics%sigma(1:model%general%upn), digits=6)
-
-  end subroutine print_sigma
 
 !--------------------------------------------------------------------------------
 
@@ -1692,70 +1530,6 @@ contains
 
 !--------------------------------------------------------------------------------
 
-  subroutine handle_flow_law(section, model)
-
-    ! Flow law: how the rate factor flwa is computed, its enhancement factors,
-    ! and the exponent in Glen's flow law.
-
-    use glimmer_config
-    use glissade_types
-    use glimmer_physcon, only: n_glen
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! options
-    call GetValue(section,'flow_law',             model%options%whichflwa)
-    call GetValue(section,'damage_flwa_feedback', model%options%damage_flwa_feedback)
-
-    ! parameters
-    call GetValue(section,'n_glen',             n_glen)
-    call GetValue(section,'flow_factor_ground', model%paramets%flow_enhancement_factor_ground)
-    call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
-    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
-    call GetValue(section,'default_flwa',       model%paramets%default_flwa)
-
-  end subroutine handle_flow_law
-
-!--------------------------------------------------------------------------------
-
-  subroutine print_flow_law(model)
-
-    ! Flow law options and parameters
-
-    use glissade_types
-    use glimmer_log
-    use glissade_log_config
-    use glimmer_physcon, only: n_glen
-
-    implicit none
-
-    type(glissade_global_type)  :: model
-
-    character(len=*), dimension(0:2), parameter :: flow_law = (/ &
-         'uniform factor flwa         ', &
-         'Paterson and Budd (T = -5 C)', &
-         'Paterson and Budd           ' /)
-
-    if (model%options%whichflwa < 0 .or. model%options%whichflwa >= size(flow_law)) then
-       call write_log('Error, flow_law out of range',GM_FATAL)
-    end if
-
-    call log_section('flow_law')
-    call log_option('flow_law', model%options%whichflwa, flow_law(model%options%whichflwa))
-    if (model%options%whichflwa == FLWA_CONST_FLWA) then
-       call log_param('default_flwa', model%paramets%default_flwa, 'Pa^-n yr^-1; constant flow factor')
-    end if
-    call log_param('n_glen', n_glen, 'exponent in Glen''s flow law')
-    call log_param('flow_factor_ground', model%paramets%flow_enhancement_factor_ground, 'grounded ice')
-    call log_param('flow_factor_float', model%paramets%flow_enhancement_factor_float, 'floating ice')
-    call log_flag('damage_flwa_feedback', model%options%damage_flwa_feedback)
-
-  end subroutine print_flow_law
-
-!--------------------------------------------------------------------------------
-
   subroutine handle_temperature(section, model)
 
     ! Ice temperature: the temperature (or enthalpy) scheme, its initialization,
@@ -1866,6 +1640,70 @@ contains
     endif
 
   end subroutine print_temperature
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_flow_law(section, model)
+
+    ! Flow law: how the rate factor flwa is computed, its enhancement factors,
+    ! and the exponent in Glen's flow law.
+
+    use glimmer_config
+    use glissade_types
+    use glimmer_physcon, only: n_glen
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'flow_law',             model%options%whichflwa)
+    call GetValue(section,'damage_flwa_feedback', model%options%damage_flwa_feedback)
+
+    ! parameters
+    call GetValue(section,'n_glen',             n_glen)
+    call GetValue(section,'flow_factor_ground', model%paramets%flow_enhancement_factor_ground)
+    call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
+    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
+    call GetValue(section,'default_flwa',       model%paramets%default_flwa)
+
+  end subroutine handle_flow_law
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_flow_law(model)
+
+    ! Flow law options and parameters
+
+    use glissade_types
+    use glimmer_log
+    use glissade_log_config
+    use glimmer_physcon, only: n_glen
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+
+    character(len=*), dimension(0:2), parameter :: flow_law = (/ &
+         'uniform factor flwa         ', &
+         'Paterson and Budd (T = -5 C)', &
+         'Paterson and Budd           ' /)
+
+    if (model%options%whichflwa < 0 .or. model%options%whichflwa >= size(flow_law)) then
+       call write_log('Error, flow_law out of range',GM_FATAL)
+    end if
+
+    call log_section('flow_law')
+    call log_option('flow_law', model%options%whichflwa, flow_law(model%options%whichflwa))
+    if (model%options%whichflwa == FLWA_CONST_FLWA) then
+       call log_param('default_flwa', model%paramets%default_flwa, 'Pa^-n yr^-1; constant flow factor')
+    end if
+    call log_param('n_glen', n_glen, 'exponent in Glen''s flow law')
+    call log_param('flow_factor_ground', model%paramets%flow_enhancement_factor_ground, 'grounded ice')
+    call log_param('flow_factor_float', model%paramets%flow_enhancement_factor_float, 'floating ice')
+    call log_flag('damage_flwa_feedback', model%options%damage_flwa_feedback)
+
+  end subroutine print_flow_law
 
 !--------------------------------------------------------------------------------
 
@@ -2707,261 +2545,6 @@ contains
 
 !--------------------------------------------------------------------------------
 
-  subroutine handle_ocean_data(section, model)
-
-    ! Ocean data (thermal forcing) for the thermal-forcing basal melt schemes.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! options
-    call GetValue(section,'ocean_data_domain',      model%options%ocean_data_domain)
-    call GetValue(section,'ocean_data_extrapolate', model%options%ocean_data_extrapolate)
-
-    ! parameters
-    call GetValue(section,'gamma0',                            model%ocean_data%gamma0)
-    call GetValue(section,'thermal_forcing_basin_min',         model%ocean_data%thermal_forcing_basin_min)
-    call GetValue(section,'thermal_forcing_basin_max',         model%ocean_data%thermal_forcing_basin_max)
-    call GetValue(section,'thermal_forcing_anomaly',           model%ocean_data%thermal_forcing_anomaly)
-    call GetValue(section,'thermal_forcing_anomaly_tstart',    model%ocean_data%thermal_forcing_anomaly_tstart)
-    call GetValue(section,'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
-    call GetValue(section,'thermal_forcing_anomaly_basin',     model%ocean_data%thermal_forcing_anomaly_basin)
-
-  end subroutine handle_ocean_data
-
-!--------------------------------------------------------------------------------
-
-  subroutine print_ocean_data(model)
-
-    ! Ocean data (thermal forcing) options and parameters.
-    ! The section is written only for the thermal-forcing basal melt scheme, which uses it.
-
-    use glissade_types
-    use glimmer_log
-    use glissade_log_config
-
-    implicit none
-
-    type(glissade_global_type)  :: model
-
-    character(len=*), dimension(0:2), parameter :: ocean_data_domain = (/ &
-         'ocean data computed internally by CISM', &
-         'ocean data read from external file    ', &
-         'ocean data from coupler via Glad      ' /)
-
-    character(len=*), dimension(0:1), parameter :: ocean_data_extrapolate = (/ &
-         'ocean data not extrapolated to cavities', &
-         'ocean data extrapolated to cavities    ' /)
-
-    if (model%options%whichbmlt_float /= BMLT_FLOAT_THERMAL_FORCING) return
-
-    ! check the options
-
-    if (model%options%ocean_data_domain < 0 .or. &
-        model%options%ocean_data_domain >= size(ocean_data_domain)) then
-       call write_log('Error, ocean_data_domain out of range', GM_FATAL)
-    end if
-
-    if (model%options%ocean_data_extrapolate < 0 .or. &
-        model%options%ocean_data_extrapolate >= size(ocean_data_extrapolate)) then
-       call write_log('Error, ocean_data_extrapolate out of range', GM_FATAL)
-    end if
-
-    ! write the options and parameters
-
-    call log_section('ocean_data')
-    call log_option('ocean_data_domain', model%options%ocean_data_domain, &
-         ocean_data_domain(model%options%ocean_data_domain))
-    call log_option('ocean_data_extrapolate', model%options%ocean_data_extrapolate, &
-         ocean_data_extrapolate(model%options%ocean_data_extrapolate))
-    call log_param('gamma0', model%ocean_data%gamma0, 'm/yr; melt rate coefficient')
-
-    if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
-        model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-       call log_param('thermal_forcing_basin_min', model%ocean_data%thermal_forcing_basin_min, &
-            'deg C; min basin-scale TF; 0 = no limit')
-       call log_param('thermal_forcing_basin_max', model%ocean_data%thermal_forcing_basin_max, &
-            'deg C; max basin-scale TF; 0 = no limit')
-    endif   ! nonlocal melt schemes
-
-    call log_param('thermal_forcing_anomaly', model%ocean_data%thermal_forcing_anomaly, 'deg C; 0 = no anomaly')
-    if (model%ocean_data%thermal_forcing_anomaly /= 0.0d0) then
-       call log_param('thermal_forcing_anomaly_tstart', model%ocean_data%thermal_forcing_anomaly_tstart, 'yr')
-       call log_param('thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale, 'yr')
-       if (model%ocean_data%thermal_forcing_anomaly_basin == 0) then
-          call log_param('thermal_forcing_anomaly_basin', model%ocean_data%thermal_forcing_anomaly_basin, &
-               'all basins')
-       else
-          call log_param('thermal_forcing_anomaly_basin', model%ocean_data%thermal_forcing_anomaly_basin)
-       endif
-    endif
-
-  end subroutine print_ocean_data
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_climate(section, model)
-
-    ! Surface climate forcing: SMB and surface air temperature (input options, anomalies,
-    ! overwrites, and the parameters of the internal SMB functions).
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    ! options
-    call GetValue(section,'smb_input',                       model%options%smb_input)
-    call GetValue(section,'smb_input_function',              model%options%smb_input_function)
-    call GetValue(section,'artm_input_function',             model%options%artm_input_function)
-    call GetValue(section,'enable_smb_anomaly',              model%options%enable_smb_anomaly)
-    call GetValue(section,'enable_artm_anomaly',             model%options%enable_artm_anomaly)
-    call GetValue(section,'enable_snow_anomaly',             model%options%enable_snow_anomaly)
-    call GetValue(section,'enable_precip_anomaly',           model%options%enable_precip_anomaly)
-    call GetValue(section,'overwrite_acab',                  model%options%overwrite_acab)
-    call GetValue(section,'enable_acab_dthck_dt_correction', model%options%enable_acab_dthck_dt_correction)
-    call GetValue(section,'block_inception',                 model%options%block_inception)
-
-    ! parameters of the internal SMB and artm functions
-    call GetValue(section,'t_lapse',            model%climate%t_lapse)
-    call GetValue(section,'degree_factor',      model%climate%degree_factor)
-    call GetValue(section,'tmlt',               model%climate%tmlt)
-    call GetValue(section,'snow_threshold_min', model%climate%snow_threshold_min)
-    call GetValue(section,'snow_threshold_max', model%climate%snow_threshold_max)
-    call GetValue(section,'smb_factor',         model%climate%smb_factor)
-
-    ! anomaly and overwrite parameters
-    call GetValue(section,'smb_anomaly_tstart',     model%climate%smb_anomaly_tstart)
-    call GetValue(section,'smb_anomaly_timescale',  model%climate%smb_anomaly_timescale)
-    call GetValue(section,'overwrite_acab_value',   model%climate%overwrite_acab_value)
-    call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
-    call GetValue(section,'artm_anomaly_const',     model%climate%artm_anomaly_const)
-    call GetValue(section,'artm_anomaly_tstart',    model%climate%artm_anomaly_tstart)
-    call GetValue(section,'artm_anomaly_timescale', model%climate%artm_anomaly_timescale)
-
-  end subroutine handle_climate
-
-!--------------------------------------------------------------------------------
-
-  subroutine print_climate(model)
-
-    ! Surface climate (SMB and surface temperature) options and parameters
-
-    use glissade_types
-    use glimmer_log
-    use glissade_log_config
-
-    implicit none
-
-    type(glissade_global_type)  :: model
-    character(len=500) :: message
-
-    character(len=*), dimension(0:1), parameter :: smb_input = (/ &
-         'SMB input in units of m/yr ice  ', &
-         'SMB input in units of mm/yr w.e.' /)
-
-    character(len=*), dimension(0:3), parameter :: smb_input_function = (/ &
-         'SMB input as function of (x,y)              ', &
-         'SMB and d(SMB)/dz input as function of (x,y)', &
-         'SMB input as function of (x,y,z)            ', &
-         'SMB computed with positive-degree scheme    ' /)
-
-    character(len=*), dimension(0:3), parameter :: artm_input_function = (/ &
-         'artm input as function of (x,y)               ', &
-         'artm and d(artm)/dz input as function of (x,y)', &
-         'artm input as function of (x,y,z)             ', &
-         'artm input as function of (x,y) w/ lapse rate ' /)
-
-    character(len=*), dimension(0:3), parameter :: overwrite_acab = (/ &
-         'do not overwrite acab anywhere            ', &
-         'overwrite acab where input acab = 0       ', &
-         'overwrite acab where input thck <= minthck', &
-         'overwrite acab based on input mask        ' /)
-
-    ! check the options
-
-    if (model%options%smb_input < 0 .or. model%options%smb_input >= size(smb_input)) then
-       call write_log('Error, smb_input option out of range',GM_FATAL)
-    end if
-
-    if (model%options%smb_input_function < 0 .or. model%options%smb_input_function >= size(smb_input_function)) then
-       call write_log('Error, smb_input_function option out of range',GM_FATAL)
-    end if
-
-    if (model%options%smb_input == SMB_INPUT_MYR_ICE) then
-       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
-           model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
-           model%climate%smb_factor /= 1.0d0 .or. &
-           model%options%enable_smb_anomaly .or. &
-           model%options%enable_glaciers) then
-          write(message,*) 'Error, input SMB must have units of mm/yr w.e., smb_input =', SMB_INPUT_MMYR_WE
-          call write_log(message, GM_FATAL)
-       endif
-    endif
-
-    if (model%options%artm_input_function < 0 .or. model%options%artm_input_function >= size(artm_input_function)) then
-       call write_log('Error, artm_input_function option out of range',GM_FATAL)
-    end if
-
-    if (model%options%overwrite_acab < 0 .or. model%options%overwrite_acab >= size(overwrite_acab)) then
-       call write_log('Error, overwrite_acab option out of range',GM_FATAL)
-    end if
-
-    ! write the options and parameters
-
-    call log_section('climate')
-    call log_option('smb_input', model%options%smb_input, smb_input(model%options%smb_input))
-    call log_option('smb_input_function', model%options%smb_input_function, &
-         smb_input_function(model%options%smb_input_function))
-    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
-       call log_param('degree_factor', model%climate%degree_factor, 'mm/yr w.e./deg C')
-       call log_param('tmlt', model%climate%tmlt, 'deg C; melt threshold')
-       call log_param('snow_threshold_min', model%climate%snow_threshold_min, 'deg C')
-       call log_param('snow_threshold_max', model%climate%snow_threshold_max, 'deg C')
-    endif
-    call log_option('artm_input_function', model%options%artm_input_function, &
-         artm_input_function(model%options%artm_input_function))
-    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
-       call log_param('t_lapse', model%climate%t_lapse, 'deg C/m; artm lapse rate')
-    endif
-    call log_param('smb_factor', model%climate%smb_factor, 'multiplies the input SMB')
-
-    call log_flag('enable_smb_anomaly', model%options%enable_smb_anomaly)
-    if (model%options%enable_smb_anomaly) then
-       call log_param('smb_anomaly_tstart', model%climate%smb_anomaly_tstart, 'yr')
-       call log_param('smb_anomaly_timescale', model%climate%smb_anomaly_timescale, 'yr')
-    endif
-    call log_flag('enable_artm_anomaly', model%options%enable_artm_anomaly)
-    if (model%options%enable_artm_anomaly) then
-       call log_param('artm_anomaly_const', model%climate%artm_anomaly_const, 'deg C')
-       call log_param('artm_anomaly_tstart', model%climate%artm_anomaly_tstart, 'yr')
-       call log_param('artm_anomaly_timescale', model%climate%artm_anomaly_timescale, 'yr')
-    endif
-    call log_flag('enable_snow_anomaly', model%options%enable_snow_anomaly)
-    call log_flag('enable_precip_anomaly', model%options%enable_precip_anomaly)
-
-    call log_option('overwrite_acab', model%options%overwrite_acab, overwrite_acab(model%options%overwrite_acab))
-    if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
-       call log_param('overwrite_acab_value', model%climate%overwrite_acab_value, 'm/yr')
-       if (model%options%overwrite_acab == OVERWRITE_ACAB_THCKMIN) then
-          call log_param('overwrite_acab_minthck', model%climate%overwrite_acab_minthck, 'm')
-       endif
-    endif
-    call log_flag('enable_acab_dthck_dt_correction', model%options%enable_acab_dthck_dt_correction, &
-         'correct acab based on dthck_dt_obs')
-    call log_flag('block_inception', model%options%block_inception, &
-         'block inception outside the main ice sheet')
-
-  end subroutine print_climate
-
-!--------------------------------------------------------------------------------
-
   subroutine handle_calving(section, model)
 
     use glimmer_config
@@ -3194,58 +2777,6 @@ contains
 
 !--------------------------------------------------------------------------------
 
-  subroutine handle_removal(section, model)
-
-    ! Ice removal that is not calving: removal of ice caps, and forced retreat.
-    ! The removed ice is tracked separately from the calving flux.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    call GetValue(section,'remove_ice_caps', model%options%remove_ice_caps)
-    call GetValue(section,'force_retreat',   model%options%force_retreat)
-
-  end subroutine handle_removal
-
-!--------------------------------------------------------------------------------
-
-  subroutine print_removal(model)
-
-    ! Ice removal options
-
-    use glissade_types
-    use glimmer_log
-    use glissade_log_config
-
-    implicit none
-
-    type(glissade_global_type)  :: model
-
-    character(len=*), dimension(0:2), parameter :: force_retreat = (/ &
-         'no forced retreat                                  ', &
-         'force retreat of all ice with retreat mask         ', &
-         'force retreat of floating ice with retreat mask    ' /)
-
-    if (model%options%force_retreat < 0 .or. model%options%force_retreat >= size(force_retreat)) then
-       call write_log('Error, force_retreat out of range', GM_FATAL)
-    end if
-
-    call log_section('removal')
-    call log_flag('remove_ice_caps', model%options%remove_ice_caps, 'removed ice goes to the removal flux')
-    call log_option('force_retreat', model%options%force_retreat, force_retreat(model%options%force_retreat))
-    if (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE .and. &
-        .not.model%options%remove_isthmuses) then
-       call log_comment('Warning: force_retreat = 2 can be unstable when remove_isthmuses = .false.')
-    endif
-
-  end subroutine print_removal
-
-!--------------------------------------------------------------------------------
-
   subroutine handle_lateral_melt(section, model)
 
     use glimmer_config
@@ -3309,12 +2840,10 @@ contains
 
 !--------------------------------------------------------------------------------
 
-  subroutine handle_inversion(section, model)
+  subroutine handle_removal(section, model)
 
-    ! Parameters of the inversions for the basal friction parameters (powerlaw_c, coulomb_c)
-    ! and for the ocean temperature correction deltaT_ocn.
-    ! The inversions themselves are selected in [basal_physics] (powerlaw_c_method,
-    ! coulomb_c_method) and [basal_melt] (deltaT_ocn_method).
+    ! Ice removal that is not calving: removal of ice caps, and forced retreat.
+    ! The removed ice is tracked separately from the calving flux.
 
     use glimmer_config
     use glissade_types
@@ -3323,39 +2852,16 @@ contains
     type(ConfigSection), pointer :: section
     type(glissade_global_type)   :: model
 
-    ! general
-    call GetValue(section,'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
-    call GetValue(section,'inversion_thck_threshold',        model%inversion%thck_threshold)
-    call GetValue(section,'inversion_damping_factor',        model%inversion%damping_factor)
+    call GetValue(section,'remove_ice_caps', model%options%remove_ice_caps)
+    call GetValue(section,'force_retreat',   model%options%force_retreat)
 
-    ! basal friction inversion
-    call GetValue(section,'inversion_babc_timescale',    model%inversion%babc_timescale)
-    call GetValue(section,'inversion_babc_thck_scale',   model%inversion%babc_thck_scale)
-    call GetValue(section,'inversion_babc_length_scale', model%inversion%babc_length_scale)
-    call GetValue(section,'inversion_babc_relax_factor', model%inversion%babc_relax_factor)
-
-    ! deltaT_ocn inversion
-    call GetValue(section,'inversion_deltaT_ocn_timescale',    model%inversion%deltaT_ocn_timescale)
-    call GetValue(section,'inversion_deltaT_ocn_thck_scale',   model%inversion%deltaT_ocn_thck_scale)
-    call GetValue(section,'inversion_deltaT_ocn_length_scale', model%inversion%deltaT_ocn_length_scale)
-    call GetValue(section,'inversion_deltaT_ocn_temp_scale',   model%inversion%deltaT_ocn_temp_scale)
-    call GetValue(section,'inversion_deltaT_basin_relax',      model%inversion%deltaT_basin_relax)
-
-    ! basin-scale deltaT_ocn inversion
-    call GetValue(section,'inversion_basin_flotation_threshold',    model%inversion%basin_flotation_threshold)
-    call GetValue(section,'inversion_basin_mass_correction',        model%inversion%basin_mass_correction)
-    call GetValue(section,'inversion_basin_number_mass_correction', model%inversion%basin_number_mass_correction)
-
-  end subroutine handle_inversion
+  end subroutine handle_removal
 
 !--------------------------------------------------------------------------------
 
-  subroutine print_inversion(model)
+  subroutine print_removal(model)
 
-    ! Inversion parameters.
-    ! The section is written only when an inversion is selected: powerlaw_c_method or
-    ! coulomb_c_method in [basal_physics], deltaT_ocn_method in [basal_melt], or
-    ! glacier_powerlaw_c_method in [glaciers].
+    ! Ice removal options
 
     use glissade_types
     use glimmer_log
@@ -3365,54 +2871,495 @@ contains
 
     type(glissade_global_type)  :: model
 
-    logical :: babc_inversion     ! true for an inversion for powerlaw_c or coulomb_c
-    logical :: deltaT_inversion   ! true for an inversion for deltaT_ocn
-    logical :: glacier_inversion  ! true for an inversion for glacier powerlaw_c
+    character(len=*), dimension(0:2), parameter :: force_retreat = (/ &
+         'no forced retreat                                  ', &
+         'force retreat of all ice with retreat mask         ', &
+         'force retreat of floating ice with retreat mask    ' /)
 
-    babc_inversion = (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
-                      model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or. &
-                      model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION .or. &
-                      model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN)
+    if (model%options%force_retreat < 0 .or. model%options%force_retreat >= size(force_retreat)) then
+       call write_log('Error, force_retreat out of range', GM_FATAL)
+    end if
 
-    deltaT_inversion = (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION .or. &
-                        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN)
-
-    glacier_inversion = (model%options%enable_glaciers .and. &
-                         model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION)
-
-    if (.not. (babc_inversion .or. deltaT_inversion .or. glacier_inversion)) return
-
-    call log_section('inversion')
-    if (babc_inversion .or. deltaT_inversion) then
-       call log_param('inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer, 'm')
-       call log_param('inversion_thck_threshold', model%inversion%thck_threshold, 'm')
-       call log_param('inversion_damping_factor', model%inversion%damping_factor)
+    call log_section('removal')
+    call log_flag('remove_ice_caps', model%options%remove_ice_caps, 'removed ice goes to the removal flux')
+    call log_option('force_retreat', model%options%force_retreat, force_retreat(model%options%force_retreat))
+    if (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE .and. &
+        .not.model%options%remove_isthmuses) then
+       call log_comment('Warning: force_retreat = 2 can be unstable when remove_isthmuses = .false.')
     endif
 
-    if (babc_inversion .or. glacier_inversion) then
-       call log_param('inversion_babc_thck_scale', model%inversion%babc_thck_scale, 'm')
-       call log_param('inversion_babc_timescale', model%inversion%babc_timescale, 'yr')
-       call log_param('inversion_babc_length_scale', model%inversion%babc_length_scale, 'm')
-       call log_param('inversion_babc_relax_factor', model%inversion%babc_relax_factor)
-    endif
+  end subroutine print_removal
 
-    if (deltaT_inversion) then
-       call log_param('inversion_deltaT_ocn_thck_scale', model%inversion%deltaT_ocn_thck_scale, 'm')
-       call log_param('inversion_deltaT_ocn_timescale', model%inversion%deltaT_ocn_timescale, 'yr')
-       call log_param('inversion_deltaT_ocn_temp_scale', model%inversion%deltaT_ocn_temp_scale, 'deg C')
-       if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
-          call log_param('inversion_basin_flotation_threshold', model%inversion%basin_flotation_threshold, 'm')
-          call log_param('inversion_deltaT_basin_relax', model%inversion%deltaT_basin_relax, &
-               'deg C; value toward which deltaT_basin relaxes')
-          call log_param('inversion_basin_number_mass_correction', model%inversion%basin_number_mass_correction, &
-               '0 = no mass correction')
-          call log_param('inversion_basin_mass_correction', model%inversion%basin_mass_correction, 'Gt')
-       else   ! 2D deltaT_ocn inversion
-          call log_param('inversion_deltaT_ocn_length_scale', model%inversion%deltaT_ocn_length_scale, 'm')
+!--------------------------------------------------------------------------------
+
+  subroutine glissade_get_zatm(model,config)
+
+    ! Read atmosphere grid information, if present, from the config file.
+    ! Called after glissade_readconfig and before glissade_printconfig (see print_grid_atm)
+
+    use glissade_types
+    use glimmer_config
+    use glimmer_log
+    use cism_parallel, only: main_task
+
+    implicit none
+
+    type(glissade_global_type) :: model        !> model instance
+    type(ConfigSection), pointer :: config  !> structure holding sections of configuration file
+
+    ! local variables
+    type(ConfigSection), pointer :: section
+    character(len=512) :: message
+    integer :: k
+
+    ! Check for section [grid_atm]
+    call GetSection(config,section,'grid_atm')
+
+    if (associated(section)) then
+
+       call GetValue(section,'nzatm',model%climate%nzatm)
+
+       if (.not.associated(model%climate%zatm)) allocate(model%climate%zatm(model%climate%nzatm))
+
+       if (size(model%climate%zatm) /= model%climate%nzatm) then
+          write(message,*) 'size of zatm : ', size(model%climate%zatm)
+          call write_log(trim(message))
+          call write_log ( 'zatm has the wrong size; must equal nzatm', GM_FATAL)
+       end if
+
+       ! Load the zatm levels from the config file.
+       ! For example, the config file could have a section like this:
+       ! [grid_atm]
+       ! nzatm = 10
+       ! zatm = 100., 300., 550., 850., 1150., 1450., 1800., 2250., 2750., 3500.
+
+       ! TODO: Is it possible to get the levels from the netCDF file instead?
+       ! Note: By convention, zatm increases with increasing k.
+       !       If the input zatm levels do not satisfy this criterion, the code aborts.
+       call GetValue(section, 'zatm', model%climate%zatm, model%climate%nzatm)
+       do k = 2, model%climate%nzatm
+          if (model%climate%zatm(k) - model%climate%zatm(k-1) < 1.0d0) then
+             write(message,*) 'nzatm, zatm =', model%climate%nzatm, model%climate%zatm(:)
+             call write_log(trim(message))
+             write(message,*) 'Must have zatm increasing with increasing k in the [grid_atm] section'
+             call write_log(message, GM_FATAL)
+          endif
+       enddo
+
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
+            model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+
+       ! Allocate and initialize model%climate%zatm using the standard CESM elevation classes.
+       model%climate%nzatm = 10
+       if (associated(model%climate%zatm)) deallocate(model%climate%zatm)
+       allocate(model%climate%zatm(model%climate%nzatm))
+       model%climate%zatm(:) = &
+            (/ 100.d0, 300.d0, 550.d0, 850.d0, 1150.d0, 1450.d0, 1800.d0, 2250.d0, 2750.d0, 3500.d0 /)
+
+    else   ! zatm not needed, but allocate and initialize to be safe
+
+       model%climate%nzatm = 1
+       if (associated(model%climate%zatm)) deallocate(model%climate%zatm)
+       allocate(model%climate%zatm(model%climate%nzatm))
+       model%climate%zatm(:) = (/ 0.0d0 /)
+
+    endif   ! associated(section)
+
+  end subroutine glissade_get_zatm
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_grid_atm(model, config)
+
+    ! Atmosphere grid ([grid_atm]; read or set by glissade_get_zatm), written if there is more than one level
+
+    use glissade_types
+    use glimmer_config
+    use glissade_log_config
+    implicit none
+    type(glissade_global_type)   :: model
+    type(ConfigSection), pointer :: config
+
+    type(ConfigSection), pointer :: section
+
+    if (model%climate%nzatm <= 1) return
+
+    call GetSection(config,section,'grid_atm')
+    call log_section('grid_atm')
+    if (.not.associated(section)) then
+       call log_comment('no [grid_atm] section; using the standard CESM elevation classes')
+    endif
+    call log_param('nzatm', model%climate%nzatm)
+    call log_list('zatm', model%climate%zatm, 'm')
+
+  end subroutine print_grid_atm
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_climate(section, model)
+
+    ! Surface climate forcing: SMB and surface air temperature (input options, anomalies,
+    ! overwrites, and the parameters of the internal SMB functions).
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'smb_input',                       model%options%smb_input)
+    call GetValue(section,'smb_input_function',              model%options%smb_input_function)
+    call GetValue(section,'artm_input_function',             model%options%artm_input_function)
+    call GetValue(section,'enable_smb_anomaly',              model%options%enable_smb_anomaly)
+    call GetValue(section,'enable_artm_anomaly',             model%options%enable_artm_anomaly)
+    call GetValue(section,'enable_snow_anomaly',             model%options%enable_snow_anomaly)
+    call GetValue(section,'enable_precip_anomaly',           model%options%enable_precip_anomaly)
+    call GetValue(section,'overwrite_acab',                  model%options%overwrite_acab)
+    call GetValue(section,'enable_acab_dthck_dt_correction', model%options%enable_acab_dthck_dt_correction)
+    call GetValue(section,'block_inception',                 model%options%block_inception)
+
+    ! parameters of the internal SMB and artm functions
+    call GetValue(section,'t_lapse',            model%climate%t_lapse)
+    call GetValue(section,'degree_factor',      model%climate%degree_factor)
+    call GetValue(section,'tmlt',               model%climate%tmlt)
+    call GetValue(section,'snow_threshold_min', model%climate%snow_threshold_min)
+    call GetValue(section,'snow_threshold_max', model%climate%snow_threshold_max)
+    call GetValue(section,'smb_factor',         model%climate%smb_factor)
+
+    ! anomaly and overwrite parameters
+    call GetValue(section,'smb_anomaly_tstart',     model%climate%smb_anomaly_tstart)
+    call GetValue(section,'smb_anomaly_timescale',  model%climate%smb_anomaly_timescale)
+    call GetValue(section,'overwrite_acab_value',   model%climate%overwrite_acab_value)
+    call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
+    call GetValue(section,'artm_anomaly_const',     model%climate%artm_anomaly_const)
+    call GetValue(section,'artm_anomaly_tstart',    model%climate%artm_anomaly_tstart)
+    call GetValue(section,'artm_anomaly_timescale', model%climate%artm_anomaly_timescale)
+
+  end subroutine handle_climate
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_climate(model)
+
+    ! Surface climate (SMB and surface temperature) options and parameters
+
+    use glissade_types
+    use glimmer_log
+    use glissade_log_config
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+    character(len=500) :: message
+
+    character(len=*), dimension(0:1), parameter :: smb_input = (/ &
+         'SMB input in units of m/yr ice  ', &
+         'SMB input in units of mm/yr w.e.' /)
+
+    character(len=*), dimension(0:3), parameter :: smb_input_function = (/ &
+         'SMB input as function of (x,y)              ', &
+         'SMB and d(SMB)/dz input as function of (x,y)', &
+         'SMB input as function of (x,y,z)            ', &
+         'SMB computed with positive-degree scheme    ' /)
+
+    character(len=*), dimension(0:3), parameter :: artm_input_function = (/ &
+         'artm input as function of (x,y)               ', &
+         'artm and d(artm)/dz input as function of (x,y)', &
+         'artm input as function of (x,y,z)             ', &
+         'artm input as function of (x,y) w/ lapse rate ' /)
+
+    character(len=*), dimension(0:3), parameter :: overwrite_acab = (/ &
+         'do not overwrite acab anywhere            ', &
+         'overwrite acab where input acab = 0       ', &
+         'overwrite acab where input thck <= minthck', &
+         'overwrite acab based on input mask        ' /)
+
+    ! check the options
+
+    if (model%options%smb_input < 0 .or. model%options%smb_input >= size(smb_input)) then
+       call write_log('Error, smb_input option out of range',GM_FATAL)
+    end if
+
+    if (model%options%smb_input_function < 0 .or. model%options%smb_input_function >= size(smb_input_function)) then
+       call write_log('Error, smb_input_function option out of range',GM_FATAL)
+    end if
+
+    if (model%options%smb_input == SMB_INPUT_MYR_ICE) then
+       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
+           model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
+           model%climate%smb_factor /= 1.0d0 .or. &
+           model%options%enable_smb_anomaly .or. &
+           model%options%enable_glaciers) then
+          write(message,*) 'Error, input SMB must have units of mm/yr w.e., smb_input =', SMB_INPUT_MMYR_WE
+          call write_log(message, GM_FATAL)
        endif
     endif
 
-  end subroutine print_inversion
+    if (model%options%artm_input_function < 0 .or. model%options%artm_input_function >= size(artm_input_function)) then
+       call write_log('Error, artm_input_function option out of range',GM_FATAL)
+    end if
+
+    if (model%options%overwrite_acab < 0 .or. model%options%overwrite_acab >= size(overwrite_acab)) then
+       call write_log('Error, overwrite_acab option out of range',GM_FATAL)
+    end if
+
+    ! write the options and parameters
+
+    call log_section('climate')
+    call log_option('smb_input', model%options%smb_input, smb_input(model%options%smb_input))
+    call log_option('smb_input_function', model%options%smb_input_function, &
+         smb_input_function(model%options%smb_input_function))
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+       call log_param('degree_factor', model%climate%degree_factor, 'mm/yr w.e./deg C')
+       call log_param('tmlt', model%climate%tmlt, 'deg C; melt threshold')
+       call log_param('snow_threshold_min', model%climate%snow_threshold_min, 'deg C')
+       call log_param('snow_threshold_max', model%climate%snow_threshold_max, 'deg C')
+    endif
+    call log_option('artm_input_function', model%options%artm_input_function, &
+         artm_input_function(model%options%artm_input_function))
+    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+       call log_param('t_lapse', model%climate%t_lapse, 'deg C/m; artm lapse rate')
+    endif
+    call log_param('smb_factor', model%climate%smb_factor, 'multiplies the input SMB')
+
+    call log_flag('enable_smb_anomaly', model%options%enable_smb_anomaly)
+    if (model%options%enable_smb_anomaly) then
+       call log_param('smb_anomaly_tstart', model%climate%smb_anomaly_tstart, 'yr')
+       call log_param('smb_anomaly_timescale', model%climate%smb_anomaly_timescale, 'yr')
+    endif
+    call log_flag('enable_artm_anomaly', model%options%enable_artm_anomaly)
+    if (model%options%enable_artm_anomaly) then
+       call log_param('artm_anomaly_const', model%climate%artm_anomaly_const, 'deg C')
+       call log_param('artm_anomaly_tstart', model%climate%artm_anomaly_tstart, 'yr')
+       call log_param('artm_anomaly_timescale', model%climate%artm_anomaly_timescale, 'yr')
+    endif
+    call log_flag('enable_snow_anomaly', model%options%enable_snow_anomaly)
+    call log_flag('enable_precip_anomaly', model%options%enable_precip_anomaly)
+
+    call log_option('overwrite_acab', model%options%overwrite_acab, overwrite_acab(model%options%overwrite_acab))
+    if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
+       call log_param('overwrite_acab_value', model%climate%overwrite_acab_value, 'm/yr')
+       if (model%options%overwrite_acab == OVERWRITE_ACAB_THCKMIN) then
+          call log_param('overwrite_acab_minthck', model%climate%overwrite_acab_minthck, 'm')
+       endif
+    endif
+    call log_flag('enable_acab_dthck_dt_correction', model%options%enable_acab_dthck_dt_correction, &
+         'correct acab based on dthck_dt_obs')
+    call log_flag('block_inception', model%options%block_inception, &
+         'block inception outside the main ice sheet')
+
+  end subroutine print_climate
+
+!-------------------------------------------------------------------------
+
+  subroutine glissade_get_zocn(model,config)
+
+    ! Read ocean grid information, if present, from the config file.
+    ! Called after glissade_readconfig and before glissade_printconfig (see print_grid_ocn)
+
+    use glissade_types
+    use glimmer_config
+    use glimmer_log
+    use cism_parallel, only: main_task
+
+    implicit none
+
+    type(glissade_global_type) :: model        !> model instance
+    type(ConfigSection), pointer :: config  !> structure holding sections of configuration file
+
+    ! local variables
+    type(ConfigSection), pointer :: section
+    character(len=512) :: message
+    integer :: k
+
+    ! Check for section [grid_ocn]
+    call GetSection(config,section,'grid_ocn')
+
+    if (associated(section)) then
+
+       call GetValue(section,'nzocn',model%ocean_data%nzocn)
+       call GetValue(section,'dzocn',model%ocean_data%dzocn)     ! m
+       call GetValue(section,'nbasin',model%ocean_data%nbasin)
+
+       if (.not.associated(model%ocean_data%zocn)) &
+            allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
+
+       if ( size(model%ocean_data%zocn) /= model%ocean_data%nzocn )then
+          write(message,*) 'size of zocn : ', size(model%ocean_data%zocn)
+          call write_log(trim(message))
+          call write_log ( 'zocn has the wrong size; must equal nzocn', GM_FATAL)
+       end if
+
+       ! There are two ways to get zocn levels:
+       ! (1) Compute uniform levels based on dzocn.  This is done if dzocn is set to a nonzero value in the config file.
+       ! (2) Load zocn levels from the config file.  This is done if dzocn = 0 (the default value).
+       ! Note: By convention, k = 1 is the top level, and z becomes more negative with increasing k.
+       !       If the input zocn levels do not satisfy this criterion (or if dzocn and zocn are not in the config file),
+       !        The code aborts with an error message.
+
+       if (model%ocean_data%dzocn > 0.0d0) then
+          do k = 1, model%ocean_data%nzocn
+             model%ocean_data%zocn(k) = -model%ocean_data%dzocn * (real(k,dp) - 0.5d0)
+          enddo
+       else
+          call GetValue(section, 'zocn', model%ocean_data%zocn, model%ocean_data%nzocn)
+          do k = 2, model%ocean_data%nzocn
+             if (model%ocean_data%zocn(k-1) - model%ocean_data%zocn(k) < 1.0d0) then
+                write(message,*) 'nzocn, zocn =', model%ocean_data%nzocn, model%ocean_data%zocn(:)
+                call write_log(trim(message))
+                write(message,*) 'Must have zocn decreasing with increasing k in the [grid_ocn] section'
+                call write_log(message, GM_FATAL)
+             endif
+          enddo
+       endif
+
+    else    ! no 'grid_ocn' section
+
+       ! Allocate and initialize model%ocean_data%zocn.
+       ! Note: Coupled CESM runs require this array to be allocated, even if CISM
+       !       is not receiving realistic ocean forcing fields (as of Jan. 2021).
+       model%ocean_data%nzocn = get_nzocn(model)
+       if (.not.associated(model%ocean_data%zocn)) &
+            allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
+       model%ocean_data%zocn(:) = 0.0d0
+
+       if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+          write(message,*) 'Must have a [grid_ocn] section to use the thermal forcing option'
+          call write_log(message, GM_FATAL)
+       endif
+
+    endif   ! associated(section)
+
+  end subroutine glissade_get_zocn
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_grid_ocn(model, config)
+
+    ! Ocean grid ([grid_ocn]; read by glissade_get_zocn), written if the section is present
+
+    use glissade_types
+    use glimmer_config
+    use glissade_log_config
+    implicit none
+    type(glissade_global_type)   :: model
+    type(ConfigSection), pointer :: config
+
+    type(ConfigSection), pointer :: section
+
+    call GetSection(config,section,'grid_ocn')
+    if (.not.associated(section)) return
+
+    call log_section('grid_ocn')
+    call log_param('nzocn', model%ocean_data%nzocn)
+    if (model%ocean_data%dzocn > 0.0d0) then
+       call log_param('dzocn', model%ocean_data%dzocn, 'm; uniform level spacing')
+       call log_list('zocn', model%ocean_data%zocn, 'm; computed from dzocn')
+    else
+       call log_list('zocn', model%ocean_data%zocn, 'm')
+    endif
+    call log_param('nbasin', model%ocean_data%nbasin)
+
+  end subroutine print_grid_ocn
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_ocean_data(section, model)
+
+    ! Ocean data (thermal forcing) for the thermal-forcing basal melt schemes.
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! options
+    call GetValue(section,'ocean_data_domain',      model%options%ocean_data_domain)
+    call GetValue(section,'ocean_data_extrapolate', model%options%ocean_data_extrapolate)
+
+    ! parameters
+    call GetValue(section,'gamma0',                            model%ocean_data%gamma0)
+    call GetValue(section,'thermal_forcing_basin_min',         model%ocean_data%thermal_forcing_basin_min)
+    call GetValue(section,'thermal_forcing_basin_max',         model%ocean_data%thermal_forcing_basin_max)
+    call GetValue(section,'thermal_forcing_anomaly',           model%ocean_data%thermal_forcing_anomaly)
+    call GetValue(section,'thermal_forcing_anomaly_tstart',    model%ocean_data%thermal_forcing_anomaly_tstart)
+    call GetValue(section,'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
+    call GetValue(section,'thermal_forcing_anomaly_basin',     model%ocean_data%thermal_forcing_anomaly_basin)
+
+  end subroutine handle_ocean_data
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_ocean_data(model)
+
+    ! Ocean data (thermal forcing) options and parameters.
+    ! The section is written only for the thermal-forcing basal melt scheme, which uses it.
+
+    use glissade_types
+    use glimmer_log
+    use glissade_log_config
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+
+    character(len=*), dimension(0:2), parameter :: ocean_data_domain = (/ &
+         'ocean data computed internally by CISM', &
+         'ocean data read from external file    ', &
+         'ocean data from coupler via Glad      ' /)
+
+    character(len=*), dimension(0:1), parameter :: ocean_data_extrapolate = (/ &
+         'ocean data not extrapolated to cavities', &
+         'ocean data extrapolated to cavities    ' /)
+
+    if (model%options%whichbmlt_float /= BMLT_FLOAT_THERMAL_FORCING) return
+
+    ! check the options
+
+    if (model%options%ocean_data_domain < 0 .or. &
+        model%options%ocean_data_domain >= size(ocean_data_domain)) then
+       call write_log('Error, ocean_data_domain out of range', GM_FATAL)
+    end if
+
+    if (model%options%ocean_data_extrapolate < 0 .or. &
+        model%options%ocean_data_extrapolate >= size(ocean_data_extrapolate)) then
+       call write_log('Error, ocean_data_extrapolate out of range', GM_FATAL)
+    end if
+
+    ! write the options and parameters
+
+    call log_section('ocean_data')
+    call log_option('ocean_data_domain', model%options%ocean_data_domain, &
+         ocean_data_domain(model%options%ocean_data_domain))
+    call log_option('ocean_data_extrapolate', model%options%ocean_data_extrapolate, &
+         ocean_data_extrapolate(model%options%ocean_data_extrapolate))
+    call log_param('gamma0', model%ocean_data%gamma0, 'm/yr; melt rate coefficient')
+
+    if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
+        model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
+       call log_param('thermal_forcing_basin_min', model%ocean_data%thermal_forcing_basin_min, &
+            'deg C; min basin-scale TF; 0 = no limit')
+       call log_param('thermal_forcing_basin_max', model%ocean_data%thermal_forcing_basin_max, &
+            'deg C; max basin-scale TF; 0 = no limit')
+    endif   ! nonlocal melt schemes
+
+    call log_param('thermal_forcing_anomaly', model%ocean_data%thermal_forcing_anomaly, 'deg C; 0 = no anomaly')
+    if (model%ocean_data%thermal_forcing_anomaly /= 0.0d0) then
+       call log_param('thermal_forcing_anomaly_tstart', model%ocean_data%thermal_forcing_anomaly_tstart, 'yr')
+       call log_param('thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale, 'yr')
+       if (model%ocean_data%thermal_forcing_anomaly_basin == 0) then
+          call log_param('thermal_forcing_anomaly_basin', model%ocean_data%thermal_forcing_anomaly_basin, &
+               'all basins')
+       else
+          call log_param('thermal_forcing_anomaly_basin', model%ocean_data%thermal_forcing_anomaly_basin)
+       endif
+    endif
+
+  end subroutine print_ocean_data
 
 !--------------------------------------------------------------------------------
 
@@ -3553,6 +3500,113 @@ contains
     endif   ! compute isostasy
 
   end subroutine print_isostasy
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_inversion(section, model)
+
+    ! Parameters of the inversions for the basal friction parameters (powerlaw_c, coulomb_c)
+    ! and for the ocean temperature correction deltaT_ocn.
+    ! The inversions themselves are selected in [basal_physics] (powerlaw_c_method,
+    ! coulomb_c_method) and [basal_melt] (deltaT_ocn_method).
+
+    use glimmer_config
+    use glissade_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glissade_global_type)   :: model
+
+    ! general
+    call GetValue(section,'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
+    call GetValue(section,'inversion_thck_threshold',        model%inversion%thck_threshold)
+    call GetValue(section,'inversion_damping_factor',        model%inversion%damping_factor)
+
+    ! basal friction inversion
+    call GetValue(section,'inversion_babc_timescale',    model%inversion%babc_timescale)
+    call GetValue(section,'inversion_babc_thck_scale',   model%inversion%babc_thck_scale)
+    call GetValue(section,'inversion_babc_length_scale', model%inversion%babc_length_scale)
+    call GetValue(section,'inversion_babc_relax_factor', model%inversion%babc_relax_factor)
+
+    ! deltaT_ocn inversion
+    call GetValue(section,'inversion_deltaT_ocn_timescale',    model%inversion%deltaT_ocn_timescale)
+    call GetValue(section,'inversion_deltaT_ocn_thck_scale',   model%inversion%deltaT_ocn_thck_scale)
+    call GetValue(section,'inversion_deltaT_ocn_length_scale', model%inversion%deltaT_ocn_length_scale)
+    call GetValue(section,'inversion_deltaT_ocn_temp_scale',   model%inversion%deltaT_ocn_temp_scale)
+    call GetValue(section,'inversion_deltaT_basin_relax',      model%inversion%deltaT_basin_relax)
+
+    ! basin-scale deltaT_ocn inversion
+    call GetValue(section,'inversion_basin_flotation_threshold',    model%inversion%basin_flotation_threshold)
+    call GetValue(section,'inversion_basin_mass_correction',        model%inversion%basin_mass_correction)
+    call GetValue(section,'inversion_basin_number_mass_correction', model%inversion%basin_number_mass_correction)
+
+  end subroutine handle_inversion
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_inversion(model)
+
+    ! Inversion parameters.
+    ! The section is written only when an inversion is selected: powerlaw_c_method or
+    ! coulomb_c_method in [basal_physics], deltaT_ocn_method in [basal_melt], or
+    ! glacier_powerlaw_c_method in [glaciers].
+
+    use glissade_types
+    use glimmer_log
+    use glissade_log_config
+
+    implicit none
+
+    type(glissade_global_type)  :: model
+
+    logical :: babc_inversion     ! true for an inversion for powerlaw_c or coulomb_c
+    logical :: deltaT_inversion   ! true for an inversion for deltaT_ocn
+    logical :: glacier_inversion  ! true for an inversion for glacier powerlaw_c
+
+    babc_inversion = (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
+                      model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or. &
+                      model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION .or. &
+                      model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN)
+
+    deltaT_inversion = (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION .or. &
+                        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN)
+
+    glacier_inversion = (model%options%enable_glaciers .and. &
+                         model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION)
+
+    if (.not. (babc_inversion .or. deltaT_inversion .or. glacier_inversion)) return
+
+    call log_section('inversion')
+    if (babc_inversion .or. deltaT_inversion) then
+       call log_param('inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer, 'm')
+       call log_param('inversion_thck_threshold', model%inversion%thck_threshold, 'm')
+       call log_param('inversion_damping_factor', model%inversion%damping_factor)
+    endif
+
+    if (babc_inversion .or. glacier_inversion) then
+       call log_param('inversion_babc_thck_scale', model%inversion%babc_thck_scale, 'm')
+       call log_param('inversion_babc_timescale', model%inversion%babc_timescale, 'yr')
+       call log_param('inversion_babc_length_scale', model%inversion%babc_length_scale, 'm')
+       call log_param('inversion_babc_relax_factor', model%inversion%babc_relax_factor)
+    endif
+
+    if (deltaT_inversion) then
+       call log_param('inversion_deltaT_ocn_thck_scale', model%inversion%deltaT_ocn_thck_scale, 'm')
+       call log_param('inversion_deltaT_ocn_timescale', model%inversion%deltaT_ocn_timescale, 'yr')
+       call log_param('inversion_deltaT_ocn_temp_scale', model%inversion%deltaT_ocn_temp_scale, 'deg C')
+       if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
+          call log_param('inversion_basin_flotation_threshold', model%inversion%basin_flotation_threshold, 'm')
+          call log_param('inversion_deltaT_basin_relax', model%inversion%deltaT_basin_relax, &
+               'deg C; value toward which deltaT_basin relaxes')
+          call log_param('inversion_basin_number_mass_correction', model%inversion%basin_number_mass_correction, &
+               '0 = no mass correction')
+          call log_param('inversion_basin_mass_correction', model%inversion%basin_mass_correction, 'Gt')
+       else   ! 2D deltaT_ocn inversion
+          call log_param('inversion_deltaT_ocn_length_scale', model%inversion%deltaT_ocn_length_scale, 'm')
+       endif
+    endif
+
+  end subroutine print_inversion
 
 !--------------------------------------------------------------------------------
 
@@ -3719,60 +3773,6 @@ contains
     endif
 
   end subroutine print_glaciers
-
-!--------------------------------------------------------------------------------
-
-  subroutine handle_diagnostics(section, model)
-
-    ! Diagnostic options.
-
-    use glimmer_config
-    use glissade_types
-    implicit none
-
-    type(ConfigSection), pointer :: section
-    type(glissade_global_type)   :: model
-
-    call GetValue(section,'dm_dt_diag',   model%options%dm_dt_diag)
-    call GetValue(section,'diag_minthck', model%options%diag_minthck)
-
-  end subroutine handle_diagnostics
-
-!--------------------------------------------------------------------------------
-
-  subroutine print_diagnostics(model)
-
-    ! Diagnostic options
-
-    use glissade_types
-    use glimmer_log
-    use glissade_log_config
-
-    implicit none
-
-    type(glissade_global_type)  :: model
-
-    character(len=*), dimension(0:1), parameter :: dm_dt_diag = (/ &
-         'write dmass/dt diagnostic in units of kg/s ',  &
-         'write dmass/dt diagnostic in units of Gt/yr'/)
-
-    character(len=*), dimension(0:1), parameter :: diag_minthck = (/ &
-         'include cells with H > 0 in global diagnostics     ', &
-         'include cells with H > thklim in global diagnostics'/)
-
-    if (model%options%dm_dt_diag < 0 .or. model%options%dm_dt_diag >= size(dm_dt_diag)) then
-       call write_log('Error, dm_dt_diag out of range',GM_FATAL)
-    end if
-
-    if (model%options%diag_minthck < 0 .or. model%options%diag_minthck >= size(diag_minthck)) then
-       call write_log('Error, diag_minthck out of range',GM_FATAL)
-    end if
-
-    call log_section('diagnostics')
-    call log_option('dm_dt_diag', model%options%dm_dt_diag, dm_dt_diag(model%options%dm_dt_diag))
-    call log_option('diag_minthck', model%options%diag_minthck, diag_minthck(model%options%diag_minthck))
-
-  end subroutine print_diagnostics
 
 !--------------------------------------------------------------------------------
 
