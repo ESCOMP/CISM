@@ -1831,13 +1831,12 @@ contains
          'read friction parameter Cc from file        ', &
          'invert for basin-scale friction parameter Cc' /)
 
-    character(len=*), dimension(0:5), parameter :: effecpress_method = (/ &
+    character(len=*), dimension(0:4), parameter :: effecpress_method = (/ &
          'full overburden pressure                             ', &
-         'proportional to height above flotation               ', &
+         'reduced effecpress near pressure melting point       ', &
          'macroporous sheet; effecpress depends on bwat        ', &
          'cavity-sheet; effecpress depends on opening, closing ', &
-         'reduced effecpress where bwat > 0 (B/vP)             ', &
-         'reduced effecpress near pressure melting point       '/)
+         'reduced effecpress where bwat > 0 (B/vP)             ' /)
 
     if (model%options%whichbtrc < 0 .or. model%options%whichbtrc >= size(btrc_method)) then
        call write_log('Error, btrc_method out of range',GM_FATAL)
