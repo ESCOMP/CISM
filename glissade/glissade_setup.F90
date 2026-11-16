@@ -77,16 +77,19 @@ contains
 
     ! read configuration file
     call glissade_readconfig (model,config)
-    call glissade_printconfig(model)
-
-    ! read sigma levels from config file, if present
-    call glissade_read_sigma(model,config)
 
     ! optionally, read zocn levels from config file, if present, or compute them from dzocn
     call glissade_get_zocn(model,config)
 
     ! optionally, read zatm levels from config file, if present
     call glissade_get_zatm(model,config)
+
+    ! write the configuration to the log
+    call glissade_printconfig(model,config)
+
+    ! read sigma levels from config file, if present
+    ! Note: The sigma levels are written to the log when they are computed (glissade_load_sigma).
+    call glissade_read_sigma(model,config)
 
     !WHL - Moved isostasy configuration to glissade_setup
 !    call isos_readconfig(model%isos,config)
@@ -130,6 +133,15 @@ contains
     ! local variables
     type(ConfigSection), pointer :: section
 
+    ! The sections are read in the order in which they are written to the log (glissade_printconfig).
+    ! A section is read whenever it is present; if it is absent, its keys keep their default values.
+    ! Note: The presence of a section does not turn on its feature; the feature's switch does
+    !       (e.g., isostasy, lateral_melt_method, bwat_method, enable_glaciers).
+    !       The handlers only read values, so reading a section for a feature that is off
+    !       has no effect on the results.
+    ! Note: The [grid_ocn] and [grid_atm] sections are read by glissade_get_zocn and glissade_get_zatm,
+    !       and [sigma] by glissade_read_sigma.
+
     ! read grid size parameters
     call GetSection(config,section,'grid')
     if (associated(section)) then
@@ -142,12 +154,17 @@ contains
        call handle_time(section, model)
     end if
 
+    ! read diagnostic options
+    call GetSection(config,section,'diagnostics')
+    if (associated(section)) then
+       call handle_diagnostics(section, model)
+    end if
+
     ! read options
     call GetSection(config,section,'options')
     if (associated(section)) then
        call handle_options(section, model)
     end if
-
 
     ! External dycores (BISICLES, Albany-FELIX) are no longer supported
     call GetSection(config,section,'external_dycore_options')
@@ -173,12 +190,6 @@ contains
        call handle_initialization(section, model)
     end if
 
-    ! read diagnostic options
-    call GetSection(config,section,'diagnostics')
-    if (associated(section)) then
-       call handle_diagnostics(section, model)
-    end if
-
     ! read velocity options (Stokes approximation, viscosity, surface gradient)
     call GetSection(config,section,'velocity')
     if (associated(section)) then
@@ -197,16 +208,16 @@ contains
        call handle_advection(section, model)
     end if
 
-    ! read flow law options and parameters
-    call GetSection(config,section,'flow_law')
-    if (associated(section)) then
-       call handle_flow_law(section, model)
-    end if
-
     ! read temperature options and parameters
     call GetSection(config,section,'temperature')
     if (associated(section)) then
        call handle_temperature(section, model)
+    end if
+
+    ! read flow law options and parameters
+    call GetSection(config,section,'flow_law')
+    if (associated(section)) then
+       call handle_flow_law(section, model)
     end if
 
     ! read basal physics (sliding laws and basal friction parameters)
@@ -215,16 +226,16 @@ contains
        call handle_basal_physics(section, model)
     end if
 
+    ! read basal hydrology info
+    call GetSection(config,section,'basal_hydro')
+    if (associated(section)) then
+       call handle_basal_hydro(section, model)
+    end if
+
     ! read grounding-line options
     call GetSection(config,section,'grounding_line')
     if (associated(section)) then
        call handle_grounding_line(section, model)
-    end if
-
-    ! read surface climate forcing (SMB, surface temperature)
-    call GetSection(config,section,'climate')
-    if (associated(section)) then
-       call handle_climate(section, model)
     end if
 
     ! read basal melting of floating ice
@@ -233,47 +244,10 @@ contains
        call handle_basal_melt(section, model)
     end if
 
-    ! read ocean data (thermal forcing) used by the basal melt parameterizations
-    call GetSection(config,section,'ocean_data')
-    if (associated(section)) then
-       call handle_ocean_data(section, model)
-    end if
-
     ! read calving
     call GetSection(config,section,'calving')
     if (associated(section)) then
        call handle_calving(section, model)
-    end if
-
-    ! read ice removal (other than calving)
-    call GetSection(config,section,'removal')
-    if (associated(section)) then
-       call handle_removal(section, model)
-    end if
-
-    ! read inversion parameters (basal friction and ocean temperature inversions)
-    call GetSection(config,section,'inversion')
-    if (associated(section)) then
-       call handle_inversion(section, model)
-    end if
-
-    ! read geothermal heat flux options
-    call GetSection(config,section,'geothermal')
-    if (associated(section)) then
-       call handle_geothermal(section, model)
-    end if
-
-
-    ! Read the sections for optional features whenever they are present.
-    ! Note: A section's presence does not turn its feature on; the feature's switch does.
-    !       If a section is absent, its parameters keep their default values.
-    !       The handlers only read values, so reading a section for a feature that is off
-    !       has no effect on the results.
-
-    ! read isostasy
-    call GetSection(config,section,'isostasy')
-    if (associated(section)) then
-       call handle_isostasy(section, model)
     end if
 
     ! read lateral melt info
@@ -282,10 +256,40 @@ contains
        call handle_lateral_melt(section, model)
     end if
 
-    ! read basal hydrology info
-    call GetSection(config,section,'basal_hydro')
+    ! read ice removal (other than calving)
+    call GetSection(config,section,'removal')
     if (associated(section)) then
-       call handle_basal_hydro(section, model)
+       call handle_removal(section, model)
+    end if
+
+    ! read surface climate forcing (SMB, surface temperature)
+    call GetSection(config,section,'climate')
+    if (associated(section)) then
+       call handle_climate(section, model)
+    end if
+
+    ! read ocean data (thermal forcing) used by the basal melt parameterizations
+    call GetSection(config,section,'ocean_data')
+    if (associated(section)) then
+       call handle_ocean_data(section, model)
+    end if
+
+    ! read geothermal heat flux options
+    call GetSection(config,section,'geothermal')
+    if (associated(section)) then
+       call handle_geothermal(section, model)
+    end if
+
+    ! read isostasy options and parameters
+    call GetSection(config,section,'isostasy')
+    if (associated(section)) then
+       call handle_isostasy(section, model)
+    end if
+
+    ! read inversion parameters (basal friction and ocean temperature inversions)
+    call GetSection(config,section,'inversion')
+    if (associated(section)) then
+       call handle_inversion(section, model)
     end if
 
     ! read glacier info
@@ -306,17 +310,24 @@ contains
 
 !-------------------------------------------------------------------------
 
-  subroutine glissade_printconfig(model)
+  subroutine glissade_printconfig(model, config)
 
-    !> print model configuration to log
+    !> print model configuration to log, one config section at a time
+    !> Order: grid, time and run-level choices; the dynamical core (velocity, advection, temperature);
+    !> physics from the ice interior to the bed to floating ice and other ice removal; external forcing
+    !> from the atmosphere, ocean and solid Earth; and other sections.
+    !> Note: The sigma levels are written later, when they are computed (glissade_load_sigma).
     use glimmer_log
+    use glimmer_config
     use glissade_types
     implicit none
     type(glissade_global_type)  :: model !> model instance
+    type(ConfigSection), pointer :: config  !> structure holding sections of configuration file
 
     call write_log_div
     call print_grid(model)
     call print_time(model)
+    call print_diagnostics(model)
     call print_options(model)
     call print_numerics(model)
     call print_constants(model)
@@ -324,22 +335,23 @@ contains
     call print_velocity(model)
     call print_velocity_solver(model)
     call print_advection(model)
-    call print_flow_law(model)
     call print_temperature(model)
+    call print_flow_law(model)
     call print_basal_physics(model)
     call print_basal_hydro(model)
     call print_grounding_line(model)
     call print_basal_melt(model)
-    call print_ocean_data(model)
-    call print_climate(model)
     call print_calving(model)
-    call print_removal(model)
     call print_lateral_melt(model)
-    call print_inversion(model)
+    call print_removal(model)
+    call print_grid_atm(model, config)
+    call print_climate(model)
+    call print_grid_ocn(model, config)
+    call print_ocean_data(model)
     call print_geothermal(model)
     call print_isostasy(model)
+    call print_inversion(model)
     call print_glaciers(model)
-    call print_diagnostics(model)
 
   end subroutine glissade_printconfig
 
@@ -563,13 +575,12 @@ contains
   subroutine glissade_get_zocn(model,config)
 
     ! Read ocean grid information, if present, from the config file.
-    ! Called after glissade_readconfig
+    ! Called after glissade_readconfig and before glissade_printconfig (see print_grid_ocn)
 
     use glissade_types
     use glimmer_config
     use glimmer_log
     use cism_parallel, only: main_task
-    use glissade_log_config
 
     implicit none
 
@@ -622,16 +633,6 @@ contains
           enddo
        endif
 
-       call log_section('grid_ocn')
-       call log_param('nzocn', model%ocean_data%nzocn)
-       if (model%ocean_data%dzocn > 0.0d0) then
-          call log_param('dzocn', model%ocean_data%dzocn, 'm; uniform level spacing')
-          call log_list('zocn', model%ocean_data%zocn, 'm; computed from dzocn')
-       else
-          call log_list('zocn', model%ocean_data%zocn, 'm')
-       endif
-       call log_param('nbasin', model%ocean_data%nbasin)
-
     else    ! no 'grid_ocn' section
 
        ! Allocate and initialize model%ocean_data%zocn.
@@ -656,14 +657,13 @@ contains
   subroutine glissade_get_zatm(model,config)
 
     ! Read atmosphere grid information, if present, from the config file.
-    ! Called after glissade_readconfig
+    ! Called after glissade_readconfig and before glissade_printconfig (see print_grid_atm)
 
     use glissade_types
     use glimmer_config
     use glimmer_log
     use cism_parallel, only: main_task
 
-    use glissade_log_config
     implicit none
 
     type(glissade_global_type) :: model        !> model instance
@@ -727,16 +727,64 @@ contains
 
     endif   ! associated(section)
 
-    if (model%climate%nzatm > 1) then
-       call log_section('grid_atm')
-       if (.not.associated(section)) then
-          call log_comment('no [grid_atm] section; using the standard CESM elevation classes')
-       endif
-       call log_param('nzatm', model%climate%nzatm)
-       call log_list('zatm', model%climate%zatm, 'm')
-    endif
-
   end subroutine glissade_get_zatm
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_grid_ocn(model, config)
+
+    ! Ocean grid ([grid_ocn]; read by glissade_get_zocn), written if the section is present
+
+    use glissade_types
+    use glimmer_config
+    use glissade_log_config
+    implicit none
+    type(glissade_global_type)   :: model
+    type(ConfigSection), pointer :: config
+
+    type(ConfigSection), pointer :: section
+
+    call GetSection(config,section,'grid_ocn')
+    if (.not.associated(section)) return
+
+    call log_section('grid_ocn')
+    call log_param('nzocn', model%ocean_data%nzocn)
+    if (model%ocean_data%dzocn > 0.0d0) then
+       call log_param('dzocn', model%ocean_data%dzocn, 'm; uniform level spacing')
+       call log_list('zocn', model%ocean_data%zocn, 'm; computed from dzocn')
+    else
+       call log_list('zocn', model%ocean_data%zocn, 'm')
+    endif
+    call log_param('nbasin', model%ocean_data%nbasin)
+
+  end subroutine print_grid_ocn
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_grid_atm(model, config)
+
+    ! Atmosphere grid ([grid_atm]; read or set by glissade_get_zatm), written if there is more than one level
+
+    use glissade_types
+    use glimmer_config
+    use glissade_log_config
+    implicit none
+    type(glissade_global_type)   :: model
+    type(ConfigSection), pointer :: config
+
+    type(ConfigSection), pointer :: section
+
+    if (model%climate%nzatm <= 1) return
+
+    call GetSection(config,section,'grid_atm')
+    call log_section('grid_atm')
+    if (.not.associated(section)) then
+       call log_comment('no [grid_atm] section; using the standard CESM elevation classes')
+    endif
+    call log_param('nzatm', model%climate%nzatm)
+    call log_list('zatm', model%climate%zatm, 'm')
+
+  end subroutine print_grid_atm
 
 !--------------------------------------------------------------------------------
 
