@@ -178,8 +178,10 @@ config.set('grid', 'global_bc', str(options.global_bc))
 # By default, this cell lies midway along the y-axis, near the right edge of the domain.
 idiag = int(7*nx/8)
 jdiag = int(ny/2)
-config.set('time', 'idiag', str(idiag))
-config.set('time', 'jdiag', str(jdiag))
+if not config.has_section('diagnostics'):
+    config.add_section('diagnostics')
+config.set('diagnostics', 'idiag', str(idiag))
+config.set('diagnostics', 'jdiag', str(jdiag))
 print('idiag:',idiag)
 print('jdiag:',jdiag)
 
@@ -492,10 +494,10 @@ for expt in experiments:
     #       needs to be written every 10 years to satisfy plotting criteria.
     if expt != 'Spinup':
         config.set('time', 'dt',      str(min(options.timestep, 2.)))
-        config.set('time', 'dt_diag', str(min(options.timestep, 2.)))
+        config.set('diagnostics', 'dt_diag', str(min(options.timestep, 2.)))
     else:
         config.set('time', 'dt',      str(options.timestep))
-        config.set('time', 'dt_diag', str(options.timestep))
+        config.set('diagnostics', 'dt_diag', str(options.timestep))
 
     # Set the start and end times.
     config.set('time', 'tstart', str(tstart))

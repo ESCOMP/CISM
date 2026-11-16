@@ -267,6 +267,10 @@ MOVES = {
     ('parameters', 'adjust_topg_max_adjust'): ('initialization', 'adjust_topg_max_adjust'),
     ('parameters', 'adjust_topg_delta'): ('initialization', 'adjust_topg_delta'),
     # [diagnostics]
+    ('time', 'dt_diag'): ('diagnostics', 'dt_diag'),
+    ('time', 'ndiag'): ('diagnostics', 'ndiag'),
+    ('time', 'idiag'): ('diagnostics', 'idiag'),
+    ('time', 'jdiag'): ('diagnostics', 'jdiag'),
     ('options', 'dm_dt_diag'): ('diagnostics', 'dm_dt_diag'),
     ('options', 'diag_minthck'): ('diagnostics', 'diag_minthck'),
     # [isostasy], [lateral_melt], [glaciers]: section switches move in; keys renamed in place

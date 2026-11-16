@@ -10,10 +10,7 @@ global_bc = 1     # 1 = outflow BCs
 tstart = 0.
 tend = 1000.0
 dt = 1.0
-dt_diag = 1.0
 adaptive_cfl_threshold = 0.5
-idiag = 162
-jdiag = 311
 
 [options]
 dycore = 2              # 0 = glide, 2 = glissade
@@ -90,6 +87,9 @@ grav = 9.81	                # gravitational acceleration
 
 [diagnostics]
 dm_dt_diag = 1          # 0 = kg/s, 1 = Gt/yr
+dt_diag = 1.0
+idiag = 162
+jdiag = 311
 
 [CF default]
 comment = created with calvingMIP.Setup.py

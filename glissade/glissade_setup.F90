@@ -731,14 +731,6 @@ contains
     call GetValue(section,'adaptive_cfl_threshold', model%numerics%adaptive_cfl_threshold)
     call GetValue(section,'ntem',model%numerics%ntem)
 
-    call GetValue(section,'idiag',model%numerics%idiag)
-    call GetValue(section,'jdiag',model%numerics%jdiag)
-
-    !Note: Either dt_diag or ndiag can be specified in the config file.
-    !      If dt_diag is specified, it is used to compute ndiag. (Output is written every ndiag timesteps.)
-    call GetValue(section,'dt_diag',model%numerics%dt_diag)
-    call GetValue(section,'ndiag',model%numerics%ndiag)
-
     ! If the time step was entered in number of steps per year, then set the timestep in years.
     ! If the time step was entered in years, then set nsteps_per_year.
     if (model%options%dt_input_option == DT_STEPS_PER_YEAR) then
@@ -786,12 +778,6 @@ contains
        call write_log('ntem is a multiplier on the basic time step.  It should be a positive integer.  Aborting.',GM_FATAL)
     endif
 
-    if (model%numerics%idiag < 1 .or. model%numerics%idiag > model%general%ewn     &
-                                        .or.                                                     &
-        model%numerics%jdiag < 1 .or. model%numerics%jdiag > model%general%nsn) then
-        call write_log('Error, global diagnostic point (idiag, jdiag) is out of bounds', GM_FATAL)
-    endif
-
     ! Note: With adaptive CFL subcycling, subcyc is set to 1; subcycling is adaptive only.
     note = ''
     if (model%numerics%adaptive_cfl_threshold > 0.0d0) then
@@ -816,14 +802,6 @@ contains
     call log_param('adaptive_cfl_threshold', model%numerics%adaptive_cfl_threshold, &
          'advection is subcycled when CFL exceeds this value; 0 = no adaptive subcycling')
     call log_param('subcyc', model%numerics%subcyc, note)
-    if (model%numerics%dt_diag > 0.d0) then
-       call log_param('dt_diag', model%numerics%dt_diag, 'yr')
-    elseif (model%numerics%ndiag > 0) then
-       call log_param('ndiag', model%numerics%ndiag, 'time steps')
-    else
-       call log_param('dt_diag', model%numerics%dt_diag, 'yr; 0 = no diagnostic output')
-    endif
-    ! Note: idiag and jdiag are written to the log in glissade_init_diag.
 
   end subroutine print_time
 
@@ -831,7 +809,8 @@ contains
 
   subroutine handle_diagnostics(section, model)
 
-    ! Diagnostic options.
+    ! Diagnostic options: how often diagnostics are written, the diagnostic point,
+    ! and the units and cells used for the global diagnostics.
 
     use glimmer_config
     use glissade_types
@@ -840,6 +819,12 @@ contains
     type(ConfigSection), pointer :: section
     type(glissade_global_type)   :: model
 
+    !Note: Either dt_diag or ndiag can be specified in the config file.
+    !      If dt_diag is specified, it is used to compute ndiag. (Output is written every ndiag timesteps.)
+    call GetValue(section,'dt_diag',      model%numerics%dt_diag)
+    call GetValue(section,'ndiag',        model%numerics%ndiag)
+    call GetValue(section,'idiag',        model%numerics%idiag)
+    call GetValue(section,'jdiag',        model%numerics%jdiag)
     call GetValue(section,'dm_dt_diag',   model%options%dm_dt_diag)
     call GetValue(section,'diag_minthck', model%options%diag_minthck)
 
@@ -875,7 +860,22 @@ contains
        call write_log('Error, diag_minthck out of range',GM_FATAL)
     end if
 
+    if (model%numerics%idiag < 1 .or. model%numerics%idiag > model%general%ewn     &
+                                        .or.                                                     &
+        model%numerics%jdiag < 1 .or. model%numerics%jdiag > model%general%nsn) then
+        call write_log('Error, global diagnostic point (idiag, jdiag) is out of bounds', GM_FATAL)
+    endif
+
     call log_section('diagnostics')
+    if (model%numerics%dt_diag > 0.d0) then
+       call log_param('dt_diag', model%numerics%dt_diag, 'yr')
+    elseif (model%numerics%ndiag > 0) then
+       call log_param('ndiag', model%numerics%ndiag, 'time steps')
+    else
+       call log_param('dt_diag', model%numerics%dt_diag, 'yr; 0 = no diagnostic output')
+    endif
+    call log_param('idiag', model%numerics%idiag, 'global i index of the diagnostic point')
+    call log_param('jdiag', model%numerics%jdiag, 'global j index of the diagnostic point')
     call log_option('dm_dt_diag', model%options%dm_dt_diag, dm_dt_diag(model%options%dm_dt_diag))
     call log_option('diag_minthck', model%options%diag_minthck, diag_minthck(model%options%diag_minthck))
 

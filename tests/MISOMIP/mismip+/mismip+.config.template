@@ -10,7 +10,6 @@ global_bc = 0
 tstart = 0.
 tend = 20000.0
 dt = 0.5
-dt_diag = 0.5
 #idiag = 5
 #jdiag = 5
 
@@ -81,6 +80,9 @@ ice_limit = 1.                  #min thickness (m) for dynamics
 rhoi = 918.0            # MISMIP+ ice density
 rhoo = 1028.0           # MISMIP+ ocean density
 grav = 9.8              # MISMIP+ gravitational acceleration
+
+[diagnostics]
+dt_diag = 0.5
 
 [CF default]
 comment = created with mismip+Init.py 

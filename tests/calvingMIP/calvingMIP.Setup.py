@@ -234,15 +234,17 @@ config.set('grid', 'dns', str(dy))
 
 # Set the timestep
 config.set('time', 'dt',      str(args.timestep))
-config.set('time', 'dt_diag', str(args.timestep))
+if not config.has_section('diagnostics'):
+    config.add_section('diagnostics')
+config.set('diagnostics', 'dt_diag', str(args.timestep))
 
 # Set the diagnostic cell
 # By default, this cell lies just to the right of the x-axis, near the
 # northern boundary of the domain.
 idiag = int(nx/2) + 1
 jdiag = int(nx/2) + int(cf_radius/dy)
-config.set('time', 'idiag', str(idiag))
-config.set('time', 'jdiag', str(jdiag))
+config.set('diagnostics', 'idiag', str(idiag))
+config.set('diagnostics', 'jdiag', str(jdiag))
 print('idiag:',idiag)
 print('jdiag:',jdiag)
 
