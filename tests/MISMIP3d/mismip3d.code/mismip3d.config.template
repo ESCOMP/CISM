@@ -53,11 +53,13 @@ flow_factor_float = 1.
 default_flwa = 3.1536e-18
 
 [basal_physics]
-sliding_law = 10                # 9 = Powerlaw, 11 = Coulomb w/const basal flwa, 12= Tsai
-effecpress_method = 3           # ocean connection
+sliding_law = 10                # 10 = Coulomb friction (Schoof 2005) with effective pressure
+use_c_space_factor = .true.     # beta is multiplied by c_space_factor (the P75S friction perturbation)
+effecpress_method = 0           # 0 = overburden; the ocean connection is set by p_ocean_penetration
 coulomb_c_const = 0.2332
 coulomb_bump_max_slope = 0.5    ; maximum bed obstacle slope
 coulomb_bump_wavelength = 2.0   ; bedrock wavelength
+flwa_basal_const = 1.0e-16      ; flow factor at the bed (Pa^-3 yr^-1)
 p_ocean_penetration = 0.        ; p values for coulomb friction law
 
 [grounding_line]

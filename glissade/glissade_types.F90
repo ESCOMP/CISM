@@ -2171,6 +2171,8 @@ module glissade_types
      !TODO - Remove these constants? They are used for babc option HO_BABC_COULOMB_FRICTION,
      !       which is functionally equivalent to the Schoof law.
      real(dp) :: coulomb_bump_wavelength = 2.0d0 !> bedrock wavelength at subgrid scale precision (m)
+     real(dp) :: flwa_basal_const = 1.0d-16      !> flow factor at the bed for sliding_law = 10 (Pa^{-n} yr^{-1});
+                                                 !> 1.0e-16 Pa^-3 yr^-1 = 3.1688e-24 Pa^-3 s^-1, as in MISMIP3d (Leguy et al.)
      real(dp) :: coulomb_bump_max_slope = 0.5d0  !> maximum bed bump slope at subgrid scale precision (no dimension)
 
      ! parameter to limit the min value of beta for various power laws

@@ -72,7 +72,7 @@ contains
        ewn,           nsn,           &
        thisvel,       othervel,      &
        basal_physics,                &
-       flwa_basal,    thck,          &
+       thck,                         &
        topg,          eus,           &
        ice_mask,                     &
        land_mask,                    &
@@ -109,7 +109,6 @@ contains
   real(dp), intent(in)                    :: dew, dns           ! m
   real(dp), intent(in), dimension(:,:)    :: thisvel, othervel  ! basal velocity components (m/yr)
   type(glissade_basal_physics_type), intent(in)   :: basal_physics      ! basal physics object
-  real(dp), intent(in), dimension(:,:)    :: flwa_basal         ! flwa for the basal ice layer (Pa^{-3} yr^{-1})
   real(dp), intent(in), dimension(:,:)    :: thck               ! ice thickness (m)
   real(dp), intent(in), dimension(:,:)    :: topg               ! bed topography (m)
   real(dp), intent(in)                    :: eus                ! eustatic sea level (m) relative to z = 0
@@ -153,12 +152,9 @@ contains
   real(dp) :: n                 ! exponent n in Schoof law
 
   integer, dimension(size(thck,1), size(thck,2)) :: &
-       ice_or_land_mask,   & ! = 1 where ice_mask = 1 or land_mask = 1, else = 0       
-       imask                 ! = 1 where thck > 0, else = 1
+       ice_or_land_mask      ! = 1 where ice_mask = 1 or land_mask = 1, else = 0
 
-  real(dp), dimension(size(beta,1), size(beta,2)) ::  &
-       big_lambda,         & ! bedrock characteristics
-       flwa_basal_stag       ! basal flwa interpolated to the staggered grid (Pa^{-n} yr^{-1})
+  real(dp) :: big_lambda     ! bedrock characteristics (m Pa^{-n} yr^{-1})
 
   ! stress variables for power laws and Coulomb laws
   real(dp) :: tau_p          ! basal stress for power law (Pa)
@@ -456,8 +452,8 @@ contains
 
     case(HO_BABC_COULOMB_FRICTION)
 
-      ! TODO: Remove this option; effectively the same as the Schoof option below
-      !       Might need to modify MISMIP test config files that use this option
+      ! Note: This option is similar to the Schoof option below, but it is kept because the MISMIP3d test
+      !       (tests/MISMIP3d) uses it, following the setup of Leguy et al.
 
       ! Basal stress representation using Schoof sliding law with Coulomb friction
       ! See Schoof 2005 PRS, eqn. 6.2  (see also Pimentel, Flowers & Schoof 2010 JGR)
@@ -466,21 +462,10 @@ contains
        m_max = basal_physics%coulomb_bump_max_slope       ! maximum bed obstacle slope(unitless)
        lambda_max = basal_physics%coulomb_bump_wavelength ! wavelength of bedrock bumps (m)
 
-       ! Need flwa of the basal layer on the staggered grid
-       !TODO - Pass in ice_mask instead of computing imask here?
-       !       (Small difference: ice_mask = 1 where thck > thklim rather than thck > 0)
-       where (thck > 0.d0)
-          imask = 1
-       elsewhere
-          imask = 0
-       end where
-       call glissade_stagger(ewn,         nsn,               &
-                             flwa_basal,  flwa_basal_stag,   &
-                             imask,       stagger_margin_in = 1)
-       ! TODO Not sure if a halo update is needed on flwa_basal_stag!  I don't think so if nhalo>=2.
-
-       ! Compute biglambda = wavelength of bedrock bumps [m] * flwa [Pa^-n yr^-1] / max bed obstacle slope [dimensionless]
-       big_lambda(:,:) = (lambda_max / m_max) * flwa_basal_stag(:,:)
+       ! Compute big_lambda = wavelength of bedrock bumps [m] * flwa [Pa^-n yr^-1] / max bed obstacle slope [dimensionless]
+       ! Note: The flow factor at the bed is a constant, flwa_basal_const (default 1.0e-16 Pa^-3 yr^-1, as in the
+       !       MISMIP3d experiments of Leguy et al.), not the flow factor of the basal ice layer.
+       big_lambda = (lambda_max / m_max) * basal_physics%flwa_basal_const
 
        ! Note: For MISMIP3D, coulomb_c is multiplied by a spatial factor (c_space_factor) which is
        !       read in during initialization. This factor is typically between 0 and 1.

@@ -2150,7 +2150,6 @@
                nx,            ny,                &
                ubas,          vbas,              &
                model%basal_physics,              &
-               flwa(nz-1,:,:),                   &  ! basal flwa layer
                thck,                             &
                topg,          eus,               &
                ice_mask,                         &

@@ -1759,6 +1759,7 @@ contains
     call GetValue(section,'friction_powerlaw_k',     model%basal_physics%friction_powerlaw_k)
     call GetValue(section,'coulomb_bump_max_slope',  model%basal_physics%coulomb_bump_max_slope)
     call GetValue(section,'coulomb_bump_wavelength', model%basal_physics%coulomb_bump_wavelength)
+    call GetValue(section,'flwa_basal_const',        model%basal_physics%flwa_basal_const)
 
     ! effective pressure: penetration of ocean water pressure
     call GetValue(section,'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
@@ -2008,6 +2009,7 @@ contains
        call log_param('coulomb_c_const', model%basal_physics%coulomb_c_const)
        call log_param('coulomb_bump_max_slope', model%basal_physics%coulomb_bump_max_slope)
        call log_param('coulomb_bump_wavelength', model%basal_physics%coulomb_bump_wavelength, 'm')
+       call log_param('flwa_basal_const', model%basal_physics%flwa_basal_const, 'Pa^-3 yr^-1; flow factor at the bed')
     elseif (model%options%which_ho_babc == HO_BABC_SCHOOF) then
        ! Note: The Schoof and Tsai laws often invert for a spatially variable powerlaw_c or coulomb_c.
        !       If so, the values written here are just the initial values.

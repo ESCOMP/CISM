@@ -17,7 +17,6 @@ from netCDF4 import Dataset
 # string constants and parameters #
 ###################################
 
-templateJobScriptFile = 'runCISM.cheyenne.template'  # template job submission script
 
 
 ####################################
@@ -40,20 +39,6 @@ def computeBasalPerturbation(x,y,xGL):
     return Cspatial
 
 
-# This function is used to replace a string by another in a file.
-def replace_string(file, oldString, newString):
-    # Replace the first instance of oldString with newString in the input file.
-    stringFound = False
-    for line in fileinput.FileInput(file, inplace=True):
-        if (not stringFound) and (oldString in line):
-            line = line.replace(oldString, newString)
-            stringFound = True
-            print( line,)
-        else:
-            print( line,)
-
-
-
 ########
 # Code #
 ########
@@ -65,8 +50,6 @@ parser = ArgumentParser()
 parser.add_argument('-e', '--exec',     dest='executable', type =str, default='./cism_driver', help='Path to the CISM executable')
 parser.add_argument('-x', '--expt',     dest='experiment', type=str,  default='all', help='MISMIP3d experiment(s) to run', metavar='EXPT')
 parser.add_argument('-n', '--parallel', dest='parallel',   type=int, help='Number of processors: if specified then run in parallel', metavar='NUMPROCS')
-parser.add_argument('--job',     action="store_true", dest='jobscript', help='option to set up a script to run on HPC')
-parser.add_argument('--submit',  action="store_true", dest='jobsubmit', help='option to submit the run script directly after executing this script')
 
 options = parser.parse_args()
 
@@ -82,12 +65,6 @@ elif options.experiment in ['Stnd', 'P75S', 'P75R']:
 else:
     sys.exit('Please specify experiment(s) from this list: Stnd, P75S, P75R')
 
-
-if (options.jobsubmit) and (not options.jobscript):
-    print( 'You are trying to submit a batch job without the job option. No job will be submitted.')
-
-if (options.parallel is not None) and (options.jobscript):
-    print( 'The number of processors will not be taken into account as you will be submitting a batch job script.')
 
 restart = 0  # constant meant to keep track of restart status.
 
@@ -196,7 +173,7 @@ for expt in experiments:
             print( 'writing peturbation to C_space_factor')
             for i in range(nx):
                 for j in range(ny):
-                     infile.variables['C_space_factor'][-1,j,i] = computeBasalPerturbation(x0[i]/1000,y0[j]/1000,xGL/1000)
+                     infile.variables['c_space_factor'][-1,j,i] = computeBasalPerturbation(x0[i]/1000,y0[j]/1000,xGL/1000)
 
             # We first check that the variable "internal_time" from the Stnd restart file has 0 for its last entry.
             lastentry = infile['internal_time'][-1]
@@ -211,7 +188,7 @@ for expt in experiments:
         if (expt == 'P75R') and (restart==0):
              infile = Dataset(inputfile,'r+')
              print( 'opening inputfile ',inputfile)
-             infile.variables['C_space_factor'][:,:,:] = 1
+             infile.variables['c_space_factor'][:,:,:] = 1
 
              lastentry = infile['internal_time'][-1]
              if lastentry != 0:
@@ -227,114 +204,7 @@ for expt in experiments:
 
 
 
-    # Checking whether we want to submit a job script on HPC.
-    if options.jobscript:
-        
-        # New job submission script for current experiment.
-        newJobScriptFile = 'runCISM.cheyenne.' + expt
-
-        # Make a copy of the job submission script.
-        try:
-            shutil.copy('../' +  templateJobScriptFile, newJobScriptFile)
-        except:
-            sys.exit('Could not copy ' +  templateJobScriptFile)
-    
-        print( 'Created master job submission script ', newJobScriptFile, ' for experiment ', expt)
-
-
-        # Modifying the walltime and computing power based on resolution (and Bill's experience).
-        walltimeLook = '#PBS -l walltime=00:01:00'
-        HPCpowerLook = '#PBS -l select=1:ncpus=1:mpiprocs=1'
-
-        # Obtain the resolution from config file.
-        res = config.get('grid', 'dew')
-
-        if res=='8000.0':
-            if (expt=='Stnd') or (expt=='P75R'):
-                walltimeReplace = '#PBS -l walltime=00:05:00'
-                HPCpowerReplace = '#PBS -l select=1:ncpus=36:mpiprocs=36'
-            else:
-                walltimeReplace = '#PBS -l walltime=00:01:00'
-                HPCpowerReplace = '#PBS -l select=1:ncpus=36:mpiprocs=36'
-
-        elif res=='4000.0':
-            if (expt=='Stnd') or (expt=='P75R'):
-                walltimeReplace = '#PBS -l walltime=00:30:00'
-                HPCpowerReplace = '#PBS -l select=1:ncpus=36:mpiprocs=36'
-            else:
-                walltimeReplace = '#PBS -l walltime=00:01:00'
-                HPCpowerReplace = '#PBS -l select=1:ncpus=36:mpiprocs=36'
-
-        elif res=='2000.0':
-            if (expt=='Stnd') or (expt=='P75R'):
-                walltimeReplace = '#PBS -l walltime=02:00:00'
-                HPCpowerReplace = '#PBS -l select=2:ncpus=36:mpiprocs=36'
-            else:
-                walltimeReplace = '#PBS -l walltime=00:08:00'
-                HPCpowerReplace = '#PBS -l select=1:ncpus=36:mpiprocs=36'
-
-        elif res=='1000.0':
-            if (expt=='Stnd') or (expt=='P75R'):
-                walltimeReplace = '#PBS -l walltime=06:00:00'
-                HPCpowerReplace = '#PBS -l select=3:ncpus=36:mpiprocs=36'
-            else:
-                walltimeReplace = '#PBS -l walltime=00:05:00'
-                HPCpowerReplace = '#PBS -l select=3:ncpus=36:mpiprocs=36'
-
-        elif res=='500.0':
-            if (expt=='Stnd') or (expt=='P75R'):
-                walltimeReplace = '#PBS -l walltime=10:00:00'
-                HPCpowerReplace = '#PBS -l select=4:ncpus=36:mpiprocs=36'
-            else:
-                walltimeReplace = '#PBS -l walltime=00:05:00'
-                HPCpowerReplace = '#PBS -l select=4:ncpus=36:mpiprocs=36'
-
-        elif res=='250.0':
-            if (expt=='Stnd') or (expt=='P75R'):
-                walltimeReplace = '#PBS -l walltime=10:00:00'
-                HPCpowerReplace = '#PBS -l select=6:ncpus=36:mpiprocs=36'
-            else:
-                walltimeReplace = '#PBS -l walltime=00:05:00'
-                HPCpowerReplace = '#PBS -l select=6:ncpus=36:mpiprocs=36'
-
-        else:
-            sys.exit('You are running with a customized resolution or one that is not supported. Adjust the job script manually')
-
-
-        # Replacing computing resources to the job script file.
-        try:
-            linecheck = walltimeLook
-            replace_string(newJobScriptFile, walltimeLook, walltimeReplace)
-            linecheck = HPCpowerLook
-            replace_string(newJobScriptFile, HPCpowerLook, HPCpowerReplace)
-        except:
-            print( 'this line does not exist: ', linecheck)
-            
-        # Modifying the executable line based on config file name.
-        execlineLook    = 'mpiexec_mpt ./cism_driver mismip3d.config'
-        execlineReplace = 'mpiexec_mpt ./cism_driver ' + configfile
-        try:
-            replace_string(newJobScriptFile, execlineLook, execlineReplace)
-        except:
-            print( 'this line does not exist: ', execlineLook)
-
-        if options.jobsubmit:
-            # Submitting the job.
-            try:
-                submitscriptstring = 'qsub' + ' ' + newJobScriptFile
-                print( 'submitting the batch job script ')
-                os.system(submitscriptstring)
-            except:
-                sys.exit('Could not submit job. Check if you are running this script on HPC Cheyenne.')
-
-            sys.exit('Interrupting python script execution since job got submitted')
-
-        else:
-            sys.exit('Interrupting python script execution since experiment will be run by submitting a batch job script')
-
-
-
-    # Run CISM (only if no job script is being created and/or run).
+    # Run CISM.
 
     print( 'parallel =', options.parallel)
 

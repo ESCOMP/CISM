@@ -76,6 +76,7 @@ MOVES = {
     ('ho_options', 'remove_ice_caps'): ('removal', 'remove_ice_caps'),
     ('ho_options', 'force_retreat'): ('removal', 'force_retreat'),
     # [basal_physics]
+    ('parameters', 'flwa_basal'): ('basal_physics', 'flwa_basal_const'),   # the basal flow factor for sliding_law = 10
     ('options', 'slip_coeff'): ('basal_physics', 'btrc_method'),
     ('ho_options', 'which_ho_babc'): ('basal_physics', 'sliding_law'),
     ('ho_options', 'use_c_space_factor'): ('basal_physics', 'use_c_space_factor'),
@@ -306,7 +307,6 @@ REMOVED = {
     ('parameters', 'inversion_flow_enhancement_thck_scale'): _FLOW_ENH,
     ('parameters', 'inversion_flow_enhancement_length_scale'): _FLOW_ENH,
     ('parameters', 'inversion_flow_enhancement_relax_factor'): _FLOW_ENH,
-    ('parameters', 'flwa_basal'): 'removed (unused; [basal_hydro] flwa_basal is a different key)',
     ('parameters', 'T0'): _PLUME, ('parameters', 'Tbot'): _PLUME,
     ('parameters', 'S0'): _PLUME, ('parameters', 'Sbot'): _PLUME,
     ('parameters', 'gammaT'): _PLUME, ('parameters', 'gammaS'): _PLUME,

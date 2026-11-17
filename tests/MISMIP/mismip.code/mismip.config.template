@@ -53,7 +53,7 @@ default_flwa = 1.0e-17
 
 [basal_physics]
 sliding_law = 9              # 4 = no-slip at bed, 10 = Coulomb friction law, 11 = Coulomb w/const basal flwa
-effecpress_method = 3         # 3 = ocean connection
+effecpress_method = 0         # 0 = overburden; the ocean connection is set by p_ocean_penetration
 powerlaw_m = 3
 powerlaw_c_const = 2.4131e4
 coulomb_c_const = 0.1778

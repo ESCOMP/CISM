@@ -238,7 +238,7 @@ topg = ncfile.createVariable('topg', 'f4', ('time','y1','x1'))
 acab = ncfile.createVariable('acab', 'f4', ('time','y1','x1'))
 uvel = ncfile.createVariable('uvel', 'f4', ('time','level','y0','x0'))
 vvel = ncfile.createVariable('vvel', 'f4', ('time','level','y0','x0'))
-C_space_factor = ncfile.createVariable('C_space_factor','f4',('time','y1','x1'))
+c_space_factor = ncfile.createVariable('c_space_factor','f4',('time','y1','x1'))
 kinbcmask      = ncfile.createVariable('kinbcmask',     'i4', ('time','y0','x0'))  # kinematic BC mask
 
 # Compute x and y on each grid.
@@ -281,7 +281,7 @@ kinbcmask[:,:,0]  = 1   # mask out left-most column
 kinbcmask[:,:,-1] = 1   # mask out right-most column
 
 # Set the spatially variable basal friction coefficient.
-C_space_factor[0,:,:] = 1.
+c_space_factor[0,:,:] = 1.
 
 ncfile.close()
 
@@ -368,7 +368,6 @@ for expt in experiments:
     config.set('CF restart', 'name',      restartfilename)
     config.set('CF restart', 'variables', 'restart')
     config.set('CF restart', 'frequency', str(restartfreq))
-    config.set('CF restart', 'start',     str(tstart + restartfreq))
     config.set('CF restart', 'xtype',     'double')
 
     # Write to the new config file.
