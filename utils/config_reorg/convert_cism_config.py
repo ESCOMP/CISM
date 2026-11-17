@@ -53,7 +53,6 @@ MOVES = {
     ('ho_options', 'which_ho_calving_front'): ('calving', 'subgrid_calving_front'),
     ('ho_options', 'which_ho_calvingmip_domain'): ('calving', 'calvingmip_domain'),
     ('parameters', 'marine_limit'): ('calving', 'marine_limit'),
-    ('parameters', 'calving_fraction'): ('calving', 'calving_fraction'),
     ('parameters', 'calving_timescale'): ('calving', 'calving_timescale'),
     ('parameters', 'calving_minthck'): ('calving', 'calving_minthck'),
     ('parameters', 'dthck_dx_cf'): ('calving', 'dthck_dx_cf'),
@@ -294,6 +293,7 @@ _PLUME = 'removed with the old plume model'
 _THERMAL_TS = 'removed; the vertical thermal solve is always done before transport'
 _ADJ_TOPG = 'removed with the adjust_input_topography option'
 _SMB_FACTOR = 'removed; scale the SMB in the input or forcing file instead'
+_CALVING_FRACTION = 'removed with calving_law = 2; use calving_law = 1 with calving_timescale = dt/calving_fraction'
 REMOVED = {
     ('ho_options', 'which_ho_flow_enhancement_factor'): 'removed (only the default behavior remains)',
     ('parameters', 'inversion_flow_enhancement_timescale'): _FLOW_ENH,
@@ -324,6 +324,8 @@ REMOVED = {
     ('parameters', 'adjust_topg_delta'): _ADJ_TOPG, ('initialization', 'adjust_topg_delta'): _ADJ_TOPG,
     ('parameters', 'smb_factor'): _SMB_FACTOR,
     ('climate', 'smb_factor'): _SMB_FACTOR,
+    ('parameters', 'calving_fraction'): _CALVING_FRACTION,
+    ('calving', 'calving_fraction'): _CALVING_FRACTION,
 }
 
 # Order of the Glissade sections in a converted config file: the order in which they are written

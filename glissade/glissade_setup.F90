@@ -2522,7 +2522,6 @@ contains
 
     ! calving parameters
     call GetValue(section,'marine_limit',       model%calving%marine_limit)
-    call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
     call GetValue(section,'calving_timescale',  model%calving%timescale)
     call GetValue(section,'calving_minthck',    model%calving%minthck)
     call GetValue(section,'dthck_dx_cf',        model%calving%dthck_dx_cf)
@@ -2566,7 +2565,7 @@ contains
     character(len=*), dimension(0:11), parameter :: calving_law = (/ &
          'no calving law                    ', &
          'remove all floating ice           ', &
-         'remove fraction of floating ice   ', &
+         '(removed)                         ', &
          'relaxed bedrock threshold         ', &
          'present bedrock threshold         ', &
          'calving based on grid location    ', &
@@ -2598,6 +2597,11 @@ contains
 
     if (model%options%whichcalving < 0 .or. model%options%whichcalving >= size(calving_law)) then
        call write_log('Error, calving_law out of range',GM_FATAL)
+    end if
+
+    if (model%options%whichcalving == 2) then
+       call write_log('Error, calving_law = 2 (remove a fraction of the floating ice) has been removed; ' // &
+            'use calving_law = 1 with calving_timescale = dt/calving_fraction', GM_FATAL)
     end if
 
     if (model%options%calving_init < 0 .or. model%options%calving_init >= size(calving_init)) then
@@ -2660,9 +2664,7 @@ contains
     call log_option('calving_domain', model%options%calving_domain, calving_domain(model%options%calving_domain))
 
     ! parameters of the calving law
-    if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
-       call log_param('calving_fraction', model%calving%calving_fraction, 'ice fraction lost in calving')
-    elseif (model%options%whichcalving == CALVING_RELX_THRESHOLD .or.  &
+    if (model%options%whichcalving == CALVING_RELX_THRESHOLD .or.  &
             model%options%whichcalving == CALVING_TOPG_THRESHOLD) then
        call log_param('marine_limit', model%calving%marine_limit, 'm; marine depth limit')
     elseif (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
@@ -2721,11 +2723,6 @@ contains
     if (model%options%limit_marine_cliffs) then
        call log_param('taumax_cliff', model%calving%taumax_cliff, 'Pa')
        call log_param('cliff_timescale', model%calving%cliff_timescale, 'yr')
-    endif
-
-    if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
-       write(message,*) 'WARNING: calving float fraction option deprecated with Glissade_dycore; set calving_timescale instead'
-       call write_log(message, GM_WARNING)
     endif
 
   end subroutine print_calving

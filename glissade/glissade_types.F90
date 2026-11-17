@@ -152,7 +152,8 @@ module glissade_types
 
   integer, parameter :: CALVING_NONE = 0
   integer, parameter :: CALVING_FLOAT_ZERO = 1
-  integer, parameter :: CALVING_FLOAT_FRACTION = 2
+  ! calving_law = 2 (remove a fraction of the floating ice) was removed;
+  !  use CALVING_FLOAT_ZERO with calving_timescale instead
   integer, parameter :: CALVING_RELX_THRESHOLD = 3
   integer, parameter :: CALVING_TOPG_THRESHOLD = 4
   integer, parameter :: CALVING_GRID_MASK = 5
@@ -1469,9 +1470,6 @@ module glissade_types
   
      real(dp) :: marine_limit =  -200.d0         !> value of topg/relx at which floating ice calves (m)
                                                  !> (whichcalving = CALVING_RELX_THRESHOLD, CALVING_TOPG_THRESHOLD)
-     real(dp) :: calving_fraction = 0.2d0        !> fractional thickness of floating ice that calves
-                                                 !> (whichcalving = CALVING_FLOAT_FRACTION)
-                                                 !> WHL - previously defined as the fraction of floating ice that does not calve
      real(dp) :: timescale = 0.0d0               !> timescale (yr) for calving (Glissade only); calving_thck = thck*min(dt/calving_timescale,1)
                                                  !> if calving_timescale = 0, then the full column calves at once
      real(dp) :: minthck = 0.d0                  !> minimum thickness (m) of floating ice at marine edge before it calves;

@@ -1002,8 +1002,6 @@ contains
 
 !    Note: The calving object includes the following fields and parameters used in this subroutine:
 !    real(dp), intent(in)                     :: marine_limit        !> lower limit on topography elevation at marine edge before ice calves
-!    real(dp), intent(in)                     :: calving_fraction    !> fraction of ice lost at marine edge when calving; 
-                                                                     !> used with CALVING_FLOAT_FRACTION
 !    real(dp), intent(in)                     :: timescale           !> timescale (s) for calving; calving_thck = thck * max(dt/timescale, 1)
                                                                      !> if timescale = 0, then calving_thck = thck
 !    real(dp), dimension(:,:), intent(out)    :: calving_thck        !> thickness lost due to calving in each grid cell (m)
@@ -1038,8 +1036,8 @@ contains
          calving_domain_mask     ! = T in the domain where calving is allowed to occur (e.g., at ocean edge), else = F
 
     real(dp) :: &
-         float_fraction_calve    ! = calving_fraction for which_calving = CALVING_FLOAT_FRACTION
-                                 ! = 1.0 for which_calving = CALVING_FLOAT_ZERO
+         float_fraction_calve    ! fraction of the column that calves in eligible cells;
+                                 ! = 1.0 if calving%timescale = 0, else min(dt/timescale, 1)
 
     ! initialize
 
@@ -1058,22 +1056,11 @@ contains
     call parallel_halo(thck, parallel)
 
     ! Set the thickness fraction to be removed in each calving cell
-    ! Note: The CALVING_FLOAT_FRACTION option has been superseded by the calving%timescale variable,
-    !       but is included here for consistency with Glide.
-    ! TODO: Remove CALVING_FLOAT_FRACTION option?
 
-    if (which_calving == CALVING_FLOAT_FRACTION) then
-
-       float_fraction_calve = calving%calving_fraction
-
-    else  ! other calving options
-
-       if (calving%timescale == 0.0d0) then  ! calve the entire column for eligible columns (this is the default)
-          float_fraction_calve = 1.0d0
-       else  ! calve a fraction of the column based on the calving time scale
-          float_fraction_calve = min(dt/calving%timescale, 1.0d0)
-       endif
-
+    if (calving%timescale == 0.0d0) then  ! calve the entire column for eligible columns (this is the default)
+       float_fraction_calve = 1.0d0
+    else  ! calve a fraction of the column based on the calving time scale
+       float_fraction_calve = min(dt/calving%timescale, 1.0d0)
     endif
 
     ! Do the calving based on the value of which_calving
@@ -1097,7 +1084,7 @@ contains
 
     select case (which_calving)
 
-    case(CALVING_FLOAT_ZERO, CALVING_FLOAT_FRACTION)     ! calve ice that is floating
+    case(CALVING_FLOAT_ZERO)     ! calve ice that is floating
 
        do j = 1, ny
           do i = 1, nx
