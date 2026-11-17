@@ -672,12 +672,6 @@ module glissade_types
     logical :: smooth_input_usrf = .false.
     !> if true, then apply Laplacian smoothing to usrf at initialization
 
-    logical :: smooth_input_topography = .false.
-    !> if true, then apply Laplacian smoothing to the topography at initialization
-
-    logical :: adjust_input_topography = .false.
-    !> if true, then adjust the input topography in a selected region at initialization
-
     !TODO - Change default to true? Would then specify as false for idealized runs
     logical :: read_lat_lon = .false.
     !> if true, then read lat and lon fields from the input file and write to restarts
@@ -2307,19 +2301,6 @@ module glissade_types
     real(dp) :: max_slope = 1.0d0      ! maximum surface slope allowed in Glissade dycore (unitless)
                                        ! Note: It may be necessary to reduce max_slope to ~0.1 to prevent huge velocities
                                        !       in regions of rough coastal topography
-
-    !WHL TODO - Remove the adjust_input_topography option during the config reorg
-    ! parameters for the adjust_input_topography option
-    ! Note: Depending on the sign of (adjust_topg_max_adjust - adjust_topg_no_adjust), we will either
-    !       (1) change high topography and leave low topography unchanged, or
-    !       (2) change low topography and leave high topography unchanged
-    real(dp) :: adjust_topg_xmin = 0.0d0   ! min x value (m) of the region with adjusted topography
-    real(dp) :: adjust_topg_xmax = 0.0d0   ! max x value (m) of the region with adjusted topography
-    real(dp) :: adjust_topg_ymin = 0.0d0   ! min y value (m) of the region with adjusted topography
-    real(dp) :: adjust_topg_ymax = 0.0d0   ! max y value (m) of the region with adjusted topography
-    real(dp) :: adjust_topg_no_adjust  = 0.0d0  ! elevation (m) beyond which there is no adjustment of topg
-    real(dp) :: adjust_topg_max_adjust = 0.0d0  ! elevation (m) beyond which there is full adjustment of topg
-    real(dp) :: adjust_topg_delta = 0.0d0  ! max adjustment, applied where topg > topg_hi
 
   end type glissade_paramets_type
 

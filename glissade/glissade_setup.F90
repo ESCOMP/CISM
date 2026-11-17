@@ -1099,18 +1099,7 @@ contains
 
     ! options
     call GetValue(section,'adjust_input_thickness',  model%options%adjust_input_thickness)
-    call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
     call GetValue(section,'smooth_input_usrf',       model%options%smooth_input_usrf)
-    call GetValue(section,'adjust_input_topography', model%options%adjust_input_topography)
-
-    ! parameters to adjust input topography
-    call GetValue(section,'adjust_topg_xmin',       model%paramets%adjust_topg_xmin)
-    call GetValue(section,'adjust_topg_xmax',       model%paramets%adjust_topg_xmax)
-    call GetValue(section,'adjust_topg_ymin',       model%paramets%adjust_topg_ymin)
-    call GetValue(section,'adjust_topg_ymax',       model%paramets%adjust_topg_ymax)
-    call GetValue(section,'adjust_topg_no_adjust',  model%paramets%adjust_topg_no_adjust)
-    call GetValue(section,'adjust_topg_max_adjust', model%paramets%adjust_topg_max_adjust)
-    call GetValue(section,'adjust_topg_delta',      model%paramets%adjust_topg_delta)
 
   end subroutine handle_initialization
 
@@ -1132,18 +1121,6 @@ contains
     call log_flag('adjust_input_thickness', model%options%adjust_input_thickness, &
          'if true, input thickness is adjusted based on surface and bed topography')
     call log_flag('smooth_input_usrf', model%options%smooth_input_usrf)
-    call log_flag('smooth_input_topography', model%options%smooth_input_topography)
-    call log_flag('adjust_input_topography', model%options%adjust_input_topography, &
-         'if true, input topography is adjusted in a selected region')
-    if (model%options%adjust_input_topography) then
-       call log_param('adjust_topg_xmin', model%paramets%adjust_topg_xmin, 'm')
-       call log_param('adjust_topg_xmax', model%paramets%adjust_topg_xmax, 'm')
-       call log_param('adjust_topg_ymin', model%paramets%adjust_topg_ymin, 'm')
-       call log_param('adjust_topg_ymax', model%paramets%adjust_topg_ymax, 'm')
-       call log_param('adjust_topg_no_adjust', model%paramets%adjust_topg_no_adjust, 'm')
-       call log_param('adjust_topg_max_adjust', model%paramets%adjust_topg_max_adjust, 'm')
-       call log_param('adjust_topg_delta', model%paramets%adjust_topg_delta, 'm')
-    endif
 
   end subroutine print_initialization
 

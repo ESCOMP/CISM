@@ -104,8 +104,7 @@ contains
     use glissade_bmlt_float, only: glissade_bmlt_float_init, verbose_bmlt_float
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_glacier, only: glissade_glacier_init
-    use glissade_utils, only: glissade_adjust_thickness, glissade_smooth_usrf, &
-         glissade_smooth_topography, glissade_adjust_topography
+    use glissade_utils, only: glissade_adjust_thickness, glissade_smooth_usrf
     use glissade_utils, only: glissade_basin_average, glissade_handle_ice_caps
 
     implicit none
@@ -550,18 +549,6 @@ contains
     if (model%options%smooth_input_usrf .and. model%options%is_restart == NO_RESTART) then
        call glissade_smooth_usrf(model, nsmooth = 5)
     endif   ! smooth_input_usrf
-
-    ! Optionally, smooth the input topography with a Laplacian smoother.
-
-    if (model%options%smooth_input_topography .and. model%options%is_restart == NO_RESTART) then
-       call glissade_smooth_topography(model)
-    endif   ! smooth_input_topography
-
-    ! Optionally, adjust the input topography in a specified region
-
-    if (model%options%adjust_input_topography .and. model%options%is_restart == NO_RESTART) then
-       call glissade_adjust_topography(model)
-    endif
 
     ! Initialise isostasy and handle relaxed/equilibrium topo
     call glissade_isostasy_init(model)

@@ -264,16 +264,7 @@ MOVES = {
     ('parameters', 'trpt'): ('constants', 'trpt'),
     # [initialization]
     ('options', 'adjust_input_thickness'): ('initialization', 'adjust_input_thickness'),
-    ('options', 'smooth_input_topography'): ('initialization', 'smooth_input_topography'),
     ('options', 'smooth_input_usrf'): ('initialization', 'smooth_input_usrf'),
-    ('options', 'adjust_input_topography'): ('initialization', 'adjust_input_topography'),
-    ('parameters', 'adjust_topg_xmin'): ('initialization', 'adjust_topg_xmin'),
-    ('parameters', 'adjust_topg_xmax'): ('initialization', 'adjust_topg_xmax'),
-    ('parameters', 'adjust_topg_ymin'): ('initialization', 'adjust_topg_ymin'),
-    ('parameters', 'adjust_topg_ymax'): ('initialization', 'adjust_topg_ymax'),
-    ('parameters', 'adjust_topg_no_adjust'): ('initialization', 'adjust_topg_no_adjust'),
-    ('parameters', 'adjust_topg_max_adjust'): ('initialization', 'adjust_topg_max_adjust'),
-    ('parameters', 'adjust_topg_delta'): ('initialization', 'adjust_topg_delta'),
     # [diagnostics]
     ('time', 'dt_diag'): ('diagnostics', 'dt_diag'),
     ('time', 'ndiag'): ('diagnostics', 'ndiag'),
@@ -302,6 +293,7 @@ MOVES = {
 _FLOW_ENH = 'removed with the flow-enhancement-factor inversion'
 _PLUME = 'removed with the old plume model'
 _THERMAL_TS = 'removed; the vertical thermal solve is always done before transport'
+_ADJ_TOPG = 'removed with the adjust_input_topography option'
 REMOVED = {
     ('ho_options', 'which_ho_flow_enhancement_factor'): 'removed (only the default behavior remains)',
     ('parameters', 'inversion_flow_enhancement_timescale'): _FLOW_ENH,
@@ -319,6 +311,17 @@ REMOVED = {
     ('time', 'ntem'): 'removed; the temperature is solved every time step',
     ('ho_options', 'which_ho_thermal_timestep'): _THERMAL_TS,
     ('temperature', 'thermal_timestep'): _THERMAL_TS,
+    ('options', 'smooth_input_topography'): 'removed (topography smoothing at initialization)',
+    ('initialization', 'smooth_input_topography'): 'removed (topography smoothing at initialization)',
+    ('options', 'adjust_input_topography'): _ADJ_TOPG,
+    ('initialization', 'adjust_input_topography'): _ADJ_TOPG,
+    ('parameters', 'adjust_topg_xmin'): _ADJ_TOPG, ('initialization', 'adjust_topg_xmin'): _ADJ_TOPG,
+    ('parameters', 'adjust_topg_xmax'): _ADJ_TOPG, ('initialization', 'adjust_topg_xmax'): _ADJ_TOPG,
+    ('parameters', 'adjust_topg_ymin'): _ADJ_TOPG, ('initialization', 'adjust_topg_ymin'): _ADJ_TOPG,
+    ('parameters', 'adjust_topg_ymax'): _ADJ_TOPG, ('initialization', 'adjust_topg_ymax'): _ADJ_TOPG,
+    ('parameters', 'adjust_topg_no_adjust'): _ADJ_TOPG, ('initialization', 'adjust_topg_no_adjust'): _ADJ_TOPG,
+    ('parameters', 'adjust_topg_max_adjust'): _ADJ_TOPG, ('initialization', 'adjust_topg_max_adjust'): _ADJ_TOPG,
+    ('parameters', 'adjust_topg_delta'): _ADJ_TOPG, ('initialization', 'adjust_topg_delta'): _ADJ_TOPG,
 }
 
 # Order of the Glissade sections in a converted config file: the order in which they are written
