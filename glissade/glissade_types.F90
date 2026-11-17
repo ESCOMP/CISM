@@ -2256,17 +2256,13 @@ module glissade_types
     real(dp) :: tend   =  1000.d0 !> end time
     real(dp) :: time   =     0.d0 !> main loop counter in years
     real(dp) :: tinc   =     1.d0 !> time step of main loop in years 
-    real(dp) :: ntem   =     1.d0 !> multiplier of main time step; allows longer temperature time step
     real(dp) :: thklim =   100.d0 !> min thickness for computing ice dynamics (m) 
     real(dp) :: thklim_temp = 1.d0    !> min thickness for computing vertical temperature (m) (higher-order only)
     real(dp) :: thck_gradient_ramp = 0.d0 !> thickness scale over which gradients increase from zero to full value (HO only)
     real(dp) :: dew    =    20.d3     !> grid cell size in east-west direction
     real(dp) :: dns    =    20.d3     !> grid cell size in north-south direction
     real(dp) :: dt     =     0.d0     !> ice dynamics timestep
-    real(dp) :: dttem  =     0.d0     !> temperature timestep
     integer  :: nsteps_per_year = 0   !> number of time steps per year (for dt_option = STEPS_PER_YEAR)
-    real(dp) :: dt_transport = 0.d0   !> timestep for subcycling transport within the dynamics timestep dt
-    integer  :: subcyc =     1
     real(dp) :: periodic_offset_ew = 0.d0 !> optional periodic_offsets for ismip-hom and similar tests;
     real(dp) :: periodic_offset_ns = 0.d0 !> may be needed to ensure continuous ice geometry at edges of the global domain
     integer  :: tstep_count = 0   !> number of time steps since the start of the simulation

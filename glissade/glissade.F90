@@ -1203,29 +1203,23 @@ contains
     call glissade_prepare_climate_forcing(model)
 
     ! ------------------------------------------------------------------------
-    ! Do the vertical thermal solve if it is time to do so.
+    ! Do the vertical thermal solve (every time step).
     ! Vertical diffusion and strain heating only; no temperature advection.
-    ! Note: model%numerics%tinc and model%numerics%time have units of years.
-    !       dttem has units of s, so divide by scyr to convert to years.
-    ! ------------------------------------------------------------------------ 
+    ! ------------------------------------------------------------------------
 
-    if ( model%numerics%tinc > mod(model%numerics%time, model%numerics%dttem/scyr)) then
+    if (model%options%which_ho_thermal_timestep == HO_THERMAL_BEFORE_TRANSPORT) then
 
-       if (model%options%which_ho_thermal_timestep == HO_THERMAL_BEFORE_TRANSPORT) then
+       ! vertical thermal solve before transport
+       call glissade_thermal_solve(model,  &
+                                   model%numerics%dt)
 
-          ! vertical thermal solve before transport
-          call glissade_thermal_solve(model,  &
-                                      model%numerics%dttem)
+    elseif (model%options%which_ho_thermal_timestep == HO_THERMAL_SPLIT_TIMESTEP) then
 
-       elseif (model%options%which_ho_thermal_timestep == HO_THERMAL_SPLIT_TIMESTEP) then
+       ! vertical thermal solve split into two parts, before and after transport
+       call glissade_thermal_solve(model,  &
+                                   model%numerics%dt/2.0d0)
 
-          ! vertical thermal solve split into two parts, before and after transport
-          call glissade_thermal_solve(model,  &
-                                      model%numerics%dttem/2.0d0)
-
-       endif
-
-    end if
+    endif
 
     ! ------------------------------------------------------------------------ 
     ! Compute the basal melt rate beneath floating ice.
@@ -1306,29 +1300,25 @@ contains
 
     ! ------------------------------------------------------------------------
     !TODO - Remove the thermal solve here; always do it near the start of the time step.
-    ! Do the vertical thermal solve if it is time to do so.
+    ! Do the vertical thermal solve here for thermal_timestep = 1 or 2.
     ! Note: A thermal solve should be done here (using option HO_THERMAL_AFTER_TRANSPORT 
     !       or HO_THERMAL_SPLIT_TIMESTEP) if it is desired to update the bed temperature 
     !       and pmp temperature after transport and before the velocity solve.
     ! ------------------------------------------------------------------------
 
-    if ( model%numerics%tinc > mod(model%numerics%time, model%numerics%dttem/scyr)) then
+    if (model%options%which_ho_thermal_timestep == HO_THERMAL_AFTER_TRANSPORT) then
 
-       if (model%options%which_ho_thermal_timestep == HO_THERMAL_AFTER_TRANSPORT) then
+       ! vertical thermal solve after transport
+       call glissade_thermal_solve(model,  &
+                                   model%numerics%dt)
 
-          ! vertical thermal solve after transport
-          call glissade_thermal_solve(model,  &
-                                      model%numerics%dttem)
+    elseif (model%options%which_ho_thermal_timestep == HO_THERMAL_SPLIT_TIMESTEP) then
 
-       elseif (model%options%which_ho_thermal_timestep == HO_THERMAL_SPLIT_TIMESTEP) then
+       ! vertical thermal solve split into two parts, before and after transport
+       call glissade_thermal_solve(model,  &
+                                   model%numerics%dt/2.0d0)
 
-          ! vertical thermal solve split into two parts, before and after transport
-          call glissade_thermal_solve(model,  &
-                                      model%numerics%dttem/2.0d0)
-
-       endif
-
-    end if  ! take a temperature time step
+    endif
 
     ! ------------------------------------------------------------------------
     ! Calculate diagnostic variables, including ice velocity
@@ -1838,7 +1828,7 @@ contains
                                model%geometry%stagthck,                                                        &
                                model%geomderv%dusrfdew,           model%geomderv%dusrfdns,                     &
                                model%velocity%uvel * scyr,        model%velocity%vvel * scyr,                  & ! m/yr
-                               model%numerics%dt_transport / scyr,                                             & ! yr
+                               model%numerics%dt / scyr,                                                       & ! yr
                                model%numerics%adaptive_cfl_threshold,                                          &
                                model%numerics%adv_cfl_dt,         model%numerics%diff_cfl_dt)
 
@@ -1889,8 +1879,8 @@ contains
              call glissade_finalise(model, forcewrite_arg=.true.)
              stop
           else
-             nsubcyc = model%numerics%subcyc
-             dt_transport = model%numerics%dt_transport
+             nsubcyc = 1
+             dt_transport = model%numerics%dt
           endif
 
        endif

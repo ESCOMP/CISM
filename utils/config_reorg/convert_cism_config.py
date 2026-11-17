@@ -315,6 +315,8 @@ REMOVED = {
     ('ho_options', 'deltaT_ocn_extrapolate'): 'removed (deltaT_ocn is no longer extrapolated)',
     ('isostasy', 'lithosphere_period'): 'removed; see load_update_interval in [isostasy]',
     ('options', 'enable_acab_anomaly'): 'removed; see enable_smb_anomaly in [climate]',
+    ('time', 'subcyc'): 'removed; adaptive_cfl_threshold in [time] subcycles the advection when needed',
+    ('time', 'ntem'): 'removed; the temperature is solved every time step',
 }
 
 # Order of the Glissade sections in a converted config file: the order in which they are written

@@ -373,14 +373,8 @@ contains
 
     type(glissade_global_type)  :: model !> model instance
 
-    model%numerics%dttem = model%numerics%ntem * model%numerics%tinc   
-
-    ! convert dt and dttem from yr to s
+    ! convert dt from yr to s
     model%numerics%dt     = model%numerics%tinc * scyr
-    model%numerics%dttem  = model%numerics%dttem * scyr
-
-    ! allow for subcycling of ice transport
-    model%numerics%dt_transport = model%numerics%dt / real(model%numerics%subcyc, dp)
 
     ! scale calving parameters
     model%calving%timescale = model%calving%timescale * scyr                ! convert from yr to s
@@ -714,6 +708,9 @@ contains
     type(ConfigSection), pointer :: section
     type(glissade_global_type)  :: model
 
+    real(dp) :: dt_in      ! dt from the config file, if present
+    integer  :: nsteps_in  ! nsteps_per_year from the config file, if present
+
 !       Set dt_input_option to specify whether the dynamic timestep (model%numerics%tinc)
 !        is based on dt (the timestep in years) or nsteps_per_year in the config file.
 !       The default (dt_input_option = DT_IN_YEARS) is to read dt directly,
@@ -725,11 +722,25 @@ contains
     call GetValue(section,'tstart',model%numerics%tstart)
     call GetValue(section,'tend',model%numerics%tend)
     call GetValue(section,'dt_input_option',model%options%dt_input_option)
-    call GetValue(section,'dt',model%numerics%tinc)
-    call GetValue(section,'nsteps_per_year',model%numerics%nsteps_per_year)
-    call GetValue(section,'subcyc',model%numerics%subcyc)
+    ! Give either dt (dt_input_option = 0) or nsteps_per_year (dt_input_option = 1), not both.
+    ! Initialize to impossible values to tell whether each key is in the config file.
+    dt_in = -huge(1.0d0)
+    nsteps_in = -huge(1)
+    call GetValue(section,'dt',dt_in)
+    call GetValue(section,'nsteps_per_year',nsteps_in)
+    if (model%options%dt_input_option == DT_STEPS_PER_YEAR) then
+       if (dt_in /= -huge(1.0d0)) then
+          call write_log('Error, dt is set in [time] with dt_input_option = 1; set nsteps_per_year instead', GM_FATAL)
+       endif
+    else
+       if (nsteps_in /= -huge(1)) then
+          call write_log('Error, nsteps_per_year is set in [time] with dt_input_option = 0; set dt instead, '// &
+               'or set dt_input_option = 1', GM_FATAL)
+       endif
+    endif
+    if (dt_in /= -huge(1.0d0)) model%numerics%tinc = dt_in
+    if (nsteps_in /= -huge(1)) model%numerics%nsteps_per_year = nsteps_in
     call GetValue(section,'adaptive_cfl_threshold', model%numerics%adaptive_cfl_threshold)
-    call GetValue(section,'ntem',model%numerics%ntem)
 
     ! If the time step was entered in number of steps per year, then set the timestep in years.
     ! If the time step was entered in years, then set nsteps_per_year.
@@ -763,7 +774,6 @@ contains
 
     type(glissade_global_type)  :: model
 
-    character(len=100) :: note
 
     character(len=*), dimension(0:1), parameter :: dt_input_option = (/ &
          'dt (yr) set in the config file      ', &
@@ -772,20 +782,6 @@ contains
     if (model%options%dt_input_option < 0 .or. model%options%dt_input_option >= size(dt_input_option)) then
        call write_log('Error, dt_input_option out of range', GM_FATAL)
     end if
-
-    if ( (model%numerics%ntem < 1.0d0) .or. &
-       (floor(model%numerics%ntem) /= model%numerics%ntem) ) then
-       call write_log('ntem is a multiplier on the basic time step.  It should be a positive integer.  Aborting.',GM_FATAL)
-    endif
-
-    ! Note: With adaptive CFL subcycling, subcyc is set to 1; subcycling is adaptive only.
-    note = ''
-    if (model%numerics%adaptive_cfl_threshold > 0.0d0) then
-       if (model%numerics%subcyc /= 1) then
-          model%numerics%subcyc = 1
-          note = 'reset to 1: subcycling is adaptive only when adaptive_cfl_threshold > 0'
-       endif
-    endif
 
     call log_section('time')
     call log_param('tstart', model%numerics%tstart, 'yr')
@@ -798,10 +794,8 @@ contains
     else
        call log_param('dt', model%numerics%tinc, 'yr')
     endif
-    call log_param('ntem', model%numerics%ntem, 'thermal time step / dt')
     call log_param('adaptive_cfl_threshold', model%numerics%adaptive_cfl_threshold, &
          'advection is subcycled when CFL exceeds this value; 0 = no adaptive subcycling')
-    call log_param('subcyc', model%numerics%subcyc, note)
 
   end subroutine print_time
 
