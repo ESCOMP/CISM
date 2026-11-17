@@ -93,7 +93,7 @@
     !        and then both f_ground (at vertices) and f_ground_cell are computed by summing over quadrants.
     !        A GLP is applied not only to basal friction but also to basal melting and other processes near the GL.
     !
-    ! For options (1) and (2), there are four options for the flotation function:
+    ! For options (1) and (2), there are three options for the flotation function:
     ! (0) HO_FLOTATION_FUNCTION_PATTYN: f_flotation = (-rhoo*b)/(rhoi*H) - 1 = f_pattyn - 1
     !     Here, f_pattyn = (-rhoo*b)/(rhoi*H) as in Pattyn et al. (2006).
     ! (1) HO_FLOTATION_FUNCTION_INVERSE_PATTYN: f_flotation = 1 - (rhoi*H)/(-rhoo*b) = 1 - 1/f_pattyn

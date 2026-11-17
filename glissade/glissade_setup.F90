@@ -3291,8 +3291,8 @@ contains
          'ocean data from coupler via Glad      ' /)
 
     character(len=*), dimension(0:1), parameter :: ocean_data_extrapolate = (/ &
-         'ocean data not extrapolated to cavities', &
-         'ocean data extrapolated to cavities    ' /)
+         'CISM will not extrapolate ocean data to cavities', &
+         'CISM will extrapolate ocean data to cavities    ' /)
 
     if (model%options%whichbmlt_float /= BMLT_FLOAT_THERMAL_FORCING) return
 
