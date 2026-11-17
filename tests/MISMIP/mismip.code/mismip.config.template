@@ -17,7 +17,7 @@ restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
 # restart = 0
 
 [numerics]
-ice_limit = 1.                 ; min thickness (m) for dynamics
+thcklim = 1.                 ; min thickness (m) for dynamics
 
 [constants]
 rhoi = 900.0            # MISMIP ice density
@@ -50,7 +50,7 @@ temperature_method = 0         # 1 = prognostic, 3 = enthalpy
 flow_law = 0            # 0 = constant, 2 = Paterson-Budd
 flow_factor_ground = 1.
 flow_factor_float = 1.
-default_flwa = 1.0e-17
+flwa_const = 1.0e-17
 
 [basal_physics]
 sliding_law = 9              # 4 = no-slip at bed, 10 = Coulomb friction law, 11 = Coulomb w/const basal flwa

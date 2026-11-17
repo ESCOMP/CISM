@@ -14,7 +14,7 @@ The different settings, compared to the Glide tests, are as follows:
 * vertical_evolution = 0 (not constrained by upper kinematic BC)
 * stokes_approx = -1 (Glissade local SIA solver)
 * linear_solver = 3
-* ice_limit = 1 (minimum thickess for active ice = 1 m)
+* thcklim = 1 (minimum thickess for active ice = 1 m)
 
 Note: The Glissade local SIA scheme does not need a sparse solver,
 but the default value (linear_solver = 0) triggers an error in parallel runs.

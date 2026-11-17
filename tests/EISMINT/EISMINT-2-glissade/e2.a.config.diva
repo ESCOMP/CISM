@@ -23,7 +23,7 @@ basal_water = 1
 vertical_integration = 0   # glissade does not support option 1
 
 [numerics]
-ice_limit = 1.
+thcklim = 1.
 
 [velocity]
 stokes_approx = 4        # 4 = DIVA

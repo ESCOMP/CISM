@@ -24,7 +24,7 @@ restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
 restart = 0             # 0 = no restart, 1 = standard restart, 2 = hybrid restart
 
 [numerics]
-ice_limit = 1.                  # min thickness (m) for dynamics
+thcklim = 1.                  # min thickness (m) for dynamics
 
 [constants]
 rhoi = 917.0                    # ice density
@@ -53,11 +53,11 @@ advection_method = 3           # 3 = remapping, 4 = first order upwind
 
 [temperature]
 temperature_method = 0         # 0 = sfc air temp, 1 = prognostic
-temp_init = 4           # 4 = read from external file
+temperature_init = 4           # 4 = read from external file
 
 [flow_law]
 flow_law = 0            # 0 = constant, 2 = Paterson-Budd
-default_flwa = 2.9377e-18
+flwa_const = 2.9377e-18
 
 [basal_physics]
 sliding_law = 9                 # 9 = power law
@@ -86,7 +86,7 @@ cf_advance_retreat_amplitude = 0.
 cf_advance_retreat_period = 0.
 
 [climate]
-smb_input = 0           # 0 = m/yr ice, 1 = mm/yr w.e.
+smb_input_units = 0           # 0 = m/yr ice, 1 = mm/yr w.e.
 
 [geothermal]
 geothermal_flux = 0.

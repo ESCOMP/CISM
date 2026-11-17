@@ -820,7 +820,7 @@ contains
     call GetValue(section,'dt_diag',      model%numerics%dt_diag)
     call GetValue(section,'ndiag',        model%numerics%ndiag)
     call GetValue(section,'dm_dt_diag',   model%options%dm_dt_diag)
-    call GetValue(section,'diag_minthck', model%options%diag_minthck)
+    call GetValue(section,'diag_ice_threshold', model%options%diag_minthck)
 
   end subroutine handle_diagnostics
 
@@ -842,7 +842,7 @@ contains
          'write dmass/dt diagnostic in units of kg/s ',  &
          'write dmass/dt diagnostic in units of Gt/yr'/)
 
-    character(len=*), dimension(0:1), parameter :: diag_minthck = (/ &
+    character(len=*), dimension(0:1), parameter :: diag_ice_threshold = (/ &
          'include cells with H > 0 in global diagnostics     ', &
          'include cells with H > thklim in global diagnostics'/)
 
@@ -850,8 +850,8 @@ contains
        call write_log('Error, dm_dt_diag out of range',GM_FATAL)
     end if
 
-    if (model%options%diag_minthck < 0 .or. model%options%diag_minthck >= size(diag_minthck)) then
-       call write_log('Error, diag_minthck out of range',GM_FATAL)
+    if (model%options%diag_minthck < 0 .or. model%options%diag_minthck >= size(diag_ice_threshold)) then
+       call write_log('Error, diag_ice_threshold out of range',GM_FATAL)
     end if
 
     if (model%numerics%idiag < 1 .or. model%numerics%idiag > model%general%ewn     &
@@ -871,7 +871,7 @@ contains
        call log_param('dt_diag', model%numerics%dt_diag, 'yr; 0 = no diagnostic output')
     endif
     call log_option('dm_dt_diag', model%options%dm_dt_diag, dm_dt_diag(model%options%dm_dt_diag))
-    call log_option('diag_minthck', model%options%diag_minthck, diag_minthck(model%options%diag_minthck))
+    call log_option('diag_ice_threshold', model%options%diag_minthck, diag_ice_threshold(model%options%diag_minthck))
 
   end subroutine print_diagnostics
 
@@ -964,9 +964,8 @@ contains
     call GetValue(section,'reproducible_sums', model%options%reproducible_sums)
 
     ! parameters
-    !TODO - Change 'ice_limit' to 'thklim'?
-    call GetValue(section,'ice_limit',          model%numerics%thklim)
-    call GetValue(section,'ice_limit_temp',     model%numerics%thklim_temp)
+    call GetValue(section,'thcklim',            model%numerics%thklim)
+    call GetValue(section,'thcklim_temp',       model%numerics%thklim_temp)
     call GetValue(section,'thck_gradient_ramp', model%numerics%thck_gradient_ramp)
     call GetValue(section,'periodic_offset_ew', model%numerics%periodic_offset_ew)
     call GetValue(section,'periodic_offset_ns', model%numerics%periodic_offset_ns)
@@ -1012,8 +1011,8 @@ contains
     call log_option('compute_blocks', model%options%compute_blocks, &
          compute_blocks(model%options%compute_blocks))
     call log_flag('reproducible_sums', model%options%reproducible_sums)
-    call log_param('ice_limit', model%numerics%thklim, 'm; thickness limit for dynamically active ice')
-    call log_param('ice_limit_temp', model%numerics%thklim_temp, 'm; thickness limit for temperature calculations')
+    call log_param('thcklim', model%numerics%thklim, 'm; thickness limit for dynamically active ice')
+    call log_param('thcklim_temp', model%numerics%thklim_temp, 'm; thickness limit for temperature calculations')
     call log_param('thck_gradient_ramp', model%numerics%thck_gradient_ramp, &
          'm; 0 = no ramp of land-margin thickness gradients')
     if (model%general%global_bc == GLOBAL_BC_PERIODIC) then
@@ -1145,7 +1144,7 @@ contains
     call GetValue(section,'surface_gradient_margin_method', model%options%which_ho_gradient_margin)
 
     ! parameters
-    call GetValue(section,'efvs_constant', model%paramets%efvs_constant)
+    call GetValue(section,'efvs_const',    model%paramets%efvs_constant)
     call GetValue(section,'effstrain_min', model%paramets%effstrain_min)
     call GetValue(section,'max_slope',     model%paramets%max_slope)
 
@@ -1218,7 +1217,7 @@ contains
     endif
     call log_option('efvs_method', model%options%which_ho_efvs, efvs_method(model%options%which_ho_efvs))
     if (model%options%which_ho_efvs == HO_EFVS_CONSTANT) then
-       call log_param('efvs_constant', model%paramets%efvs_constant, 'Pa yr')
+       call log_param('efvs_const', model%paramets%efvs_constant, 'Pa yr')
     elseif (model%options%which_ho_efvs == HO_EFVS_NONLINEAR) then
        call log_param('effstrain_min', model%paramets%effstrain_min, 'yr^-1')
     end if
@@ -1516,7 +1515,7 @@ contains
 
     ! options
     call GetValue(section,'temperature_method', model%options%whichtemp)
-    call GetValue(section,'temp_init',          model%options%temp_init)
+    call GetValue(section,'temperature_init',   model%options%temp_init)
     call GetValue(section,'dissipation_method', model%options%which_ho_disp)
 
     ! parameters
@@ -1547,7 +1546,7 @@ contains
          'constant in time      ', &
          'prognostic enthalpy   ' /)
 
-    character(len=*), dimension(0:4), parameter :: temp_init = (/ &
+    character(len=*), dimension(0:4), parameter :: temperature_init = (/ &
          'set to 0 C                  ', &
          'set to surface air temp     ', &
          'linear vertical profile     ', &
@@ -1566,8 +1565,8 @@ contains
     if (model%options%whichtemp < 0 .or. model%options%whichtemp >= size(temperature_method)) then
        call write_log('Error, temperature_method out of range',GM_FATAL)
     end if
-    if (model%options%temp_init < 0 .or. model%options%temp_init >= size(temp_init)) then
-       call write_log('Error, temp_init option out of range',GM_FATAL)
+    if (model%options%temp_init < 0 .or. model%options%temp_init >= size(temperature_init)) then
+       call write_log('Error, temperature_init option out of range',GM_FATAL)
     end if
     if (model%options%which_ho_disp < -1 .or. model%options%which_ho_disp >= size(dissipation_method)-1) then
        call write_log('Error, HO dissipation input out of range', GM_FATAL)
@@ -1584,10 +1583,10 @@ contains
 
     call log_section('temperature')
     call log_option('temperature_method', model%options%whichtemp, temperature_method(model%options%whichtemp))
-    ! Note: If temperature is read from an input or restart file, the temp_init option is overridden.
+    ! Note: If temperature is read from an input or restart file, the temperature_init option is overridden.
     !       The method actually used is written to the log file by glissade_init_temp.
-    call log_option('temp_init', model%options%temp_init, &
-         trim(temp_init(model%options%temp_init)) // '; not used if temperature is read from a file')
+    call log_option('temperature_init', model%options%temp_init, &
+         trim(temperature_init(model%options%temp_init)) // '; not used if temperature is read from a file')
     call log_option('dissipation_method', model%options%which_ho_disp, &
          trim(dissipation_method(model%options%which_ho_disp)) // trim(note))
     call log_param('pmp_threshold', model%temper%pmp_threshold, 'K')
@@ -1624,8 +1623,7 @@ contains
     call GetValue(section,'n_glen',             n_glen)
     call GetValue(section,'flow_factor_ground', model%paramets%flow_enhancement_factor_ground)
     call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
-    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
-    call GetValue(section,'default_flwa',       model%paramets%default_flwa)
+    call GetValue(section,'flwa_const',         model%paramets%default_flwa)
 
   end subroutine handle_flow_law
 
@@ -1656,7 +1654,7 @@ contains
     call log_section('flow_law')
     call log_option('flow_law', model%options%whichflwa, flow_law(model%options%whichflwa))
     if (model%options%whichflwa == FLWA_CONST_FLWA) then
-       call log_param('default_flwa', model%paramets%default_flwa, 'Pa^-n yr^-1; constant flow factor')
+       call log_param('flwa_const', model%paramets%default_flwa, 'Pa^-n yr^-1; constant flow factor')
     end if
     call log_param('n_glen', n_glen, 'exponent in Glen''s flow law')
     call log_param('flow_factor_ground', model%paramets%flow_enhancement_factor_ground, 'grounded ice')
@@ -2051,15 +2049,15 @@ contains
     call GetValue(section, 'bwat_method', model%options%which_ho_bwat)
 
     ! constant basal water
-    call GetValue(section, 'const_bwat', model%basal_hydro%const_bwat)
+    call GetValue(section, 'bwat_const', model%basal_hydro%const_bwat)
 
     ! local basal till
     call GetValue(section, 'bwat_till_max', model%basal_hydro%bwat_till_max)
-    call GetValue(section, 'c_drainage', model%basal_hydro%c_drainage)
+    call GetValue(section, 'till_drainage_rate', model%basal_hydro%c_drainage)
 
     ! flux routing
     call GetValue(section, 'flux_routing_method', model%basal_hydro%ho_flux_routing_scheme)
-    call GetValue(section, 'const_source', model%basal_hydro%const_source)
+    call GetValue(section, 'bwat_source_const', model%basal_hydro%const_source)
     call GetValue(section, 'btemp_flow_scale', model%basal_hydro%btemp_flow_scale)
     call GetValue(section, 'btemp_freeze_scale', model%basal_hydro%btemp_freeze_scale)
 
@@ -2074,7 +2072,7 @@ contains
     call GetValue(section, 'bump_wavelength', model%basal_hydro%bump_wavelength)
     call GetValue(section, 'sliding_speed_fixed', model%basal_hydro%sliding_speed_fixed)
     call GetValue(section, 'flwa_basal', model%basal_hydro%flwa_basal)
-    call GetValue(section, 'c_close', model%basal_hydro%c_close)
+    call GetValue(section, 'cavity_closing_const', model%basal_hydro%c_close)
 
   end subroutine handle_basal_hydro
 
@@ -2158,16 +2156,16 @@ contains
     call log_option('bwat_method', model%options%which_ho_bwat, bwat_method(model%options%which_ho_bwat))
 
     if (model%options%which_ho_bwat == HO_BWAT_CONSTANT) then
-       call log_param('const_bwat', model%basal_hydro%const_bwat, 'm; constant basal water depth')
+       call log_param('bwat_const', model%basal_hydro%const_bwat, 'm; constant basal water depth')
     elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
        call log_param('bwat_till_max', model%basal_hydro%bwat_till_max, 'm; maximum till water depth')
-       call log_param('c_drainage', model%basal_hydro%c_drainage, 'm/yr; till drainage rate')
+       call log_param('till_drainage_rate', model%basal_hydro%c_drainage, 'm/yr; till drainage rate')
        call log_param('effecpress_delta', model%basal_hydro%effecpress_delta, &
             'min effective pressure relative to overburden')
     elseif (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
        call log_option('flux_routing_method', model%basal_hydro%ho_flux_routing_scheme, &
             flux_routing_method(model%basal_hydro%ho_flux_routing_scheme))
-       call log_param('const_source', model%basal_hydro%const_source, 'm/yr; constant melt source at the bed')
+       call log_param('bwat_source_const', model%basal_hydro%const_source, 'm/yr; constant melt source at the bed')
        call log_param('btemp_flow_scale', model%basal_hydro%btemp_flow_scale, &
             'deg C; temperature scale for flow around frozen bed; 0 = off')
        call log_param('btemp_freeze_scale', model%basal_hydro%btemp_freeze_scale, &
@@ -2189,7 +2187,7 @@ contains
              endif
           endif   ! opening by sliding
           call log_param('flwa_basal', model%basal_hydro%flwa_basal, 'Pa^-3 yr^-1; flow factor for cavity closing')
-          call log_param('c_close', model%basal_hydro%c_close, 'constant for cavity closing')
+          call log_param('cavity_closing_const', model%basal_hydro%c_close, 'constant for cavity closing')
        endif   ! cavity-sheet parameterization
     endif   ! which_ho_bwat
 
@@ -2362,6 +2360,7 @@ contains
     call GetValue(section,'bmlt_float_depth_zfrzmax',  model%basal_melt%bmlt_float_depth_zfrzmax)
     call GetValue(section,'bmlt_float_depth_meltmin',  model%basal_melt%bmlt_float_depth_meltmin)
     call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
+    call GetValue(section,'bmlt_float_gamma0',         model%ocean_data%gamma0)
 
   end subroutine handle_basal_melt
 
@@ -2450,6 +2449,7 @@ contains
     if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
        call log_option('bmlt_float_thermal_forcing_param', model%options%bmlt_float_thermal_forcing_param, &
             bmlt_float_thermal_forcing_param(model%options%bmlt_float_thermal_forcing_param))
+       call log_param('bmlt_float_gamma0', model%ocean_data%gamma0, 'm/yr; melt rate coefficient')
        call log_flag('bmlt_float_init', model%options%bmlt_float_init, &
             'compute bmlt_float at initialization')
     endif
@@ -2523,17 +2523,17 @@ contains
     ! calving parameters
     call GetValue(section,'marine_limit',       model%calving%marine_limit)
     call GetValue(section,'calving_timescale',  model%calving%timescale)
-    call GetValue(section,'calving_minthck',    model%calving%minthck)
+    call GetValue(section,'calving_thck_threshold', model%calving%minthck)
     call GetValue(section,'dthck_dx_cf',        model%calving%dthck_dx_cf)
     call GetValue(section,'thck_effective_min', model%calving%thck_effective_min)
-    call GetValue(section,'eigenconstant',      model%calving%eigenconstant)
+    call GetValue(section,'eigencalving_const', model%calving%eigenconstant)
     call GetValue(section,'tau_eigenconstant1', model%calving%tau_eigenconstant1)
     call GetValue(section,'tau_eigenconstant2', model%calving%tau_eigenconstant2)
     call GetValue(section,'stress_threshold',   model%calving%stress_threshold)
     call GetValue(section,'lateral_rate_min',   model%calving%lateral_rate_min)
     call GetValue(section,'effec_stress_min',   model%calving%effec_stress_min)
     call GetValue(section,'calving_length_scale', model%calving%length_scale)
-    call GetValue(section,'damage_constant',    model%calving%damage_constant)
+    call GetValue(section,'damage_const',       model%calving%damage_constant)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
     call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
@@ -2644,7 +2644,7 @@ contains
 
     if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
        if (model%calving%minthck <= 0.0d0) then
-          write(message,*) 'Error, this calving option needs calving_minthck > 0'
+          write(message,*) 'Error, this calving option needs calving_thck_threshold > 0'
           call write_log(message, GM_FATAL)
        endif
     endif
@@ -2667,10 +2667,8 @@ contains
     if (model%options%whichcalving == CALVING_RELX_THRESHOLD .or.  &
             model%options%whichcalving == CALVING_TOPG_THRESHOLD) then
        call log_param('marine_limit', model%calving%marine_limit, 'm; marine depth limit')
-    elseif (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-       call log_param('calving_minthck', model%calving%minthck, 'm')
     elseif (model%options%whichcalving == EIGEN_CALVING) then
-       call log_param('eigenconstant', model%calving%eigenconstant, 'm')
+       call log_param('eigencalving_const', model%calving%eigenconstant, 'm')
     elseif (model%options%whichcalving == CALVING_STRESS) then
        call log_param('tau_eigenconstant1', model%calving%tau_eigenconstant1)
        call log_param('tau_eigenconstant2', model%calving%tau_eigenconstant2)
@@ -2685,6 +2683,7 @@ contains
     elseif (model%options%whichcalving == CALVING_DAMAGE) then
        call log_param('tau_eigenconstant1', model%calving%tau_eigenconstant1)
        call log_param('tau_eigenconstant2', model%calving%tau_eigenconstant2)
+       call log_param('damage_const', model%calving%damage_constant, 'Pa yr')
     elseif (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
        call log_param('cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude, 'm/yr')
        call log_param('cf_advance_retreat_period', model%calving%cf_advance_retreat_period, 'yr')
@@ -2695,6 +2694,16 @@ contains
     endif
     if (model%options%whichcalving /= CALVING_NONE) then
        call log_param('calving_timescale', model%calving%timescale, 'yr; 0 = calve immediately')
+    endif
+    ! The threshold thickness is used by the thickness-threshold law, by stress-based calving
+    !  (if > thcklim), and by mask-based calving without a subgrid calving front when
+    !  calving_timescale > 1 yr (the minimum thinning rate is calving_thck_threshold/calving_timescale).
+    if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
+        model%options%whichcalving == CALVING_STRESS .or. &
+        ((model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) .and. &
+         model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID .and. &
+         model%calving%timescale > 1.0d0)) then
+       call log_param('calving_thck_threshold', model%calving%minthck, 'm')
     endif
 
     call log_option('subgrid_calving_front', model%options%which_ho_calving_front, &
@@ -2961,7 +2970,7 @@ contains
     type(glissade_global_type)   :: model
 
     ! options
-    call GetValue(section,'smb_input',                       model%options%smb_input)
+    call GetValue(section,'smb_input_units',                 model%options%smb_input)
     call GetValue(section,'smb_input_function',              model%options%smb_input_function)
     call GetValue(section,'artm_input_function',             model%options%artm_input_function)
     call GetValue(section,'enable_smb_anomaly',              model%options%enable_smb_anomaly)
@@ -2983,7 +2992,7 @@ contains
     call GetValue(section,'smb_anomaly_tstart',     model%climate%smb_anomaly_tstart)
     call GetValue(section,'smb_anomaly_timescale',  model%climate%smb_anomaly_timescale)
     call GetValue(section,'overwrite_acab_value',   model%climate%overwrite_acab_value)
-    call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
+    call GetValue(section,'overwrite_acab_thck_min', model%climate%overwrite_acab_minthck)
     call GetValue(section,'artm_anomaly_const',     model%climate%artm_anomaly_const)
     call GetValue(section,'artm_anomaly_tstart',    model%climate%artm_anomaly_tstart)
     call GetValue(section,'artm_anomaly_timescale', model%climate%artm_anomaly_timescale)
@@ -3005,7 +3014,7 @@ contains
     type(glissade_global_type)  :: model
     character(len=500) :: message
 
-    character(len=*), dimension(0:1), parameter :: smb_input = (/ &
+    character(len=*), dimension(0:1), parameter :: smb_input_units = (/ &
          'SMB input in units of m/yr ice  ', &
          'SMB input in units of mm/yr w.e.' /)
 
@@ -3029,8 +3038,8 @@ contains
 
     ! check the options
 
-    if (model%options%smb_input < 0 .or. model%options%smb_input >= size(smb_input)) then
-       call write_log('Error, smb_input option out of range',GM_FATAL)
+    if (model%options%smb_input < 0 .or. model%options%smb_input >= size(smb_input_units)) then
+       call write_log('Error, smb_input_units option out of range',GM_FATAL)
     end if
 
     if (model%options%smb_input_function < 0 .or. model%options%smb_input_function >= size(smb_input_function)) then
@@ -3042,7 +3051,7 @@ contains
            model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
            model%options%enable_smb_anomaly .or. &
            model%options%enable_glaciers) then
-          write(message,*) 'Error, input SMB must have units of mm/yr w.e., smb_input =', SMB_INPUT_MMYR_WE
+          write(message,*) 'Error, input SMB must have units of mm/yr w.e., smb_input_units =', SMB_INPUT_MMYR_WE
           call write_log(message, GM_FATAL)
        endif
     endif
@@ -3058,7 +3067,7 @@ contains
     ! write the options and parameters
 
     call log_section('climate')
-    call log_option('smb_input', model%options%smb_input, smb_input(model%options%smb_input))
+    call log_option('smb_input_units', model%options%smb_input, smb_input_units(model%options%smb_input))
     call log_option('smb_input_function', model%options%smb_input_function, &
          smb_input_function(model%options%smb_input_function))
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
@@ -3091,7 +3100,7 @@ contains
     if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
        call log_param('overwrite_acab_value', model%climate%overwrite_acab_value, 'm/yr')
        if (model%options%overwrite_acab == OVERWRITE_ACAB_THCKMIN) then
-          call log_param('overwrite_acab_minthck', model%climate%overwrite_acab_minthck, 'm')
+          call log_param('overwrite_acab_thck_min', model%climate%overwrite_acab_minthck, 'm')
        endif
     endif
     call log_flag('enable_acab_dthck_dt_correction', model%options%enable_acab_dthck_dt_correction, &
@@ -3231,7 +3240,6 @@ contains
     call GetValue(section,'ocean_data_extrapolate', model%options%ocean_data_extrapolate)
 
     ! parameters
-    call GetValue(section,'gamma0',                            model%ocean_data%gamma0)
     call GetValue(section,'thermal_forcing_basin_min',         model%ocean_data%thermal_forcing_basin_min)
     call GetValue(section,'thermal_forcing_basin_max',         model%ocean_data%thermal_forcing_basin_max)
     call GetValue(section,'thermal_forcing_anomaly',           model%ocean_data%thermal_forcing_anomaly)
@@ -3286,7 +3294,6 @@ contains
          ocean_data_domain(model%options%ocean_data_domain))
     call log_option('ocean_data_extrapolate', model%options%ocean_data_extrapolate, &
          ocean_data_extrapolate(model%options%ocean_data_extrapolate))
-    call log_param('gamma0', model%ocean_data%gamma0, 'm/yr; melt rate coefficient')
 
     if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING .and. &
         (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
@@ -3590,7 +3597,7 @@ contains
     call GetValue(section,'baseline_date',           model%glacier%baseline_date)
     call GetValue(section,'rgi_date',                model%glacier%rgi_date)
     call GetValue(section,'recent_date',             model%glacier%recent_date)
-    call GetValue(section,'diagnostic_minthck',      model%glacier%diagnostic_minthck)
+    call GetValue(section,'glacier_diag_thck_min',   model%glacier%diagnostic_minthck)
     call GetValue(section,'redistribute_advanced_ice',  model%glacier%redistribute_advanced_ice)
     call GetValue(section,'thinning_rate_advanced_ice', model%glacier%thinning_rate_advanced_ice)
     call GetValue(section,'smb_weight_advanced_ice', model%glacier%smb_weight_advanced_ice)
@@ -3696,7 +3703,7 @@ contains
             'reset from ' // real_to_string(length_scale_factor_in) // '; used only with scale_area = .true.')
     endif
 
-    call log_param('diagnostic_minthck', model%glacier%diagnostic_minthck, 'm')
+    call log_param('glacier_diag_thck_min', model%glacier%diagnostic_minthck, 'm')
 
     call log_flag('redistribute_advanced_ice', model%glacier%redistribute_advanced_ice, &
          'redistribute advanced ice in the accumulation zone')

@@ -3755,7 +3755,7 @@ contains
              write(iulog,*) ' '
              write(iulog,*) 'Relaxed calving, timescale (yr) =', model%calving%timescale/scyr
              write(iulog,*) 'dt (yr) =', model%numerics%dt/scyr
-             write(iulog,*) 'calving_minthck (m) =', model%calving%minthck
+             write(iulog,*) 'calving_thck_threshold (m) =', model%calving%minthck
           endif
 
        endif  ! calving_timescale

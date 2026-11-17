@@ -517,7 +517,7 @@ for expt in experiments:
         
     # Set other parameters specific to certain experiments
     if expt == 'SpinupCircular' or expt == 'SpinupThule':
-        config.set('temperature', 'temp_init', '1')
+        config.set('temperature', 'temperature_init', '1')
         config.set('calving', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
         config.set('calving', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
         # Both spin-ups use a calving mask to prevent advance beyond the prescribed radius
@@ -535,7 +535,7 @@ for expt in experiments:
     elif expt == 'Experiment5':
         config.set('calving', 'calving_law', '7')
         calvingMinthck = 325.
-        config.set('calving', 'calving_minthck', str(calvingMinthck))
+        config.set('calving', 'calving_thck_threshold', str(calvingMinthck))
             
     # Set the calvingMIP domain (circular or Thule)
     if expt == 'SpinupCircular' or expt == 'Experiment1' or expt == 'Experiment2':
