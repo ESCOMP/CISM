@@ -38,6 +38,7 @@ assemble_beta = 1       # 0 = standard FE, 1 = local
 assemble_taud = 1       # 0 = standard FE, 1 = local
 nonlinear_residual = 4               # 3 = absolute, 4 = relative
 nonlinear_maxiters = 50
+assemble_lateral = 0        # 0 = standard (the default before the config reorganization)
 
 [advection]
 advection_method = 3           # 3 = remapping, 4 = first order upwind

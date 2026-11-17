@@ -489,7 +489,7 @@ module glissade_types
     !> \item[6] Basal melt rate for floating ice derived from ocean thermal forcing
     !> \end{description}
 
-    integer :: bmlt_float_thermal_forcing_param = 0
+    integer :: bmlt_float_thermal_forcing_param = BMLT_FLOAT_TF_ISMIP6_NONLOCAL   ! default was BMLT_FLOAT_TF_QUADRATIC until the config reorganization
 
     !> \begin{description}
     !> \item[0] Quadratic parameterization to compute basal melting from thermal forcing
@@ -887,11 +887,10 @@ module glissade_types
     !> \item[3] Native PCG, parallel-enabled, Chronopoulos-Gear solver (default)
     !> \end{description}
 
-    integer :: which_ho_approx = 2 
+    integer :: which_ho_approx = HO_APPROX_DIVA
     !> Flag that indicates which Stokes approximation to use with the glissade dycore.
     !> Not valid for other dycores 
-    !> Compute Blatter-Pattyn HO momentum balance by default.
-    !WHL TODO - Change the default to DIVA during the config reorg
+    !> The default is DIVA (4); it was Blatter-Pattyn (2) until the config reorganization.
     !> Note: There are two SIA options:
     !>       Option -1 uses module glissade_velo_sia to compute local SIA velocities, similar to Glide
     !>       Option 0 uses module glissade_velo_higher to compute SIA velocities via an iterative solve
@@ -908,7 +907,7 @@ module glissade_types
     logical :: diva_slope_correction = .true.
     !> Flag that indicates whether the DIVA solver includes a correction for steep slopes
 
-    integer :: which_ho_precond = 2    
+    integer :: which_ho_precond = HO_PRECOND_DIAG   ! default was HO_PRECOND_SIA until the config reorganization
     !> Flag that indicates which Stokes preconditioner to use in the glissade dycore.
     !> Not valid for other dycores 
     !> \begin{description}
@@ -976,8 +975,7 @@ module glissade_types
     !> \item[1] apply local value of beta*(u^2 + v^2) at each vertex
     !> \end{description}
 
-    !WHL TODO - Change default to option 1 during the config reorg
-    integer :: which_ho_assemble_lateral = 0
+    integer :: which_ho_assemble_lateral = HO_ASSEMBLE_LATERAL_LOCAL   ! default was STANDARD until the config reorganization
 
     !> Flag that describes how lateral stress terms are assembled in the glissade finite-element calculation
     !> \begin{description}

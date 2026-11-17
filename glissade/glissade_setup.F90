@@ -3340,8 +3340,9 @@ contains
          ocean_data_extrapolate(model%options%ocean_data_extrapolate))
     call log_param('gamma0', model%ocean_data%gamma0, 'm/yr; melt rate coefficient')
 
-    if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
-        model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
+    if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING .and. &
+        (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
+         model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE)) then
        call log_param('thermal_forcing_basin_min', model%ocean_data%thermal_forcing_basin_min, &
             'deg C; min basin-scale TF; 0 = no limit')
        call log_param('thermal_forcing_basin_max', model%ocean_data%thermal_forcing_basin_max, &
@@ -3931,11 +3932,13 @@ contains
 
     ! If using an ISMIP6 basin-based melt parameterization, and/or inverting for
     !  basin-scale quantities, we need a 2D field of basin numbers.
-    ! Not strictly needed for the ISMIP6_LOCAL option, but included for diagnostics
-    if (options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
-        options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
-        options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE .or. &
-        options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
+    ! Not strictly needed for the ISMIP6_LOCAL option, but included for diagnostics.
+    ! The thermal-forcing parameterization matters only when bmlt_float_method uses thermal forcing.
+    if ( (options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING .and.  &
+          (options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
+           options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
+           options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) ) .or. &
+         options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
        call glissade_add_to_restart_variable_list('basin_number', model_id)
     endif
 

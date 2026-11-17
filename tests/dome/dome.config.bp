@@ -28,6 +28,7 @@ efvs_method = 2           # 2 = nonlinear eff. visc. w/ n=3
 [velocity_solver]
 linear_solver = 3         # 1 = SLAP GMRES, 3 = glissade parallel PCG
 nonlinear_method = 0      # 0 = Picard, 1 = accelerated Picard
+preconditioner = 2          # 2 = SIA (the default before the config reorganization)
 
 [advection]
 advection_method = 3               # 3 = inc. remapping, 4 = FO upwind
