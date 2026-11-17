@@ -14,9 +14,9 @@ dt = 5.
 ntem = 1.
 
 [diagnostics]
-dt_diag = 5000.
 idiag = 31
 jdiag = 31
+dt_diag = 5000.
 
 [options]
 dycore = 2                 # 2 = Glissade
@@ -30,8 +30,8 @@ ice_limit = 1.
 stokes_approx = 4        # 4 = DIVA
 
 [velocity_solver]
-linear_solver = 3        # 3 = parallel PCG
 nonlinear_method = 1     # 1 = accelerated Picard
+linear_solver = 3        # 3 = parallel PCG
 preconditioner = 1       # 1 = diagonal
 
 [advection]
@@ -44,8 +44,8 @@ temperature_method = 1
 flow_law = 2
 
 [basal_physics]
-btrc_method = 0
 sliding_law = 4          # 4 = no slip
+btrc_method = 0
 
 [basal_melt]
 basal_mass_balance = 0

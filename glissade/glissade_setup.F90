@@ -821,10 +821,10 @@ contains
 
     !Note: Either dt_diag or ndiag can be specified in the config file.
     !      If dt_diag is specified, it is used to compute ndiag. (Output is written every ndiag timesteps.)
-    call GetValue(section,'dt_diag',      model%numerics%dt_diag)
-    call GetValue(section,'ndiag',        model%numerics%ndiag)
     call GetValue(section,'idiag',        model%numerics%idiag)
     call GetValue(section,'jdiag',        model%numerics%jdiag)
+    call GetValue(section,'dt_diag',      model%numerics%dt_diag)
+    call GetValue(section,'ndiag',        model%numerics%ndiag)
     call GetValue(section,'dm_dt_diag',   model%options%dm_dt_diag)
     call GetValue(section,'diag_minthck', model%options%diag_minthck)
 
@@ -867,6 +867,8 @@ contains
     endif
 
     call log_section('diagnostics')
+    call log_param('idiag', model%numerics%idiag, 'global i index of the diagnostic point')
+    call log_param('jdiag', model%numerics%jdiag, 'global j index of the diagnostic point')
     if (model%numerics%dt_diag > 0.d0) then
        call log_param('dt_diag', model%numerics%dt_diag, 'yr')
     elseif (model%numerics%ndiag > 0) then
@@ -874,8 +876,6 @@ contains
     else
        call log_param('dt_diag', model%numerics%dt_diag, 'yr; 0 = no diagnostic output')
     endif
-    call log_param('idiag', model%numerics%idiag, 'global i index of the diagnostic point')
-    call log_param('jdiag', model%numerics%jdiag, 'global j index of the diagnostic point')
     call log_option('dm_dt_diag', model%options%dm_dt_diag, dm_dt_diag(model%options%dm_dt_diag))
     call log_option('diag_minthck', model%options%diag_minthck, diag_minthck(model%options%diag_minthck))
 

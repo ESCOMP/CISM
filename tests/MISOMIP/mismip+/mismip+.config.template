@@ -1,7 +1,7 @@
 [grid]
-upn = 5
 ewn = 324
 nsn = 40
+upn = 5
 dew = 2000
 dns = 2000
 global_bc = 0
@@ -14,6 +14,8 @@ dt = 0.5
 #jdiag = 5
 
 [diagnostics]
+idiag = 1               # set by mismip+Setup.py
+jdiag = 1               # set by mismip+Setup.py
 dt_diag = 0.5
 
 [options]
@@ -30,21 +32,21 @@ rhoo = 1028.0           # MISMIP+ ocean density
 grav = 9.8              # MISMIP+ gravitational acceleration
 
 [velocity]
-efvs_method = 2                 # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
 stokes_approx = 4               # 1 = SSA, 2 = Blatter-Pattyn, 3 = L1L2, 4 = DIVA
+efvs_method = 2                 # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
 surface_gradient_margin_method = 2      # 2 = marine BC
 surface_gradient_method = 0             # 0 = centered, 1 = upstream
 
 [velocity_solver]
-linear_solver = 3               # 1 = SLAP GMRES, 3 = Fortran PCG, 4 = Trilinos for linear solver
 nonlinear_method = 1            # 0 = Picard, 1 = accelerated Picard
+nonlinear_residual = 4                # 3 = absolute, 4 = relative
+nonlinear_maxiters = 50
+linear_solver = 3               # 1 = SLAP GMRES, 3 = Fortran PCG, 4 = Trilinos for linear solver
 preconditioner = 1              # 1 = diagonal precond, 2 = shallow ice preconditioner
 assemble_beta = 1        # 0 = standard FE, 1 = local
 assemble_taud = 1        # 0 = standard FE, 1 = local
 assemble_bfric = 1       # 0 = standard FE, 1 = local
 assemble_lateral = 1     # 0 = standard FE, 1 = local
-nonlinear_residual = 4                # 3 = absolute, 4 = relative
-nonlinear_maxiters = 50
 
 [advection]
 advection_method = 3           # 3 = remapping, 4 = first order upwind
@@ -72,8 +74,8 @@ grounding_line_bmlt = 0          # 0 = no bmlt GLP, 1 = bmlt GLP
 flotation_function = 2   # 0 = f_pattyn, 2 = linear
 
 [basal_melt]
-basal_mass_balance = 1  # 1 = include basal mass balance in continuity eqn
 bmlt_float_method = 0          # 0 = no melting of floating ice, 1 = Ice1 melting, 2 = Ice2 melting
+basal_mass_balance = 1  # 1 = include basal mass balance in continuity eqn
 bmlt_float_omega = 0.2          # parameter for Ice1
 bmlt_float_z0 = -100.           # parameter for Ice1
 bmlt_float_h0 = 75.             # parameter for Ice1

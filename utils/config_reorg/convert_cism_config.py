@@ -20,6 +20,8 @@ How a config file is converted:
     inline comment.  Comment lines directly above the key (with no blank line in between) move with it.
   - A new section is created if needed.
   - An old section left with no keys is removed, together with any comment lines left in it.
+  - In each section, the LEAD_KEYS (the major switches and the keys edited most often) come first,
+    in LEAD_KEYS order; comment lines directly above a key move with it; other keys keep their order.
   - The Glissade sections are put in the standard order (SECTION_ORDER: the order of the log file),
     followed by the [CF ...] sections and any other sections, in their original order.  Comment lines
     above a section header (after a blank line) move with that section.  Section contents are not
@@ -449,6 +451,74 @@ def is_glide(sections):
     return False
 
 
+# Keys that lead their section, in this order: the major switches and the keys users edit most often.
+# Other keys follow in their original order.
+LEAD_KEYS = {
+    'grid': ['ewn', 'nsn', 'upn', 'dew', 'dns'],
+    'time': ['tstart', 'tend', 'dt_input_option', 'dt', 'nsteps_per_year'],
+    'diagnostics': ['idiag', 'jdiag'],
+    'options': ['dycore'],
+    'velocity': ['stokes_approx'],
+    'velocity_solver': ['nonlinear_method', 'nonlinear_residual', 'nonlinear_maxiters', 'linear_solver',
+                        'preconditioner', 'linear_solve_ncheck', 'linear_maxiters', 'linear_tolerance',
+                        'assemble_beta', 'assemble_taud', 'assemble_bfric', 'assemble_lateral'],
+    'advection': ['advection_method'],
+    'temperature': ['temperature_method'],
+    'flow_law': ['flow_law'],
+    'basal_physics': ['sliding_law'],
+    'basal_hydro': ['bwat_method'],
+    'grounding_line': ['grounding_line_param'],
+    'basal_melt': ['bmlt_float_method'],
+    'calving': ['calving_law'],
+    'lateral_melt': ['lateral_melt_method'],
+    'removal': ['remove_ice_caps'],
+    'climate': ['smb_input', 'smb_input_function'],
+    'geothermal': ['geothermal_method'],
+    'isostasy': ['isostasy'],
+    'glaciers': ['enable_glaciers'],
+}
+
+
+def order_lead_keys(section):
+    """Move the section's LEAD_KEYS to its top, in LEAD_KEYS order; other lines keep their order.
+
+    A key takes along the comment lines directly above it (with no blank line in between).
+    Returns True if the section changed; a section already in order is not changed at all.
+    """
+    lead = LEAD_KEYS.get(section.name)
+    if not lead:
+        return False
+    lines = section.lines
+    present = []                                   # (lead index, key line index) in file order
+    for i, line in enumerate(lines):
+        m = KEY_RE.match(line)
+        if m and not COMMENT_RE.match(line) and m.group(2) in lead:
+            present.append((lead.index(m.group(2)), i))
+    if not present:
+        return False
+    # already in order: the lead keys come first among the keys, in LEAD_KEYS order
+    keys_in_order = [i for i, line in enumerate(lines) if KEY_RE.match(line) and not COMMENT_RE.match(line)]
+    if [i for _, i in sorted(present)] == keys_in_order[:len(present)]:
+        return False
+    blocks, taken = {}, set()
+    for rank, i in present:
+        j = i
+        while j > 0 and lines[j - 1].strip() and COMMENT_RE.match(lines[j - 1]) and (j - 1) not in taken:
+            j -= 1
+        blocks[rank] = lines[j:i + 1]
+        taken.update(range(j, i + 1))
+    rest = [line for k, line in enumerate(lines) if k not in taken]
+    # drop blank lines that were between moved keys, but keep the blank lines that end the section
+    if any(line.strip() for line in rest):
+        while not rest[0].strip():
+            rest = rest[1:]
+    new = [l for rank in sorted(blocks) for l in blocks[rank]] + rest
+    if new == lines:
+        return False
+    section.lines = new
+    return True
+
+
 def reorder_sections(sections):
     """Put the sections in SECTION_ORDER, followed by the other sections in their original order.
 
@@ -550,9 +620,12 @@ def convert_config(text, moves=None, removed=None):
             sections.remove(s)
             changes.append(f'removed empty section [{s.name}]')
 
-    # put the sections in the standard order
+    # put the sections in the standard order, and the lead keys at the top of each section
     if reorder_sections(sections):
         changes.append('sections reordered')
+    for sec in sections:
+        if sec.name and order_lead_keys(sec):
+            changes.append(f'lead keys of [{sec.name}] moved to the top')
 
     return render(sections), changes
 
@@ -620,6 +693,17 @@ def self_test():
         '# basal friction', '[basal_physics]', 'sliding_law = 4', '#beta_large = 1.e10', '',
         '####', '# I/O configuration follows', '####', '[CF default]', 'title = test', '']), ordered
     assert convert_config(ordered, {}) == (ordered, [])          # already in order: unchanged
+
+    # lead keys: idiag and jdiag (with the comment above idiag) move to the top of [diagnostics]
+    diag = '\n'.join(['[diagnostics]', 'dt_diag = 1.', '# diagnostic point', 'idiag = 10', 'jdiag = 12', 'dm_dt_diag = 1', ''])
+    led, ch = convert_config(diag, {})
+    assert led == '\n'.join(['[diagnostics]', '# diagnostic point', 'idiag = 10', 'jdiag = 12', 'dt_diag = 1.',
+                             'dm_dt_diag = 1', '']), led
+    assert ch == ['lead keys of [diagnostics] moved to the top'], ch
+    assert convert_config(led, {}) == (led, [])                  # already in order: unchanged
+    grid = '\n'.join(['[grid]', 'upn = 10', 'ewn = 31', 'nsn = 31', '', '[time]', 'dt = 1.', ''])
+    led, ch = convert_config(grid, {})                           # all keys are lead keys: keep the blank line
+    assert led == '\n'.join(['[grid]', 'ewn = 31', 'nsn = 31', 'upn = 10', '', '[time]', 'dt = 1.', '']), led
 
     # removed keys are deleted and reported; a section left with no keys is removed
     stale = '\n'.join(['[grid]', 'ewn = 31', '', '[ho_options]', 'deltaT_ocn_extrapolate = .true.', '',
