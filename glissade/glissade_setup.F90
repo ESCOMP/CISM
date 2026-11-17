@@ -1541,7 +1541,6 @@ contains
     call GetValue(section,'temperature_method', model%options%whichtemp)
     call GetValue(section,'temp_init',          model%options%temp_init)
     call GetValue(section,'dissipation_method', model%options%which_ho_disp)
-    call GetValue(section,'thermal_timestep',   model%options%which_ho_thermal_timestep)
 
     ! parameters
     call GetValue(section,'pmp_offset',    model%temper%pmp_offset)
@@ -1583,10 +1582,6 @@ contains
          '0-order SIA                       ', &
          'first-order model (Blatter-Pattyn)' /)
 
-    character(len=*), dimension(0:2), parameter :: thermal_timestep = (/ &
-         'vertical thermal solve before transport    ', &
-         'vertical thermal solve after transport     ', &
-         'vertical thermal solve split into two parts' /)
 
     !NOTE : Old option 3 (TEMP_REMAP_ADV) has been removed.
     ! If this has been set, then change to option 1 (TEMP_PROGNOSTIC), which applies to any dycore.
@@ -1599,10 +1594,6 @@ contains
     end if
     if (model%options%which_ho_disp < -1 .or. model%options%which_ho_disp >= size(dissipation_method)-1) then
        call write_log('Error, HO dissipation input out of range', GM_FATAL)
-    end if
-    if (model%options%which_ho_thermal_timestep < 0 .or. &
-         model%options%which_ho_thermal_timestep >= size(thermal_timestep)) then
-       call write_log('Error, HO thermal timestep input out of range', GM_FATAL)
     end if
 
     ! The local SIA solver cannot use first-order dissipation
@@ -1622,8 +1613,6 @@ contains
          trim(temp_init(model%options%temp_init)) // '; not used if temperature is read from a file')
     call log_option('dissipation_method', model%options%which_ho_disp, &
          trim(dissipation_method(model%options%which_ho_disp)) // trim(note))
-    call log_option('thermal_timestep', model%options%which_ho_thermal_timestep, &
-         thermal_timestep(model%options%which_ho_thermal_timestep))
     call log_param('pmp_threshold', model%temper%pmp_threshold, 'K')
     call log_param('pmp_offset', model%temper%pmp_offset, 'K')
 
@@ -1973,12 +1962,6 @@ contains
        if (model%options%which_ho_assemble_bfric == HO_ASSEMBLE_BFRIC_STANDARD) then
           call write_log('WARNING: local bfric assembly is recommended for the pseudo-plastic sliding law')
           write(message,*) 'Set assemble_bfric =', HO_ASSEMBLE_BFRIC_LOCAL
-          call write_log(message, GM_WARNING)
-       endif
-       if (model%options%which_ho_thermal_timestep == HO_THERMAL_BEFORE_TRANSPORT) then
-          call write_log('WARNING: Best to do vertical thermal solve after transport for the pseudo-plastic sliding law')
-          write(message,*) 'Set thermal_timestep to one of the following values:', &
-               HO_THERMAL_AFTER_TRANSPORT, HO_THERMAL_SPLIT_TIMESTEP
           call write_log(message, GM_WARNING)
        endif
     elseif (model%options%which_ho_babc == HO_BABC_ZOET_IVERSON) then

@@ -216,10 +216,6 @@ module glissade_types
   integer, parameter :: HO_DISP_SIA = 0
   integer, parameter :: HO_DISP_FIRSTORDER = 1
 
-  integer, parameter :: HO_THERMAL_BEFORE_TRANSPORT = 0
-  integer, parameter :: HO_THERMAL_AFTER_TRANSPORT = 1
-  integer, parameter :: HO_THERMAL_SPLIT_TIMESTEP = 2
-  
   !WHL TODO - Deprecate some little-used options during the config reorg
   !           This would include HO_BABC_PSEUDO_PLASTIC_OLD
   integer, parameter :: HO_BABC_BETA_CONSTANT = 0
@@ -763,13 +759,6 @@ module glissade_types
     !> \item[1] for first-order dissipation (Blatter-Pattyn)
     !> \end{description}
 
-    !WHL TODO - Remove this option during the config reorg
-    integer :: which_ho_thermal_timestep = 0
-    !> \begin{description}
-    !> \item[0] vertical thermal solve before transport solve
-    !> \item[1] vertical thermal solve after transport solve
-    !> \item[2] vertical thermal solve split; both before and after transport solve
-    !> \end{description}
 
     integer :: which_ho_babc = 4
 

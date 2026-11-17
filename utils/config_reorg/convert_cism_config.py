@@ -221,7 +221,6 @@ MOVES = {
     ('options', 'temperature'): ('temperature', 'temperature_method'),
     ('options', 'temp_init'): ('temperature', 'temp_init'),
     ('ho_options', 'which_ho_disp'): ('temperature', 'dissipation_method'),
-    ('ho_options', 'which_ho_thermal_timestep'): ('temperature', 'thermal_timestep'),
     ('parameters', 'pmp_offset'): ('temperature', 'pmp_offset'),
     ('parameters', 'pmp_threshold'): ('temperature', 'pmp_threshold'),
     # [inversion]
@@ -302,6 +301,7 @@ MOVES = {
 # note, which names the replacement if there is one.
 _FLOW_ENH = 'removed with the flow-enhancement-factor inversion'
 _PLUME = 'removed with the old plume model'
+_THERMAL_TS = 'removed; the vertical thermal solve is always done before transport'
 REMOVED = {
     ('ho_options', 'which_ho_flow_enhancement_factor'): 'removed (only the default behavior remains)',
     ('parameters', 'inversion_flow_enhancement_timescale'): _FLOW_ENH,
@@ -317,6 +317,8 @@ REMOVED = {
     ('options', 'enable_acab_anomaly'): 'removed; see enable_smb_anomaly in [climate]',
     ('time', 'subcyc'): 'removed; adaptive_cfl_threshold in [time] subcycles the advection when needed',
     ('time', 'ntem'): 'removed; the temperature is solved every time step',
+    ('ho_options', 'which_ho_thermal_timestep'): _THERMAL_TS,
+    ('temperature', 'thermal_timestep'): _THERMAL_TS,
 }
 
 # Order of the Glissade sections in a converted config file: the order in which they are written
@@ -375,7 +377,6 @@ USER_NL_RENAMES = {
     'which_ho_ice_age': 'compute_ice_age',
     'temperature': 'temperature_method',
     'which_ho_disp': 'dissipation_method',
-    'which_ho_thermal_timestep': 'thermal_timestep',
     # [geothermal]
     'gthf': 'geothermal_method',
     'geothermal': 'geothermal_flux',

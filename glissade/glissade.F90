@@ -1207,19 +1207,8 @@ contains
     ! Vertical diffusion and strain heating only; no temperature advection.
     ! ------------------------------------------------------------------------
 
-    if (model%options%which_ho_thermal_timestep == HO_THERMAL_BEFORE_TRANSPORT) then
-
-       ! vertical thermal solve before transport
-       call glissade_thermal_solve(model,  &
-                                   model%numerics%dt)
-
-    elseif (model%options%which_ho_thermal_timestep == HO_THERMAL_SPLIT_TIMESTEP) then
-
-       ! vertical thermal solve split into two parts, before and after transport
-       call glissade_thermal_solve(model,  &
-                                   model%numerics%dt/2.0d0)
-
-    endif
+    call glissade_thermal_solve(model,  &
+                                model%numerics%dt)
 
     ! ------------------------------------------------------------------------ 
     ! Compute the basal melt rate beneath floating ice.
@@ -1297,28 +1286,6 @@ contains
     ! ------------------------------------------------------------------------ 
 
     call glissade_cleanup_icefree_cells(model)
-
-    ! ------------------------------------------------------------------------
-    !TODO - Remove the thermal solve here; always do it near the start of the time step.
-    ! Do the vertical thermal solve here for thermal_timestep = 1 or 2.
-    ! Note: A thermal solve should be done here (using option HO_THERMAL_AFTER_TRANSPORT 
-    !       or HO_THERMAL_SPLIT_TIMESTEP) if it is desired to update the bed temperature 
-    !       and pmp temperature after transport and before the velocity solve.
-    ! ------------------------------------------------------------------------
-
-    if (model%options%which_ho_thermal_timestep == HO_THERMAL_AFTER_TRANSPORT) then
-
-       ! vertical thermal solve after transport
-       call glissade_thermal_solve(model,  &
-                                   model%numerics%dt)
-
-    elseif (model%options%which_ho_thermal_timestep == HO_THERMAL_SPLIT_TIMESTEP) then
-
-       ! vertical thermal solve split into two parts, before and after transport
-       call glissade_thermal_solve(model,  &
-                                   model%numerics%dt/2.0d0)
-
-    endif
 
     ! ------------------------------------------------------------------------
     ! Calculate diagnostic variables, including ice velocity
