@@ -143,7 +143,6 @@ MOVES = {
     ('parameters', 'tmlt'): ('climate', 'tmlt'),
     ('parameters', 'snow_threshold_min'): ('climate', 'snow_threshold_min'),
     ('parameters', 'snow_threshold_max'): ('climate', 'snow_threshold_max'),
-    ('parameters', 'smb_factor'): ('climate', 'smb_factor'),
     ('parameters', 'smb_anomaly_tstart'): ('climate', 'smb_anomaly_tstart'),
     ('parameters', 'smb_anomaly_timescale'): ('climate', 'smb_anomaly_timescale'),
     ('parameters', 'overwrite_acab_value'): ('climate', 'overwrite_acab_value'),
@@ -294,6 +293,7 @@ _FLOW_ENH = 'removed with the flow-enhancement-factor inversion'
 _PLUME = 'removed with the old plume model'
 _THERMAL_TS = 'removed; the vertical thermal solve is always done before transport'
 _ADJ_TOPG = 'removed with the adjust_input_topography option'
+_SMB_FACTOR = 'removed; scale the SMB in the input or forcing file instead'
 REMOVED = {
     ('ho_options', 'which_ho_flow_enhancement_factor'): 'removed (only the default behavior remains)',
     ('parameters', 'inversion_flow_enhancement_timescale'): _FLOW_ENH,
@@ -322,6 +322,8 @@ REMOVED = {
     ('parameters', 'adjust_topg_no_adjust'): _ADJ_TOPG, ('initialization', 'adjust_topg_no_adjust'): _ADJ_TOPG,
     ('parameters', 'adjust_topg_max_adjust'): _ADJ_TOPG, ('initialization', 'adjust_topg_max_adjust'): _ADJ_TOPG,
     ('parameters', 'adjust_topg_delta'): _ADJ_TOPG, ('initialization', 'adjust_topg_delta'): _ADJ_TOPG,
+    ('parameters', 'smb_factor'): _SMB_FACTOR,
+    ('climate', 'smb_factor'): _SMB_FACTOR,
 }
 
 # Order of the Glissade sections in a converted config file: the order in which they are written

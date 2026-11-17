@@ -1423,7 +1423,6 @@ module glissade_types
 
      real(dp) :: eus = 0.d0                         !> eustatic sea level
 
-     real(dp) :: smb_factor = 1.0d0                 !> multiplicative factor for external smb field (unitless)
      real(dp) :: smb_anomaly_tstart = 0.0d0         !> time to start applying the anomaly (yr)
      real(dp) :: smb_anomaly_timescale = 0.0d0      !> number of years over which the smb anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.

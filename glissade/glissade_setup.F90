@@ -2981,7 +2981,6 @@ contains
     call GetValue(section,'tmlt',               model%climate%tmlt)
     call GetValue(section,'snow_threshold_min', model%climate%snow_threshold_min)
     call GetValue(section,'snow_threshold_max', model%climate%snow_threshold_max)
-    call GetValue(section,'smb_factor',         model%climate%smb_factor)
 
     ! anomaly and overwrite parameters
     call GetValue(section,'smb_anomaly_tstart',     model%climate%smb_anomaly_tstart)
@@ -3044,7 +3043,6 @@ contains
     if (model%options%smb_input == SMB_INPUT_MYR_ICE) then
        if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
            model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
-           model%climate%smb_factor /= 1.0d0 .or. &
            model%options%enable_smb_anomaly .or. &
            model%options%enable_glaciers) then
           write(message,*) 'Error, input SMB must have units of mm/yr w.e., smb_input =', SMB_INPUT_MMYR_WE
@@ -3077,7 +3075,6 @@ contains
     if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
        call log_param('t_lapse', model%climate%t_lapse, 'deg C/m; artm lapse rate')
     endif
-    call log_param('smb_factor', model%climate%smb_factor, 'multiplies the input SMB')
 
     call log_flag('enable_smb_anomaly', model%options%enable_smb_anomaly)
     if (model%options%enable_smb_anomaly) then
