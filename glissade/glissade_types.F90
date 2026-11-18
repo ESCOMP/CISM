@@ -707,12 +707,6 @@ module glissade_types
   integer, parameter :: COMPUTE_ISOSTASY_FALSE = 0
   integer, parameter :: COMPUTE_ISOSTASY_TRUE = 1
 
-  !TODO - Deprecate the quadratic option?
-
- 
-
-  ! higher-order options
-
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   type glissade_general_type
@@ -838,7 +832,7 @@ module glissade_types
     !> \item[thermal_forcing] Basal melt rate for floating ice derived from ocean thermal forcing
     !> \end{description}
 
-    integer :: bmlt_float_thermal_forcing_param = BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL   ! default was BMLT_FLOAT_TF_PARAM_QUADRATIC until the config reorganization
+    integer :: bmlt_float_thermal_forcing_param = BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL
 
     !> \begin{description}
     !> \item[quadratic] Quadratic parameterization to compute basal melting from thermal forcing
@@ -1107,6 +1101,7 @@ module glissade_types
     !> \end{description}
 
     integer :: which_ho_babc = SLIDING_LAW_NO_SLIP
+
 
     !WHL TODO - Option 3 to be removed during the config reorg
     !> Flag that describes basal boundary condition for HO dyn core: 
