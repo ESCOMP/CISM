@@ -533,15 +533,15 @@ for expt in experiments:
         config.set('calving', 'apply_calving_mask', 'True')
         config.set('calving', 'calving_front_radius', str(cf_radius))
     elif expt == 'Experiment5':
-        config.set('calving', 'calving_law', '7')
+        config.set('calving', 'calving_law', 'thck_threshold')
         calvingMinthck = 325.
         config.set('calving', 'calving_thck_threshold', str(calvingMinthck))
             
     # Set the calvingMIP domain (circular or Thule)
     if expt == 'SpinupCircular' or expt == 'Experiment1' or expt == 'Experiment2':
-        config.set('calving', 'calvingmip_domain', '1')
+        config.set('calving', 'calvingmip_domain', 'circular')
     elif expt == 'SpinupThule' or expt == 'Experiment3' or expt == 'Experiment4' or expt == 'Experiment5':
-        config.set('calving', 'calvingmip_domain', '2')
+        config.set('calving', 'calvingmip_domain', 'thule')
 
     # Set the start and end times
     config.set('time', 'tstart', str(tstart))

@@ -397,7 +397,7 @@ for expt in experiments:
         outputfreq  = 10.0
         restartfreq = 100.0
     elif expt == 'Ice1r':
-        config.set('basal_melt', 'bmlt_float_method', '1')
+        config.set('basal_melt', 'bmlt_float_method', 'mismip')
         tstart      = 0.0
         tend        = 100.0
         inputdir    = '../Spinup/'
@@ -422,7 +422,7 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
     elif expt == 'Ice1rr':
-        config.set('basal_melt', 'bmlt_float_method', '1')
+        config.set('basal_melt', 'bmlt_float_method', 'mismip')
         tstart      = 100.0
         tend        = 200.0
         inputdir    = '../Ice1r/'
@@ -431,7 +431,7 @@ for expt in experiments:
         outputfreq  = 10.0
         restartfreq = 100.0
     elif expt == 'Ice1rrx':
-        config.set('basal_melt', 'bmlt_float_method', '1')
+        config.set('basal_melt', 'bmlt_float_method', 'mismip')
         tstart      = 200.0
         tend        = 1000.0
         inputdir    = '../Ice1rr/'
@@ -440,7 +440,7 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
     elif expt == 'Ice2r':
-        config.set('basal_melt', 'bmlt_float_method', '2')
+        config.set('basal_melt', 'bmlt_float_method', 'constant')
         tstart      = 0.0
         tend        = 100.0
         inputdir    = '../Spinup/'
@@ -465,7 +465,7 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
     elif expt == 'Ice2rr':
-        config.set('basal_melt', 'bmlt_float_method', '2')
+        config.set('basal_melt', 'bmlt_float_method', 'constant')
         tstart      = 100.0
         tend        = 200.0
         inputdir    = '../Ice2r/'
@@ -474,7 +474,7 @@ for expt in experiments:
         outputfreq  = 10.0
         restartfreq = 100.0
     elif expt == 'Ice2rrx':
-        config.set('basal_melt', 'bmlt_float_method', '2')
+        config.set('basal_melt', 'bmlt_float_method', 'constant')
         tstart      = 200.0
         tend        = 1000.0
         inputdir    = '../Ice2rr/'

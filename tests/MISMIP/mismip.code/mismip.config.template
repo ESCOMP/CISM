@@ -67,10 +67,10 @@ grounding_line_param = vertices
 flotation_function = pattyn
 
 [basal_melt]
-bmlt_float_method = 0          # 0 = no melting of floating ice
+bmlt_float_method = none
 
 [calving]
-calving_law = 4       # 4 = topographic threshold, 5 = calving mask
+calving_law = topg_threshold
 marine_limit = -1250           ; depth past which ice is lost
 
 [CF default]

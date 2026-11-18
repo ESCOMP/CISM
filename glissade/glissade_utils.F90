@@ -1084,7 +1084,7 @@ contains
              ! other tracers
              ! Note: Tracers should be added here as they are added to the model
 
-             if (model%options%whichcalving == CALVING_DAMAGE) then
+             if (model%options%whichcalving == CALVING_LAW_DAMAGE) then
                 model%calving%damage(:,i,j) = 0.0d0
              endif
 

@@ -73,13 +73,13 @@ grounding_line_bmlt = none
 flotation_function = linear
 
 [basal_melt]
-bmlt_float_method = 0          # 0 = no melting of floating ice
-basal_mass_balance = 0  # 1 = include basal mass balance in continuity eqn
+bmlt_float_method = none
+basal_mbal_in_continuity = .false.
 
 [calving]
-calving_law = 6       # 5 = calving mask, 6 = prescribed advance/retreat rate
+calving_law = advance_retreat_rate
 apply_calving_mask = False  # if true, apply a calving mask at the margin
-subgrid_calving_front = 1        # 0 = no subgrid calving front, 1 = subgrid calving front
+subgrid_calving_front = .true.
 thck_effective_min = 50.
 dthck_dx_cf = 0.0001            # surface slope at the CF
 cf_advance_retreat_amplitude = 0.

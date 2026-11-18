@@ -391,7 +391,7 @@
     call parallel_halo(calving_front_mask, parallel)
     call parallel_halo(interior_mask, parallel)
 
-    if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then   ! subgrid CF scheme
+    if (which_ho_calving_front == SUBGRID_CALVING_FRONT_TRUE) then   ! subgrid CF scheme
 
        ! Initialize thck_effective and masks
        where (ice_mask == 1)

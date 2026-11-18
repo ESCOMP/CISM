@@ -50,7 +50,7 @@ import sys
 MOVES = {
     # [calving]
     ('options', 'marine_margin'): ('calving', 'calving_law'),
-    ('options', 'calving_init'): ('calving', 'calving_init'),
+    ('options', 'calving_init'): ('calving', 'calve_at_startup'),
     ('options', 'calving_domain'): ('calving', 'calving_domain'),
     ('options', 'apply_calving_mask'): ('calving', 'apply_calving_mask'),
     ('options', 'remove_icebergs'): ('calving', 'remove_icebergs'),
@@ -161,7 +161,7 @@ MOVES = {
     ('options', 'bmlt_float_init'): ('basal_melt', 'bmlt_float_init'),
     ('ho_options', 'which_ho_deltaT_ocn'): ('basal_melt', 'deltaT_ocn_method'),
     ('options', 'enable_bmlt_anomaly'): ('basal_melt', 'enable_bmlt_anomaly'),
-    ('options', 'basal_mass_balance'): ('basal_melt', 'basal_mass_balance'),
+    ('options', 'basal_mass_balance'): ('basal_melt', 'basal_mbal_in_continuity'),
     ('parameters', 'bmlt_float_factor'): ('basal_melt', 'bmlt_float_factor'),
     ('parameters', 'bmlt_cavity_h0'): ('basal_melt', 'bmlt_cavity_h0'),
     ('parameters', 'bmlt_anomaly_tstart'): ('basal_melt', 'bmlt_anomaly_tstart'),
@@ -180,7 +180,7 @@ MOVES = {
     ('parameters', 'bmlt_float_depth_zmeltmin'): ('basal_melt', 'bmlt_float_depth_zmeltmin'),
     # [ocean_data]
     ('options', 'ocean_data_domain'): ('ocean_data', 'ocean_data_domain'),
-    ('options', 'ocean_data_extrapolate'): ('ocean_data', 'ocean_data_extrapolate'),
+    ('options', 'ocean_data_extrapolate'): ('ocean_data', 'extrapolate_ocean_data'),
     ('parameters', 'gamma0'): ('basal_melt', 'bmlt_float_gamma0'),
     ('parameters', 'thermal_forcing_basin_min'): ('ocean_data', 'thermal_forcing_basin_min'),
     ('parameters', 'thermal_forcing_basin_max'): ('ocean_data', 'thermal_forcing_basin_max'),
@@ -308,6 +308,10 @@ MOVES = {
     ('climate', 'smb_input'): ('climate', 'smb_input_units'),
     ('climate', 'overwrite_acab_minthck'): ('climate', 'overwrite_acab_thck_min'),
     ('glaciers', 'diagnostic_minthck'): ('glaciers', 'glacier_diag_thck_min'),
+    # R2b: options that became logicals, with new names
+    ('basal_melt', 'basal_mass_balance'): ('basal_melt', 'basal_mbal_in_continuity'),
+    ('ocean_data', 'ocean_data_extrapolate'): ('ocean_data', 'extrapolate_ocean_data'),
+    ('calving', 'calving_init'): ('calving', 'calve_at_startup'),
 }
 
 # (section, key) -> note: keys that Glissade no longer reads.  The converter deletes them and reports the
@@ -448,6 +452,10 @@ USER_NL_RENAMES = {
     'smb_input': 'smb_input_units',
     'overwrite_acab_minthck': 'overwrite_acab_thck_min',
     'diagnostic_minthck': 'glacier_diag_thck_min',
+    # R2b renames (options that became logicals)
+    'basal_mass_balance': 'basal_mbal_in_continuity',
+    'ocean_data_extrapolate': 'extrapolate_ocean_data',
+    'calving_init': 'calve_at_startup',
 }
 
 # Match the CISM reader (glimmer_config.F90): a section header is a line starting with '[' in
@@ -558,12 +566,36 @@ OPTION_VALUES = {
     ('grounding_line', 'fground_no_glp'): {0: 'grounded_neighbor', 1: 'flotation_function'},
     ('grounding_line', 'grounding_line_bmlt'): {0: 'none', 1: 'floating_fraction', 2: 'zero_grounded'},
     ('grounding_line', 'flotation_function'): {0: 'pattyn', 1: 'inverse_pattyn', 2: 'linear'},
+    ('basal_melt', 'bmlt_float_method'): {0: 'none', 1: 'mismip', 2: 'constant', 3: 'depth', 4: 'file',
+                                          6: 'thermal_forcing'},
+    ('basal_melt', 'bmlt_float_thermal_forcing_param'): {0: 'quadratic', 1: 'ismip6_local',
+                                                         2: 'ismip6_nonlocal', 3: 'ismip6_nonlocal_slope'},
+    ('basal_melt', 'deltaT_ocn_method'): {0: 'none', 1: 'inversion', 2: 'file', 3: 'inversion_basin',
+                                          4: 'calibrate_basin', 5: 'dthck_dt'},
+    ('ocean_data', 'ocean_data_domain'): {0: 'internal', 1: 'file', 2: 'coupler'},
+    ('calving', 'calving_law'): {0: 'none', 1: 'float_zero', 3: 'relx_threshold', 4: 'topg_threshold',
+                                 5: 'grid_mask', 6: 'advance_retreat_rate', 7: 'thck_threshold', 8: 'stress',
+                                 9: 'stress_stochastic', 10: 'damage', 11: 'eigencalving'},
+    ('calving', 'calving_domain'): {0: 'ocean_edge', 1: 'everywhere'},
+    ('calving', 'calvingmip_domain'): {0: 'none', 1: 'circular', 2: 'thule'},
+    ('lateral_melt', 'lateral_melt_method'): {0: 'none', 1: 'constant', 2: 'ismip'},
+    ('removal', 'force_retreat'): {0: 'none', 1: 'all_ice', 2: 'floating_ice'},
 }
 
 # Options that are now logicals: 0/1 -> .false./.true.
 LOGICAL_KEYS = {
     ('options', 'restart_extend_velo'),
     ('advection', 'compute_ice_age'),
+    ('basal_melt', 'basal_mbal_in_continuity'),
+    ('ocean_data', 'extrapolate_ocean_data'),
+    ('calving', 'calve_at_startup'),
+    ('calving', 'subgrid_calving_front'),
+}
+
+# Removed option values: (section, key) -> {integer: note}; reported instead of 'not a valid value'.
+REMOVED_VALUES = {
+    ('basal_melt', 'bmlt_float_method'): {5: 'removed with the old MISOMIP plume model'},
+    ('calving', 'calving_law'): {2: 'removed; use calving_law = float_zero with calving_timescale = dt/calving_fraction'},
 }
 
 INT_COMMENT_RE = re.compile(r'^\s*[#;!].*(?<![\w.])[+-]?\d+\s*[=:]')
@@ -584,6 +616,9 @@ def convert_value(section, key, rest, quote=''):
         return rest, None
     v = int(m.group(2))
     if v not in table:
+        note = REMOVED_VALUES.get((section, key), {}).get(v)
+        if note:
+            return rest, f'[{section}] {key} = {v}: {note}; left unchanged'
         return rest, f'[{section}] {key} = {v} is not a valid value; left unchanged'
     tail = m.group(3)
     # an inline comment that explains the integer values ('# 0 = off, 1 = on') no longer fits: drop it
@@ -825,7 +860,7 @@ def self_test():
         '[parameters]', 'calving_timescale = 1.0', 'ice_limit = 1.', '',
         '[CF output]', 'name = out.nc', ''])
     new, changes = convert_config(old, moves)
-    assert '[calving]\n# calving: 4 = thickness threshold\ncalving_law = 4   # see docs\ncalving_timescale = 1.0\n\n' in new, new
+    assert '[calving]\n# calving: 4 = thickness threshold\ncalving_law = topg_threshold   # see docs\ncalving_timescale = 1.0\n\n' in new, new
     assert '[basal_physics]\nsliding_law = powerlaw\n\n' in new, new
     assert '[ho_options]' not in new, new                      # emptied section removed
     assert new.index('[basal_physics]') < new.index('[calving]') < new.index('[CF output]'), new
@@ -894,6 +929,10 @@ def self_test():
     nl3, c3 = convert_user_nl("restart = 2\nrestart_extend_velo = 0\nglobal_bc = 'outflow'\n", {})
     assert nl3 == "restart = 'hybrid'\nrestart_extend_velo = .false.\nglobal_bc = 'outflow'\n", nl3
     assert c3 == ['restart: 2 -> hybrid', 'restart_extend_velo: 0 -> .false.'], c3
+    # removed option values are reported with their replacement
+    _, c5 = convert_config('[calving]\ncalving_law = 2\n', {})
+    assert c5 == ['[calving] calving_law = 2: removed; use calving_law = float_zero with calving_timescale = '
+                  'dt/calving_fraction; left unchanged'], c5
     print('self-test passed')
 
 

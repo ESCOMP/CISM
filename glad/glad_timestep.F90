@@ -220,7 +220,7 @@ contains
 
           if (iter == 1) then
              if ( associated(instance%model%ocean_data%thermal_forcing) .and. &
-                  instance%model%options%ocean_data_domain == OCEAN_DATA_GLAD) then
+                  instance%model%options%ocean_data_domain == OCEAN_DATA_DOMAIN_COUPLER) then
                 ! GRL: At this point, glide_set does not work for 3D variables.
                 instance%model%ocean_data%thermal_forcing = instance%thermal_forcing
              endif

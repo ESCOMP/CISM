@@ -63,7 +63,7 @@ contains
        calving_front_x,   calving_front_y,  &
        calving_mask)
 
-    ! Compute an integer calving mask if needed for the CALVING_GRID_MASK option
+    ! Compute an integer calving mask if needed for the CALVING_LAW_GRID_MASK option
 
     use glissade_masks, only: glissade_get_masks, glissade_ocean_connection_mask
 
@@ -78,8 +78,8 @@ contains
     real(dp), intent(in) :: thklim                 !> minimum thickness for dynamically active grounded ice (m)
     real(dp), dimension(:,:), intent(in) :: &
          usfc_obs, vsfc_obs                        !> observed surface velocity components (m/yr)
-    real(dp), intent(in) :: calving_front_x        !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
-    real(dp), intent(in) :: calving_front_y        !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
+    real(dp), intent(in) :: calving_front_x        !> for CALVING_LAW_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
+    real(dp), intent(in) :: calving_front_y        !> for CALVING_LAW_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
 
     integer, dimension(:,:), intent(inout) :: calving_mask   !> output mask: calve floating ice wherever the mask = 1
 
@@ -320,7 +320,7 @@ contains
        calving_front_radius,                &
        subgrid_calving_mask)
 
-    ! Compute an integer calving mask if needed for the CALVING_GRID_MASK option
+    ! Compute an integer calving mask if needed for the CALVING_LAW_GRID_MASK option
 
     use glissade_masks, only: glissade_get_masks, glissade_ocean_connection_mask
 
@@ -737,9 +737,9 @@ contains
     !       Replace with calls to multiple subroutines based on whichcalving?
     ! ------------------------------------------------------------------------
 
-    if (model%options%whichcalving /= CALVING_GRID_MASK) then
+    if (model%options%whichcalving /= CALVING_LAW_GRID_MASK) then
 
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+       if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
 
           ! Apply a basic position-based calving scheme without a subgrid CF
           if (main_task .and. verbose_calving) write(iulog,*) 'Call calve_ice_basic'
@@ -798,7 +798,7 @@ contains
     ! Optionally, apply one of several kinds of calving mask
 
     if (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE .or. &
-        model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) then
+        model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask) then
 
        ! Thin or remove ice based on other masks (model%calving%calving_mask, model%calving%subgrid_calving_mask)
        call apply_calving_mask(model)
@@ -807,7 +807,7 @@ contains
 
     ! If running a CalvingMIP experiment, then compute some diagnostics
 
-    if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
+    if (model%options%which_ho_calvingmip_domain /= CALVINGMIP_DOMAIN_NONE) then
        call glissade_calvingmip_diag(model)
     endif
 
@@ -1041,7 +1041,7 @@ contains
 
     ! initialize
 
-    if (which_calving == CALVING_NONE) then   ! do nothing
+    if (which_calving == CALVING_LAW_NONE) then   ! do nothing
        if (verbose_calving .and. main_task) write(iulog,*) 'No calving'
        return
     endif
@@ -1084,7 +1084,7 @@ contains
 
     select case (which_calving)
 
-    case(CALVING_FLOAT_ZERO)     ! calve ice that is floating
+    case(CALVING_LAW_FLOAT_ZERO)     ! calve ice that is floating
 
        do j = 1, ny
           do i = 1, nx
@@ -1096,14 +1096,14 @@ contains
           enddo
        enddo
 
-       !NOTE: The Glide version of CALVING_FLOAT_ZERO calves all floating ice.
+       !NOTE: The Glide version of CALVING_LAW_FLOAT_ZERO calves all floating ice.
        !      Glissade calves floating ice only in the calving domain, which is CALVING_DOMAIN_OCEAN_EDGE by default.
        !      Must set calving_domain = CALVING_DOMAIN_EVERYWHERE to match the Glide behavior.
        !TODO: Change the default to calving_domain_everywhere?
 
-    case(CALVING_RELX_THRESHOLD)   ! set thickness to zero if relaxed bedrock is below a given level
+    case(CALVING_LAW_RELX_THRESHOLD)   ! set thickness to zero if relaxed bedrock is below a given level
 
-       !WHL - The Glide version of CALVING_RELX_THRESHOLD calves ice wherever the relaxed bedrock criterion is met.
+       !WHL - The Glide version of CALVING_LAW_RELX_THRESHOLD calves ice wherever the relaxed bedrock criterion is met.
        !      Must set calving_domain = CALVING_DOMAIN_EVERYWHERE to match the Glide behavior.
        where (relx <= calving%marine_limit + eus)
           calving_law_mask = .true.
@@ -1111,7 +1111,7 @@ contains
           calving_law_mask = .false.
        endwhere
 
-    case(CALVING_TOPG_THRESHOLD)   ! set thickness to zero if present bedrock is below a given level
+    case(CALVING_LAW_TOPG_THRESHOLD)   ! set thickness to zero if present bedrock is below a given level
 
        where (topg < calving%marine_limit + eus)
           calving_law_mask = .true.
@@ -1453,7 +1453,7 @@ contains
 
     ! Compute the effective length of the calving front in each grid cell
 
-    if (which_calving == CF_ADVANCE_RETREAT_RATE) then
+    if (which_calving == CALVING_LAW_ADVANCE_RETREAT_RATE) then
 
        ! compute the CF length as a function of a cell's location on the unit circle
        ! surrounding the origin (assuming a radially symmetric calving rate).
@@ -1497,7 +1497,7 @@ contains
     ! Depending on the calving method, compute the calving rate for each grid cell
     ! and convert to an equivalent thinning rate.
 
-    if (which_calving == CF_ADVANCE_RETREAT_RATE) then
+    if (which_calving == CALVING_LAW_ADVANCE_RETREAT_RATE) then
 
        call calving_front_advance_retreat(&
             nx,                 ny,                    &
@@ -1513,7 +1513,7 @@ contains
             calving%cf_advance_retreat_period*scyr,    &  ! s
             calving_dthck)                                ! m
 
-    elseif (which_calving == CALVING_THCK_THRESHOLD) then
+    elseif (which_calving == CALVING_LAW_THCK_THRESHOLD) then
 
        call extrapolate_to_calving_front(&
             nx,                 ny,     &
@@ -1534,7 +1534,7 @@ contains
             calving%minthck,                           &  ! m
             calving_dthck)                                ! m
 
-    elseif (which_calving == CALVING_STRESS) then
+    elseif (which_calving == CALVING_LAW_STRESS) then
 
        call extrapolate_to_calving_front(&
             nx,                 ny,     &
@@ -1590,7 +1590,7 @@ contains
 
        endif
 
-    elseif (which_calving == CALVING_STRESS_STOCHASTIC) then
+    elseif (which_calving == CALVING_LAW_STRESS_STOCHASTIC) then
 
        call extrapolate_to_calving_front(&
             nx,                 ny,     &
@@ -1628,7 +1628,7 @@ contains
             calving%length_scale,              &  ! m
             calving_dthck)                        ! m
 
-    elseif (which_calving == EIGEN_CALVING) then
+    elseif (which_calving == CALVING_LAW_EIGENCALVING) then
 
        call extrapolate_to_calving_front(&
             nx,                 ny,     &
@@ -1653,7 +1653,7 @@ contains
 
        !TODO: Add thickness-based calving, as for stress-based calving above
 
-    elseif (which_calving == CALVING_DAMAGE) then
+    elseif (which_calving == CALVING_LAW_DAMAGE) then
 
        call extrapolate_to_calving_front(&
             nx,                 ny,     &
@@ -1699,7 +1699,7 @@ contains
 
     ! Apply calving_dthck as computed above.
 
-    if (which_calving == CALVING_DAMAGE) then
+    if (which_calving == CALVING_LAW_DAMAGE) then
 
        ! different treatment of calving_dthck because we can calve cells not on the CF
        where (calving_dthck == thck)
@@ -1714,7 +1714,7 @@ contains
 
        upstream_calving_mask = 0
 
-       if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       if (which_ho_calving_front == SUBGRID_CALVING_FRONT_TRUE) then
           where (floating_mask == 1)
              upstream_calving_mask = 1
           endwhere
@@ -2662,7 +2662,7 @@ contains
 
 !---------------------------------------------------------------------------
 
-  ! This subroutine previously was called for the CALVING_DAMAGE option,
+  ! This subroutine previously was called for the CALVING_LAW_DAMAGE option,
   ! which now uses subroutine stochastic_damage_based_calving.
   ! Keeping the older version for reference and further testing.
   subroutine damage_based_calving(&
@@ -3699,11 +3699,11 @@ contains
     ! Apply a binary mask for runs without a subgrid calving front parameterization
     !--------------------------------------------------------------------
 
-    ! Note: whichcalving = CALVING_GRID_MASK and apply_calving_mask = T are currently redundant.
-    ! TODO: Remove either the CALVING_GRID_MASK option or apply_calving_mask.
+    ! Note: whichcalving = CALVING_LAW_GRID_MASK and apply_calving_mask = T are currently redundant.
+    ! TODO: Remove either the CALVING_LAW_GRID_MASK option or apply_calving_mask.
 
-    if ((model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) .and. &
-         model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+    if ((model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask) .and. &
+         model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
 
        ! Calve ice where calving_mask = 1
        ! Optionally, if calving%timescale > 0, then there is a time scale for removal,
@@ -3771,8 +3771,8 @@ contains
     ! Apply a real-valued mask for runs with a subgrid calving front parameterization
     !--------------------------------------------------------------------
 
-    if ((model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) .and. &
-         model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+    if ((model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask) .and. &
+         model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_TRUE) then
 
        ! Remove ice based on a subgrid calving mask.
        ! This is a real mask in the range [0,1], which thins and removes ice beyond a prescribed radius.

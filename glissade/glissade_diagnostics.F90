@@ -1478,7 +1478,7 @@
     ! Note: Both calving_thck and bmlt_applied have dimensionless model units;
     !       calving_thck = calving thickness per timestep, while bmlt_applied = melt per unit time
 
-    if (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) then
+    if (model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask) then
        where (model%calving%calving_front_mask == 1)
           model%calving%calving_thck = model%calving%calving_thck + model%basal_melt%bmlt_applied * model%numerics%dt
           model%basal_melt%bmlt_applied = 0.0d0
@@ -1989,8 +1989,8 @@
          model%calving%effective_areafrac)
 
     ! Compute the diagnostics for the chosen domain (circular or Thule)
-    if (model%options%which_ho_calvingmip_domain == HO_CALVINGMIP_DOMAIN_CIRCULAR .and. &
-        model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+    if (model%options%which_ho_calvingmip_domain == CALVINGMIP_DOMAIN_CIRCULAR .and. &
+        model%options%whichcalving == CALVING_LAW_ADVANCE_RETREAT_RATE) then
 
        call locate_calving_front_circular(&
             nx,             ny,                &
@@ -2011,8 +2011,8 @@
             model%calving%cf_uvel,             &  ! m/s
             model%calving%cf_vvel)
 
-    elseif (model%options%which_ho_calvingmip_domain == HO_CALVINGMIP_DOMAIN_THULE .and. &
-            model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+    elseif (model%options%which_ho_calvingmip_domain == CALVINGMIP_DOMAIN_THULE .and. &
+            model%options%whichcalving == CALVING_LAW_ADVANCE_RETREAT_RATE) then
 
        call locate_calving_front_thule(&
             nx,             ny,                &

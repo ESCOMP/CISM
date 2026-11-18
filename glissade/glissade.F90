@@ -455,7 +455,7 @@ contains
        endif
     endif
 
-    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or.  &
+    if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_DTHCK_DT .or.  &
         model%options%enable_acab_dthck_dt_correction) then
        call check_fill_values(model%geometry%dthck_dt_obs, scale_factor_in = scyr)
        if (verbose_bmlt_float .and. this_rank == rtest) then
@@ -857,7 +857,7 @@ contains
     !       Note: The calving solve includes removal of icebergs and isthmuses.
 
     if (l_evolve_ice .and. &
-         model%options%calving_init == CALVING_INIT_ON .and. &
+         model%options%calving_init == CALVE_AT_STARTUP_TRUE .and. &
          model%options%is_restart == NO_RESTART) then
 
        call glissade_calving_solve(model, .true.)   ! init_calving = .true.
@@ -940,8 +940,8 @@ contains
         model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or.  &
         model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION        .or.  &
         model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION_BASIN  .or.  &
-        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION       .or.  &
-        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
+        model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION       .or.  &
+        model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
 
        call glissade_inversion_init(model)
 
@@ -949,7 +949,7 @@ contains
 
     ! If using dthck_dt_obs, make sure it was read in
 
-    if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT .or. &
+    if (model%options%which_ho_deltat_ocn == DELTAT_OCN_METHOD_DTHCK_DT .or. &
         model%options%enable_acab_dthck_dt_correction) then
        if (parallel_is_zero(model%geometry%dthck_dt_obs)) then
           call write_log ('Error: Trying to match dthck_dt, but dthck_dt_obs = 0', GM_FATAL)
@@ -996,11 +996,11 @@ contains
     !       we typically would not want to invert for deltaT_ocn beyond the observed calving front, because the
     !       inversion could override the effects (or lack thereof) of the calving scheme.
 
-    if ( (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask .or. &
-          model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) &
+    if ( (model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask .or. &
+          model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION) &
        .and. model%options%is_restart == NO_RESTART ) then
 
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+       if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
 
           ! Initialize an integer calving_mask.
           ! Note: This is done after initial calving, which may include iceberg removal.
@@ -1073,7 +1073,7 @@ contains
     ! Optionally, set deltaT_ocn (either local or basin scale) to optimize agreement with observed melt rates
     ! Note: Need the current value of lsrf when calling this subroutine
 
-    if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+    if (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
 
        call glissade_bmlt_float_init(model, model%ocean_data)
 
@@ -1242,7 +1242,7 @@ contains
     ! Calculate lateral melting
     ! ------------------------------------------------------------------------
 
-    if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
+    if (model%options%which_lateral_melt /= LATERAL_MELT_METHOD_NONE) then
        call glissade_lateral_melt_solve(model, model%lateral_melt)
     endif
 
@@ -1627,7 +1627,7 @@ contains
        !       This prevents a positive SMB in ocean cells that have H = 0 before transport.
        ! ------------------------------------------------------------------------
 
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+       if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
           ! Pass the default value
           this_thklim = model%numerics%thklim
        else
@@ -1687,7 +1687,7 @@ contains
        !       from flowing beyond the CF in the first place. However, this will require
        !       some major changes in the incremental remapping transport scheme.
 
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_TRUE) then
 
           !TODO - Move the following to a subroutine in the calving module?
           ! First assume all cells are beyond the CF, then identify exceptions.
@@ -1745,7 +1745,7 @@ contains
           enddo
        endif    ! TEMPERATURE_METHOD_ENTHALPY
 
-       if (verbose_calving .and. model%options%whichcalving == CALVING_DAMAGE) then
+       if (verbose_calving .and. model%options%whichcalving == CALVING_LAW_DAMAGE) then
           call point_diag(model%calving%damage(1,:,:), 'Before tracer transport, damage layer 1:', &
                itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
@@ -1905,7 +1905,7 @@ contains
        ! copy tracers (temp/enthalpy, etc.) from model%geometry%tracers back to standard arrays
        call glissade_transport_finish_tracers(model)
 
-       if (verbose_calving .and. model%options%whichcalving == CALVING_DAMAGE) then
+       if (verbose_calving .and. model%options%whichcalving == CALVING_LAW_DAMAGE) then
           call point_diag(model%calving%damage(1,:,:), 'After tracer transport, damage layer 1:', &
                itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
@@ -2094,7 +2094,7 @@ contains
     ! Update some masks that are used for subsequent calculations
     ! ------------------------------------------------------------------------
 
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+    if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
        this_thklim = model%numerics%thklim
     else
        this_thklim = eps11

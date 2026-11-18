@@ -870,9 +870,9 @@
     ! Convert bmlt to SI units (m/s)
     ! Note: bmlt is the sum of bmlt_ground (computed in glissade_thermal_solve) and bmlt_float
     !       (computed in glissade_bmlt_float_solve).
-    ! Note: bmlt can be turned off by setting options%basal_mbal = BASAL_MBAL_NO_CONTINUITY
+    ! Note: bmlt can be turned off by setting options%basal_mbal = BASAL_MBAL_IN_CONTINUITY_FALSE
 
-    if (model%options%basal_mbal == BASAL_MBAL_CONTINUITY) then    ! include bmlt in continuity equation
+    if (model%options%basal_mbal == BASAL_MBAL_IN_CONTINUITY_TRUE) then    ! include bmlt in continuity equation
        bmlt(:,:) = model%basal_melt%bmlt(:,:)
     else                                                           ! do not include bmlt in continuity equation
        bmlt = 0.0d0
@@ -892,7 +892,7 @@
     ! Use thck_effective to compute a fractional area for calving_front cells.
     ! ------------------------------------------------------------------------
 
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+    if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
 
        call glissade_get_masks(&
             ewn,              nsn,              &

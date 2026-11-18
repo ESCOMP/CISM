@@ -470,28 +470,132 @@ module glissade_types
        option_choice(FLOTATION_FUNCTION_INVERSE_PATTYN, 'inverse_pattyn', '1/fpattyn = (rhoi*H)/(-rhoo*b)'), &
        option_choice(FLOTATION_FUNCTION_LINEAR,         'linear',         'linear = -b - (rhoi/rhoo)*H') ]
 
-  integer, parameter :: BMLT_FLOAT_NONE = 0
-  integer, parameter :: BMLT_FLOAT_MISMIP = 1
-  integer, parameter :: BMLT_FLOAT_CONSTANT = 2
-  integer, parameter :: BMLT_FLOAT_DEPTH = 3
-  integer, parameter :: BMLT_FLOAT_EXTERNAL = 4
-  integer, parameter :: BMLT_FLOAT_THERMAL_FORCING = 6
+  ! [basal_melt] bmlt_float_method (value 5 was the old MISOMIP plume model)
+  integer, parameter :: BMLT_FLOAT_METHOD_NONE = 0
+  integer, parameter :: BMLT_FLOAT_METHOD_MISMIP = 1
+  integer, parameter :: BMLT_FLOAT_METHOD_CONSTANT = 2
+  integer, parameter :: BMLT_FLOAT_METHOD_DEPTH = 3
+  integer, parameter :: BMLT_FLOAT_METHOD_FILE = 4
+  integer, parameter :: BMLT_FLOAT_METHOD_THERMAL_FORCING = 5
+  type(option_choice), dimension(6), parameter :: bmlt_float_method_choices = [ &
+       option_choice(BMLT_FLOAT_METHOD_NONE,            'none',            'no melting of floating ice'), &
+       option_choice(BMLT_FLOAT_METHOD_MISMIP,          'mismip',          'MISMIP+ melt rate profile'), &
+       option_choice(BMLT_FLOAT_METHOD_CONSTANT,        'constant',        'constant melt rate'), &
+       option_choice(BMLT_FLOAT_METHOD_DEPTH,           'depth',           'depth-dependent melt rate'), &
+       option_choice(BMLT_FLOAT_METHOD_FILE,            'file',            'melt rate from external file'), &
+       option_choice(BMLT_FLOAT_METHOD_THERMAL_FORCING, 'thermal_forcing', 'melt rate from thermal forcing') ]
+
+  ! [basal_melt] bmlt_float_thermal_forcing_param
+  integer, parameter :: BMLT_FLOAT_TF_PARAM_QUADRATIC = 0
+  integer, parameter :: BMLT_FLOAT_TF_PARAM_ISMIP6_LOCAL = 1
+  integer, parameter :: BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL = 2
+  integer, parameter :: BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE = 3
+  type(option_choice), dimension(4), parameter :: bmlt_float_thermal_forcing_param_choices = [ &
+       option_choice(BMLT_FLOAT_TF_PARAM_QUADRATIC,             'quadratic',             'quadratic function of thermal forcing'), &
+       option_choice(BMLT_FLOAT_TF_PARAM_ISMIP6_LOCAL,          'ismip6_local',          'ISMIP6 local quadratic'), &
+       option_choice(BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL,       'ismip6_nonlocal',       'ISMIP6 nonlocal quadratic'), &
+       option_choice(BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE, 'ismip6_nonlocal_slope', 'ISMIP6 nonlocal quadratic, slope-dependent') ]
+
+  ! [basal_melt] deltaT_ocn_method
+  integer, parameter :: DELTAT_OCN_METHOD_NONE = 0
+  integer, parameter :: DELTAT_OCN_METHOD_INVERSION = 1
+  integer, parameter :: DELTAT_OCN_METHOD_FILE = 2
+  integer, parameter :: DELTAT_OCN_METHOD_INVERSION_BASIN = 3
+  integer, parameter :: DELTAT_OCN_METHOD_CALIBRATE_BASIN = 4
+  integer, parameter :: DELTAT_OCN_METHOD_DTHCK_DT = 5
+  type(option_choice), dimension(6), parameter :: deltaT_ocn_method_choices = [ &
+       option_choice(DELTAT_OCN_METHOD_NONE,            'none',            'deltaT_ocn = 0'), &
+       option_choice(DELTAT_OCN_METHOD_INVERSION,       'inversion',       'invert for 2D deltaT_ocn based on thck'), &
+       option_choice(DELTAT_OCN_METHOD_FILE,            'file',            'read deltaT_ocn from external file'), &
+       option_choice(DELTAT_OCN_METHOD_INVERSION_BASIN, 'inversion_basin', 'invert for basin-scale deltaT_ocn'), &
+       option_choice(DELTAT_OCN_METHOD_CALIBRATE_BASIN, 'calibrate_basin', 'calibrate deltaT_basin to match melt target'), &
+       option_choice(DELTAT_OCN_METHOD_DTHCK_DT,        'dthck_dt',        'set deltaT_ocn based on observed dthck_dt') ]
+
+  ! [ocean_data] ocean_data_domain
+  integer, parameter :: OCEAN_DATA_DOMAIN_INTERNAL = 0
+  integer, parameter :: OCEAN_DATA_DOMAIN_FILE = 1
+  integer, parameter :: OCEAN_DATA_DOMAIN_COUPLER = 2
+  type(option_choice), dimension(3), parameter :: ocean_data_domain_choices = [ &
+       option_choice(OCEAN_DATA_DOMAIN_INTERNAL, 'internal', 'ocean data computed internally by CISM'), &
+       option_choice(OCEAN_DATA_DOMAIN_FILE,     'file',     'ocean data read from external file'), &
+       option_choice(OCEAN_DATA_DOMAIN_COUPLER,  'coupler',  'ocean data from coupler via Glad') ]
+
+  ! [calving] calving_law (the old value 2 (a fixed fraction of floating ice) was removed)
+  integer, parameter :: CALVING_LAW_NONE = 0
+  integer, parameter :: CALVING_LAW_FLOAT_ZERO = 1
+  integer, parameter :: CALVING_LAW_RELX_THRESHOLD = 2
+  integer, parameter :: CALVING_LAW_TOPG_THRESHOLD = 3
+  integer, parameter :: CALVING_LAW_GRID_MASK = 4
+  integer, parameter :: CALVING_LAW_ADVANCE_RETREAT_RATE = 5
+  integer, parameter :: CALVING_LAW_THCK_THRESHOLD = 6
+  integer, parameter :: CALVING_LAW_STRESS = 7
+  integer, parameter :: CALVING_LAW_STRESS_STOCHASTIC = 8
+  integer, parameter :: CALVING_LAW_DAMAGE = 9
+  integer, parameter :: CALVING_LAW_EIGENCALVING = 10
+  type(option_choice), dimension(11), parameter :: calving_law_choices = [ &
+       option_choice(CALVING_LAW_NONE,                 'none',                 'no calving law'), &
+       option_choice(CALVING_LAW_FLOAT_ZERO,           'float_zero',           'remove all floating ice'), &
+       option_choice(CALVING_LAW_RELX_THRESHOLD,       'relx_threshold',       'relaxed bedrock threshold'), &
+       option_choice(CALVING_LAW_TOPG_THRESHOLD,       'topg_threshold',       'present bedrock threshold'), &
+       option_choice(CALVING_LAW_GRID_MASK,            'grid_mask',            'calving based on grid location'), &
+       option_choice(CALVING_LAW_ADVANCE_RETREAT_RATE, 'advance_retreat_rate', 'prescribe CF advance/retreat rate'), &
+       option_choice(CALVING_LAW_THCK_THRESHOLD,       'thck_threshold',       'ice thickness threshold'), &
+       option_choice(CALVING_LAW_STRESS,               'stress',               'deterministic stress-based calving'), &
+       option_choice(CALVING_LAW_STRESS_STOCHASTIC,    'stress_stochastic',    'stochastic stress-based calving'), &
+       option_choice(CALVING_LAW_DAMAGE,               'damage',               'damage-based calving scheme'), &
+       option_choice(CALVING_LAW_EIGENCALVING,         'eigencalving',         'strain-rate (eigencalving)') ]
+
+  ! [calving] calving_domain
+  integer, parameter :: CALVING_DOMAIN_OCEAN_EDGE = 0
+  integer, parameter :: CALVING_DOMAIN_EVERYWHERE = 1
+  type(option_choice), dimension(2), parameter :: calving_domain_choices = [ &
+       option_choice(CALVING_DOMAIN_OCEAN_EDGE, 'ocean_edge', 'calving only at the ocean edge'), &
+       option_choice(CALVING_DOMAIN_EVERYWHERE, 'everywhere', 'calving in all cells where criterion is met') ]
+
+  ! [calving] calvingmip_domain
+  integer, parameter :: CALVINGMIP_DOMAIN_NONE = 0
+  integer, parameter :: CALVINGMIP_DOMAIN_CIRCULAR = 1
+  integer, parameter :: CALVINGMIP_DOMAIN_THULE = 2
+  type(option_choice), dimension(3), parameter :: calvingmip_domain_choices = [ &
+       option_choice(CALVINGMIP_DOMAIN_NONE,     'none',     'not a calvingMIP domain'), &
+       option_choice(CALVINGMIP_DOMAIN_CIRCULAR, 'circular', 'calvingMIP circular domain'), &
+       option_choice(CALVINGMIP_DOMAIN_THULE,    'thule',    'calvingMIP Thule domain') ]
+
+  ! [lateral_melt] lateral_melt_method
+  integer, parameter :: LATERAL_MELT_METHOD_NONE = 0
+  integer, parameter :: LATERAL_MELT_METHOD_CONSTANT = 1
+  integer, parameter :: LATERAL_MELT_METHOD_ISMIP = 2
+  type(option_choice), dimension(3), parameter :: lateral_melt_method_choices = [ &
+       option_choice(LATERAL_MELT_METHOD_NONE,     'none',     'no lateral melt at marine margin'), &
+       option_choice(LATERAL_MELT_METHOD_CONSTANT, 'constant', 'constant lateral melt rate'), &
+       option_choice(LATERAL_MELT_METHOD_ISMIP,    'ismip',    'ISMIP lateral melt from TF and discharge') ]
+
+  ! [removal] force_retreat
+  integer, parameter :: FORCE_RETREAT_NONE = 0
+  integer, parameter :: FORCE_RETREAT_ALL_ICE = 1
+  integer, parameter :: FORCE_RETREAT_FLOATING_ICE = 2
+  type(option_choice), dimension(3), parameter :: force_retreat_choices = [ &
+       option_choice(FORCE_RETREAT_NONE,         'none',         'no forced retreat'), &
+       option_choice(FORCE_RETREAT_ALL_ICE,      'all_ice',      'force retreat of all ice with retreat mask'), &
+       option_choice(FORCE_RETREAT_FLOATING_ICE, 'floating_ice', 'force retreat of floating ice with retreat mask') ]
+
+  ! [basal_melt] basal_mbal_in_continuity: a logical in the config file
+  integer, parameter :: BASAL_MBAL_IN_CONTINUITY_FALSE = 0
+  integer, parameter :: BASAL_MBAL_IN_CONTINUITY_TRUE = 1
+
+  ! [ocean_data] extrapolate_ocean_data: a logical in the config file
+  integer, parameter :: EXTRAPOLATE_OCEAN_DATA_FALSE = 0
+  integer, parameter :: EXTRAPOLATE_OCEAN_DATA_TRUE = 1
+
+  ! [calving] calve_at_startup: a logical in the config file
+  integer, parameter :: CALVE_AT_STARTUP_FALSE = 0
+  integer, parameter :: CALVE_AT_STARTUP_TRUE = 1
+
+  ! [calving] subgrid_calving_front: a logical in the config file
+  integer, parameter :: SUBGRID_CALVING_FRONT_FALSE = 0
+  integer, parameter :: SUBGRID_CALVING_FRONT_TRUE = 1
 
   !TODO - Deprecate the quadratic option?
-  integer, parameter :: BMLT_FLOAT_TF_QUADRATIC = 0
-  integer, parameter :: BMLT_FLOAT_TF_ISMIP6_LOCAL = 1
-  integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL = 2
-  integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE = 3
-
-  integer, parameter :: OCEAN_DATA_INTERNAL = 0
-  integer, parameter :: OCEAN_DATA_EXTERNAL = 1
-  integer, parameter :: OCEAN_DATA_GLAD = 2
-
-  integer, parameter :: OCEAN_DATA_EXTRAPOLATE_FALSE = 0
-  integer, parameter :: OCEAN_DATA_EXTRAPOLATE_TRUE = 1
-
-  integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
-  integer, parameter :: BASAL_MBAL_CONTINUITY = 1
 
   integer, parameter :: SMB_INPUT_MYR_ICE = 0     ! use 'acab' for input
   integer, parameter :: SMB_INPUT_MMYR_WE = 1     ! use 'smb' for input
@@ -528,49 +632,7 @@ module glissade_types
   integer, parameter :: ASTHENOSPHERE_RELAXING_CONST = 1
   integer, parameter :: ASTHENOSPHERE_RELAXING_LATVAR = 2
 
-  integer, parameter :: CALVING_NONE = 0
-  integer, parameter :: CALVING_FLOAT_ZERO = 1
-  ! calving_law = 2 (remove a fraction of the floating ice) was removed;
-  !  use CALVING_FLOAT_ZERO with calving_timescale instead
-  integer, parameter :: CALVING_RELX_THRESHOLD = 3
-  integer, parameter :: CALVING_TOPG_THRESHOLD = 4
-  integer, parameter :: CALVING_GRID_MASK = 5
-  integer, parameter :: CF_ADVANCE_RETREAT_RATE = 6
-  integer, parameter :: CALVING_THCK_THRESHOLD = 7
-  integer, parameter :: CALVING_STRESS = 8
-  integer, parameter :: CALVING_STRESS_STOCHASTIC = 9
-  integer, parameter :: CALVING_DAMAGE = 10
-  integer, parameter :: EIGEN_CALVING = 11
-
-  integer, parameter :: CALVING_INIT_OFF = 0
-  integer, parameter :: CALVING_INIT_ON = 1
-
-  integer, parameter :: CALVING_DOMAIN_OCEAN_EDGE = 0
-  integer, parameter :: CALVING_DOMAIN_EVERYWHERE = 1
-
-  integer, parameter :: HO_CALVING_FRONT_NO_SUBGRID = 0
-  integer, parameter :: HO_CALVING_FRONT_SUBGRID = 1
-
-  integer, parameter :: HO_CALVINGMIP_DOMAIN_NONE = 0
-  integer, parameter :: HO_CALVINGMIP_DOMAIN_CIRCULAR = 1
-  integer, parameter :: HO_CALVINGMIP_DOMAIN_THULE = 2
-
-  integer, parameter :: LATERAL_MELT_NONE = 0
-  integer, parameter :: LATERAL_MELT_CONSTANT = 1
-  integer, parameter :: LATERAL_MELT_ISMIP = 2
-
-  integer, parameter :: FORCE_RETREAT_NONE = 0
-  integer, parameter :: FORCE_RETREAT_ALL_ICE = 1
-  integer, parameter :: FORCE_RETREAT_FLOATING_ICE = 2
-
   ! higher-order options
-
-  integer, parameter :: HO_DELTAT_OCN_NONE = 0
-  integer, parameter :: HO_DELTAT_OCN_INVERSION = 1
-  integer, parameter :: HO_DELTAT_OCN_EXTERNAL = 2
-  integer, parameter :: HO_DELTAT_OCN_INVERSION_BASIN = 3
-  integer, parameter :: HO_DELTAT_OCN_CALIBRATE_BASIN = 4
-  integer, parameter :: HO_DELTAT_OCN_DTHCK_DT = 5
 
   integer, parameter :: GLACIER_MU_STAR_CONSTANT = 0
   integer, parameter :: GLACIER_MU_STAR_INVERSION = 1
@@ -700,53 +762,53 @@ module glissade_types
     !> \item[5] \texttt{tanh} function of basal water depth 
     !> \end{description}
 
-    integer :: whichbmlt_float = 0
+    integer :: whichbmlt_float = BMLT_FLOAT_METHOD_NONE
 
     !> basal melt rate for floating ice:
     !> \begin{description}
-    !> \item[0] Basal melt rate = 0 for floating ice
-    !> \item[1] Depth-dependent basal melt rate for floating ice as specified for MISMIP+
-    !> \item[2] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
-    !> \item[3] Depth-dependent basal melt rate for floating ice
-    !> \item[4] External basal melt rate field (from input file or coupler)
-    !> \item[6] Basal melt rate for floating ice derived from ocean thermal forcing
+    !> \item[none] Basal melt rate = 0 for floating ice
+    !> \item[mismip] Depth-dependent basal melt rate for floating ice as specified for MISMIP+
+    !> \item[constant] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
+    !> \item[depth] Depth-dependent basal melt rate for floating ice
+    !> \item[file] External basal melt rate field (from input file or coupler)
+    !> \item[thermal_forcing] Basal melt rate for floating ice derived from ocean thermal forcing
     !> \end{description}
 
-    integer :: bmlt_float_thermal_forcing_param = BMLT_FLOAT_TF_ISMIP6_NONLOCAL   ! default was BMLT_FLOAT_TF_QUADRATIC until the config reorganization
+    integer :: bmlt_float_thermal_forcing_param = BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL   ! default was BMLT_FLOAT_TF_PARAM_QUADRATIC until the config reorganization
 
     !> \begin{description}
-    !> \item[0] Quadratic parameterization to compute basal melting from thermal forcing
-    !> \item[1] ISMIP6 local quadratic parameterization to compute basal melting from thermal forcing
-    !> \item[2] ISMIP6 nonlocal quadratic parameterization to compute basal melting from thermal forcing
-    !> \item[3] ISMIP6 nonlocal quadratic parameterization with slope dependence
+    !> \item[quadratic] Quadratic parameterization to compute basal melting from thermal forcing
+    !> \item[ismip6_local] ISMIP6 local quadratic parameterization to compute basal melting from thermal forcing
+    !> \item[ismip6_nonlocal] ISMIP6 nonlocal quadratic parameterization to compute basal melting from thermal forcing
+    !> \item[ismip6_nonlocal_slope] ISMIP6 nonlocal quadratic parameterization with slope dependence
     !> \end{description}
 
     logical :: bmlt_float_init = .false.
     !> if true, then compute bmlt_float at initialization (so it can be written to initial output files)
 
-    integer :: ocean_data_domain = 1
+    integer :: ocean_data_domain = OCEAN_DATA_DOMAIN_FILE
 
     !> \begin{description}
-    !> \item[0] ocean data computed internally by CISM
-    !> \item[1] ocean data read from external file
-    !> \item[2] ocean data received from coupler via Glad
+    !> \item[internal] ocean data computed internally by CISM
+    !> \item[file] ocean data read from external file
+    !> \item[coupler] ocean data received from coupler via Glad
     !> \end{description}
 
-    integer :: ocean_data_extrapolate = 0
+    integer :: ocean_data_extrapolate = EXTRAPOLATE_OCEAN_DATA_FALSE
     !> \begin{description}
-    !> \item[0] CISM will not extrapolate ocean data into cavities
-    !> \item[1] CISM will extrapolate off-shelf ocean data into shelf cavities
+    !> \item[.false.] CISM will not extrapolate ocean data into cavities
+    !> \item[.true.] CISM will extrapolate off-shelf ocean data into shelf cavities
     !> \end{description}
 
     logical :: enable_bmlt_anomaly = .false.
     !> if true, then apply a prescribed anomaly to bmlt_float
 
-    integer :: basal_mbal = 1
+    integer :: basal_mbal = BASAL_MBAL_IN_CONTINUITY_TRUE
 
     !> basal mass balance:
     !> \begin{description}
-    !> \item[0] Basal mass balance not included in continuity equation
-    !> \item[1] Basal mass balance included in continuity equation
+    !> \item[.false.] Basal mass balance not included in continuity equation
+    !> \item[.true.] Basal mass balance included in continuity equation
     !> \end{description}
 
     !WHL TODO - During the config reorg, Change name to smb_input_units
@@ -818,63 +880,63 @@ module glissade_types
     !> \item[1] compute isostatic adjustment using lithosphere/asthenosphere model
     !> \end{description}
 
-    integer :: whichcalving = 1
+    integer :: whichcalving = CALVING_LAW_FLOAT_ZERO
 
     !> Calving: 
     !> \begin{description} 
-    !> \item[0] No calving 
-    !> \item[1] Set thickness to zero if floating
+    !> \item[none] No calving 
+    !> \item[float_zero] Set thickness to zero if floating
     !> \item[2] Lose a fraction of floating ice at marine margin
-    !> \item[3] Set thickness to zero if relaxed bedrock is more than a
+    !> \item[relx_threshold] Set thickness to zero if relaxed bedrock is more than a
     !>          certain water depth (variable "marine_limit" in glissade_types)  
-    !> \item[4] Set thickness to zero if present bedrock topography lies below
+    !> \item[topg_threshold] Set thickness to zero if present bedrock topography lies below
     !>          a certain water depth (variable "marine_limit" in glissade_types)  
-    !> \item[5] Calve based on grid location using a prescribed mask
+    !> \item[grid_mask] Calve based on grid location using a prescribed mask
     !>          (field 'calving_mask' or 'subgrid_calving_mask')
-    !> \item[6] Prescribe the rate of calving front advance or retreat
-    !> \item[7] Calve ice whose thickness is below a given threshold
-    !> \item[8] Deterministic calving based on eigenvalues of the horizontal stress tensor
-    !> \item[9] Stochastic calving based on eigenvalues of the horizontal stress tensor
-    !> \item[10] Calving based on stochastic internal damage
-    !> \item[11] Eigencalving following Levermann et al. (2012)
+    !> \item[advance_retreat_rate] Prescribe the rate of calving front advance or retreat
+    !> \item[thck_threshold] Calve ice whose thickness is below a given threshold
+    !> \item[stress] Deterministic calving based on eigenvalues of the horizontal stress tensor
+    !> \item[stress_stochastic] Stochastic calving based on eigenvalues of the horizontal stress tensor
+    !> \item[damage] Calving based on stochastic internal damage
+    !> \item[eigencalving] Eigencalving following Levermann et al. (2012)
     !> \end{description}
 
-    integer :: calving_init = 0
+    integer :: calving_init = CALVE_AT_STARTUP_FALSE
     !> \begin{description}
-    !> \item[0] Do not calve at initialization
-    !> \item[1] Calve at initialization
+    !> \item[.false.] Do not calve at initialization
+    !> \item[.true.] Calve at initialization
     !> \end{description}
 
-    integer :: calving_domain = 1
+    integer :: calving_domain = CALVING_DOMAIN_EVERYWHERE
     !> \begin{description}
-    !> \item[0] Calve only at ocean edge
-    !> \item[1] Calve wherever the calving criterion is met
+    !> \item[ocean_edge] Calve only at ocean edge
+    !> \item[everywhere] Calve wherever the calving criterion is met
     !> \end{description}
 
     logical :: apply_calving_mask = .false.
     !> if true, then apply a calving mask to prevent calving-front advance
 
-    integer :: which_ho_calving_front = 0
+    integer :: which_ho_calving_front = SUBGRID_CALVING_FRONT_FALSE
     !> Flag that indicates whether to use a subgrid calving front parameterization
     !> \begin{description}
-    !> \item[0] no subgrid calving front parameterization
-    !> \item[1] subgrid parameterization with partial cells (floating only) at the CF
+    !> \item[.false.] no subgrid calving front parameterization
+    !> \item[.true.] subgrid parameterization with partial cells (floating only) at the CF
     !> \end{description}
 
-    integer :: which_ho_calvingmip_domain = 0
+    integer :: which_ho_calvingmip_domain = CALVINGMIP_DOMAIN_NONE
     !> Flag that indicates the desired domain for CalvingMIP experiments
     !> \begin{description}
-    !> \item[0] none
-    !> \item[1] circular (radially symmetric)
-    !> \item[1] Thule (complex topography)
+    !> \item[none] none
+    !> \item[circular] circular (radially symmetric)
+    !> \item[circular] Thule (complex topography)
     !> \end{description}
 
-    integer :: which_lateral_melt = 0
+    integer :: which_lateral_melt = LATERAL_MELT_METHOD_NONE
     !> Lateral melt:
     !> \begin{description}
-    !> \item[0] No lateral melt
-    !> \item[1] Constant lateral melt rate
-    !> \item[2] ISMIP lateral melt rate based on thermal forcing and subglacial discharge
+    !> \item[none] No lateral melt
+    !> \item[constant] Constant lateral melt rate
+    !> \item[ismip] ISMIP lateral melt rate based on thermal forcing and subglacial discharge
 
     logical :: remove_icebergs = .true.
     !> if true, then identify and remove icebergs after calving
@@ -1036,15 +1098,15 @@ module glissade_types
     logical :: elevation_based_coulomb_c = .false.
     !> Flag that indicates whether coulomb_c depends on elevation
 
-    integer :: which_ho_deltaT_ocn = 0
+    integer :: which_ho_deltaT_ocn = DELTAT_OCN_METHOD_NONE
     !> Flag for ocean temperature corrections
     !> \begin{description}
-    !> \item[0] deltaT_ocn = 0
-    !> \item[1] invert for 2D deltaT_ocn to match thickness target
-    !> \item[2] read deltaT_ocn from external file
-    !> \item[3] invert for basin-scale deltaT_ocn
-    !> \item[4] calibrate deltaT_ocean to match a basin-scale melt target
-    !> \item[5] set deltaT_ocn to match a local dH/dt target
+    !> \item[none] deltaT_ocn = 0
+    !> \item[inversion] invert for 2D deltaT_ocn to match thickness target
+    !> \item[file] read deltaT_ocn from external file
+    !> \item[inversion_basin] invert for basin-scale deltaT_ocn
+    !> \item[calibrate_basin] calibrate deltaT_ocean to match a basin-scale melt target
+    !> \item[dthck_dt] set deltaT_ocn to match a local dH/dt target
     !> \end{description}
 
     integer :: which_ho_bwat = BWAT_METHOD_NONE
@@ -1234,7 +1296,7 @@ module glissade_types
     logical :: remove_ice_caps = .false.
     !> Flag that indicates whether ice caps are removed and added to the calving flux
 
-    integer :: force_retreat = 0
+    integer :: force_retreat = FORCE_RETREAT_NONE
     !> Flag that indicates whether retreat is forced using ice_fraction_retreat_mask
     !> item[0] do not force retreat
     !> item[1] force retreat of all ice identified by a retreat mask
@@ -1679,8 +1741,8 @@ module glissade_types
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving during one time step (m)
      real(dp),dimension(:,:),  pointer :: calving_rate => null()   !> rate of ice loss due to calving (m/yr ice)
      real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
-     integer, dimension(:,:),  pointer :: calving_mask => null()         !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
-     real(dp),dimension(:,:),  pointer :: subgrid_calving_mask => null() !> calve floating ice where the mask < 1.0 (whichcalving = CALVING_GRID_MASK);
+     integer, dimension(:,:),  pointer :: calving_mask => null()         !> calve floating ice where the mask = 1 (whichcalving = CALVING_LAW_GRID_MASK)
+     real(dp),dimension(:,:),  pointer :: subgrid_calving_mask => null() !> calve floating ice where the mask < 1.0 (whichcalving = CALVING_LAW_GRID_MASK);
                                                                          !> real instead of integer for use with subgrid calving parameterization
      integer, dimension(:,:),  pointer :: calving_front_mask => null()   !> = 1 for cells on the calving front, else = 0
      integer, dimension(:,:),  pointer :: beyond_cf_mask => null() !> = 1 for cells beyond the CF when using the subgrid CF scheme;
@@ -1691,15 +1753,15 @@ module glissade_types
      real(dp),dimension(:,:),  pointer :: tau_eigen2 => null()     !> second eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: eps_eigen1 => null()     !> first eigenvalue of 2D horizontal strain rate tensor (s^-1)
      real(dp),dimension(:,:),  pointer :: eps_eigen2 => null()     !> second eigenvalue of 2D horizontal strain rate tensor (s^-1)
-     real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
+     real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_LAW_DAMAGE)
   
      real(dp) :: marine_limit =  -200.d0         !> value of topg/relx at which floating ice calves (m)
-                                                 !> (whichcalving = CALVING_RELX_THRESHOLD, CALVING_TOPG_THRESHOLD)
+                                                 !> (whichcalving = CALVING_LAW_RELX_THRESHOLD, CALVING_LAW_TOPG_THRESHOLD)
      real(dp) :: timescale = 0.0d0               !> timescale (yr) for calving (Glissade only); calving_thck = thck*min(dt/calving_timescale,1)
                                                  !> if calving_timescale = 0, then the full column calves at once
      real(dp) :: minthck = 0.d0                  !> minimum thickness (m) of floating ice at marine edge before it calves;
                                                  !> if used, must be set to a nonzero value in the config file
-                                                 !> (whichcalving = CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_DAMAGE)
+                                                 !> (whichcalving = CALVING_LAW_THCK_THRESHOLD, EIGENCALVING, CALVING_LAW_DAMAGE)
      real(dp) :: dthck_dx_cf = 0.0d0             !> assumed max value of |dH/dx| at the calving front for full (not partial) cells (m/m)
      real(dp) :: thck_effective_min = 50.0d0     !> minimum value of thck_effective (m) for calving-front cells
      real(dp) :: eigenconstant = 0.0d0           !> constant that multiplies the eigen-based strain rate to determine the calving rate (m)
@@ -1708,7 +1770,7 @@ module glissade_types
      real(dp) :: stress_threshold = 6.0e4        !> stress threshold for CF retreat with stress-based calving (Pa)
      real(dp) :: lateral_rate_min = 0.0d0        !> minimum lateral retreat rate at CF (m/yr)
      real(dp) :: effec_stress_min = 0.0d0        !> minimum effective stress for calving at CF (Pa)
-     real(dp) :: length_scale = 4000.d0          !> length scale (m) for calving events (CALVING_STRESS_STOCHASTIC)
+     real(dp) :: length_scale = 4000.d0          !> length scale (m) for calving events (CALVING_LAW_STRESS_STOCHASTIC)
      real(dp) :: damage_constant = 1.e5          !> damage scaling term with units of Pa * yr
 !     real(dp) :: damage_constant1 = 0.0d0        !> damage constant that multiplies tau_eigen1 (yr^-1)
 !     real(dp) :: damage_constant2 = 0.0d0        !> damage constant that multiplies tau_eigen2 (yr^-1)
@@ -1903,7 +1965,7 @@ module glissade_types
      real(dp) :: bmlt_cavity_h0 = 0.0d0             !> scale for reducing melting in sub-shelf cavities (m)
                                                     !> similar to bmlt_float_h0, which is used specifically for MISMIP+
 
-     ! MISMIP+ parameters for Ice1 experiments (BMLT_FLOAT_MISMIP)
+     ! MISMIP+ parameters for Ice1 experiments (BMLT_FLOAT_METHOD_MISMIP)
      ! Note: Parameters with units yr^{-1} are scaled to s^{-1} when used in the code
      real(dp) :: bmlt_float_omega = 0.2d0           !> time scale for basal melting (yr-1)
                                                     !> default value = 0.2 yr^{-1} for MISMIP+ Ice1r
@@ -1912,12 +1974,12 @@ module glissade_types
      real(dp) :: bmlt_float_z0 = -100.d0            !> scale for ice draft, relative to sea level (m)
                                                     !> default value = -100 m for MISMIP+ Ice1r
 
-     ! MISMIP+ parameters for Ice2 experiments (BMLT_FLOAT_CONSTANT)
+     ! MISMIP+ parameters for Ice2 experiments (BMLT_FLOAT_METHOD_CONSTANT)
      real(dp) :: bmlt_float_const = 0.d0            !> constant melt rate (m/yr)
                                                     !> set to 100 m/yr for MISMIP+ Ice2r
      real(dp) :: bmlt_float_xlim = 0.d0             !> melting is allowed only for abs(x1) > bmlt_float_xlim
                                                     !> set to 480 km for MISMIP+ Ice2r
-     ! parameters for BMLT_FLOAT_DEPTH
+     ! parameters for BMLT_FLOAT_METHOD_DEPTH
      ! The sub-shelf melt rate is piecewise linear, generally with greater melting at depth.
      ! The maximum melting and freezing rates are set independently.
      ! The melting/freezing rates fall linearly from the max values to zero over ranges defined by
@@ -2872,7 +2934,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%inversion%grounded_thck_target)
     endif
 
-    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
+    if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
        if (model%ocean_data%nbasin < 1) then
           call write_log ('Must set nbasin >= 1 for basin-scale deltaT_ocn inversion', GM_FATAL)
        endif
@@ -2960,7 +3022,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+    if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
        call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
     else
        call coordsystem_allocate(model%general%ice_grid, model%calving%subgrid_calving_mask)
@@ -2973,13 +3035,13 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen2)
     call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen1)
     call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen2)
-    if (model%options%whichcalving == CALVING_DAMAGE) then
+    if (model%options%whichcalving == CALVING_LAW_DAMAGE) then
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
     else
        ! allocate with size 1, since they need to be allocated to be passed to calving subroutine
        allocate(model%calving%damage(1,1,1))
     endif
-    if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
+    if (model%options%which_ho_calvingmip_domain /= CALVINGMIP_DOMAIN_NONE) then
        model%calving%naxis = 8
        allocate(model%calving%axis(model%calving%naxis))
        do n = 1, model%calving%naxis
@@ -2999,7 +3061,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%latmelt_thck)
     call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%latmelt_rate)
     call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%latmelt_rate_tavg)
-    if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
+    if (model%options%which_lateral_melt /= LATERAL_MELT_METHOD_NONE) then
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%runoff_applied)
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%thermal_forcing_applied)
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_front_mask)

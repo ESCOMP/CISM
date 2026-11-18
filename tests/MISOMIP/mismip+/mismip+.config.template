@@ -74,16 +74,16 @@ grounding_line_bmlt = none
 flotation_function = linear
 
 [basal_melt]
-bmlt_float_method = 0          # 0 = no melting of floating ice, 1 = Ice1 melting, 2 = Ice2 melting
-basal_mass_balance = 1  # 1 = include basal mass balance in continuity eqn
+bmlt_float_method = none
 bmlt_float_omega = 0.2          # parameter for Ice1
 bmlt_float_z0 = -100.           # parameter for Ice1
 bmlt_float_h0 = 75.             # parameter for Ice1
 bmlt_float_const = 100.         # parameter for Ice2
 bmlt_float_xlim = 480000.       # parameter for Ice2
+basal_mbal_in_continuity = .true.
 
 [calving]
-calving_law = 5       # 4 = topographic threshold, 5 = calving mask
+calving_law = grid_mask
 calving_front_x = 640000.       # 640 km for mismip+
 
 [CF default]

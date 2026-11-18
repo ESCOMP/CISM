@@ -45,10 +45,10 @@ flwa_const = 1.0e-16   # NOTE: The Halfar testing script requires that flwa is s
 sliding_law = no_slip
 
 [basal_melt]
-basal_mass_balance = 0   # 0 = bmlt not in continuity equation
+basal_mbal_in_continuity = .false.
 
 [calving]
-calving_law = 0        # 0 = no calving
+calving_law = none
 
 [CF default]
 comment = created with halfar.py 
