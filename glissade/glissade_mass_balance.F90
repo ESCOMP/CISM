@@ -333,15 +333,10 @@
        call downscale_smb(model)
     endif
 
-    ! Compute a corrected smb field that includes any anomalies or correction factors.
+    ! Compute a corrected smb field that includes any anomalies.
 
     ! initialize
     model%climate%smb_corrected(:,:) = model%climate%smb(:,:)
-
-    ! Optionally, multiply smb by a scalar adjustment factor
-    if (model%climate%smb_factor /= 1.0d0) then
-       model%climate%smb_corrected(:,:) = model%climate%smb_corrected(:,:) * model%climate%smb_factor
-    endif
 
     ! Optionally, add an anomaly field
     ! Note: If enable_artm_anomaly = T, then artm_anomaly is computed above, before calling glissade_therm_driver.

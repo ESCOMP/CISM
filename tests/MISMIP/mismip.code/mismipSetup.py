@@ -395,7 +395,9 @@ config.set('grid', 'dns', str(dy))
 # Set the diagnostic interval to the same value (not necessary, but helpful for debugging).
 
 config.set('time', 'dt',      str(options.timestep))
-config.set('time', 'dt_diag', str(options.timestep))
+if not config.has_section('diagnostics'):
+    config.add_section('diagnostics')
+config.set('diagnostics', 'dt_diag', str(options.timestep))
 
 # Set Stokes approximation in config file.
 if options.approximation == 'SSA':
@@ -651,7 +653,7 @@ for expt in experiments:
     config.set('time', 'tend',   str(tend))
 
     # Set the default flwa value.
-    config.set('flow_law', 'default_flwa', str(float(expt)))
+    config.set('flow_law', 'flwa_const', str(float(expt)))
 
     # Change the default comment.
     comment = 'MISMIP experiment ' + expt

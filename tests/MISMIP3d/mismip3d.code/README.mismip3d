@@ -3,9 +3,6 @@ Instructions for setting up and running the MISMIP3d experiments with CISM.
 Note: For setting up the experiments in an NCAR computing environment,
 follow the steps in the README.NCAR_HPC file in the tests directory.
 
-Note: part of the instruction assumes that you have access to the NCAR HPC
- Cheyenne and have access to the LIWG HPC spending account.
-
 See this paper for details on MISMIP3d:
 Pattyn,F., et al. (2013), Grounding-line migration in plan-view marine 
 ice-sheet models: results of the ice2sea MISMIP3d intercomparison, 
@@ -34,8 +31,7 @@ Go to the directory where you are setting up and running the experiments:
 > cd mismip3d.test1
 
 This directory should contain several Python scripts, along with a template config file
-(mismip3d.config.template) with default settings for MISMIP3d and a template run file
-(runCISM.cheyenne.template) with setups to run MISMIP3d on the Cheyenne super computer.
+(mismip3d.config.template) with default settings for MISMIP3d.
 
 Put a copy or link of cism_driver in your directory. For example:
 
@@ -95,9 +91,6 @@ Here are the optional arguments for the run script:
   -x EXPT, --expt=experiment  MISMIP3d experiment(s) to run [default: allIce]
   -n NUMPROCS, --parallel=NUMPROCS
                         Number of processors: if specified then run in parallel
-  --job,     if present at the command line, creates a batch job submission script for a 
-             given experiment
-  --submit,  if present at the command line, submit the job created with the --job option  
 
 Experiments with coarse resolution (2km or coarser) can be run on your personal computer.
 
@@ -123,24 +116,6 @@ Note that before restarting your run you might want to save a copy of the log fi
 'mismip3dStnd.config.log' under a different name as it will be overwritten on restart.
 The output file, mismip3dStnd.out.nc, will be appended on restart and does not need to 
 be copied. Continue as needed until you have completed the full Stnd period.
-Alternatively, you may want to submit a batch job.  If so, run the following:
-
-> python mismip3dRun.py -x Stnd --job
-
-This will setup a batch job script called runCISM.cheyenne.Stnd in the 'Stnd' directory using 
-the default setting from the mismip3dRun.py script. 
-NOTE: If you want to run each experiment by submitting of batch job script you will need to 
-setup each script one at a time, meaning that even with '-x all' option, the run script will 
-only setup a batch job script for the 'Stnd' experiment. 
-
-Once a batch job script is created, you can edit the script and modify the time
-and number of processors manually and submit the job yourself using the command:
-
-> qsub runCISM.cheyenne.Stnd
-
-You can also directly submit the batch job automatically by running:
-
-> python mismip3dRun.py -x Stnd --job --submit
 
 Before proceeding, you may want to confirm that the GL has reached a steady state.
 One way to do this is to list f_ground (the grounded fraction, 0 < f_ground < 1) along the x 

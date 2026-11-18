@@ -1,7 +1,7 @@
 [grid]
-upn = 3
 ewn = 324
 nsn = 40
+upn = 3
 dew = 2000
 dns = 2000
 
@@ -17,60 +17,63 @@ dycore = 2                   # 0 = glide, 1 = glam, 2=glissade
 restart_extend_velo = 1      # 1 = write uvel/vvel on extended grid
 # restart = 1
 
-[calving]
-calving_law = 4            # 4 = topographic threshold, 5 = calving mask
-marine_limit = -890             ; depth past which ice is lost
-
-[basal_physics]
-sliding_law = 10                # 9 = Powerlaw, 11 = Coulomb w/const basal flwa, 12= Tsai
-effecpress_method = 3           # ocean connection
-coulomb_c_const = 0.2332
-coulomb_bump_max_slope = 0.5    ; maximum bed obstacle slope
-coulomb_bump_wavelength = 2.0   ; bedrock wavelength
-p_ocean_penetration = 0.        ; p values for coulomb friction law
-
-[grounding_line]
-flotation_function = 0   # 0 = f_pattyn, 1 = 1/f_pattyn
-grounding_line_param = 1               # 0 = no GLP, 1 = GLP
-
-[basal_melt]
-basal_mass_balance = 1       # 1 = include basal mass balance in continuity eqn
-bmlt_float_method = 0               # 0 = no melting of floating ice
-
-[velocity]
-efvs_method = 2                 # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
-stokes_approx = 1               # 1 = SSA, 2 = Blatter-Pattyn, 3 = L1L2, 4 = DIVA
-surface_gradient_margin_method = 2
-surface_gradient_method = 0             # 0 = centered, 1 = upstream
-
-[velocity_solver]
-linear_solver = 3               # 1 = SLAP GMRES, 3 = Fortran PCG
-nonlinear_method = 0            # 0 = Picard, 1 = accelerated Picard
-preconditioner = 1              # 1 = diagonal precond, 2 = shallow ice preconditioner
-assemble_beta = 1        # 0 = standard FE, 1 = local
-assemble_taud = 1        # 0 = standard FE, 1 = local
-nonlinear_residual = 4                # 3 = absolute, 4 = relative
-nonlinear_maxiters = 50
-
-[advection]
-advection_method = 3                # 3 = remapping, 4 = first order upwind
-
-[flow_law]
-flow_law = 0                 # 0 = constant, 2 = Paterson-Budd
-flow_factor_ground = 1.
-flow_factor_float = 1.
-default_flwa = 3.1536e-18
-
-[temperature]
-temperature_method = 0              # 1 = prognostic, 3 = enthalpy
-
 [numerics]
-ice_limit = 1.                  ; min thickness (m) for dynamics
+thcklim = 1.                  ; min thickness (m) for dynamics
 
 [constants]
 rhoi = 900.0                    ; MISMIP ice density
 rhoo = 1000.0                   ; MISMIP ocean density
 grav = 9.8                      ; MISMIP gravitational acceleration
+
+[velocity]
+stokes_approx = 1               # 1 = SSA, 2 = Blatter-Pattyn, 3 = L1L2, 4 = DIVA
+efvs_method = 2                 # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
+surface_gradient_margin_method = 2
+surface_gradient_method = 0             # 0 = centered, 1 = upstream
+
+[velocity_solver]
+nonlinear_method = 0            # 0 = Picard, 1 = accelerated Picard
+nonlinear_residual = 4                # 3 = absolute, 4 = relative
+nonlinear_maxiters = 50
+linear_solver = 3               # 1 = SLAP GMRES, 3 = Fortran PCG
+preconditioner = 1              # 1 = diagonal precond, 2 = shallow ice preconditioner
+assemble_beta = 1        # 0 = standard FE, 1 = local
+assemble_taud = 1        # 0 = standard FE, 1 = local
+assemble_lateral = 0        # 0 = standard (the default before the config reorganization)
+
+[advection]
+advection_method = 3                # 3 = remapping, 4 = first order upwind
+
+[temperature]
+temperature_method = 0              # 1 = prognostic, 3 = enthalpy
+
+[flow_law]
+flow_law = 0                 # 0 = constant, 2 = Paterson-Budd
+flow_factor_ground = 1.
+flow_factor_float = 1.
+flwa_const = 3.1536e-18
+
+[basal_physics]
+sliding_law = 10                # 10 = Coulomb friction (Schoof 2005) with effective pressure
+use_c_space_factor = .true.     # beta is multiplied by c_space_factor (the P75S friction perturbation)
+effecpress_method = 0           # 0 = overburden; the ocean connection is set by p_ocean_penetration
+coulomb_c_const = 0.2332
+coulomb_bump_max_slope = 0.5    ; maximum bed obstacle slope
+coulomb_bump_wavelength = 2.0   ; bedrock wavelength
+flwa_basal_const = 1.0e-16      ; flow factor at the bed (Pa^-3 yr^-1)
+p_ocean_penetration = 0.        ; p values for coulomb friction law
+
+[grounding_line]
+grounding_line_param = 1               # 0 = no GLP, 1 = GLP
+flotation_function = 0   # 0 = f_pattyn, 1 = 1/f_pattyn
+
+[basal_melt]
+bmlt_float_method = 0               # 0 = no melting of floating ice
+basal_mass_balance = 1       # 1 = include basal mass balance in continuity eqn
+
+[calving]
+calving_law = 4            # 4 = topographic threshold, 5 = calving mask
+marine_limit = -890             ; depth past which ice is lost
 
 [CF default]
 comment = created with mismip3dInit.py 

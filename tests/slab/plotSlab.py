@@ -164,14 +164,14 @@ def main():
     configpath = os.path.join(args.output_dir, args.config_file)
     print('configpath = ' + configpath)
 
-    # Get gn and default_flwa from the config file
+    # Get gn and flwa_const from the config file
 
     try:
         config_parser = configparser.ConfigParser()
         config_parser.read( configpath )
 
         gn = float(config_parser.get('flow_law','n_glen'))
-        flwa = float(config_parser.get('flow_law', 'default_flwa'))
+        flwa = float(config_parser.get('flow_law', 'flwa_const'))
 
     except configparser.Error as error:
         print("Error parsing " + args.config )

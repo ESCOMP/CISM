@@ -152,7 +152,8 @@ module glissade_types
 
   integer, parameter :: CALVING_NONE = 0
   integer, parameter :: CALVING_FLOAT_ZERO = 1
-  integer, parameter :: CALVING_FLOAT_FRACTION = 2
+  ! calving_law = 2 (remove a fraction of the floating ice) was removed;
+  !  use CALVING_FLOAT_ZERO with calving_timescale instead
   integer, parameter :: CALVING_RELX_THRESHOLD = 3
   integer, parameter :: CALVING_TOPG_THRESHOLD = 4
   integer, parameter :: CALVING_GRID_MASK = 5
@@ -204,7 +205,7 @@ module glissade_types
   
   ! higher-order options
 
-  integer, parameter :: ALL_BLOCKS = 0            ! compute on all blocks in the global domain
+  integer, parameter :: ACTIVE_BLOCKS_ALL = 0     ! compute on all blocks in the global domain
   integer, parameter :: ACTIVE_BLOCKS_ONLY = 1    ! compute on active blocks only (where ice is potentially present)
   integer, parameter :: ACTIVE_BLOCKS_INQUIRE = 2 ! inquire how many active blocks there are for a given ice domain mask and block size
 
@@ -216,10 +217,6 @@ module glissade_types
   integer, parameter :: HO_DISP_SIA = 0
   integer, parameter :: HO_DISP_FIRSTORDER = 1
 
-  integer, parameter :: HO_THERMAL_BEFORE_TRANSPORT = 0
-  integer, parameter :: HO_THERMAL_AFTER_TRANSPORT = 1
-  integer, parameter :: HO_THERMAL_SPLIT_TIMESTEP = 2
-  
   !WHL TODO - Deprecate some little-used options during the config reorg
   !           This would include HO_BABC_PSEUDO_PLASTIC_OLD
   integer, parameter :: HO_BABC_BETA_CONSTANT = 0
@@ -489,7 +486,7 @@ module glissade_types
     !> \item[6] Basal melt rate for floating ice derived from ocean thermal forcing
     !> \end{description}
 
-    integer :: bmlt_float_thermal_forcing_param = 0
+    integer :: bmlt_float_thermal_forcing_param = BMLT_FLOAT_TF_ISMIP6_NONLOCAL   ! default was BMLT_FLOAT_TF_QUADRATIC until the config reorganization
 
     !> \begin{description}
     !> \item[0] Quadratic parameterization to compute basal melting from thermal forcing
@@ -676,12 +673,6 @@ module glissade_types
     logical :: smooth_input_usrf = .false.
     !> if true, then apply Laplacian smoothing to usrf at initialization
 
-    logical :: smooth_input_topography = .false.
-    !> if true, then apply Laplacian smoothing to the topography at initialization
-
-    logical :: adjust_input_topography = .false.
-    !> if true, then adjust the input topography in a selected region at initialization
-
     !TODO - Change default to true? Would then specify as false for idealized runs
     logical :: read_lat_lon = .false.
     !> if true, then read lat and lon fields from the input file and write to restarts
@@ -763,13 +754,6 @@ module glissade_types
     !> \item[1] for first-order dissipation (Blatter-Pattyn)
     !> \end{description}
 
-    !WHL TODO - Remove this option during the config reorg
-    integer :: which_ho_thermal_timestep = 0
-    !> \begin{description}
-    !> \item[0] vertical thermal solve before transport solve
-    !> \item[1] vertical thermal solve after transport solve
-    !> \item[2] vertical thermal solve split; both before and after transport solve
-    !> \end{description}
 
     integer :: which_ho_babc = 4
 
@@ -887,11 +871,10 @@ module glissade_types
     !> \item[3] Native PCG, parallel-enabled, Chronopoulos-Gear solver (default)
     !> \end{description}
 
-    integer :: which_ho_approx = 2 
+    integer :: which_ho_approx = HO_APPROX_DIVA
     !> Flag that indicates which Stokes approximation to use with the glissade dycore.
     !> Not valid for other dycores 
-    !> Compute Blatter-Pattyn HO momentum balance by default.
-    !WHL TODO - Change the default to DIVA during the config reorg
+    !> The default is DIVA (4); it was Blatter-Pattyn (2) until the config reorganization.
     !> Note: There are two SIA options:
     !>       Option -1 uses module glissade_velo_sia to compute local SIA velocities, similar to Glide
     !>       Option 0 uses module glissade_velo_higher to compute SIA velocities via an iterative solve
@@ -908,7 +891,7 @@ module glissade_types
     logical :: diva_slope_correction = .true.
     !> Flag that indicates whether the DIVA solver includes a correction for steep slopes
 
-    integer :: which_ho_precond = 2    
+    integer :: which_ho_precond = HO_PRECOND_DIAG   ! default was HO_PRECOND_SIA until the config reorganization
     !> Flag that indicates which Stokes preconditioner to use in the glissade dycore.
     !> Not valid for other dycores 
     !> \begin{description}
@@ -976,8 +959,7 @@ module glissade_types
     !> \item[1] apply local value of beta*(u^2 + v^2) at each vertex
     !> \end{description}
 
-    !WHL TODO - Change default to option 1 during the config reorg
-    integer :: which_ho_assemble_lateral = 0
+    integer :: which_ho_assemble_lateral = HO_ASSEMBLE_LATERAL_LOCAL   ! default was STANDARD until the config reorganization
 
     !> Flag that describes how lateral stress terms are assembled in the glissade finite-element calculation
     !> \begin{description}
@@ -1442,7 +1424,6 @@ module glissade_types
 
      real(dp) :: eus = 0.d0                         !> eustatic sea level
 
-     real(dp) :: smb_factor = 1.0d0                 !> multiplicative factor for external smb field (unitless)
      real(dp) :: smb_anomaly_tstart = 0.0d0         !> time to start applying the anomaly (yr)
      real(dp) :: smb_anomaly_timescale = 0.0d0      !> number of years over which the smb anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
@@ -1489,9 +1470,6 @@ module glissade_types
   
      real(dp) :: marine_limit =  -200.d0         !> value of topg/relx at which floating ice calves (m)
                                                  !> (whichcalving = CALVING_RELX_THRESHOLD, CALVING_TOPG_THRESHOLD)
-     real(dp) :: calving_fraction = 0.2d0        !> fractional thickness of floating ice that calves
-                                                 !> (whichcalving = CALVING_FLOAT_FRACTION)
-                                                 !> WHL - previously defined as the fraction of floating ice that does not calve
      real(dp) :: timescale = 0.0d0               !> timescale (yr) for calving (Glissade only); calving_thck = thck*min(dt/calving_timescale,1)
                                                  !> if calving_timescale = 0, then the full column calves at once
      real(dp) :: minthck = 0.d0                  !> minimum thickness (m) of floating ice at marine edge before it calves;
@@ -2171,6 +2149,8 @@ module glissade_types
      !TODO - Remove these constants? They are used for babc option HO_BABC_COULOMB_FRICTION,
      !       which is functionally equivalent to the Schoof law.
      real(dp) :: coulomb_bump_wavelength = 2.0d0 !> bedrock wavelength at subgrid scale precision (m)
+     real(dp) :: flwa_basal_const = 1.0d-16      !> flow factor at the bed for sliding_law = 10 (Pa^{-n} yr^{-1});
+                                                 !> 1.0e-16 Pa^-3 yr^-1 = 3.1688e-24 Pa^-3 s^-1, as in MISMIP3d (Leguy et al.)
      real(dp) :: coulomb_bump_max_slope = 0.5d0  !> maximum bed bump slope at subgrid scale precision (no dimension)
 
      ! parameter to limit the min value of beta for various power laws
@@ -2256,17 +2236,13 @@ module glissade_types
     real(dp) :: tend   =  1000.d0 !> end time
     real(dp) :: time   =     0.d0 !> main loop counter in years
     real(dp) :: tinc   =     1.d0 !> time step of main loop in years 
-    real(dp) :: ntem   =     1.d0 !> multiplier of main time step; allows longer temperature time step
     real(dp) :: thklim =   100.d0 !> min thickness for computing ice dynamics (m) 
     real(dp) :: thklim_temp = 1.d0    !> min thickness for computing vertical temperature (m) (higher-order only)
     real(dp) :: thck_gradient_ramp = 0.d0 !> thickness scale over which gradients increase from zero to full value (HO only)
     real(dp) :: dew    =    20.d3     !> grid cell size in east-west direction
     real(dp) :: dns    =    20.d3     !> grid cell size in north-south direction
     real(dp) :: dt     =     0.d0     !> ice dynamics timestep
-    real(dp) :: dttem  =     0.d0     !> temperature timestep
     integer  :: nsteps_per_year = 0   !> number of time steps per year (for dt_option = STEPS_PER_YEAR)
-    real(dp) :: dt_transport = 0.d0   !> timestep for subcycling transport within the dynamics timestep dt
-    integer  :: subcyc =     1
     real(dp) :: periodic_offset_ew = 0.d0 !> optional periodic_offsets for ismip-hom and similar tests;
     real(dp) :: periodic_offset_ns = 0.d0 !> may be needed to ensure continuous ice geometry at edges of the global domain
     integer  :: tstep_count = 0   !> number of time steps since the start of the simulation
@@ -2322,19 +2298,6 @@ module glissade_types
     real(dp) :: max_slope = 1.0d0      ! maximum surface slope allowed in Glissade dycore (unitless)
                                        ! Note: It may be necessary to reduce max_slope to ~0.1 to prevent huge velocities
                                        !       in regions of rough coastal topography
-
-    !WHL TODO - Remove the adjust_input_topography option during the config reorg
-    ! parameters for the adjust_input_topography option
-    ! Note: Depending on the sign of (adjust_topg_max_adjust - adjust_topg_no_adjust), we will either
-    !       (1) change high topography and leave low topography unchanged, or
-    !       (2) change low topography and leave high topography unchanged
-    real(dp) :: adjust_topg_xmin = 0.0d0   ! min x value (m) of the region with adjusted topography
-    real(dp) :: adjust_topg_xmax = 0.0d0   ! max x value (m) of the region with adjusted topography
-    real(dp) :: adjust_topg_ymin = 0.0d0   ! min y value (m) of the region with adjusted topography
-    real(dp) :: adjust_topg_ymax = 0.0d0   ! max y value (m) of the region with adjusted topography
-    real(dp) :: adjust_topg_no_adjust  = 0.0d0  ! elevation (m) beyond which there is no adjustment of topg
-    real(dp) :: adjust_topg_max_adjust = 0.0d0  ! elevation (m) beyond which there is full adjustment of topg
-    real(dp) :: adjust_topg_delta = 0.0d0  ! max adjustment, applied where topg > topg_hi
 
   end type glissade_paramets_type
 

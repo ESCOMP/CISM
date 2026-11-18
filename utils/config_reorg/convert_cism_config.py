@@ -18,9 +18,17 @@ A file with no [section] lines is treated as a CESM user_nl_cism file, in which 
 How a config file is converted:
   - Each key listed in MOVES is moved to its new section, under its new name, with its value and
     inline comment.  Comment lines directly above the key (with no blank line in between) move with it.
-  - A new section is created if needed, before the first [CF ...] section (or at the end of the file).
+  - A new section is created if needed.
   - An old section left with no keys is removed, together with any comment lines left in it.
-  - Keys not listed in MOVES are left where they are; the model warns about keys it does not read.
+  - In each section, the LEAD_KEYS (the major switches and the keys edited most often) come first,
+    in LEAD_KEYS order; comment lines directly above a key move with it; other keys keep their order.
+  - The Glissade sections are put in the standard order (SECTION_ORDER: the order of the log file),
+    followed by the [CF ...] sections and any other sections, in their original order.  Comment lines
+    above a section header (after a blank line) move with that section.  Section contents are not
+    changed.
+  - Keys listed in REMOVED (keys the model no longer reads) are deleted; the report names the replacement,
+    if there is one, e.g. 'deleted [isostasy] lithosphere_period: removed; see load_update_interval'.
+  - Other keys are left where they are; the model warns about keys it does not read.
   - Converting a file that is already converted changes nothing.
   - Glide configs ([options] dycore = 0) are left unchanged: the Glide config format is frozen.
 
@@ -45,19 +53,18 @@ MOVES = {
     ('ho_options', 'which_ho_calving_front'): ('calving', 'subgrid_calving_front'),
     ('ho_options', 'which_ho_calvingmip_domain'): ('calving', 'calvingmip_domain'),
     ('parameters', 'marine_limit'): ('calving', 'marine_limit'),
-    ('parameters', 'calving_fraction'): ('calving', 'calving_fraction'),
     ('parameters', 'calving_timescale'): ('calving', 'calving_timescale'),
-    ('parameters', 'calving_minthck'): ('calving', 'calving_minthck'),
+    ('parameters', 'calving_minthck'): ('calving', 'calving_thck_threshold'),
     ('parameters', 'dthck_dx_cf'): ('calving', 'dthck_dx_cf'),
     ('parameters', 'thck_effective_min'): ('calving', 'thck_effective_min'),
-    ('parameters', 'eigenconstant'): ('calving', 'eigenconstant'),
+    ('parameters', 'eigenconstant'): ('calving', 'eigencalving_const'),
     ('parameters', 'tau_eigenconstant1'): ('calving', 'tau_eigenconstant1'),
     ('parameters', 'tau_eigenconstant2'): ('calving', 'tau_eigenconstant2'),
     ('parameters', 'stress_threshold'): ('calving', 'stress_threshold'),
     ('parameters', 'lateral_rate_min'): ('calving', 'lateral_rate_min'),
     ('parameters', 'effec_stress_min'): ('calving', 'effec_stress_min'),
     ('parameters', 'length_scale'): ('calving', 'calving_length_scale'),
-    ('parameters', 'damage_constant'): ('calving', 'damage_constant'),
+    ('parameters', 'damage_constant'): ('calving', 'damage_const'),
     ('parameters', 'taumax_cliff'): ('calving', 'taumax_cliff'),
     ('parameters', 'cliff_timescale'): ('calving', 'cliff_timescale'),
     ('parameters', 'calving_front_x'): ('calving', 'calving_front_x'),
@@ -70,6 +77,7 @@ MOVES = {
     ('ho_options', 'remove_ice_caps'): ('removal', 'remove_ice_caps'),
     ('ho_options', 'force_retreat'): ('removal', 'force_retreat'),
     # [basal_physics]
+    ('parameters', 'flwa_basal'): ('basal_physics', 'flwa_basal_const'),   # the basal flow factor for sliding_law = 10
     ('options', 'slip_coeff'): ('basal_physics', 'btrc_method'),
     ('ho_options', 'which_ho_babc'): ('basal_physics', 'sliding_law'),
     ('ho_options', 'use_c_space_factor'): ('basal_physics', 'use_c_space_factor'),
@@ -119,7 +127,7 @@ MOVES = {
     ('ho_options', 'which_ho_bwat'): ('basal_hydro', 'bwat_method'),
     ('basal_hydro', 'ho_flux_routing_scheme'): ('basal_hydro', 'flux_routing_method'),
     # [climate]
-    ('options', 'smb_input'): ('climate', 'smb_input'),
+    ('options', 'smb_input'): ('climate', 'smb_input_units'),
     ('options', 'smb_input_function'): ('climate', 'smb_input_function'),
     ('options', 'artm_input_function'): ('climate', 'artm_input_function'),
     ('options', 'enable_smb_anomaly'): ('climate', 'enable_smb_anomaly'),
@@ -134,11 +142,10 @@ MOVES = {
     ('parameters', 'tmlt'): ('climate', 'tmlt'),
     ('parameters', 'snow_threshold_min'): ('climate', 'snow_threshold_min'),
     ('parameters', 'snow_threshold_max'): ('climate', 'snow_threshold_max'),
-    ('parameters', 'smb_factor'): ('climate', 'smb_factor'),
     ('parameters', 'smb_anomaly_tstart'): ('climate', 'smb_anomaly_tstart'),
     ('parameters', 'smb_anomaly_timescale'): ('climate', 'smb_anomaly_timescale'),
     ('parameters', 'overwrite_acab_value'): ('climate', 'overwrite_acab_value'),
-    ('parameters', 'overwrite_acab_minthck'): ('climate', 'overwrite_acab_minthck'),
+    ('parameters', 'overwrite_acab_minthck'): ('climate', 'overwrite_acab_thck_min'),
     ('parameters', 'artm_anomaly_const'): ('climate', 'artm_anomaly_const'),
     ('parameters', 'artm_anomaly_tstart'): ('climate', 'artm_anomaly_tstart'),
     ('parameters', 'artm_anomaly_timescale'): ('climate', 'artm_anomaly_timescale'),
@@ -168,7 +175,7 @@ MOVES = {
     # [ocean_data]
     ('options', 'ocean_data_domain'): ('ocean_data', 'ocean_data_domain'),
     ('options', 'ocean_data_extrapolate'): ('ocean_data', 'ocean_data_extrapolate'),
-    ('parameters', 'gamma0'): ('ocean_data', 'gamma0'),
+    ('parameters', 'gamma0'): ('basal_melt', 'bmlt_float_gamma0'),
     ('parameters', 'thermal_forcing_basin_min'): ('ocean_data', 'thermal_forcing_basin_min'),
     ('parameters', 'thermal_forcing_basin_max'): ('ocean_data', 'thermal_forcing_basin_max'),
     ('parameters', 'thermal_forcing_anomaly'): ('ocean_data', 'thermal_forcing_anomaly'),
@@ -181,7 +188,7 @@ MOVES = {
     ('ho_options', 'which_ho_efvs'): ('velocity', 'efvs_method'),
     ('ho_options', 'which_ho_gradient'): ('velocity', 'surface_gradient_method'),
     ('ho_options', 'which_ho_gradient_margin'): ('velocity', 'surface_gradient_margin_method'),
-    ('parameters', 'efvs_constant'): ('velocity', 'efvs_constant'),
+    ('parameters', 'efvs_constant'): ('velocity', 'efvs_const'),
     ('parameters', 'effstrain_min'): ('velocity', 'effstrain_min'),
     ('parameters', 'max_slope'): ('velocity', 'max_slope'),
     # [velocity_solver]
@@ -207,12 +214,11 @@ MOVES = {
     ('parameters', 'n_glen'): ('flow_law', 'n_glen'),
     ('parameters', 'flow_factor_ground'): ('flow_law', 'flow_factor_ground'),
     ('parameters', 'flow_factor_float'): ('flow_law', 'flow_factor_float'),
-    ('parameters', 'default_flwa'): ('flow_law', 'default_flwa'),
+    ('parameters', 'default_flwa'): ('flow_law', 'flwa_const'),
     # [temperature]
     ('options', 'temperature'): ('temperature', 'temperature_method'),
-    ('options', 'temp_init'): ('temperature', 'temp_init'),
+    ('options', 'temp_init'): ('temperature', 'temperature_init'),
     ('ho_options', 'which_ho_disp'): ('temperature', 'dissipation_method'),
-    ('ho_options', 'which_ho_thermal_timestep'): ('temperature', 'thermal_timestep'),
     ('parameters', 'pmp_offset'): ('temperature', 'pmp_offset'),
     ('parameters', 'pmp_threshold'): ('temperature', 'pmp_threshold'),
     # [inversion]
@@ -242,8 +248,8 @@ MOVES = {
     # [numerics]
     ('ho_options', 'compute_blocks'): ('numerics', 'compute_blocks'),
     ('ho_options', 'reproducible_sums'): ('numerics', 'reproducible_sums'),
-    ('parameters', 'ice_limit'): ('numerics', 'ice_limit'),
-    ('parameters', 'ice_limit_temp'): ('numerics', 'ice_limit_temp'),
+    ('parameters', 'ice_limit'): ('numerics', 'thcklim'),
+    ('parameters', 'ice_limit_temp'): ('numerics', 'thcklim_temp'),
     ('parameters', 'thck_gradient_ramp'): ('numerics', 'thck_gradient_ramp'),
     ('parameters', 'periodic_offset_ew'): ('numerics', 'periodic_offset_ew'),
     ('parameters', 'periodic_offset_ns'): ('numerics', 'periodic_offset_ns'),
@@ -256,19 +262,14 @@ MOVES = {
     ('parameters', 'trpt'): ('constants', 'trpt'),
     # [initialization]
     ('options', 'adjust_input_thickness'): ('initialization', 'adjust_input_thickness'),
-    ('options', 'smooth_input_topography'): ('initialization', 'smooth_input_topography'),
     ('options', 'smooth_input_usrf'): ('initialization', 'smooth_input_usrf'),
-    ('options', 'adjust_input_topography'): ('initialization', 'adjust_input_topography'),
-    ('parameters', 'adjust_topg_xmin'): ('initialization', 'adjust_topg_xmin'),
-    ('parameters', 'adjust_topg_xmax'): ('initialization', 'adjust_topg_xmax'),
-    ('parameters', 'adjust_topg_ymin'): ('initialization', 'adjust_topg_ymin'),
-    ('parameters', 'adjust_topg_ymax'): ('initialization', 'adjust_topg_ymax'),
-    ('parameters', 'adjust_topg_no_adjust'): ('initialization', 'adjust_topg_no_adjust'),
-    ('parameters', 'adjust_topg_max_adjust'): ('initialization', 'adjust_topg_max_adjust'),
-    ('parameters', 'adjust_topg_delta'): ('initialization', 'adjust_topg_delta'),
     # [diagnostics]
+    ('time', 'dt_diag'): ('diagnostics', 'dt_diag'),
+    ('time', 'ndiag'): ('diagnostics', 'ndiag'),
+    ('time', 'idiag'): ('diagnostics', 'idiag'),
+    ('time', 'jdiag'): ('diagnostics', 'jdiag'),
     ('options', 'dm_dt_diag'): ('diagnostics', 'dm_dt_diag'),
-    ('options', 'diag_minthck'): ('diagnostics', 'diag_minthck'),
+    ('options', 'diag_minthck'): ('diagnostics', 'diag_ice_threshold'),
     # [isostasy], [lateral_melt], [glaciers]: section switches move in; keys renamed in place
     ('options', 'isostasy'): ('isostasy', 'isostasy'),
     ('isostasy', 'lithosphere'): ('isostasy', 'lithosphere_method'),
@@ -283,15 +284,76 @@ MOVES = {
     ('glaciers', 'tmlt'): ('glaciers', 'glacier_tmlt'),
     ('glaciers', 'snow_threshold_min'): ('glaciers', 'glacier_snow_threshold_min'),
     ('glaciers', 'snow_threshold_max'): ('glaciers', 'glacier_snow_threshold_max'),
+    # R2 key renames, for configs already in the R1 layout (and for the keys that were not moved in R1)
+    ('numerics', 'ice_limit'): ('numerics', 'thcklim'),
+    ('numerics', 'ice_limit_temp'): ('numerics', 'thcklim_temp'),
+    ('diagnostics', 'diag_minthck'): ('diagnostics', 'diag_ice_threshold'),
+    ('velocity', 'efvs_constant'): ('velocity', 'efvs_const'),
+    ('temperature', 'temp_init'): ('temperature', 'temperature_init'),
+    ('flow_law', 'default_flwa'): ('flow_law', 'flwa_const'),
+    ('basal_hydro', 'const_bwat'): ('basal_hydro', 'bwat_const'),
+    ('basal_hydro', 'c_drainage'): ('basal_hydro', 'till_drainage_rate'),
+    ('basal_hydro', 'const_source'): ('basal_hydro', 'bwat_source_const'),
+    ('basal_hydro', 'c_close'): ('basal_hydro', 'cavity_closing_const'),
+    ('ocean_data', 'gamma0'): ('basal_melt', 'bmlt_float_gamma0'),
+    ('calving', 'calving_minthck'): ('calving', 'calving_thck_threshold'),
+    ('calving', 'eigenconstant'): ('calving', 'eigencalving_const'),
+    ('calving', 'damage_constant'): ('calving', 'damage_const'),
+    ('climate', 'smb_input'): ('climate', 'smb_input_units'),
+    ('climate', 'overwrite_acab_minthck'): ('climate', 'overwrite_acab_thck_min'),
+    ('glaciers', 'diagnostic_minthck'): ('glaciers', 'glacier_diag_thck_min'),
 }
 
-# Order of the new sections when they are created.
+# (section, key) -> note: keys that Glissade no longer reads.  The converter deletes them and reports the
+# note, which names the replacement if there is one.
+_FLOW_ENH = 'removed with the flow-enhancement-factor inversion'
+_PLUME = 'removed with the old plume model'
+_THERMAL_TS = 'removed; the vertical thermal solve is always done before transport'
+_ADJ_TOPG = 'removed with the adjust_input_topography option'
+_SMB_FACTOR = 'removed; scale the SMB in the input or forcing file instead'
+_CALVING_FRACTION = 'removed with calving_law = 2; use calving_law = 1 with calving_timescale = dt/calving_fraction'
+REMOVED = {
+    ('ho_options', 'which_ho_flow_enhancement_factor'): 'removed (only the default behavior remains)',
+    ('parameters', 'inversion_flow_enhancement_timescale'): _FLOW_ENH,
+    ('parameters', 'inversion_flow_enhancement_velo_scale'): _FLOW_ENH,
+    ('parameters', 'inversion_flow_enhancement_thck_scale'): _FLOW_ENH,
+    ('parameters', 'inversion_flow_enhancement_length_scale'): _FLOW_ENH,
+    ('parameters', 'inversion_flow_enhancement_relax_factor'): _FLOW_ENH,
+    ('parameters', 'T0'): _PLUME, ('parameters', 'Tbot'): _PLUME,
+    ('parameters', 'S0'): _PLUME, ('parameters', 'Sbot'): _PLUME,
+    ('parameters', 'gammaT'): _PLUME, ('parameters', 'gammaS'): _PLUME,
+    ('ho_options', 'deltaT_ocn_extrapolate'): 'removed (deltaT_ocn is no longer extrapolated)',
+    ('isostasy', 'lithosphere_period'): 'removed; see load_update_interval in [isostasy]',
+    ('options', 'enable_acab_anomaly'): 'removed; see enable_smb_anomaly in [climate]',
+    ('time', 'subcyc'): 'removed; adaptive_cfl_threshold in [time] subcycles the advection when needed',
+    ('time', 'ntem'): 'removed; the temperature is solved every time step',
+    ('ho_options', 'which_ho_thermal_timestep'): _THERMAL_TS,
+    ('temperature', 'thermal_timestep'): _THERMAL_TS,
+    ('options', 'smooth_input_topography'): 'removed (topography smoothing at initialization)',
+    ('initialization', 'smooth_input_topography'): 'removed (topography smoothing at initialization)',
+    ('options', 'adjust_input_topography'): _ADJ_TOPG,
+    ('initialization', 'adjust_input_topography'): _ADJ_TOPG,
+    ('parameters', 'adjust_topg_xmin'): _ADJ_TOPG, ('initialization', 'adjust_topg_xmin'): _ADJ_TOPG,
+    ('parameters', 'adjust_topg_xmax'): _ADJ_TOPG, ('initialization', 'adjust_topg_xmax'): _ADJ_TOPG,
+    ('parameters', 'adjust_topg_ymin'): _ADJ_TOPG, ('initialization', 'adjust_topg_ymin'): _ADJ_TOPG,
+    ('parameters', 'adjust_topg_ymax'): _ADJ_TOPG, ('initialization', 'adjust_topg_ymax'): _ADJ_TOPG,
+    ('parameters', 'adjust_topg_no_adjust'): _ADJ_TOPG, ('initialization', 'adjust_topg_no_adjust'): _ADJ_TOPG,
+    ('parameters', 'adjust_topg_max_adjust'): _ADJ_TOPG, ('initialization', 'adjust_topg_max_adjust'): _ADJ_TOPG,
+    ('parameters', 'adjust_topg_delta'): _ADJ_TOPG, ('initialization', 'adjust_topg_delta'): _ADJ_TOPG,
+    ('parameters', 'smb_factor'): _SMB_FACTOR,
+    ('climate', 'smb_factor'): _SMB_FACTOR,
+    ('parameters', 'calving_fraction'): _CALVING_FRACTION,
+    ('calving', 'calving_fraction'): _CALVING_FRACTION,
+}
+
+# Order of the Glissade sections in a converted config file: the order in which they are written
+# to the log (glissade_printconfig), with [sigma] after [grid].  Sections not listed here ([CF ...]
+# and any others) follow, in their original order.
 SECTION_ORDER = [
-    'grid', 'time', 'options', 'numerics', 'constants', 'initialization',
-    'velocity', 'velocity_solver', 'advection', 'flow_law', 'temperature',
-    'basal_physics', 'basal_hydro', 'grounding_line', 'basal_melt', 'ocean_data',
-    'climate', 'calving', 'removal', 'lateral_melt', 'inversion', 'geothermal',
-    'isostasy', 'glaciers', 'diagnostics',
+    'grid', 'sigma', 'time', 'diagnostics', 'options', 'numerics', 'constants', 'initialization',
+    'velocity', 'velocity_solver', 'advection', 'temperature', 'flow_law',
+    'basal_physics', 'basal_hydro', 'grounding_line', 'basal_melt', 'calving', 'lateral_melt', 'removal',
+    'grid_atm', 'climate', 'grid_ocn', 'ocean_data', 'geothermal', 'isostasy', 'inversion', 'glaciers',
 ]
 
 # CESM user_nl_cism: old key -> new key.  Kept separate from MOVES because a few key names occur in
@@ -340,7 +402,6 @@ USER_NL_RENAMES = {
     'which_ho_ice_age': 'compute_ice_age',
     'temperature': 'temperature_method',
     'which_ho_disp': 'dissipation_method',
-    'which_ho_thermal_timestep': 'thermal_timestep',
     # [geothermal]
     'gthf': 'geothermal_method',
     'geothermal': 'geothermal_flux',
@@ -363,6 +424,24 @@ USER_NL_RENAMES = {
     'inversion_bmlt_basin_flotation_threshold': 'inversion_basin_flotation_threshold',
     'inversion_bmlt_basin_mass_correction': 'inversion_basin_mass_correction',
     'inversion_bmlt_basin_number_mass_correction': 'inversion_basin_number_mass_correction',
+    # R2 key renames
+    'ice_limit': 'thcklim',
+    'ice_limit_temp': 'thcklim_temp',
+    'diag_minthck': 'diag_ice_threshold',
+    'efvs_constant': 'efvs_const',
+    'temp_init': 'temperature_init',
+    'default_flwa': 'flwa_const',
+    'const_bwat': 'bwat_const',
+    'c_drainage': 'till_drainage_rate',
+    'const_source': 'bwat_source_const',
+    'c_close': 'cavity_closing_const',
+    'gamma0': 'bmlt_float_gamma0',
+    'calving_minthck': 'calving_thck_threshold',
+    'eigenconstant': 'eigencalving_const',
+    'damage_constant': 'damage_const',
+    'smb_input': 'smb_input_units',
+    'overwrite_acab_minthck': 'overwrite_acab_thck_min',
+    'diagnostic_minthck': 'glacier_diag_thck_min',
 }
 
 # Match the CISM reader (glimmer_config.F90): a section header is a line starting with '[' in
@@ -418,9 +497,120 @@ def is_glide(sections):
     return False
 
 
-def convert_config(text, moves=None):
+# Keys that lead their section, in this order: the major switches and the keys users edit most often.
+# Other keys follow in their original order.
+LEAD_KEYS = {
+    'grid': ['ewn', 'nsn', 'upn', 'dew', 'dns'],
+    'time': ['tstart', 'tend', 'dt_input_option', 'dt', 'nsteps_per_year'],
+    'diagnostics': ['idiag', 'jdiag'],
+    'options': ['dycore'],
+    'velocity': ['stokes_approx'],
+    'velocity_solver': ['nonlinear_method', 'nonlinear_residual', 'nonlinear_maxiters', 'linear_solver',
+                        'preconditioner', 'linear_solve_ncheck', 'linear_maxiters', 'linear_tolerance',
+                        'assemble_beta', 'assemble_taud', 'assemble_bfric', 'assemble_lateral'],
+    'advection': ['advection_method'],
+    'temperature': ['temperature_method'],
+    'flow_law': ['flow_law'],
+    'basal_physics': ['sliding_law'],
+    'basal_hydro': ['bwat_method'],
+    'grounding_line': ['grounding_line_param'],
+    'basal_melt': ['bmlt_float_method'],
+    'calving': ['calving_law'],
+    'lateral_melt': ['lateral_melt_method'],
+    'removal': ['remove_ice_caps'],
+    'climate': ['smb_input_units', 'smb_input_function'],
+    'geothermal': ['geothermal_method'],
+    'isostasy': ['isostasy'],
+    'glaciers': ['enable_glaciers'],
+}
+
+
+def order_lead_keys(section):
+    """Move the section's LEAD_KEYS to its top, in LEAD_KEYS order; other lines keep their order.
+
+    A key takes along the comment lines directly above it (with no blank line in between).
+    Returns True if the section changed; a section already in order is not changed at all.
+    """
+    lead = LEAD_KEYS.get(section.name)
+    if not lead:
+        return False
+    lines = section.lines
+    present = []                                   # (lead index, key line index) in file order
+    for i, line in enumerate(lines):
+        m = KEY_RE.match(line)
+        if m and not COMMENT_RE.match(line) and m.group(2) in lead:
+            present.append((lead.index(m.group(2)), i))
+    if not present:
+        return False
+    # already in order: the lead keys come first among the keys, in LEAD_KEYS order
+    keys_in_order = [i for i, line in enumerate(lines) if KEY_RE.match(line) and not COMMENT_RE.match(line)]
+    if [i for _, i in sorted(present)] == keys_in_order[:len(present)]:
+        return False
+    blocks, taken = {}, set()
+    for rank, i in present:
+        j = i
+        while j > 0 and lines[j - 1].strip() and COMMENT_RE.match(lines[j - 1]) and (j - 1) not in taken:
+            j -= 1
+        blocks[rank] = lines[j:i + 1]
+        taken.update(range(j, i + 1))
+    rest = [line for k, line in enumerate(lines) if k not in taken]
+    # drop blank lines that were between moved keys, but keep the blank lines that end the section
+    if any(line.strip() for line in rest):
+        while not rest[0].strip():
+            rest = rest[1:]
+    new = [l for rank in sorted(blocks) for l in blocks[rank]] + rest
+    if new == lines:
+        return False
+    section.lines = new
+    return True
+
+
+def reorder_sections(sections):
+    """Put the sections in SECTION_ORDER, followed by the other sections in their original order.
+
+    Returns True if the order changed.  If it did not, nothing is changed (not even whitespace).
+    Comment lines directly above a section header, separated from the previous section's content
+    by a blank line, move with the section below them (e.g. '# I/O configuration follows' above
+    [CF default]).  Lines before the first section stay at the top of the file.
+    """
+    head, body = sections[:1], sections[1:]          # sections[0] holds the lines before the first header
+    rank = {name: i for i, name in enumerate(SECTION_ORDER)}
+    order = sorted(range(len(body)), key=lambda i: (rank.get(body[i].name, len(SECTION_ORDER)), i))
+    if order == list(range(len(body))):
+        return False
+    # detach the comment block above each header from the end of the preceding section
+    lead = [[] for _ in body]
+    for i in range(1, len(body)):
+        prev = body[i - 1].lines
+        n = len(prev)
+        while n > 0 and prev[n - 1].strip() and COMMENT_RE.match(prev[n - 1]):
+            n -= 1
+        if n < len(prev) and (n == 0 or not prev[n - 1].strip()):
+            lead[i], body[i - 1].lines = prev[n:], prev[:n]
+    new = []
+    for k, i in enumerate(order):
+        s = body[i]
+        if k < len(order) - 1 and (not s.lines or s.lines[-1].strip()):
+            s.lines.append('')                        # keep a blank line between sections
+        new.append((lead[i], s))
+    sections[1:] = []
+    for comments, s in new:
+        if comments:
+            # the comment block goes above the header: store it at the end of the section before it
+            target = sections[-1]
+            target.lines.extend(comments)
+        sections.append(s)
+    # a file that ended with a newline still does
+    last = sections[-1].lines
+    if body and order[-1] != len(body) - 1 and (not last or last[-1] != ''):
+        last.append('')
+    return True
+
+
+def convert_config(text, moves=None, removed=None):
     """Return (new_text, list of changes) for a CISM config file.  Glide configs are returned unchanged."""
     moves = MOVES if moves is None else moves
+    removed = REMOVED if removed is None else removed
     sections = parse(text)
     if is_glide(sections):
         return text, []
@@ -443,6 +633,9 @@ def convert_config(text, moves=None):
                 moved.setdefault(new_sec, []).extend(carried + [new_key + m.group(3)])
                 emptied.add(s.name)
                 changes.append(f'[{s.name}] {m.group(2)} -> [{new_sec}] {new_key}')
+            elif m and not COMMENT_RE.match(line) and (s.name, m.group(2)) in removed:
+                emptied.add(s.name)
+                changes.append(f'deleted [{s.name}] {m.group(2)}: {removed[(s.name, m.group(2))]}')
             else:
                 kept.append(line)
         s.lines = kept
@@ -467,26 +660,18 @@ def convert_config(text, moves=None):
             n -= 1
         target.lines[n:n] = lines
 
-    # order newly created sections by SECTION_ORDER within the block where they were inserted
-    def order_key(s):
-        return SECTION_ORDER.index(s.name) if s.name in SECTION_ORDER else len(SECTION_ORDER)
-    new_names = {c[len('new section ['):-1] for c in changes if c.startswith('new section')}
-    i = 0
-    while i < len(sections):
-        if sections[i].name in new_names:
-            j = i
-            while j < len(sections) and sections[j].name in new_names:
-                j += 1
-            sections[i:j] = sorted(sections[i:j], key=order_key)
-            i = j
-        else:
-            i += 1
-
     # remove old sections that have no keys left
     for s in list(sections):
         if s.name in emptied and s.name not in moved and not has_keys(s):
             sections.remove(s)
             changes.append(f'removed empty section [{s.name}]')
+
+    # put the sections in the standard order, and the lead keys at the top of each section
+    if reorder_sections(sections):
+        changes.append('sections reordered')
+    for sec in sections:
+        if sec.name and order_lead_keys(sec):
+            changes.append(f'lead keys of [{sec.name}] moved to the top')
 
     return render(sections), changes
 
@@ -537,6 +722,43 @@ def self_test():
     assert ' marine_margin = 1' in new2                         # indented key (ignored by CISM) left alone
     glide = old.replace('dycore = 2', 'dycore = 0   # Glide')
     assert convert_config(glide, moves) == (glide, [])          # Glide config: no change
+
+    # section order: comment blocks above a header (after a blank line) move with the section below
+    unordered = '\n'.join([
+        '# dome test', '[options]', 'dycore = 2', '',
+        '# basal friction', '[basal_physics]', 'sliding_law = 4', '#beta_large = 1.e10',
+        '[grid]', 'ewn = 31', '',
+        '####', '# I/O configuration follows', '####', '[CF default]', 'title = test', '',
+        '[time]', 'dt = 1.', ''])
+    ordered, ch = convert_config(unordered, {})
+    assert ch == ['sections reordered'], ch
+    assert ordered == '\n'.join([
+        '# dome test', '[grid]', 'ewn = 31', '',
+        '[time]', 'dt = 1.', '',
+        '[options]', 'dycore = 2', '',
+        '# basal friction', '[basal_physics]', 'sliding_law = 4', '#beta_large = 1.e10', '',
+        '####', '# I/O configuration follows', '####', '[CF default]', 'title = test', '']), ordered
+    assert convert_config(ordered, {}) == (ordered, [])          # already in order: unchanged
+
+    # lead keys: idiag and jdiag (with the comment above idiag) move to the top of [diagnostics]
+    diag = '\n'.join(['[diagnostics]', 'dt_diag = 1.', '# diagnostic point', 'idiag = 10', 'jdiag = 12', 'dm_dt_diag = 1', ''])
+    led, ch = convert_config(diag, {})
+    assert led == '\n'.join(['[diagnostics]', '# diagnostic point', 'idiag = 10', 'jdiag = 12', 'dt_diag = 1.',
+                             'dm_dt_diag = 1', '']), led
+    assert ch == ['lead keys of [diagnostics] moved to the top'], ch
+    assert convert_config(led, {}) == (led, [])                  # already in order: unchanged
+    grid = '\n'.join(['[grid]', 'upn = 10', 'ewn = 31', 'nsn = 31', '', '[time]', 'dt = 1.', ''])
+    led, ch = convert_config(grid, {})                           # all keys are lead keys: keep the blank line
+    assert led == '\n'.join(['[grid]', 'ewn = 31', 'nsn = 31', 'upn = 10', '', '[time]', 'dt = 1.', '']), led
+
+    # removed keys are deleted and reported; a section left with no keys is removed
+    stale = '\n'.join(['[grid]', 'ewn = 31', '', '[ho_options]', 'deltaT_ocn_extrapolate = .true.', '',
+                        '[isostasy]', 'isostasy = 1', 'lithosphere_period = 10.   # yr', ''])
+    clean, ch = convert_config(stale, {})
+    assert clean == '\n'.join(['[grid]', 'ewn = 31', '', '[isostasy]', 'isostasy = 1', '']), clean
+    assert ch == ['deleted [ho_options] deltaT_ocn_extrapolate: removed (deltaT_ocn is no longer extrapolated)',
+                  'deleted [isostasy] lithosphere_period: removed; see load_update_interval in [isostasy]',
+                  'removed empty section [ho_options]'], ch
     print('self-test passed')
 
 

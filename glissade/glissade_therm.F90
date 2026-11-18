@@ -243,7 +243,7 @@ module glissade_therm
 
        else
           ! fatal error, neither tempstag nor tempunstag are present in the input files
-          call write_log('Error, temp_init = 4 requires temperature variable tempstag or ' &
+          call write_log('Error, temperature_init = 4 requires temperature variable tempstag or ' &
              // 'tempunstag specified in the restart or input files. ', GM_FATAL)
        endif
 
@@ -271,7 +271,7 @@ module glissade_therm
           write(message,*) 'Offset from pressure melting point temperature =', pmp_offset
           call write_log(message)
        else
-          call write_log('Error: invalid temp_init option in glissade_init_therm. It is possible that the temperature' &
+          call write_log('Error: invalid temperature_init option in glissade_init_therm. It is possible that the temperature' &
                       // 'was not read correctly from the input file, resulting in unphysical values', GM_FATAL)
        endif
 

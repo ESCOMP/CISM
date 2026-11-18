@@ -848,6 +848,48 @@ contains
     end do
   end subroutine GetValueChar
 
+  !> get the dycore choice ('dycore' key), given as an integer or a name
+  subroutine GetDycore(section,dycore)
+    ! The dycore can be given either as an integer (0 = Glide, 2 = Glissade) or as a name ('glide',
+    ! 'glissade'; case-insensitive, quotes optional). Both forms are accepted because:
+    !  - Glide config files are frozen in the old format, which uses integers (dycore = 0);
+    !  - Glissade config files use names for option values (dycore = glissade) after the config
+    !    reorganization, but older Glissade configs and CESM namelists may still give dycore = 2;
+    !  - the driver reads 'dycore' before it knows which dycore's config format the file uses.
+    ! The integer values match DYCORE_GLIDE and DYCORE_GLISSADE in glide_types and glissade_types.
+    ! Only the first word of the value is used, so an inline comment after it is ignored.
+    use glimmer_log
+    implicit none
+    type(ConfigSection), pointer :: section !< the section from which the value is loaded
+    integer, intent(inout) :: dycore        !< on exit, 0 (Glide) or 2 (Glissade); unchanged if the key is absent
+
+    integer, parameter :: dycore_glide = 0, dycore_glissade = 2
+    character(len=valuelen) :: val
+    character(len=16) :: word
+    integer :: i, n
+
+    val = ''
+    call GetValueChar(section, 'dycore', val)
+    val = adjustl(val)
+    if (len_trim(val) == 0) return
+    n = scan(val, ' #;!')
+    if (n == 0) n = len_trim(val) + 1
+    word = val(1:min(n-1, len(word)))
+    do i = 1, len_trim(word)
+       if (word(i:i) >= 'A' .and. word(i:i) <= 'Z') word(i:i) = achar(iachar(word(i:i)) + 32)
+    enddo
+    select case (trim(word))
+    case ('0', 'glide')
+       dycore = dycore_glide
+    case ('2', 'glissade')
+       dycore = dycore_glissade
+    case default
+       call write_log('Error, dycore = ' // trim(val) // ': must be 0 or glide (Glide), or 2 or glissade (Glissade)', &
+            GM_FATAL)
+    end select
+
+  end subroutine GetDycore
+
   !> get logical value
   subroutine GetValueLogical(section,name,val)
     implicit none

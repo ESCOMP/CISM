@@ -234,15 +234,17 @@ config.set('grid', 'dns', str(dy))
 
 # Set the timestep
 config.set('time', 'dt',      str(args.timestep))
-config.set('time', 'dt_diag', str(args.timestep))
+if not config.has_section('diagnostics'):
+    config.add_section('diagnostics')
+config.set('diagnostics', 'dt_diag', str(args.timestep))
 
 # Set the diagnostic cell
 # By default, this cell lies just to the right of the x-axis, near the
 # northern boundary of the domain.
 idiag = int(nx/2) + 1
 jdiag = int(nx/2) + int(cf_radius/dy)
-config.set('time', 'idiag', str(idiag))
-config.set('time', 'jdiag', str(jdiag))
+config.set('diagnostics', 'idiag', str(idiag))
+config.set('diagnostics', 'jdiag', str(jdiag))
 print('idiag:',idiag)
 print('jdiag:',jdiag)
 
@@ -515,7 +517,7 @@ for expt in experiments:
         
     # Set other parameters specific to certain experiments
     if expt == 'SpinupCircular' or expt == 'SpinupThule':
-        config.set('temperature', 'temp_init', '1')
+        config.set('temperature', 'temperature_init', '1')
         config.set('calving', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
         config.set('calving', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
         # Both spin-ups use a calving mask to prevent advance beyond the prescribed radius
@@ -533,7 +535,7 @@ for expt in experiments:
     elif expt == 'Experiment5':
         config.set('calving', 'calving_law', '7')
         calvingMinthck = 325.
-        config.set('calving', 'calving_minthck', str(calvingMinthck))
+        config.set('calving', 'calving_thck_threshold', str(calvingMinthck))
             
     # Set the calvingMIP domain (circular or Thule)
     if expt == 'SpinupCircular' or expt == 'Experiment1' or expt == 'Experiment2':

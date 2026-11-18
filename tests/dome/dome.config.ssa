@@ -1,7 +1,7 @@
 [grid]
-upn = 10
 ewn = 31
 nsn = 31
+upn = 10
 dew = 2000
 dns = 2000
 
@@ -9,36 +9,38 @@ dns = 2000
 tstart = 0.
 tend = 10.
 dt = 1.
-dt_diag = 1.
+
+[diagnostics]
 idiag = 10
 jdiag = 10
+dt_diag = 1.
 
 [options]
 dycore = 2                  # 1 = glam, 2 = glissade
 
-[basal_physics]
-sliding_law = 0           # 0 = uniform
-beta_const = 10000.
+[numerics]
+thcklim = 1.              # min thickness (m) for dynamics
 
 [velocity]
 stokes_approx = 1         # 1 = SSA
 efvs_method = 2           # 2 = nonlinear eff. visc. w/ n=3
 
 [velocity_solver]
-linear_solver = 3         # 1 = SLAP GMRES, 3 = glissade parallel PCG
 nonlinear_method = 0      # 0 = Picard, 1 = accelerated Picard
+linear_solver = 3         # 1 = SLAP GMRES, 3 = glissade parallel PCG
 
 [advection]
 advection_method = 3               # 3 = inc. remapping, 4 = FO upwind
 
-[flow_law]
-flow_law = 2                # 0 = isothermal, 2 = temperature dependent
-
 [temperature]
 temperature_method = 1             # 0 = set column to surf. air temp, 1 = prognostic, 2 = hold at init. values             
 
-[numerics]
-ice_limit = 1.              # min thickness (m) for dynamics
+[flow_law]
+flow_law = 2                # 0 = isothermal, 2 = temperature dependent
+
+[basal_physics]
+sliding_law = 0           # 0 = uniform
+beta_const = 10000.
 
 [CF default]
 comment = created with runDome.py

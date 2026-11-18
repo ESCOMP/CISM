@@ -104,22 +104,24 @@ def main():
     config_file = os.path.join(args.output_dir, args.output_file.replace('out.nc','config'))
     config_parser.read(config_file)
 
-    # Get the value of flwa specified in the default_flwa parameter in the config file.
+    # Get the value of flwa specified in the config file (flwa_const for Glissade, default_flwa for Glide).
     # This is the only way this test case supports specifying flwa.
     try: 
         # Glissade configs have a [flow_law] section; Glide configs keep the old format.
         if config_parser.has_section('flow_law'):
             flwa_section = flow_law_section = 'flow_law'
+            flwa_key = 'flwa_const'
         else:
             flwa_section, flow_law_section = 'parameters', 'options'
-        flwa = float(config_parser.get(flwa_section,'default_flwa'))
+            flwa_key = 'default_flwa'
+        flwa = float(config_parser.get(flwa_section,flwa_key))
         print('Parameter used: ' + config_file + ' has specified a flwa value of ' + str(flwa))
         flow_law = int(config_parser.get(flow_law_section,'flow_law'))
         if flow_law != 0:
             sys.exit('Error: The option "flow_law" must be set to 0 for the test case to work properly.')
     except:
         raise
-        sys.exit('Error: problem getting default_flwa parameter value from the config file')
+        sys.exit('Error: problem getting the flwa parameter value from the config file')
 
     # Try to get ice density used by the model
     try:
