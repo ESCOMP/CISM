@@ -82,7 +82,6 @@ module glissade_therm
                                   ewn,        nsn,        upn,   &
                                   itest,      jtest,      rtest, &
                                   sigma,      stagsigma,         &
-                                  dups,                          &
                                   thck,                          &
                                   artm,                          &
                                   acab,                          &
@@ -119,9 +118,6 @@ module glissade_therm
     real(dp), intent(in) :: &
          pmp_offset        ! offset of initial Tbed from pressure melting point temperature (deg C)
 
-    real(dp), dimension(:,:), intent(out) ::   &
-         dups              ! vertical grid quantities
-
     real(dp), dimension(0:,:,:), intent(inout) ::  &
          temp              ! ice temperature
                            ! intent(inout) because it might have been read already from an input file,
@@ -140,26 +136,6 @@ module glissade_therm
     integer :: up, ns, ew
 
     logical :: verbose_column    ! if true, then write diagnostic info for the column
-
-    ! Precompute some grid quantities used in the vertical temperature solve
- 
-!!    allocate(dups(upn+1,2))   ! now allocated in glissade_types
-    dups(:,:) = 0.0d0
-
-    up = 1
-    dups(up,1) = 1.d0/((sigma(up+1) - sigma(up)) * (stagsigma(up) - sigma(up)) )
-                            
-    do up = 2, upn-1
-       dups(up,1) = 1.d0/((sigma(up+1) - sigma(up)) * (stagsigma(up) - stagsigma(up-1)) )
-    enddo
-
-    do up = 1, upn-2
-       dups(up,2) = 1.d0/((sigma(up+1) - sigma(up)) * (stagsigma(up+1) - stagsigma(up)) )
-    end do
-
-    up = upn-1
-    dups(up,2) = 1.d0/((sigma(up+1) - sigma(up)) * (sigma(up+1) - stagsigma(up)) )
-                                    
 
     !==== Initialize ice temperature.============
     ! Following possibilities (temperature_init):
@@ -533,7 +509,7 @@ module glissade_therm
        parallel,                          &
        ewn,             nsn,       upn,   &
        itest,           jtest,     rtest, &
-       sigma,           stagsigma, dups,  &
+       sigma,           stagsigma,        &
        thklim_temp,                       &
        thck,            topg,             &
        lsrf,            eus,              &
@@ -586,9 +562,6 @@ module glissade_therm
     real(dp), dimension(:), intent(in) ::   &
          sigma,           &! vertical coordinate, located at layer interfaces
          stagsigma         ! staggered vertical coordinate, located at the center of each layer
-
-    real(dp), dimension(:,:), intent(in) ::   &
-         dups              ! vertical grid quantities
 
     real(dp), dimension(:,:), intent(in) ::  &
          thck,            &! ice thickness (m)
@@ -680,9 +653,14 @@ module glissade_therm
 
     logical :: verbose_column    ! if true, then write diagnostic info for the column
 
+    real(dp), dimension(upn+1,2) :: &
+         dups            ! vertical grid factors for the temperature and enthalpy matrices
+
     !------------------------------------------------------------------------------------
     ! Compute the new temperature profile in each column
     !------------------------------------------------------------------------------------
+
+    call glissade_vertical_grid_factors(upn, sigma, stagsigma, dups)
 
     ! Initialize some fluxes
     lcondflx(:,:) = 0.d0
@@ -1315,6 +1293,41 @@ module glissade_therm
     enddo
 
   end subroutine glissade_therm_driver
+
+!=======================================================================
+
+  subroutine glissade_vertical_grid_factors(upn, sigma, stagsigma, dups)
+
+    ! Compute grid factors for the vertical diffusion terms in the temperature and enthalpy matrices:
+    ! dups(up,1) and dups(up,2) are 1/(dsigma*dsigma) for the lower and upper neighbors of layer up.
+
+    integer, intent(in) :: upn                        ! number of vertical levels
+
+    real(dp), dimension(:), intent(in) ::   &
+         sigma,           &! vertical coordinate, located at layer interfaces
+         stagsigma         ! staggered vertical coordinate, located at the center of each layer
+
+    real(dp), dimension(:,:), intent(out) :: dups     ! vertical grid factors
+
+    integer :: up
+
+    dups(:,:) = 0.0d0
+
+    up = 1
+    dups(up,1) = 1.d0/((sigma(up+1) - sigma(up)) * (stagsigma(up) - sigma(up)) )
+
+    do up = 2, upn-1
+       dups(up,1) = 1.d0/((sigma(up+1) - sigma(up)) * (stagsigma(up) - stagsigma(up-1)) )
+    enddo
+
+    do up = 1, upn-2
+       dups(up,2) = 1.d0/((sigma(up+1) - sigma(up)) * (stagsigma(up+1) - stagsigma(up)) )
+    end do
+
+    up = upn-1
+    dups(up,2) = 1.d0/((sigma(up+1) - sigma(up)) * (sigma(up+1) - stagsigma(up)) )
+
+  end subroutine glissade_vertical_grid_factors
 
 !=======================================================================
 

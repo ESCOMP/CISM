@@ -692,7 +692,6 @@ contains
                              model%numerics%idiag_local, model%numerics%jdiag_local,&
                              model%numerics%rdiag_local,                            &
                              model%numerics%sigma,       model%numerics%stagsigma,  &
-                             model%numerics%dups,                                   &
                              model%geometry%thck,                                   & ! m
                              model%climate%artm_corrected,                          & ! deg C
                              model%climate%acab,                                    & ! m/s
@@ -1348,7 +1347,6 @@ contains
          model%numerics%idiag_local, model%numerics%jdiag_local,       &
          model%numerics%rdiag_local,                                   &
          model%numerics%sigma,       model%numerics%stagsigma,         &
-         model%numerics%dups,                                          &
          model%numerics%thklim_temp,                                   & ! m
          model%geometry%thck,                                          & ! m
          model%geometry%topg,                                          & ! m

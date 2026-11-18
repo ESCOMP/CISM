@@ -2598,7 +2598,6 @@ module glissade_types
                                                      !> model levels
     real(dp),dimension(:),pointer :: stagsigma => null()     !> Staggered values of sigma (layer midpts)
     real(dp),dimension(:),pointer :: stagwbndsigma => null() !> Staggered values of sigma (layer midpts) with boundaries
-    real(dp), dimension(:,:), pointer :: dups => null()      !> vertical grid quantities related to sigma and stagsigma
 
     real(dp) :: dt_diag = 0.d0     ! diagnostic interval (write diagnostic output every dt_diag years)
                                    ! dt_diag = 0 => never write diagnostic output
@@ -2725,7 +2724,6 @@ contains
 
     allocate(model%numerics%stagsigma(upn-1))
     allocate(model%numerics%stagwbndsigma(0:upn))  !MJH added (0:upn) as separate variable
-    allocate(model%numerics%dups(upn+1,2))    !TODO - upn-1 instead?
 
     ! latitude and longitude
     call coordsystem_allocate(model%grid%ice_grid, model%grid%lat)
