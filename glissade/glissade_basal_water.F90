@@ -946,7 +946,7 @@ module glissade_basal_water
     ice_mask = 1
 
     ! Compute gradient components at cell edges
-    ! HO_GRADIENT_MARGIN_LAND: Use all field values when computing the gradient, including values in ice-free cells.
+    ! SURFACE_GRADIENT_MARGIN_METHOD_LAND: Use all field values when computing the gradient, including values in ice-free cells.
 
     call glissade_gradient_at_edges(&
          nx,       ny,        &
@@ -955,7 +955,7 @@ module glissade_basal_water
          head,                &
          dhead_dx, dhead_dy,  &
          ice_mask,            &
-         gradient_margin_in = HO_GRADIENT_MARGIN_LAND)
+         gradient_margin_in = SURFACE_GRADIENT_MARGIN_METHOD_LAND)
 
     grad_head = 0.0d0  ! will remain 0 in outer row of halo cells
     do j = 2, ny-1

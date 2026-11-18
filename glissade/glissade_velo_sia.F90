@@ -28,7 +28,7 @@
 !
 ! It is roughly based on module glissade_velo_higher but is much simpler, 
 !  computing only the SIA velocities. 
-! It is called with whichdycore = DYCORE_GLISSADE, which_ho_approx = HO_APPROX_LOCAL_SIA. 
+! It is called with whichdycore = DYCORE_GLISSADE, which_ho_approx = STOKES_APPROX_LOCAL_SIA. 
 !
 ! The calculation is similar to the one in Glide, except that it
 !  computes only the SIA velocity profile and does not evolve thickness.  
@@ -38,9 +38,9 @@
 !
 ! The function of the module is to allow a parallel SIA calculation using an 
 !  explicit transport scheme, instead of an implicit diffusion calculation as in Glide.
-! This can also be done using glissade_velo_higher, setting which_ho_approx = HO_APPROX_SIA.
+! This can also be done using glissade_velo_higher, setting which_ho_approx = STOKES_APPROX_SIA.
 !  That method uses the same numerical techniques as the higher-order solve but with only the
-!  SIA matrix elements.  However, HO_APPROX_SIA is much more expensive than HO_APPROX_LOCAL_SIA,
+!  SIA matrix elements.  However, STOKES_APPROX_SIA is much more expensive than STOKES_APPROX_LOCAL_SIA,
 !  and is somewhat less accurate for the Halfar test problem.
 !
 ! Author: William Lipscomb
@@ -317,9 +317,9 @@
     !        interior ice velocities are computed at cell edges rather than vertices.
     !
     ! Possible settings for whichgradient_margin:
-    !   HO_GRADIENT_MARGIN_LAND = 0
-    !   HO_GRADIENT_MARGIN_HYBRID = 1
-    !   HO_GRADIENT_MARGIN_MARINE = 2
+    !   SURFACE_GRADIENT_MARGIN_METHOD_LAND = 0
+    !   SURFACE_GRADIENT_MARGIN_METHOD_HYBRID = 1
+    !   SURFACE_GRADIENT_MARGIN_METHOD_MARINE = 2
     !
     ! gradient_margin_in = 0 computes gradients at all edges, even if one cell
     !  if ice-free.  This is what Glide does, but is not appropriate if we have ice-covered
@@ -792,7 +792,7 @@
 
     ! Compute ice velocity components at cell edges (u at E edge, v at N edge; relative to bed).
     ! Then interpolate the edge velocities to cell vertices.
-    ! Note: The higher-order default is whichgradient_margin = HO_GRADIENT_MARGIN_HYBRID = 1,
+    ! Note: The higher-order default is whichgradient_margin = SURFACE_GRADIENT_MARGIN_METHOD_HYBRID = 1,
     !       which is appropriate for HO problems where we compute lateral spreading at ice cliffs.
     !       The SIA solver does not do this, so this option is a bad idea for SIA problems
     !        with marine ice. (In fact, the SIA is generally ill-suited for problems with marine ice.)

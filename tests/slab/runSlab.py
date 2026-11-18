@@ -337,23 +337,23 @@ def main():
     config_parser.set('flow_law', 'flwa_const', str(flwa))
 
     if (args.approx == 'SIALOC'):
-        approx = -1             # Glissade local SIA; uses basal_tract_const = 1/beta
+        approx = 'local_sia'            # Glissade local SIA; uses basal_tract_const = 1/beta
         config_parser.set('basal_physics', 'btrc_method', str(1))
         config_parser.set('basal_physics', 'btrc_const', str(1./beta))
     elif (args.approx == 'SIA'):
-        approx = 0              # Glissade matrix-based SIA
+        approx = 'sia'             # Glissade matrix-based SIA
     elif (args.approx == 'SSA'):
-        approx = 1
+        approx = 'ssa'
     elif (args.approx == 'BP'):
-        approx = 2
+        approx = 'blatter_pattyn'
     elif (args.approx == 'L1L2'):
-        approx = 3
+        approx = 'l1l2'
     elif (args.approx == 'DIVA'):
-        approx = 4
+        approx = 'diva'
     elif (args.approx == 'HYBRID'):
-        approx = 5
+        approx = 'hybrid'
 
-    config_parser.set('velocity', 'stokes_approx', str(approx))
+    config_parser.set('velocity', 'stokes_approx', approx)
 
     config_parser.set('CF input', 'name', file_name)
     config_parser.set('CF output', 'name', out_name)

@@ -250,19 +250,19 @@ print('jdiag:',jdiag)
 
 # Set the Stokes approximation
 if args.approximation == 'SSA':
-    which_ho_approx = 1
+    which_ho_approx = 'ssa'
     print( 'Using SSA velocity solver')
 elif args.approximation == 'DIVA':
-    which_ho_approx = 4
+    which_ho_approx = 'diva'
     print( 'Using DIVA velocity solver')
 elif args.approximation == 'BP':
-    which_ho_approx = 2
+    which_ho_approx = 'blatter_pattyn'
     print( 'Using Blatter-Pattyn velocity solver')
 else:
-    which_ho_approx = 4
+    which_ho_approx = 'diva'
     print( 'Defaulting to DIVA velocity solver')
 
-config.set('velocity', 'stokes_approx', str(which_ho_approx))
+config.set('velocity', 'stokes_approx', which_ho_approx)
 
 
 # Note: Only one option is supported for the basal sliding law:

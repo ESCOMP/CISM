@@ -2372,8 +2372,8 @@ module glissade_therm
     ! Note: Glissade computes efvs and tau%scalar using the strain rate terms appropriate for the approximation.
     ! E.g, the SIA quantities are computed based on (du_dz, dv_dz) only, and the SSA quantities
     !  are computed based on (du_dx, du_dy, dv_dx, dv_dy) only.
-    ! So this computation should give the appropriate heating for whichapprox = HO_APPROX_SIA,
-    !  HO_APPROX_SSA, HO_APPROX_L1L2 or HO_APPROX_BP.
+    ! So this computation should give the appropriate heating for whichapprox = STOKES_APPROX_SIA,
+    !  STOKES_APPROX_SSA, STOKES_APPROX_L1L2 or STOKES_APPROX_BLATTER_PATTYN.
     !
     if (size(dissip,1) /= upn-1) then  ! staggered vertical grid
        call write_log('Error, glissade 1st order dissipation: dissip has the wrong vertical dimension',GM_FATAL)

@@ -515,11 +515,30 @@ OPTION_VALUES = {
     ('options', 'dycore'): {2: 'glissade'},
     ('options', 'restart'): {0: 'none', 1: 'standard', 2: 'hybrid'},
     ('numerics', 'compute_blocks'): {0: 'all', 1: 'active_only', 2: 'inquire'},
+    ('velocity', 'stokes_approx'): {-1: 'local_sia', 0: 'sia', 1: 'ssa', 2: 'blatter_pattyn', 3: 'l1l2',
+                                    4: 'diva', 5: 'hybrid'},
+    ('velocity', 'efvs_method'): {0: 'constant', 1: 'flow_factor', 2: 'nonlinear'},
+    ('velocity', 'surface_gradient_method'): {0: 'centered', 1: 'upstream1', 2: 'upstream2'},
+    ('velocity', 'surface_gradient_margin_method'): {0: 'land', 1: 'hybrid', 2: 'marine'},
+    ('velocity_solver', 'nonlinear_method'): {0: 'picard', 1: 'accelerated_picard'},
+    ('velocity_solver', 'nonlinear_residual'): {0: 'max', 1: 'max_no_ubas', 2: 'mean', 3: 'l2norm',
+                                                4: 'relative_l2norm'},
+    ('velocity_solver', 'linear_solver'): {-1: 'slap_pcg', 0: 'slap_bicg', 1: 'slap_gmres', 2: 'pcg',
+                                           3: 'pcg_chrongear'},
+    ('velocity_solver', 'preconditioner'): {0: 'none', 1: 'diagonal', 2: 'sia', 3: 'tridiag_local',
+                                            4: 'tridiag_global'},
+    ('velocity_solver', 'assemble_beta'): {0: 'standard', 1: 'local'},
+    ('velocity_solver', 'assemble_taud'): {0: 'standard', 1: 'local'},
+    ('velocity_solver', 'assemble_bfric'): {0: 'standard', 1: 'local'},
+    ('velocity_solver', 'assemble_lateral'): {0: 'standard', 1: 'local'},
+    ('advection', 'advection_method'): {3: 'remap', 4: 'upwind', 5: 'fixed_thickness'},
+    ('advection', 'vertical_remap_order'): {0: 'first', 1: 'second'},
 }
 
 # Options that are now logicals: 0/1 -> .false./.true.
 LOGICAL_KEYS = {
     ('options', 'restart_extend_velo'),
+    ('advection', 'compute_ice_age'),
 }
 
 INT_COMMENT_RE = re.compile(r'^\s*[#;!].*(?<![\w.])[+-]?\d+\s*[=:]')

@@ -1067,7 +1067,7 @@
 
     integer, intent(in) ::  &
          vert_remap_accuracy    ! order of accuracy for vertical remapping
-                                ! HO_VERTICAL_REMAP_FIRST_ORDER or HO_VERTICAL_REMAP_SECOMD_ORDER
+                                ! VERTICAL_REMAP_ORDER_FIRST or HO_VERTICAL_REMAP_SECOMD_ORDER
 
     ! local variables
 

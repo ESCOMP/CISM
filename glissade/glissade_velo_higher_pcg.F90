@@ -243,13 +243,13 @@
 
     call t_startf("pcg_precond_init")
 
-    if (precond == HO_PRECOND_NONE) then    ! no preconditioner
+    if (precond == PRECONDITIONER_NONE) then    ! no preconditioner
 
        if (verbose_pcg .and. main_task) then
           write(iulog,*) 'Using no preconditioner'
        endif
 
-    elseif (precond == HO_PRECOND_DIAG) then
+    elseif (precond == PRECONDITIONER_DIAGONAL) then
 
        if (verbose_pcg .and. main_task) then
           write(iulog,*) 'Using diagonal matrix for preconditioning'
@@ -260,7 +260,7 @@
                                          Auu,        Avv,      &
                                          Adiagu,     Adiagv)
 
-    elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then
+    elseif (precond == PRECONDITIONER_TRIDIAG_LOCAL) then
 
        !WHL - debug
        if (verbose_tridiag .and. this_rank==rtest) then
@@ -295,7 +295,7 @@
             omega_u,       omega_v,        &
             denom_u,       denom_v)
 
-    elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+    elseif (precond == PRECONDITIONER_TRIDIAG_GLOBAL) then
 
        ! Allocate tridiagonal matrices
        ! Note: (i,j) indices are switced for the A_v matrices to reduce striding.
@@ -457,12 +457,12 @@
 
        ! Compute PC(r) = solution z of Mz = r
 
-       if (precond == HO_PRECOND_NONE) then      ! no preconditioning
+       if (precond == PRECONDITIONER_NONE) then      ! no preconditioning
 
            zu(:,:) = ru(:,:)         ! PC(r) = r     
            zv(:,:) = rv(:,:)         ! PC(r) = r    
 
-       elseif (precond == HO_PRECOND_DIAG) then  ! diagonal preconditioning
+       elseif (precond == PRECONDITIONER_DIAGONAL) then  ! diagonal preconditioning
 
           do j = 1, ny-1
           do i = 1, nx-1
@@ -479,7 +479,7 @@
           enddo    ! i
           enddo    ! j
 
-       elseif(precond == HO_PRECOND_TRIDIAG_LOCAL) then  ! local
+       elseif(precond == PRECONDITIONER_TRIDIAG_LOCAL) then  ! local
 
           if (verbose_tridiag .and. this_rank == rtest) then
              i = itest
@@ -530,7 +530,7 @@
           call staggered_parallel_halo(zu, parallel)
           call staggered_parallel_halo(zv, parallel)
 
-       elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then   ! tridiagonal preconditioning with global solve
+       elseif (precond == PRECONDITIONER_TRIDIAG_GLOBAL) then   ! tridiagonal preconditioning with global solve
 
           ! Use a global tridiagonal solver to find an approximate solution of A*z = r
           if (iter == 1) then
@@ -1039,13 +1039,13 @@
 
     call t_startf("pcg_precond_init")
 
-    if (precond == HO_PRECOND_NONE) then    ! no preconditioner
+    if (precond == PRECONDITIONER_NONE) then    ! no preconditioner
 
        if (verbose_pcg .and. this_rank == rtest) then
           write(iulog,*) 'Using no preconditioner'
        endif
 
-    elseif (precond == HO_PRECOND_DIAG) then
+    elseif (precond == PRECONDITIONER_DIAGONAL) then
 
        call setup_preconditioner_diag_3d(nx,       ny,         &
                                          nz,       indxA_3d,   &
@@ -1061,7 +1061,7 @@
           write(iulog,*) 'Avv diag =', Adiagv(:,i,j)
        endif
 
-    elseif (precond == HO_PRECOND_SIA) then
+    elseif (precond == PRECONDITIONER_SIA) then
 
        call setup_preconditioner_sia_3d(nx,        ny,       &
                                         nz,        indxA_3d, &
@@ -1080,7 +1080,7 @@
           enddo  ! i
        endif
 
-    elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then
+    elseif (precond == PRECONDITIONER_TRIDIAG_LOCAL) then
 
        ! Allocate tridiagonal preconditioning matrices
        allocate(Adiag_u   (nx-1,ny-1))
@@ -1111,7 +1111,7 @@
             omega_u,       omega_v,       &
             denom_u,       denom_v)
 
-    elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+    elseif (precond == PRECONDITIONER_TRIDIAG_GLOBAL) then
 
        ! Allocate tridiagonal preconditioning matrices
        ! Note: (i,j) indices are switched for the A_v matrices to reduce striding.
@@ -1228,12 +1228,12 @@
 
        ! Compute PC(r) = solution z of Mz = r
 
-       if (precond == HO_PRECOND_NONE) then      ! no preconditioning
+       if (precond == PRECONDITIONER_NONE) then      ! no preconditioning
 
            zu(:,:,:) = ru(:,:,:)         ! PC(r) = r     
            zv(:,:,:) = rv(:,:,:)         ! PC(r) = r    
 
-       elseif (precond == HO_PRECOND_DIAG ) then  ! diagonal preconditioning
+       elseif (precond == PRECONDITIONER_DIAGONAL ) then  ! diagonal preconditioning
 
           do j = 1, ny-1
           do i = 1, nx-1
@@ -1252,7 +1252,7 @@
           enddo    ! i
           enddo    ! j
 
-       elseif (precond == HO_PRECOND_SIA) then   ! local vertical shallow-ice solver for preconditioning
+       elseif (precond == PRECONDITIONER_SIA) then   ! local vertical shallow-ice solver for preconditioning
 
           call easy_sia_solver(nx,   ny,   nz,        &
                                active_vertex,         &
@@ -1262,7 +1262,7 @@
                                active_vertex,         &
                                Mvv,  rv,   zv)      ! solve Mvv*zv = rv for zv
 
-       elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then
+       elseif (precond == PRECONDITIONER_TRIDIAG_LOCAL) then
 
           ! Use a local tridiagonal solver to find an approximate solution of A*z = r
 
@@ -1280,7 +1280,7 @@
                ru,            rv,            &  ! 3D residual
                zu,            zv)               ! approximate solution of Az = r
 
-       elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+       elseif (precond == PRECONDITIONER_TRIDIAG_GLOBAL) then
 
           ! Use a global tridiagonal solver to find an approximate solution of A*z = r
 
@@ -1725,7 +1725,7 @@
     ! Typically allow up to 200 iterations with diagonal preconditioning, but only 100
     !  with tridiagonal, which usually converges faster.
 
-    if (precond == HO_PRECOND_TRIDIAG_LOCAL .or. precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+    if (precond == PRECONDITIONER_TRIDIAG_LOCAL .or. precond == PRECONDITIONER_TRIDIAG_GLOBAL) then
        maxiters_chrongear = maxiters_tridiag
     else
        maxiters_chrongear = maxiters
@@ -1744,13 +1744,13 @@
 
     call t_startf("pcg_precond_init")
 
-    if (precond == HO_PRECOND_NONE) then    ! no preconditioner
+    if (precond == PRECONDITIONER_NONE) then    ! no preconditioner
 
        if (verbose_pcg .and. main_task) then
           write(iulog,*) 'Using no preconditioner'
        endif
 
-    elseif (precond == HO_PRECOND_DIAG) then
+    elseif (precond == PRECONDITIONER_DIAGONAL) then
 
        call setup_preconditioner_diag_2d(nx,       ny,         &
                                          indxA_2d,             &
@@ -1766,7 +1766,7 @@
           write(iulog,*) 'Av diag =', Adiagv(i,j)
        endif
 
-    elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then
+    elseif (precond == PRECONDITIONER_TRIDIAG_LOCAL) then
 
        !WHL - debug
        if (verbose_tridiag .and. this_rank==rtest) then
@@ -1801,7 +1801,7 @@
             omega_u,       omega_v,        &
             denom_u,       denom_v)
 
-    elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+    elseif (precond == PRECONDITIONER_TRIDIAG_GLOBAL) then
 
        ! Allocate tridiagonal preconditioning matrices
        ! Note: (i,j) indices are switced for the A_v matrices to reduce striding.
@@ -1974,12 +1974,12 @@
     ! From here on, call timers with 'iter' suffix because this can be considered the first iteration
     call t_startf("pcg_precond_iter")
 
-    if (precond == HO_PRECOND_NONE) then      ! no preconditioning
+    if (precond == PRECONDITIONER_NONE) then      ! no preconditioning
 
        zu(:,:) = ru(:,:)         ! PC(r) = r     
        zv(:,:) = rv(:,:)         ! PC(r) = r    
 
-    elseif (precond == HO_PRECOND_DIAG) then  ! diagonal preconditioning
+    elseif (precond == PRECONDITIONER_DIAGONAL) then  ! diagonal preconditioning
 
        ! Solve Mz = r, where M is a diagonal matrix
        do j = 1, ny-1
@@ -2008,7 +2008,7 @@
 !          enddo
        endif
 
-    elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then  ! local
+    elseif (precond == PRECONDITIONER_TRIDIAG_LOCAL) then  ! local
 
        if (verbose_tridiag .and. this_rank == rtest) then
           i = itest
@@ -2059,7 +2059,7 @@
        call staggered_parallel_halo(zu, parallel)
        call staggered_parallel_halo(zv, parallel)
 
-    elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then   ! tridiagonal preconditioning with global solve
+    elseif (precond == PRECONDITIONER_TRIDIAG_GLOBAL) then   ! tridiagonal preconditioning with global solve
 
        ! convert ru(nx-1,ny-1) to b_u(ilocal,jlocal)
        do j = 1, jlocal
@@ -2235,12 +2235,12 @@
 
        call t_startf("pcg_precond_iter")
 
-       if (precond == HO_PRECOND_NONE) then      ! no preconditioning
+       if (precond == PRECONDITIONER_NONE) then      ! no preconditioning
 
            zu(:,:) = ru(:,:)         ! PC(r) = r
            zv(:,:) = rv(:,:)         ! PC(r) = r    
 
-       elseif (precond == HO_PRECOND_DIAG) then  ! diagonal preconditioning
+       elseif (precond == PRECONDITIONER_DIAGONAL) then  ! diagonal preconditioning
 
           do j = 1, ny-1
           do i = 1, nx-1
@@ -2257,7 +2257,7 @@
           enddo    ! i
           enddo    ! j
 
-       elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then   ! tridiagonal preconditioning with local solve
+       elseif (precond == PRECONDITIONER_TRIDIAG_LOCAL) then   ! tridiagonal preconditioning with local solve
 
           ! Solve M*z = r, where M is a local tridiagonal matrix (one matrix per task)
 
@@ -2310,7 +2310,7 @@
              enddo
           endif
 
-       elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then   ! tridiagonal preconditioning with global solve
+       elseif (precond == PRECONDITIONER_TRIDIAG_GLOBAL) then   ! tridiagonal preconditioning with global solve
 
           !WHL - debug
           if (verbose_tridiag .and. this_rank == rtest) then
@@ -2902,7 +2902,7 @@
     !  with tridiagonal, which usually converges faster.
 
     !TODO - Test whether maxiters_tridiag (currently = 100) is sufficient for convergence with 3D solver
-!!    if (precond == HO_PRECOND_TRIDIAG_LOCAL .or. precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+!!    if (precond == PRECONDITIONER_TRIDIAG_LOCAL .or. precond == PRECONDITIONER_TRIDIAG_GLOBAL) then
 !!       maxiters_chrongear = maxiters_tridiag
 !!    else
        maxiters_chrongear = maxiters
@@ -2921,13 +2921,13 @@
 
     call t_startf("pcg_precond_init")
 
-    if (precond == HO_PRECOND_NONE) then    ! no preconditioner
+    if (precond == PRECONDITIONER_NONE) then    ! no preconditioner
 
        if (verbose_pcg .and. this_rank == rtest) then
           write(iulog,*) 'Using no preconditioner'
        endif
 
-    elseif (precond == HO_PRECOND_DIAG) then
+    elseif (precond == PRECONDITIONER_DIAGONAL) then
 
        call setup_preconditioner_diag_3d(nx,       ny,         &
                                          nz,       indxA_3d,   &
@@ -2943,7 +2943,7 @@
           write(iulog,*) 'Avv diag =', Adiagv(:,i,j)
        endif
 
-    elseif (precond == HO_PRECOND_SIA) then
+    elseif (precond == PRECONDITIONER_SIA) then
 
        call setup_preconditioner_sia_3d(nx,        ny,       &
                                         nz,        indxA_3d, &
@@ -2962,7 +2962,7 @@
           enddo  ! i
        endif
 
-    elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then
+    elseif (precond == PRECONDITIONER_TRIDIAG_LOCAL) then
 
        ! Allocate tridiagonal preconditioning matrices
        allocate(Adiag_u   (nx-1,ny-1))
@@ -2993,7 +2993,7 @@
             omega_u,       omega_v,       &
             denom_u,       denom_v)
        
-    elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+    elseif (precond == PRECONDITIONER_TRIDIAG_GLOBAL) then
 
        ! Allocate tridiagonal preconditioning matrices
        ! Note: (i,j) indices are switched for the A_v matrices to reduce striding.
@@ -3129,12 +3129,12 @@
     ! From here on, call timers with 'iter' suffix because this can be considered the first iteration
     call t_startf("pcg_precond_iter")
 
-    if (precond == HO_PRECOND_NONE) then   ! no preconditioning
+    if (precond == PRECONDITIONER_NONE) then   ! no preconditioning
 
        zu(:,:,:) = ru(:,:,:)         ! PC(r) = r     
        zv(:,:,:) = rv(:,:,:)         ! PC(r) = r    
 
-    elseif (precond == HO_PRECOND_DIAG ) then  ! diagonal preconditioning
+    elseif (precond == PRECONDITIONER_DIAGONAL ) then  ! diagonal preconditioning
 
        do j = 1, ny-1
        do i = 1, nx-1
@@ -3153,7 +3153,7 @@
        enddo    ! i
        enddo    ! j
 
-    elseif (precond == HO_PRECOND_SIA) then   ! local vertical shallow-ice solver for preconditioning
+    elseif (precond == PRECONDITIONER_SIA) then   ! local vertical shallow-ice solver for preconditioning
 
        call easy_sia_solver(nx,   ny,   nz,        &
                             active_vertex,         &
@@ -3163,7 +3163,7 @@
                             active_vertex,         &
                             Mvv,  rv,   zv)      ! solve Mvv*zv = rv for zv
 
-    elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then
+    elseif (precond == PRECONDITIONER_TRIDIAG_LOCAL) then
 
        ! Use a local tridiagonal solver to find an approximate solution of A*z = r
 
@@ -3181,7 +3181,7 @@
             ru,            rv,            &  ! 3D residual
             zu,            zv)               ! approximate solution of Az = r
 
-    elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+    elseif (precond == PRECONDITIONER_TRIDIAG_GLOBAL) then
 
        ! Use a global tridiagonal solver to find an approximate solution of A*z = r
 
@@ -3300,12 +3300,12 @@
 
        call t_startf("pcg_precond_iter")
 
-       if (precond == HO_PRECOND_NONE) then   ! no preconditioning
+       if (precond == PRECONDITIONER_NONE) then   ! no preconditioning
 
            zu(:,:,:) = ru(:,:,:)         ! PC(r) = r
            zv(:,:,:) = rv(:,:,:)         ! PC(r) = r    
 
-       elseif (precond == HO_PRECOND_DIAG ) then  ! diagonal preconditioning
+       elseif (precond == PRECONDITIONER_DIAGONAL ) then  ! diagonal preconditioning
 
           do j = 1, ny-1
           do i = 1, nx-1
@@ -3324,7 +3324,7 @@
           enddo    ! i
           enddo    ! j
 
-       elseif (precond == HO_PRECOND_SIA) then   ! local vertical shallow-ice solver for preconditioning
+       elseif (precond == PRECONDITIONER_SIA) then   ! local vertical shallow-ice solver for preconditioning
 
           call easy_sia_solver(nx,   ny,   nz,        &
                                active_vertex,         &
@@ -3334,7 +3334,7 @@
                                active_vertex,         &
                                Mvv,  rv,   zv)      ! solve Mvv*zv = rv for zv
 
-       elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then
+       elseif (precond == PRECONDITIONER_TRIDIAG_LOCAL) then
 
           ! Use a local tridiagonal solver to find an approximate solution of A*z = r
 
@@ -3352,7 +3352,7 @@
                ru,            rv,            &  ! 3D residual
                zu,            zv)               ! approximate solution of Az = r
 
-       elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then   ! tridiagonal preconditioning with global solve
+       elseif (precond == PRECONDITIONER_TRIDIAG_GLOBAL) then   ! tridiagonal preconditioning with global solve
 
           ! Use a global tridiagonal solver to find an approximate solution of A*z = r
 

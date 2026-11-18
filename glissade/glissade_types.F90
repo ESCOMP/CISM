@@ -132,10 +132,136 @@ module glissade_types
        option_choice(COMPUTE_BLOCKS_ACTIVE_ONLY, 'active_only', 'compute on active blocks only'), &
        option_choice(COMPUTE_BLOCKS_INQUIRE,     'inquire',     'inquire the number of active blocks') ]
 
-  !WHL TODO - Renumber the Glissade options as part of the config reorg
-  integer, parameter :: EVOL_INC_REMAP = 3      ! glissade only
-  integer, parameter :: EVOL_UPWIND = 4         ! glissade only
-  integer, parameter :: EVOL_NO_THICKNESS = 5   ! glissade only
+  ! [velocity] stokes_approx
+  integer, parameter :: STOKES_APPROX_LOCAL_SIA = -1
+  integer, parameter :: STOKES_APPROX_SIA = 0
+  integer, parameter :: STOKES_APPROX_SSA = 1
+  integer, parameter :: STOKES_APPROX_BLATTER_PATTYN = 2
+  integer, parameter :: STOKES_APPROX_L1L2 = 3
+  integer, parameter :: STOKES_APPROX_DIVA = 4
+  integer, parameter :: STOKES_APPROX_HYBRID = 5
+  type(option_choice), dimension(7), parameter :: stokes_approx_choices = [ &
+       option_choice(STOKES_APPROX_LOCAL_SIA,      'local_sia',      'SIA only (glissade_velo_sia)'), &
+       option_choice(STOKES_APPROX_SIA,            'sia',            'SIA only (glissade_velo_higher)'), &
+       option_choice(STOKES_APPROX_SSA,            'ssa',            'SSA only (glissade_velo_higher)'), &
+       option_choice(STOKES_APPROX_BLATTER_PATTYN, 'blatter_pattyn', 'Blatter-Pattyn HO (glissade_velo_higher)'), &
+       option_choice(STOKES_APPROX_L1L2,           'l1l2',           'depth-integrated L1L2 (glissade_velo_higher)'), &
+       option_choice(STOKES_APPROX_DIVA,           'diva',           'depth-integrated viscosity (glissade_velo_higher)'), &
+       option_choice(STOKES_APPROX_HYBRID,         'hybrid',         'hybrid SIA/SSA') ]
+
+  ! [velocity] efvs_method
+  integer, parameter :: EFVS_METHOD_CONSTANT = 0
+  integer, parameter :: EFVS_METHOD_FLOW_FACTOR = 1
+  integer, parameter :: EFVS_METHOD_NONLINEAR = 2
+  type(option_choice), dimension(3), parameter :: efvs_method_choices = [ &
+       option_choice(EFVS_METHOD_CONSTANT,    'constant',    'constant value'), &
+       option_choice(EFVS_METHOD_FLOW_FACTOR, 'flow_factor', 'multiple of flow factor'), &
+       option_choice(EFVS_METHOD_NONLINEAR,   'nonlinear',   'nonlinear, from effective strain rate') ]
+
+  ! [velocity] surface_gradient_method
+  integer, parameter :: SURFACE_GRADIENT_METHOD_CENTERED = 0
+  integer, parameter :: SURFACE_GRADIENT_METHOD_UPSTREAM1 = 1
+  integer, parameter :: SURFACE_GRADIENT_METHOD_UPSTREAM2 = 2
+  type(option_choice), dimension(3), parameter :: surface_gradient_method_choices = [ &
+       option_choice(SURFACE_GRADIENT_METHOD_CENTERED,  'centered',  'centered gradient'), &
+       option_choice(SURFACE_GRADIENT_METHOD_UPSTREAM1, 'upstream1', 'first-order upstream gradient'), &
+       option_choice(SURFACE_GRADIENT_METHOD_UPSTREAM2, 'upstream2', 'second-order upstream gradient') ]
+
+  ! [velocity] surface_gradient_margin_method
+  integer, parameter :: SURFACE_GRADIENT_MARGIN_METHOD_LAND = 0
+  integer, parameter :: SURFACE_GRADIENT_MARGIN_METHOD_HYBRID = 1
+  integer, parameter :: SURFACE_GRADIENT_MARGIN_METHOD_MARINE = 2
+  type(option_choice), dimension(3), parameter :: surface_gradient_margin_method_choices = [ &
+       option_choice(SURFACE_GRADIENT_MARGIN_METHOD_LAND,   'land',   'compute edge gradient when either cell has ice'), &
+       option_choice(SURFACE_GRADIENT_MARGIN_METHOD_HYBRID, 'hybrid', 'compute edge gradient when ice lies above ice-free land'), &
+       option_choice(SURFACE_GRADIENT_MARGIN_METHOD_MARINE, 'marine', 'compute edge gradient when both cells have ice') ]
+
+  ! [velocity_solver] nonlinear_method
+  integer, parameter :: NONLINEAR_METHOD_PICARD = 0
+  integer, parameter :: NONLINEAR_METHOD_ACCELERATED_PICARD = 1
+  type(option_choice), dimension(2), parameter :: nonlinear_method_choices = [ &
+       option_choice(NONLINEAR_METHOD_PICARD,             'picard',             'standard Picard iteration'), &
+       option_choice(NONLINEAR_METHOD_ACCELERATED_PICARD, 'accelerated_picard', 'Picard iteration with acceleration') ]
+
+  ! [velocity_solver] nonlinear_residual
+  integer, parameter :: NONLINEAR_RESIDUAL_MAX = 0
+  integer, parameter :: NONLINEAR_RESIDUAL_MAX_NO_UBAS = 1
+  integer, parameter :: NONLINEAR_RESIDUAL_MEAN = 2
+  integer, parameter :: NONLINEAR_RESIDUAL_L2NORM = 3
+  integer, parameter :: NONLINEAR_RESIDUAL_RELATIVE_L2NORM = 4
+  type(option_choice), dimension(5), parameter :: nonlinear_residual_choices = [ &
+       option_choice(NONLINEAR_RESIDUAL_MAX,             'max',             'max value'), &
+       option_choice(NONLINEAR_RESIDUAL_MAX_NO_UBAS,     'max_no_ubas',     'max value ignoring ubas'), &
+       option_choice(NONLINEAR_RESIDUAL_MEAN,            'mean',            'mean value'), &
+       option_choice(NONLINEAR_RESIDUAL_L2NORM,          'l2norm',          'L2 norm of Ax-b = resid'), &
+       option_choice(NONLINEAR_RESIDUAL_RELATIVE_L2NORM, 'relative_l2norm', 'relative L2 norm, |Ax-b|/|b|') ]
+
+  ! [velocity_solver] linear_solver
+  ! The constants HO_SPARSE_* (glimmer_sparse_type) are shared with Glide and keep their names.
+  type(option_choice), dimension(5), parameter :: linear_solver_choices = [ &
+       option_choice(HO_SPARSE_PCG_INCH,      'slap_pcg',      'SLAP PCG with incomplete Cholesky preconditioner'), &
+       option_choice(HO_SPARSE_BICG,          'slap_bicg',     'SLAP BiCG with LU preconditioner'), &
+       option_choice(HO_SPARSE_GMRES,         'slap_gmres',    'SLAP GMRES with LU preconditioner'), &
+       option_choice(HO_SPARSE_PCG_STANDARD,  'pcg',           'native PCG solver, standard'), &
+       option_choice(HO_SPARSE_PCG_CHRONGEAR, 'pcg_chrongear', 'native PCG solver, Chronopoulos-Gear') ]
+
+  ! [velocity_solver] preconditioner
+  integer, parameter :: PRECONDITIONER_NONE = 0
+  integer, parameter :: PRECONDITIONER_DIAGONAL = 1
+  integer, parameter :: PRECONDITIONER_SIA  = 2
+  integer, parameter :: PRECONDITIONER_TRIDIAG_LOCAL  = 3
+  integer, parameter :: PRECONDITIONER_TRIDIAG_GLOBAL = 4
+  type(option_choice), dimension(5), parameter :: preconditioner_choices = [ &
+       option_choice(PRECONDITIONER_NONE,           'none',           'no preconditioner (native PCG)'), &
+       option_choice(PRECONDITIONER_DIAGONAL,       'diagonal',       'diagonal preconditioner (native PCG)'), &
+       option_choice(PRECONDITIONER_SIA,            'sia',            'SIA preconditioner (native PCG)'), &
+       option_choice(PRECONDITIONER_TRIDIAG_LOCAL,  'tridiag_local',  'local tridiagonal preconditioner (native PCG)'), &
+       option_choice(PRECONDITIONER_TRIDIAG_GLOBAL, 'tridiag_global', 'global tridiagonal preconditioner (native PCG)') ]
+
+  ! [velocity_solver] assemble_beta, assemble_taud, assemble_bfric, assemble_lateral
+  integer, parameter :: ASSEMBLE_BETA_STANDARD = 0
+  integer, parameter :: ASSEMBLE_BETA_LOCAL = 1
+  type(option_choice), dimension(2), parameter :: assemble_beta_choices = [ &
+       option_choice(ASSEMBLE_BETA_STANDARD, 'standard', 'standard finite-element assembly'), &
+       option_choice(ASSEMBLE_BETA_LOCAL,    'local',    'use local beta at each vertex') ]
+
+  integer, parameter :: ASSEMBLE_TAUD_STANDARD = 0
+  integer, parameter :: ASSEMBLE_TAUD_LOCAL = 1
+  type(option_choice), dimension(2), parameter :: assemble_taud_choices = [ &
+       option_choice(ASSEMBLE_TAUD_STANDARD, 'standard', 'standard finite-element assembly'), &
+       option_choice(ASSEMBLE_TAUD_LOCAL,    'local',    'use local driving stress at each vertex') ]
+
+  integer, parameter :: ASSEMBLE_BFRIC_STANDARD = 0
+  integer, parameter :: ASSEMBLE_BFRIC_LOCAL = 1
+  type(option_choice), dimension(2), parameter :: assemble_bfric_choices = [ &
+       option_choice(ASSEMBLE_BFRIC_STANDARD, 'standard', 'standard finite-element assembly'), &
+       option_choice(ASSEMBLE_BFRIC_LOCAL,    'local',    'use local basal friction at each vertex') ]
+
+  integer, parameter :: ASSEMBLE_LATERAL_STANDARD = 0
+  integer, parameter :: ASSEMBLE_LATERAL_LOCAL = 1
+  type(option_choice), dimension(2), parameter :: assemble_lateral_choices = [ &
+       option_choice(ASSEMBLE_LATERAL_STANDARD, 'standard', 'standard finite-element assembly'), &
+       option_choice(ASSEMBLE_LATERAL_LOCAL,    'local',    'use local thck and usrf on each cell face') ]
+
+  ! [advection] advection_method (values 0-2 were Glide-only)
+  integer, parameter :: ADVECTION_METHOD_REMAP = 3
+  integer, parameter :: ADVECTION_METHOD_UPWIND = 4
+  integer, parameter :: ADVECTION_METHOD_FIXED_THICKNESS = 5
+  type(option_choice), dimension(3), parameter :: advection_method_choices = [ &
+       option_choice(ADVECTION_METHOD_REMAP,           'remap',           'incremental remapping'), &
+       option_choice(ADVECTION_METHOD_UPWIND,          'upwind',          'first-order upwind'), &
+       option_choice(ADVECTION_METHOD_FIXED_THICKNESS, 'fixed_thickness', 'thickness fixed at initial value') ]
+
+  ! [advection] vertical_remap_order
+  integer, parameter :: VERTICAL_REMAP_ORDER_FIRST = 0
+  integer, parameter :: VERTICAL_REMAP_ORDER_SECOND = 1
+  type(option_choice), dimension(2), parameter :: vertical_remap_order_choices = [ &
+       option_choice(VERTICAL_REMAP_ORDER_FIRST,  'first',  'first-order accurate'), &
+       option_choice(VERTICAL_REMAP_ORDER_SECOND, 'second', 'second-order accurate') ]
+
+  ! [advection] compute_ice_age: a logical in the config file
+  integer, parameter :: COMPUTE_ICE_AGE_FALSE = 0
+  integer, parameter :: COMPUTE_ICE_AGE_TRUE = 1
 
   ! Option 3 is not scientifically supported
   integer, parameter :: TEMP_SURFACE_AIR_TEMP = 0
@@ -253,10 +379,6 @@ module glissade_types
 
   ! higher-order options
 
-  integer, parameter :: HO_EFVS_CONSTANT = 0
-  integer, parameter :: HO_EFVS_FLOWFACT = 1
-  integer, parameter :: HO_EFVS_NONLINEAR = 2
-
   integer, parameter :: HO_DISP_NONE = -1
   integer, parameter :: HO_DISP_SIA = 0
   integer, parameter :: HO_DISP_FIRSTORDER = 1
@@ -324,52 +446,6 @@ module glissade_types
   integer, parameter :: HO_EFFECPRESS_CAVITY_SHEET = 3
   integer, parameter :: HO_EFFECPRESS_BWAT_BVP = 4
 
-  integer, parameter :: HO_NONLIN_PICARD = 0
-  integer, parameter :: HO_NONLIN_PICARD_ACCEL = 1
-
-  integer, parameter :: HO_RESID_MAXU = 0
-  integer, parameter :: HO_RESID_MAXU_NO_UBAS = 1
-  integer, parameter :: HO_RESID_MEANU = 2
-  integer, parameter :: HO_RESID_L2NORM = 3
-  integer, parameter :: HO_RESID_L2NORM_RELATIVE = 4
-
-  integer, parameter :: HO_APPROX_LOCAL_SIA = -1
-  integer, parameter :: HO_APPROX_SIA = 0
-  integer, parameter :: HO_APPROX_SSA = 1
-  integer, parameter :: HO_APPROX_BP = 2
-  integer, parameter :: HO_APPROX_L1L2 = 3
-  integer, parameter :: HO_APPROX_DIVA = 4
-  integer, parameter :: HO_APPROX_HYBRID = 5
-
-  integer, parameter :: HO_PRECOND_NONE = 0
-  integer, parameter :: HO_PRECOND_DIAG = 1
-  integer, parameter :: HO_PRECOND_SIA  = 2
-  integer, parameter :: HO_PRECOND_TRIDIAG_LOCAL  = 3
-  integer, parameter :: HO_PRECOND_TRIDIAG_GLOBAL = 4
-
-  integer, parameter :: HO_GRADIENT_CENTERED = 0
-  integer, parameter :: HO_GRADIENT_UPSTREAM1 = 1
-  integer, parameter :: HO_GRADIENT_UPSTREAM2 = 2
-
-  integer, parameter :: HO_GRADIENT_MARGIN_LAND = 0
-  integer, parameter :: HO_GRADIENT_MARGIN_HYBRID = 1
-  integer, parameter :: HO_GRADIENT_MARGIN_MARINE = 2
-
-  integer, parameter :: HO_VERTICAL_REMAP_FIRST_ORDER = 0
-  integer, parameter :: HO_VERTICAL_REMAP_SECOND_ORDER = 1
-
-  integer, parameter :: HO_ASSEMBLE_BETA_STANDARD = 0
-  integer, parameter :: HO_ASSEMBLE_BETA_LOCAL = 1
-
-  integer, parameter :: HO_ASSEMBLE_TAUD_STANDARD = 0
-  integer, parameter :: HO_ASSEMBLE_TAUD_LOCAL = 1
-
-  integer, parameter :: HO_ASSEMBLE_BFRIC_STANDARD = 0
-  integer, parameter :: HO_ASSEMBLE_BFRIC_LOCAL = 1
-
-  integer, parameter :: HO_ASSEMBLE_LATERAL_STANDARD = 0
-  integer, parameter :: HO_ASSEMBLE_LATERAL_LOCAL = 1
-
   integer, parameter :: HO_GROUND_NO_GLP = 0
   integer, parameter :: HO_GROUND_GLP_BASAL_FRICTION = 1
   integer, parameter :: HO_GROUND_GLP_DELUXE = 2
@@ -384,9 +460,6 @@ module glissade_types
   integer, parameter :: HO_FLOTATION_FUNCTION_PATTYN = 0
   integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
   integer, parameter :: HO_FLOTATION_FUNCTION_LINEAR = 2
-
-  integer, parameter :: HO_ICE_AGE_NONE = 0
-  integer, parameter :: HO_ICE_AGE_COMPUTE = 1 
 
   integer, parameter :: GLACIER_MU_STAR_CONSTANT = 0
   integer, parameter :: GLACIER_MU_STAR_INVERSION = 1
@@ -915,7 +988,7 @@ module glissade_types
     !> \item[3] Native PCG, parallel-enabled, Chronopoulos-Gear solver (default)
     !> \end{description}
 
-    integer :: which_ho_approx = HO_APPROX_DIVA
+    integer :: which_ho_approx = STOKES_APPROX_DIVA
     !> Flag that indicates which Stokes approximation to use with the glissade dycore.
     !> Not valid for other dycores 
     !> The default is DIVA (4); it was Blatter-Pattyn (2) until the config reorganization.
@@ -935,7 +1008,7 @@ module glissade_types
     logical :: diva_slope_correction = .true.
     !> Flag that indicates whether the DIVA solver includes a correction for steep slopes
 
-    integer :: which_ho_precond = HO_PRECOND_DIAG   ! default was HO_PRECOND_SIA until the config reorganization
+    integer :: which_ho_precond = PRECONDITIONER_DIAGONAL   ! default was PRECONDITIONER_SIA until the config reorganization
     !> Flag that indicates which Stokes preconditioner to use in the glissade dycore.
     !> Not valid for other dycores 
     !> \begin{description}
@@ -1003,7 +1076,7 @@ module glissade_types
     !> \item[1] apply local value of beta*(u^2 + v^2) at each vertex
     !> \end{description}
 
-    integer :: which_ho_assemble_lateral = HO_ASSEMBLE_LATERAL_LOCAL   ! default was STANDARD until the config reorganization
+    integer :: which_ho_assemble_lateral = ASSEMBLE_LATERAL_LOCAL   ! default was STANDARD until the config reorganization
 
     !> Flag that describes how lateral stress terms are assembled in the glissade finite-element calculation
     !> \begin{description}

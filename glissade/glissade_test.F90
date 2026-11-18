@@ -530,7 +530,7 @@ contains
 
     ! Determine which transport scheme
 
-    if (model%options%whichevol == EVOL_UPWIND) then
+    if (model%options%whichevol == ADVECTION_METHOD_UPWIND) then
        do_upwind_transport = .true.
     else
        do_upwind_transport = .false.

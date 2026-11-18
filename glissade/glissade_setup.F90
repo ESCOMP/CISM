@@ -1081,11 +1081,11 @@ contains
     type(glissade_global_type)   :: model
 
     ! options
-    call GetValue(section,'stokes_approx',                  model%options%which_ho_approx)
+    call GetOption(section,'stokes_approx',                  stokes_approx_choices, model%options%which_ho_approx)
     call GetLogical(section,'diva_slope_correction',          model%options%diva_slope_correction)
-    call GetValue(section,'efvs_method',                    model%options%which_ho_efvs)
-    call GetValue(section,'surface_gradient_method',        model%options%which_ho_gradient)
-    call GetValue(section,'surface_gradient_margin_method', model%options%which_ho_gradient_margin)
+    call GetOption(section,'efvs_method',                    efvs_method_choices, model%options%which_ho_efvs)
+    call GetOption(section,'surface_gradient_method',        surface_gradient_method_choices, model%options%which_ho_gradient)
+    call GetOption(section,'surface_gradient_margin_method', surface_gradient_margin_method_choices, model%options%which_ho_gradient_margin)
 
     ! parameters
     call GetValue(section,'efvs_const',    model%paramets%efvs_constant)
@@ -1108,67 +1108,27 @@ contains
 
     type(glissade_global_type)  :: model
 
-    character(len=*), dimension(0:2), parameter :: efvs_method = (/ &
-         'constant value                 ', & 
-         'multiple of flow factor        ', &
-         'nonlinear, from eff strain rate' /)
-
-    character(len=*), dimension(-1:5), parameter :: stokes_approx = (/ &
-         'SIA only (glissade_velo_sia)                     ', &
-         'SIA only (glissade_velo_higher)                  ', &
-         'SSA only (glissade_velo_higher)                  ', &
-         'Blatter-Pattyn HO (glissade_velo_higher)         ', &
-         'Depth-integrated L1L2 (glissade_velo_higher)     ', &
-         'Depth-integrated viscosity (glissade_velo_higher)', &
-         'Hybrid SIA/SSA                                   ' /)
-
-    character(len=*), dimension(0:2), parameter :: surface_gradient_method = (/ &
-         'centered gradient (glissade)             ', &
-         'first-order upstream gradient (glissade) ', &
-         'second-order upstream gradient (glissade)' /)
-
-    character(len=*), dimension(0:2), parameter :: surface_gradient_margin_method = (/ &
-         'compute edge gradient when either cell has ice         ', &
-         'compute edge gradient when ice lies above ice-free land', & 
-         'compute edge gradient when both cells have ice         ' /)
-
-    if (model%options%which_ho_approx < -1 .or. model%options%which_ho_approx >= size(stokes_approx)-1) then
-       call write_log('Error, Stokes approximation out of range for glissade dycore', GM_FATAL)
-    end if
-    if (model%options%which_ho_efvs < 0 .or. model%options%which_ho_efvs >= size(efvs_method)) then
-       call write_log('Error, HO effective viscosity input out of range', GM_FATAL)
-    end if
-    if (model%options%which_ho_gradient < 0 .or. model%options%which_ho_gradient >= size(surface_gradient_method)) then
-       call write_log('Error, gradient option out of range for glissade dycore', GM_FATAL)
-    end if
-    if (model%options%which_ho_gradient_margin < 0 .or. &
-        model%options%which_ho_gradient_margin >= size(surface_gradient_margin_method)) then
-       call write_log('Error, gradient margin option out of range for glissade dycore', GM_FATAL)
-    end if
-
-    if (model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
+    if (model%options%which_ho_approx == STOKES_APPROX_LOCAL_SIA) then
        if (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
           call write_log('Error, cannot use no-penetration BC with local SIA solver', GM_FATAL)
        endif
     endif  ! Glissade local SIA solver
 
     call log_section('velocity')
-    call log_option('stokes_approx', model%options%which_ho_approx, &
-         stokes_approx(model%options%which_ho_approx))
-    if (model%options%which_ho_approx == HO_APPROX_DIVA) then
+    call log_option('stokes_approx', model%options%which_ho_approx, stokes_approx_choices)
+    if (model%options%which_ho_approx == STOKES_APPROX_DIVA) then
        call log_flag('diva_slope_correction', model%options%diva_slope_correction, &
             'if true, DIVA includes a correction for steep slopes')
     endif
-    call log_option('efvs_method', model%options%which_ho_efvs, efvs_method(model%options%which_ho_efvs))
-    if (model%options%which_ho_efvs == HO_EFVS_CONSTANT) then
+    call log_option('efvs_method', model%options%which_ho_efvs, efvs_method_choices)
+    if (model%options%which_ho_efvs == EFVS_METHOD_CONSTANT) then
        call log_param('efvs_const', model%paramets%efvs_constant, 'Pa yr')
-    elseif (model%options%which_ho_efvs == HO_EFVS_NONLINEAR) then
+    elseif (model%options%which_ho_efvs == EFVS_METHOD_NONLINEAR) then
        call log_param('effstrain_min', model%paramets%effstrain_min, 'yr^-1')
     end if
-    call log_option('surface_gradient_method', model%options%which_ho_gradient, &
-         surface_gradient_method(model%options%which_ho_gradient))
+    call log_option('surface_gradient_method', model%options%which_ho_gradient, surface_gradient_method_choices)
     call log_option('surface_gradient_margin_method', model%options%which_ho_gradient_margin, &
-         surface_gradient_margin_method(model%options%which_ho_gradient_margin))
+         surface_gradient_margin_method_choices)
     call log_param('max_slope', model%paramets%max_slope, 'maximum surface slope')
 
   end subroutine print_velocity
@@ -1188,22 +1148,22 @@ contains
     type(glissade_global_type)   :: model
 
     ! nonlinear iteration
-    call GetValue(section,'nonlinear_method',    model%options%which_ho_nonlinear)
-    call GetValue(section,'nonlinear_residual',  model%options%which_ho_resid)
+    call GetOption(section,'nonlinear_method',    nonlinear_method_choices, model%options%which_ho_nonlinear)
+    call GetOption(section,'nonlinear_residual',  nonlinear_residual_choices, model%options%which_ho_resid)
     call GetValue(section,'nonlinear_maxiters',  model%options%glissade_maxiter)
 
     ! linear solver
-    call GetValue(section,'linear_solver',       model%options%which_ho_sparse)
-    call GetValue(section,'preconditioner',      model%options%which_ho_precond)
+    call GetOption(section,'linear_solver',       linear_solver_choices, model%options%which_ho_sparse)
+    call GetOption(section,'preconditioner',      preconditioner_choices, model%options%which_ho_precond)
     call GetValue(section,'linear_solve_ncheck', model%options%linear_solve_ncheck)
     call GetValue(section,'linear_maxiters',     model%options%linear_maxiters)
     call GetValue(section,'linear_tolerance',    model%options%linear_tolerance)
 
     ! matrix assembly
-    call GetValue(section,'assemble_beta',       model%options%which_ho_assemble_beta)
-    call GetValue(section,'assemble_taud',       model%options%which_ho_assemble_taud)
-    call GetValue(section,'assemble_bfric',      model%options%which_ho_assemble_bfric)
-    call GetValue(section,'assemble_lateral',    model%options%which_ho_assemble_lateral)
+    call GetOption(section,'assemble_beta',       assemble_beta_choices, model%options%which_ho_assemble_beta)
+    call GetOption(section,'assemble_taud',       assemble_taud_choices, model%options%which_ho_assemble_taud)
+    call GetOption(section,'assemble_bfric',      assemble_bfric_choices, model%options%which_ho_assemble_bfric)
+    call GetOption(section,'assemble_lateral',    assemble_lateral_choices, model%options%which_ho_assemble_lateral)
 
   end subroutine handle_velocity_solver
 
@@ -1224,80 +1184,9 @@ contains
 
     character(len=100) :: note
 
-    character(len=*), dimension(0:1), parameter :: nonlinear_method = (/ &
-         'use standard Picard iteration          ', &
-         'use Picard iteration with acceleration '/)
-
-    character(len=*), dimension(0:4), parameter :: nonlinear_residual = (/ &
-         'max value                   ', &
-         'max value ignoring ubas     ', &
-         'mean value                  ', &
-         'L2 norm of Ax-b = resid     ', &
-         'relative L2 norm, |Ax-b|/|b|' /)
-
-    character(len=*), dimension(-1:3), parameter :: linear_solver = (/ &
-         'PCG with incomplete Cholesky preconditioner', &
-         'BiCG with LU preconditioner                ', &
-         'GMRES with LU preconditioner               ', &
-         'Native PCG solver, standard                ', &
-         'Native PCG solver, Chronopoulos-Gear       '/)
-
-    character(len=*), dimension(0:4), parameter :: preconditioner = (/ &
-         'No preconditioner (native PCG)                ', &
-         'Diagonal preconditioner (native PCG)          ', &
-         'SIA preconditioner (native PCG)               ', &
-         'Local tridiagonal preconditioner (native PCG) ', &
-         'Global tridiagonal preconditioner (native PCG)' /)
-
-    character(len=*), dimension(0:1), parameter :: assemble_beta = (/ &
-         'standard finite-element assembly (glissade dycore) ', &
-         'use local beta at each vertex (glissade dycore)    '  /)
-
-    character(len=*), dimension(0:1), parameter :: assemble_taud = (/ &
-         'standard finite-element assembly (glissade dycore)       ', &
-         'use local driving stress at each vertex (glissade dycore)'  /)
-
-    character(len=*), dimension(0:1), parameter :: assemble_bfric = (/ &
-         'standard finite-element assembly (glissade dycore)       ', &
-         'use local basal friction at each vertex (glissade dycore)'  /)
-
-    character(len=*), dimension(0:1), parameter :: assemble_lateral = (/ &
-         'standard finite-element assembly (glissade dycore)         ', &
-         'use local thck and usrf on each cell face (glissade dycore)'  /)
-
-    if (model%options%which_ho_nonlinear < 0 .or. model%options%which_ho_nonlinear >= size(nonlinear_method)) then
-       call write_log('Error, HO nonlinear solution input out of range', GM_FATAL)
-    end if
-    if (model%options%which_ho_resid < 0 .or. model%options%which_ho_resid >= size(nonlinear_residual)) then
-       call write_log('Error, HO residual input out of range', GM_FATAL)
-    end if
-    if (model%options%which_ho_sparse < lbound(linear_solver,1) .or. &
-        model%options%which_ho_sparse > ubound(linear_solver,1)) then
-       call write_log('Error, HO sparse solver input out of range', GM_FATAL)
-    end if
-    if (model%options%which_ho_precond < 0 .or. model%options%which_ho_precond >= size(preconditioner)) then
-       call write_log('Error, glissade preconditioner out of range', GM_FATAL)
-    end if
-    if (model%options%which_ho_assemble_beta < 0 .or. &
-        model%options%which_ho_assemble_beta >= size(assemble_beta)) then
-       call write_log('Error, beta assembly option out of range for glissade dycore', GM_FATAL)
-    end if
-    if (model%options%which_ho_assemble_taud < 0 .or. &
-        model%options%which_ho_assemble_taud >= size(assemble_taud)) then
-       call write_log('Error, driving-stress assembly option out of range for glissade dycore', GM_FATAL)
-    end if
-    if (model%options%which_ho_assemble_bfric < 0 .or. &
-        model%options%which_ho_assemble_bfric >= size(assemble_bfric)) then
-       call write_log('Error, basal-friction assembly option out of range for glissade dycore', GM_FATAL)
-    end if
-    if (model%options%which_ho_assemble_lateral < 0 .or. &
-        model%options%which_ho_assemble_lateral >= size(assemble_lateral)) then
-       call write_log('Error, lateral-stress assembly option out of range for glissade dycore', GM_FATAL)
-    end if
-
     ! Forbidden options for running in parallel
     ! Note: The local SIA solver does not use a sparse linear solver, so which_ho_sparse is ignored.
-    if (tasks > 1 .and. model%options%which_ho_approx /= HO_APPROX_LOCAL_SIA .and.  &
+    if (tasks > 1 .and. model%options%which_ho_approx /= STOKES_APPROX_LOCAL_SIA .and.  &
                         (model%options%which_ho_sparse==HO_SPARSE_BICG  .or.  &
                          model%options%which_ho_sparse==HO_SPARSE_GMRES .or.  &
                          model%options%which_ho_sparse==HO_SPARSE_PCG_INCH) ) then
@@ -1306,25 +1195,25 @@ contains
 
     ! The SIA preconditioner cannot be used for 2D solves
     note = ''
-    if ( (model%options%which_ho_approx == HO_APPROX_SSA  .or.  &
-          model%options%which_ho_approx == HO_APPROX_L1L2 .or.  &
-          model%options%which_ho_approx == HO_APPROX_DIVA .or.  &
-          model%options%which_ho_approx == HO_APPROX_HYBRID)    &
+    if ( (model%options%which_ho_approx == STOKES_APPROX_SSA  .or.  &
+          model%options%which_ho_approx == STOKES_APPROX_L1L2 .or.  &
+          model%options%which_ho_approx == STOKES_APPROX_DIVA .or.  &
+          model%options%which_ho_approx == STOKES_APPROX_HYBRID)    &
                              .and.                            &
           (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.    &
            model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
-       if (model%options%which_ho_precond == HO_PRECOND_SIA) then
+       if (model%options%which_ho_precond == PRECONDITIONER_SIA) then
           !TODO - Change default to tridiagonal if it turns out to be faster than diagonal
-          model%options%which_ho_precond = HO_PRECOND_DIAG
-          note = '; reset from SIA, which cannot be used for 2D solves'
+          model%options%which_ho_precond = PRECONDITIONER_DIAGONAL
+          note = 'reset from sia, which cannot be used for 2D solves'
        endif
     endif
 
     if ((model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.  &
          model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
        if (model%options%reproducible_sums) then
-          if (model%options%which_ho_precond == HO_PRECOND_TRIDIAG_LOCAL .or. &
-              model%options%which_ho_precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+          if (model%options%which_ho_precond == PRECONDITIONER_TRIDIAG_LOCAL .or. &
+              model%options%which_ho_precond == PRECONDITIONER_TRIDIAG_GLOBAL) then
              call write_log ('Tridiagonal preconditioners are not supported with reproducible sums.')
              call write_log ('Please choose a different preconditioner (e.g., diagonal)', GM_FATAL)
           endif
@@ -1332,40 +1221,36 @@ contains
     endif
 
     call log_section('velocity_solver')
-    call log_option('nonlinear_method', model%options%which_ho_nonlinear, &
-         nonlinear_method(model%options%which_ho_nonlinear))
-    call log_option('nonlinear_residual', model%options%which_ho_resid, &
-         nonlinear_residual(model%options%which_ho_resid))
+    call log_option('nonlinear_method', model%options%which_ho_nonlinear, nonlinear_method_choices)
+    call log_option('nonlinear_residual', model%options%which_ho_resid, nonlinear_residual_choices)
     call log_param('nonlinear_maxiters', model%options%glissade_maxiter)
-    call log_option('linear_solver', model%options%which_ho_sparse, &
-         linear_solver(model%options%which_ho_sparse))
+    call log_option('linear_solver', model%options%which_ho_sparse, linear_solver_choices)
     if ((model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.  &
          model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
-       call log_option('preconditioner', model%options%which_ho_precond, &
-            trim(preconditioner(model%options%which_ho_precond)) // trim(note))
+       if (len_trim(note) > 0) then
+          call log_option('preconditioner', model%options%which_ho_precond, preconditioner_choices, trim(note))
+       else
+          call log_option('preconditioner', model%options%which_ho_precond, preconditioner_choices)
+       endif
     end if
     call log_param('linear_solve_ncheck', model%options%linear_solve_ncheck)
     call log_param('linear_maxiters', model%options%linear_maxiters)
     call log_param('linear_tolerance', model%options%linear_tolerance)
-    call log_option('assemble_beta', model%options%which_ho_assemble_beta, &
-         assemble_beta(model%options%which_ho_assemble_beta))
-    call log_option('assemble_taud', model%options%which_ho_assemble_taud, &
-         assemble_taud(model%options%which_ho_assemble_taud))
-    call log_option('assemble_bfric', model%options%which_ho_assemble_bfric, &
-         assemble_bfric(model%options%which_ho_assemble_bfric))
-    call log_option('assemble_lateral', model%options%which_ho_assemble_lateral, &
-         assemble_lateral(model%options%which_ho_assemble_lateral))
+    call log_option('assemble_beta', model%options%which_ho_assemble_beta, assemble_beta_choices)
+    call log_option('assemble_taud', model%options%which_ho_assemble_taud, assemble_taud_choices)
+    call log_option('assemble_bfric', model%options%which_ho_assemble_bfric, assemble_bfric_choices)
+    call log_option('assemble_lateral', model%options%which_ho_assemble_lateral, assemble_lateral_choices)
 
     ! unsupported resid options
-    if (model%options%which_ho_resid == HO_RESID_MAXU) then
+    if (model%options%which_ho_resid == NONLINEAR_RESIDUAL_MAX) then
       call write_log('Residual as max. value of normalized velocity vector update is not currently scientifically supported.  &
            &USE AT YOUR OWN RISK.', GM_WARNING)
     endif
-    if (model%options%which_ho_resid == HO_RESID_MAXU_NO_UBAS) then
+    if (model%options%which_ho_resid == NONLINEAR_RESIDUAL_MAX_NO_UBAS) then
       call write_log('Residual as max. value of normalized velocity vector update with basal velocity omitted is not currently &
            &scientifically supported.  USE AT YOUR OWN RISK.', GM_WARNING)
     endif
-    if (model%options%which_ho_resid == HO_RESID_MEANU) then
+    if (model%options%which_ho_resid == NONLINEAR_RESIDUAL_MEAN) then
       call write_log('Residual as mean value of normalized velocity vector update is not currently scientifically supported.  &
            &USE AT YOUR OWN RISK.', GM_WARNING)
     endif
@@ -1385,10 +1270,17 @@ contains
 
     type(ConfigSection), pointer :: section
     type(glissade_global_type)   :: model
+    logical :: compute_ice_age   ! a logical in the config file
 
-    call GetValue(section,'advection_method',     model%options%whichevol)
-    call GetValue(section,'vertical_remap_order', model%options%which_ho_vertical_remap)
-    call GetValue(section,'compute_ice_age',      model%options%which_ho_ice_age)
+    call GetOption(section,'advection_method',     advection_method_choices, model%options%whichevol)
+    call GetOption(section,'vertical_remap_order', vertical_remap_order_choices, model%options%which_ho_vertical_remap)
+    compute_ice_age = (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE)
+    call GetLogical(section,'compute_ice_age',    compute_ice_age)
+    if (compute_ice_age) then
+       model%options%which_ho_ice_age = COMPUTE_ICE_AGE_TRUE
+    else
+       model%options%which_ho_ice_age = COMPUTE_ICE_AGE_FALSE
+    endif
 
   end subroutine handle_advection
 
@@ -1406,39 +1298,10 @@ contains
 
     type(glissade_global_type)  :: model
 
-    !WHL TODO - Renumber during the config reorg
-    character(len=*), dimension(3:5), parameter :: advection_method = (/ &
-         'incremental remapping                 ', &   
-         '1st order upwind                      ', &
-         'thickness fixed at initial value      '  /)
-
-    character(len=*), dimension(0:1), parameter :: vertical_remap_order = (/ &
-         'first-order accurate  ', &
-         'second-order accurate ' /)
-
-    character(len=*), dimension(0:1), parameter :: compute_ice_age = (/ &
-         'ice age computation off', &
-         'ice age computation on ' /)
-
-    !WHL TODO: Renumber during the config reorg and restore the following commented-out line
-!!    if (model%options%whichevol < 0 .or. model%options%whichevol >= size(advection_method)) then
-    if (model%options%whichevol < EVOL_INC_REMAP .or. model%options%whichevol > EVOL_NO_THICKNESS) then
-       call write_log('Error, advection_method out of range',GM_FATAL)
-    end if
-    if (model%options%which_ho_vertical_remap < 0 .or. &
-        model%options%which_ho_vertical_remap >= size(vertical_remap_order)) then
-       call write_log('Error, vertical remap option out of range for glissade dycore', GM_FATAL)
-    end if
-    if (model%options%which_ho_ice_age < 0 .or. model%options%which_ho_ice_age >= size(compute_ice_age)) then
-       call write_log('Error, compute_ice_age option out of range for glissade dycore', GM_FATAL)
-    end if
-
     call log_section('advection')
-    call log_option('advection_method', model%options%whichevol, advection_method(model%options%whichevol))
-    call log_option('vertical_remap_order', model%options%which_ho_vertical_remap, &
-         vertical_remap_order(model%options%which_ho_vertical_remap))
-    call log_option('compute_ice_age', model%options%which_ho_ice_age, &
-         compute_ice_age(model%options%which_ho_ice_age))
+    call log_option('advection_method', model%options%whichevol, advection_method_choices)
+    call log_option('vertical_remap_order', model%options%which_ho_vertical_remap, vertical_remap_order_choices)
+    call log_flag('compute_ice_age', model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE)
 
   end subroutine print_advection
 
@@ -1518,7 +1381,7 @@ contains
 
     ! The local SIA solver cannot use first-order dissipation
     note = ''
-    if (model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
+    if (model%options%which_ho_approx == STOKES_APPROX_LOCAL_SIA) then
        if (model%options%which_ho_disp == HO_DISP_FIRSTORDER ) then
           model%options%which_ho_disp = HO_DISP_SIA
           note = '; reset from first-order, which cannot be used with the local SIA solver'
@@ -1836,7 +1699,7 @@ contains
 
     call log_section('basal_physics')
     call log_option('sliding_law', model%options%which_ho_babc, sliding_law(model%options%which_ho_babc))
-    if (model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
+    if (model%options%which_ho_approx == STOKES_APPROX_LOCAL_SIA) then
        call log_option('btrc_method', model%options%whichbtrc, btrc_method(model%options%whichbtrc))
     endif
     call log_option('beta_limit_method', model%options%which_ho_beta_limit, &
@@ -1873,14 +1736,14 @@ contains
           call log_param('pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin, 'm')
           call log_param('pseudo_plastic_bedmax', model%basal_physics%pseudo_plastic_bedmax, 'm')
        endif
-       if (model%options%which_ho_assemble_beta == HO_ASSEMBLE_BETA_STANDARD) then
+       if (model%options%which_ho_assemble_beta == ASSEMBLE_BETA_STANDARD) then
           call write_log('WARNING: local beta assembly is recommended for the pseudo-plastic sliding law')
-          write(message,*) 'Set assemble_beta =', HO_ASSEMBLE_BETA_LOCAL
+          write(message,*) 'Set assemble_beta =', ASSEMBLE_BETA_LOCAL
           call write_log(message, GM_WARNING)
        endif
-       if (model%options%which_ho_assemble_bfric == HO_ASSEMBLE_BFRIC_STANDARD) then
+       if (model%options%which_ho_assemble_bfric == ASSEMBLE_BFRIC_STANDARD) then
           call write_log('WARNING: local bfric assembly is recommended for the pseudo-plastic sliding law')
-          write(message,*) 'Set assemble_bfric =', HO_ASSEMBLE_BFRIC_LOCAL
+          write(message,*) 'Set assemble_bfric =', ASSEMBLE_BFRIC_LOCAL
           call write_log(message, GM_WARNING)
        endif
     elseif (model%options%which_ho_babc == HO_BABC_ZOET_IVERSON) then
@@ -3867,7 +3730,7 @@ contains
      ! Glissade approximation options
      select case (options%which_ho_approx)
 
-        case (HO_APPROX_DIVA)
+        case (STOKES_APPROX_DIVA)
            ! DIVA requires the 2D velocity, basal traction and effective viscosity for exact restart.
            ! Since the 2D velocity and basal traction are located on the staggered grid, these fields
            !  must be written to and read from the extended grid if velocites are nonzero at the boundaries.
@@ -4057,7 +3920,7 @@ contains
     end select
 
     select case (options%which_ho_ice_age)
-       case(HO_ICE_AGE_COMPUTE)
+       case(COMPUTE_ICE_AGE_TRUE)
           call glissade_add_to_restart_variable_list('ice_age', model_id)
        case default
           ! no restart variables needed

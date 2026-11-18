@@ -26,15 +26,15 @@ vertical_integration = 0   # glissade does not support option 1
 thcklim = 1.
 
 [velocity]
-stokes_approx = 4        # 4 = DIVA
+stokes_approx = diva
 
 [velocity_solver]
-nonlinear_method = 1     # 1 = accelerated Picard
-linear_solver = 3        # 3 = parallel PCG
-preconditioner = 1       # 1 = diagonal
+nonlinear_method = accelerated_picard
+linear_solver = pcg_chrongear
+preconditioner = diagonal
 
 [advection]
-advection_method = 3              # 3 = incremental remapping
+advection_method = remap
 
 [temperature]
 temperature_method = 1

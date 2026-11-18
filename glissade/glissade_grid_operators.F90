@@ -527,7 +527,7 @@ contains
 
     integer, dimension(nx,ny), intent(in), optional ::        &
        land_mask                ! = 1 for land cells, else = 0
-                                ! floating and land masks required for gradient_margin = HO_GRADIENT_MARGIN_HYBRID
+                                ! floating and land masks required for gradient_margin = SURFACE_GRADIENT_MARGIN_METHOD_HYBRID
 
     real(dp), intent(in), optional :: &
        max_slope                ! maximum slope allowed for surface gradient computations (unitless)
@@ -566,25 +566,25 @@ contains
     !
     !--------------------------------------------------------
 
-    ! TODO - Make HO_GRADIENT_MARGIN_LAND the default, since it is simple and requires no optional arguments?
+    ! TODO - Make SURFACE_GRADIENT_MARGIN_METHOD_LAND the default, since it is simple and requires no optional arguments?
     ! TODO - Make ice_mask an optional argument, = 1 everywhere by default.
 
     if (present(gradient_margin_in)) then
        gradient_margin = gradient_margin_in
     else
-       gradient_margin = HO_GRADIENT_MARGIN_HYBRID
+       gradient_margin = SURFACE_GRADIENT_MARGIN_METHOD_HYBRID
     endif
 
     ! Set logical edge mask based on gradient_margin.
     edge_mask_x(:,:) = .false.
     edge_mask_y(:,:) = .false.
 
-    if (gradient_margin == HO_GRADIENT_MARGIN_LAND) then
+    if (gradient_margin == SURFACE_GRADIENT_MARGIN_METHOD_LAND) then
 
        edge_mask_x(:,:) = .true.       ! true for all edges
        edge_mask_y(:,:) = .true.
 
-    elseif (gradient_margin == HO_GRADIENT_MARGIN_HYBRID) then
+    elseif (gradient_margin == SURFACE_GRADIENT_MARGIN_METHOD_HYBRID) then
 
        if (present(land_mask) .and. present(usrf)) then
 
@@ -597,7 +597,7 @@ contains
           call write_log('Must pass in land_mask and usrf to use this gradient_margin option', GM_FATAL)
        endif
 
-    elseif (gradient_margin == HO_GRADIENT_MARGIN_MARINE) then
+    elseif (gradient_margin == SURFACE_GRADIENT_MARGIN_METHOD_MARINE) then
 
        ! mask for east and west cell edges
        do j = 1, ny
@@ -742,7 +742,7 @@ contains
                                                       edge_mask_x, edge_mask_y)
     
     !----------------------------------------------------------------
-    ! Compute edge masks required for option gradient_margin = HO_GRADIENT_MARGIN_HYBRID
+    ! Compute edge masks required for option gradient_margin = SURFACE_GRADIENT_MARGIN_METHOD_HYBRID
     ! Called from subroutine glissade_gradient_at_edges.
     !
     ! The mask is set to true at all edges where either
@@ -854,12 +854,12 @@ contains
     ! At the ice margin, where one or both cells adjacent to a given edge may be ice-free,
     !  edge gradients may be masked in the following ways:
     !
-    ! HO_GRADIENT_MARGIN_LAND = 0: Values in both adjacent cells are used to compute the gradient,
+    ! SURFACE_GRADIENT_MARGIN_METHOD_LAND = 0: Values in both adjacent cells are used to compute the gradient,
     !  including values in ice-free cells.  In other words, there is no masking of edges.
     !  This convention is used by Glide. It works well at land-terminating margins, but performs poorly
     !  for ice shelves with a sharp drop in ice thickness and surface elevation at the margin.
     !
-    ! HO_GRADIENT_MARGIN_HYBRID = 1: The gradient is computed at edges where either
+    ! SURFACE_GRADIENT_MARGIN_METHOD_HYBRID = 1: The gradient is computed at edges where either
     !
     ! (1) Both adjacent cells are ice-covered.
     ! (2) One cell is ice-covered (land or marine-based) and lies above ice-free land.
@@ -872,7 +872,7 @@ contains
     ! At land-terminating margins the gradient is nonzero (except for nunataks), and at marine-terminating
     !  margins the gradient is zero.
     !
-    ! HO_GRADIENT_MARGIN_MARINE = 2: Only values in ice-covered cells (i.e., cells with thck > thklim)
+    ! SURFACE_GRADIENT_MARGIN_METHOD_MARINE = 2: Only values in ice-covered cells (i.e., cells with thck > thklim)
     !  are used to compute gradients.  If one or both adjacent cells is ice-free, the edge is masked out.
     !  This option works well at shelf margins but less well for land margins (e.g., the Halfar test case).
     !
@@ -962,7 +962,7 @@ contains
     ds_dx(:,:) = 0.0d0
     ds_dy(:,:) = 0.0d0
 
-    if (ho_gradient_margin == HO_GRADIENT_MARGIN_LAND) then
+    if (ho_gradient_margin == SURFACE_GRADIENT_MARGIN_METHOD_LAND) then
 
        ! Compute ds_dx and ds_dy on all edges, whether or not adjacent cells are ice-covered
        do j = 1, ny
@@ -977,7 +977,7 @@ contains
           enddo
        enddo
 
-    elseif (ho_gradient_margin == HO_GRADIENT_MARGIN_MARINE) then
+    elseif (ho_gradient_margin == SURFACE_GRADIENT_MARGIN_METHOD_MARINE) then
 
        ! Compute ds_dx and ds_dy only on edges with ice in each adjacent cell
        do j = 1, ny
@@ -996,7 +996,7 @@ contains
           enddo
        enddo
 
-    elseif (ho_gradient_margin == HO_GRADIENT_MARGIN_HYBRID) then
+    elseif (ho_gradient_margin == SURFACE_GRADIENT_MARGIN_METHOD_HYBRID) then
 
        ! compute ds_dx on east edges
        do j = 1, ny
@@ -1082,7 +1082,7 @@ contains
 
     ! Average the edge gradients to the vertex, depending on the value of ho_gradient.
 
-    if (ho_gradient == HO_GRADIENT_CENTERED) then
+    if (ho_gradient == SURFACE_GRADIENT_METHOD_CENTERED) then
 
        ! Average the edge gradients to vertices using a centered approximation.
        ! This method is 2nd order accurate but can be subject to B grid noise.
@@ -1127,7 +1127,7 @@ contains
 !    enddo
 
 
-    elseif (ho_gradient == HO_GRADIENT_UPSTREAM1) then
+    elseif (ho_gradient == SURFACE_GRADIENT_METHOD_UPSTREAM1) then
 
        ! Take a one-sided, first-order-accurate upstream gradient.
        ! For ds_dx, use the east/west edge that is upstream in the y direction
@@ -1159,7 +1159,7 @@ contains
           enddo
        enddo
 
-    elseif (ho_gradient == HO_GRADIENT_UPSTREAM2) then
+    elseif (ho_gradient == SURFACE_GRADIENT_METHOD_UPSTREAM2) then
 
        ! Take a one-sided, second-order-accurate upstream gradient.
 

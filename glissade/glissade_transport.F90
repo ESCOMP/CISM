@@ -112,7 +112,7 @@
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
-         if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+         if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
@@ -189,7 +189,7 @@
          endif
          
          ! ice age parameter
-         if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+         if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
 
             nt = nt + 1
             do k = 1, nlyr
@@ -260,7 +260,7 @@
       endif
 
       ! ice age parameter
-      if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+      if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
          nt = nt + 1
          do k = 1, nlyr
             model%geometry%ice_age(k,:,:) = model%geometry%tracers(:,:,nt,k)
@@ -341,7 +341,7 @@
 
       integer, intent(in) ::  &
          vert_remap_accuracy    ! order of accuracy for vertical remapping
-                                ! HO_VERTICAL_REMAP_FIRST_ORDER or HO_VERTICAL_REMAP_SECOMD_ORDER
+                                ! VERTICAL_REMAP_ORDER_FIRST or HO_VERTICAL_REMAP_SECOMD_ORDER
 
       logical, intent(in), optional ::  &
          upwind_transport_in    ! if true, do first-order upwind transport
@@ -1119,7 +1119,7 @@
     !
     ! Author: William Lipscomb, LANL
 
-    use glissade_types, only: HO_VERTICAL_REMAP_SECOND_ORDER
+    use glissade_types, only: VERTICAL_REMAP_ORDER_SECOND
 
     implicit none
  
@@ -1152,7 +1152,7 @@
 
     integer, intent(in) ::  &
          vert_remap_accuracy    ! order of accuracy for vertical remapping
-                                ! HO_VERTICAL_REMAP_FIRST_ORDER or HO_VERTICAL_REMAP_SECOMD_ORDER
+                                ! VERTICAL_REMAP_ORDER_FIRST or HO_VERTICAL_REMAP_SECOMD_ORDER
 
     ! local variables
  
@@ -1287,7 +1287,7 @@
              ! For first-order remapping:  Set the gradients to zero.
              !-----------------------------------------------------------------
 
-             if (vert_remap_accuracy == HO_VERTICAL_REMAP_SECOND_ORDER) then
+             if (vert_remap_accuracy == VERTICAL_REMAP_ORDER_SECOND) then
              
                 do k = 1, nlyr
                    

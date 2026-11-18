@@ -22,17 +22,17 @@ dycore = glissade
 thcklim = 1.           # min thickness (m) for dynamics
 
 [velocity]
-stokes_approx = 4      # 4 = DIVA
-efvs_method = 2        # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
-surface_gradient_method = 2    # 0 = centered, 1 = 1st order upstream, 2 = 2nd order upstream
+stokes_approx = diva
+efvs_method = nonlinear
+surface_gradient_method = upstream2
 
 [velocity_solver]
-nonlinear_method = 0   # 0 = Picard, 1 = accelerated Picard
-linear_solver = 3      # 1 = SLAP GMRES, 3 = glissade parallel PCG
-preconditioner = 2     # 1 = diagonal, 2 = physics-based SIA
+nonlinear_method = picard
+linear_solver = pcg_chrongear
+preconditioner = sia
 
 [advection]
-advection_method = 3            # 2 = iterated diffusion, 3 = IR
+advection_method = remap
 
 [temperature]
 temperature_method = 0          # 0 = isothermal temp evolution, if turned on, will not affect flwa because flwa_const is specified below.

@@ -32,24 +32,24 @@ rhoo = 1028.0                   # ocean density
 grav = 9.81	                # gravitational acceleration
 
 [velocity]
-stokes_approx = 4               # 1 = SSA, 2 = Blatter-Pattyn, 3 = L1L2, 4 = DIVA
-efvs_method = 2                 # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
-surface_gradient_margin_method = 2      # 2 = marine BC
-surface_gradient_method = 0             # 0 = centered, 1 = upstream
+stokes_approx = diva
+efvs_method = nonlinear
+surface_gradient_margin_method = marine
+surface_gradient_method = centered
 
 [velocity_solver]
-nonlinear_method = 1            # 0 = Picard, 1 = accelerated Picard
-nonlinear_residual = 4                # 3 = absolute, 4 = relative
+nonlinear_method = accelerated_picard
+nonlinear_residual = relative_l2norm
 nonlinear_maxiters = 50
-linear_solver = 3               # 1 = SLAP GMRES, 3 = Fortran PCG
-preconditioner = 1              # 1 = diagonal precond, 2 = shallow ice preconditioner
-assemble_beta = 1        # 0 = standard FE, 1 = local
-assemble_taud = 1        # 0 = standard FE, 1 = local
-assemble_bfric = 1       # 0 = standard FE, 1 = local
-assemble_lateral = 1     # 1 = local assembly applied at the marine boundary
+linear_solver = pcg_chrongear
+preconditioner = diagonal
+assemble_beta = local
+assemble_taud = local
+assemble_bfric = local
+assemble_lateral = local
 
 [advection]
-advection_method = 3           # 3 = remapping, 4 = first order upwind
+advection_method = remap
 
 [temperature]
 temperature_method = 0         # 0 = sfc air temp, 1 = prognostic

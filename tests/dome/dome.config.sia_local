@@ -22,14 +22,14 @@ dycore = glissade
 thcklim = 1.              # min thickness (m) for dynamics
 
 [velocity]
-stokes_approx = -1        # -1 = local SIA
-efvs_method = 2           # 2 = nonlinear eff. visc. w/ n=3
+stokes_approx = local_sia
+efvs_method = nonlinear
 
 [velocity_solver]
-linear_solver = 3         # 3 = glissade parallel PCG (not used by local SIA)
+linear_solver = pcg_chrongear
 
 [advection]
-advection_method = 3               # 3 = inc. remapping, 4 = FO upwind
+advection_method = remap
 
 [temperature]
 temperature_method = 1             # 0 = set column to surf. air temp, 1 = prognostic, 2 = hold at init. values             
