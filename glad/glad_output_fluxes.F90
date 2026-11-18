@@ -128,7 +128,7 @@ contains
     !       to the liquid runoff rather than to the solid ice runoff.
     !--------------------------------------------------------------------
 
-    ! Note on units: model%temper%bmlt has dimensionless units of m/s ice
+    ! Note on units: model%temperature%bmlt has dimensionless units of m/s ice
     !                Multiply by rhoi to convert to kg/m^2/s water equiv.
     !                model%lateral_melt%latmelt_thck has dimensions of m of ice;
     !                multiply by rhoi and divide by dt to convert to kg/m^2/s.
@@ -141,11 +141,11 @@ contains
     ! Accumulate basal heat flux
     !--------------------------------------------------------------------
 
-    ! Note on units: model%temper%ucondflx has units of W/m^2, positive down
+    ! Note on units: model%temperature%ucondflx has units of W/m^2, positive down
     !                Flip the sign so that hflx is positive up.
 
     output_fluxes%hflx_sum(:,:) = output_fluxes%hflx_sum(:,:) &
-         - model%temper%ucondflx(:,:)
+         - model%temperature%ucondflx(:,:)
 
   end subroutine accumulate_output_fluxes
 

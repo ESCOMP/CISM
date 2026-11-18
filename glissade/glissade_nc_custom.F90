@@ -97,28 +97,28 @@ contains
     if (associated(model%funits%in_first)) then
 
        ! WHL, 8/5/19:
-       ! The original code called subroutine distributed_put_var to gather model%general%x1, etc.
+       ! The original code called subroutine distributed_put_var to gather model%grid%x1, etc.
        !  from local tasks into a global array that was written to the output file.
        ! This does not work, in general, when computing on active blocks only, because the local versions
-       !  of model%general%x1 may not span the global domain.
+       !  of model%grid%x1 may not span the global domain.
        ! The revised code calls parallel_put_var to write (x0,y0) and (x1,y1) to the output file
        !  based on the global arrays (x0_global,y0_global) and (x1_global,y1_global).
        ! This assumes that the global arrays were read in or computed at startup.
 
        status = parallel_inq_varid(NCO%id,'x1',varid)
-       status = parallel_put_var(NCO%id,varid,model%general%x1_global)
+       status = parallel_put_var(NCO%id,varid,model%grid%x1_global)
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        status = parallel_inq_varid(NCO%id,'y1',varid)
-       status = parallel_put_var(NCO%id,varid,model%general%y1_global)
+       status = parallel_put_var(NCO%id,varid,model%grid%y1_global)
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        status = parallel_inq_varid(NCO%id,'x0',varid)
-       status = parallel_put_var(NCO%id,varid,model%general%x0_global)
+       status = parallel_put_var(NCO%id,varid,model%grid%x0_global)
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        status = parallel_inq_varid(NCO%id,'y0',varid)
-       status = parallel_put_var(NCO%id,varid,model%general%y0_global)
+       status = parallel_put_var(NCO%id,varid,model%grid%y0_global)
        call nc_errorhandle(__FILE__,__LINE__,status)
 
     else   ! no input file; compute the coordinates from the grid spacing
@@ -185,9 +185,9 @@ contains
 
     ! glacier dimension (used for glacier-specific output)
 
-    if (model%glacier%nglacier > 1) then   ! enable_glaciers = T
+    if (model%glaciers%nglacier > 1) then   ! enable_glaciers = T
        status = parallel_inq_varid(NCO%id,'glacierid',varid)
-       status= parallel_put_var(NCO%id,varid,model%glacier%glacierid)
+       status= parallel_put_var(NCO%id,varid,model%glaciers%glacierid)
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
@@ -227,7 +227,7 @@ contains
     !       but can be increased depending on the config options.
     nc%nzocn = model%ocean_data%nzocn      ! vertical coordinate for ocean data
     nc%nzatm = model%climate%nzatm         ! vertical coordinate for atmosphere data
-    nc%nglacier = model%glacier%nglacier   ! glacier ID coordinate for glacier data
+    nc%nglacier = model%glaciers%nglacier   ! glacier ID coordinate for glacier data
     nc%nbasin = model%ocean_data%nbasin    ! basin coordinate for basin data
     nc%naxis = model%calving%naxis         ! coordinate for calvingMIP axis data
 

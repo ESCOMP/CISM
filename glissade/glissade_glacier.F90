@@ -80,7 +80,7 @@ contains
 
     type(glissade_global_type),intent(inout) :: model
 
-    type(glissade_glacier_type) :: glacier    ! derived type for glacier info
+    type(glissade_glaciers_type) :: glacier    ! derived type for glacier info
                                       ! included in 'model', but passed separately to save typing
 
     ! local variables
@@ -113,7 +113,7 @@ contains
          current_id,                & ! current glacier_id from list
          gid_minval, gid_maxval       ! min and max values of glacier_id
 
-    integer, dimension(model%general%ewn,model%general%nsn) :: &
+    integer, dimension(model%grid%ewn,model%grid%nsn) :: &
          glacier_mask                 ! = 1 for cells with glaciers (glacier_id > 0), else = 0
 
     type(parallel_type) :: parallel   ! info for parallel communication
@@ -140,8 +140,8 @@ contains
 
     global_ewn = parallel%global_ewn
     global_nsn = parallel%global_nsn
-    ewn = model%general%ewn
-    nsn = model%general%nsn
+    ewn = model%grid%ewn
+    nsn = model%grid%nsn
     dew = model%numerics%dew
     dns = model%numerics%dns
     rtest = model%numerics%rdiag_local
@@ -157,13 +157,13 @@ contains
 
        ! Optionally, rescale the grid cell dimensions and coordinates
        ! This is answer-changing throughout the code.
-       ! Note: The global arrays model%general%x1_global, etc., which are written to output files, are not rescaled.
+       ! Note: The global arrays model%grid%x1_global, etc., which are written to output files, are not rescaled.
        !       These arrays are computed from the input file, which typically ignores the scale factor.
        if (glacier%length_scale_factor /= 1.0d0) then
-          model%general%x0 = model%general%x0 * glacier%length_scale_factor
-          model%general%y0 = model%general%y0 * glacier%length_scale_factor
-          model%general%x1 = model%general%x1 * glacier%length_scale_factor
-          model%general%y1 = model%general%y1 * glacier%length_scale_factor
+          model%grid%x0 = model%grid%x0 * glacier%length_scale_factor
+          model%grid%y0 = model%grid%y0 * glacier%length_scale_factor
+          model%grid%x1 = model%grid%x1 * glacier%length_scale_factor
+          model%grid%y1 = model%grid%y1 * glacier%length_scale_factor
           model%numerics%dew = model%numerics%dew * glacier%length_scale_factor
           model%numerics%dns = model%numerics%dns * glacier%length_scale_factor
           dew = model%numerics%dew
@@ -175,7 +175,7 @@ contains
        ! Note: These use the actual cell latitudes, as opposed to acos(length_scale_factor)
        do j = 1, nsn
           do i = 1, ewn
-             theta_rad = model%general%lat(i,j) * pi/180.d0
+             theta_rad = model%grid%lat(i,j) * pi/180.d0
              model%geometry%cell_area(i,j) = model%geometry%cell_area(i,j) * cos(theta_rad)**2
           enddo
        enddo
@@ -183,11 +183,11 @@ contains
 
        if (verbose_glacier .and. this_rank == rtest) then
           i = itest; j = jtest
-          theta_rad = model%general%lat(i,j) * pi/180.d0
+          theta_rad = model%grid%lat(i,j) * pi/180.d0
           write(iulog,*) 'Scale dew and dns: factor, new dew, dns =', &
                glacier%length_scale_factor, dew, dns
           write(iulog,*) 'Scale cell area: i, j, lat, cos(lat), cell_area =', &
-               i, j, model%general%lat(i,j), cos(theta_rad), model%geometry%cell_area(i,j)
+               i, j, model%grid%lat(i,j), cos(theta_rad), model%geometry%cell_area(i,j)
        endif
 
     endif   ! scale_area
@@ -740,7 +740,7 @@ contains
 
     type(glissade_global_type), intent(inout) :: model
 
-    type(glissade_glacier_type) :: glacier  ! derived type for glacier info
+    type(glissade_glaciers_type) :: glacier  ! derived type for glacier info
                                     ! included in 'model', but passed separately to save typing
 
     ! local variables
@@ -757,11 +757,11 @@ contains
     integer :: ngdiag         ! CISM index of diagnostic glacier
     integer :: i, j, ng
 
-    integer, dimension(model%general%ewn, model%general%nsn) ::  &
+    integer, dimension(model%grid%ewn, model%grid%nsn) ::  &
          ice_mask,                & ! = 1 where ice is present (thck > thklim), else = 0
          glacier_mask               ! temporary mask
 
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+    real(dp), dimension(model%grid%ewn, model%grid%nsn) ::  &
          thck,                    & ! ice thickness (m)
          dthck_dt,                & ! rate of change of thickness (m/yr)
          cell_area_uniform,       & ! grid cell area defined as dew*dns(m^2)
@@ -785,7 +785,7 @@ contains
          smb_weight_init,         & ! ratio of applied SMB to potential SMB, in range [0,1], for sums over initial area
          smb_weight_current         ! ratio of applied SMB to potential SMB, in range [0,1], for sums over current area
 
-    real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::  &
+    real(dp), dimension(model%grid%ewn-1, model%grid%nsn-1) ::  &
          stag_thck,                 & ! ice thickness at vertices (m)
          stag_thck_target,          & ! target ice thickness at vertices (m)
          stag_dthck_dt                ! rate of change of ice thickness at vertices (m/yr)
@@ -854,8 +854,8 @@ contains
 
     parallel = model%parallel
 
-    ewn = model%general%ewn
-    nsn = model%general%nsn
+    ewn = model%grid%ewn
+    nsn = model%grid%nsn
     dew = model%numerics%dew                  ! convert to m
     dns = model%numerics%dns                  ! convert to m
     rtest = model%numerics%rdiag_local

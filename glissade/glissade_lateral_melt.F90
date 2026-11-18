@@ -69,13 +69,13 @@ contains
 
     ! --- Local variables ---
 
-    integer, dimension(model%general%ewn, model%general%nsn) :: &
+    integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          ice_mask,                & ! = 1 if ice is present
          floating_mask,           & ! = 1 if ice is present and floating
          land_mask,               & ! = 1 if topg - eus >= 0
          ocean_mask                 ! = 1 if ice is absent and topg - eus < 0
 
-    real(dp), dimension(model%general%ewn, model%general%nsn) :: &
+    real(dp), dimension(model%grid%ewn, model%grid%nsn) :: &
          thck_submerged,          & ! thickness of submerged ice (m)
          mf_length,               & ! melt front length for each cell (m)
          surface_runoff             ! surface meltwater runoff (kg/m^2/s)
@@ -88,8 +88,8 @@ contains
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
     dx = model%numerics%dew
     dy = model%numerics%dns
     dt = model%numerics%dt

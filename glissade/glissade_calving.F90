@@ -643,7 +643,7 @@ contains
 
     ! --- Local variables ---
 
-    integer, dimension(model%general%ewn, model%general%nsn) :: &
+    integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          ice_mask,                & ! = 1 if ice is present
          floating_mask,           & ! = 1 if ice is present and floating
          land_mask,               & ! = 1 if topg - eus >= 0
@@ -659,8 +659,8 @@ contains
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
 
     rtest = -999
     itest = 1
@@ -709,8 +709,8 @@ contains
                'maxthck (m)', itest, jtest, rtest, 7, 7)
        endif
 
-       do j = 1, model%general%nsn
-          do i = 1, model%general%ewn
+       do j = 1, model%grid%nsn
+          do i = 1, model%grid%ewn
              if (model%geometry%ice_fraction_retreat_mask(i,j) > 0.0d0) then
                 maxthck = model%geometry%reference_thck(i,j) &
                      * (1.0d0 - model%geometry%ice_fraction_retreat_mask(i,j))
@@ -779,8 +779,8 @@ contains
                model%numerics%time*scyr,          &        ! s
                model%numerics%dew,                &        ! m
                model%numerics%dns,                &        ! m
-               model%general%x1,                  &        ! m
-               model%general%y1,                  &        ! m
+               model%grid%x1,                     &        ! m
+               model%grid%y1,                     &        ! m
                model%numerics%sigma,              &
                model%numerics%thklim,             &        ! m
                model%velocity%uvel_2d,            &        ! m/s
@@ -3553,20 +3553,20 @@ contains
 
     ! --- Local variables ---
 
-    integer, dimension(model%general%ewn, model%general%nsn) :: &
+    integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          ice_mask,                & ! = 1 if ice is present
          floating_mask,           & ! = 1 if ice is present and floating
          land_mask,               & ! = 1 if topg - eus >= 0
          ocean_mask                 ! = 1 if ice is absent and topg - eus < 0
 
-    integer, dimension(model%general%ewn, model%general%nsn) :: &
+    integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          ocean_connection_mask,   & ! = 1 for cells that are masked for retreat and are connected to the ocean
                                     ! through other cells that are masked for retreat
          retreat_mask,            & ! local version of ice_fraction_retreat_mask; excludes grounded cells
          partial_cf_mask,         & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
          full_mask                  ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
-    logical, dimension(model%general%ewn, model%general%nsn) :: &
+    logical, dimension(model%grid%ewn, model%grid%nsn) :: &
          already_calved             ! = true for cells that have already calved (to avoid repeat calving)
 
     real(dp) :: &
@@ -3590,8 +3590,8 @@ contains
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
 
     rtest = -999
     itest = 1

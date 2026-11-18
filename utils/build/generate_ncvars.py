@@ -39,7 +39,7 @@ module = {}
 DYCORE_PATHS = {
     'glide':    {'time_type': 'numerics', 'grid_type': 'general',
                  'restart_option': 'is_restart', 'dycore_option': 'whichdycore'},
-    'glissade': {'time_type': 'numerics', 'grid_type': 'general',
+    'glissade': {'time_type': 'numerics', 'grid_type': 'grid',
                  'restart_option': 'is_restart', 'dycore_option': 'whichdycore'},
 }
 

@@ -285,9 +285,9 @@ contains
        !        but the argument is included to be on the safe side.
        !TODO: Do we need similar logic for halo updates of relx?
 
-       if (model%general%global_bc == GLOBAL_BC_OUTFLOW) then
+       if (model%grid%global_bc == GLOBAL_BC_OUTFLOW) then
           call parallel_halo_extrapolate(model%geometry%topg, parallel)
-       elseif (model%general%global_bc == GLOBAL_BC_NO_ICE) then
+       elseif (model%grid%global_bc == GLOBAL_BC_NO_ICE) then
           call parallel_halo(model%geometry%topg, parallel, zero_global_boundary_no_ice_bc = .false.)
        else  ! other global BCs, including periodic
           call parallel_halo(model%geometry%topg, parallel, &
@@ -298,7 +298,7 @@ contains
        ! update the marine connection mask, which depends on topg
 
        call glissade_marine_connection_mask(&
-            model%general%ewn,          model%general%nsn,          &
+            model%grid%ewn,             model%grid%nsn,             &
             parallel,                                               &
             model%numerics%idiag_local, model%numerics%jdiag_local, &
             model%numerics%rdiag_local,                             &
@@ -325,8 +325,8 @@ contains
     real(dp) :: ice_mass, water_depth, water_mass
     integer :: ew,ns
   
-     do ns=1,model%general%nsn
-       do ew=1,model%general%ewn
+     do ns=1,model%grid%nsn
+       do ew=1,model%grid%ewn
           ice_mass = rhoi * model%geometry%thck(ew,ns)
 
           if (model%geometry%topg(ew,ns) - model%climate%eus < 0.d0) then   ! check if we are below sea level
@@ -500,8 +500,8 @@ contains
 
        ft1 = exp(-model%numerics%dt/model%isostasy%tau_relax_const)
        ft2 = 1.d0 - ft1
-       do j = 1, model%general%nsn
-          do i = 1, model%general%ewn
+       do j = 1, model%grid%nsn
+          do i = 1, model%grid%ewn
              model%geometry%topg(i,j) = ft2 * (model%isostasy%relx(i,j) - model%isostasy%load(i,j)) &
                                       + ft1 *  model%geometry%topg(i,j)
           end do
@@ -513,8 +513,8 @@ contains
 
     elseif (model%isostasy%asthenosphere == ASTHENOSPHERE_METHOD_RELAXING_LATVAR) then
 
-       do j = 1, model%general%nsn
-          do i = 1, model%general%ewn
+       do j = 1, model%grid%nsn
+          do i = 1, model%grid%ewn
              if (model%isostasy%tau_relax(i,j) > 0.0d0) then
                 ft1 = exp(-model%numerics%dt/model%isostasy%tau_relax(i,j))
              else

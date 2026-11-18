@@ -61,9 +61,9 @@ contains
 
       logical :: verbose_velo = .false.
 
-      ewn = model%general%ewn
-      nsn = model%general%nsn
-      upn = model%general%upn
+      ewn = model%grid%ewn
+      nsn = model%grid%nsn
+      upn = model%grid%upn
 
       ! get coordinates of diagnostic point
       rtest = -999

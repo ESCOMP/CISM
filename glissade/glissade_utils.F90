@@ -100,8 +100,8 @@ contains
 
     ! Copy some model variables to local variables
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
 
     rtest = -999
     itest = 1
@@ -174,13 +174,13 @@ contains
 
     ! local variables
 
-    real(dp), dimension(model%general%ewn, model%general%nsn) :: &
+    real(dp), dimension(model%grid%ewn, model%grid%nsn) :: &
          topg,               &  ! bed topography (m)
          thck,               &  ! thickness (m)
          usrf,               &  ! surface elevation (m)
          usrf_smoothed          ! surface elevation after smoothing
 
-    integer, dimension(model%general%ewn, model%general%nsn) :: &
+    integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          ice_mask,           &  ! = 1 if ice is present (thck > 0, else = 0
          floating_mask,      &  ! = 1 if ice is present (thck > 0) and floating, else = 0
          ocean_mask             ! = 1 if topg < 0 and ice is absent, else = 0
@@ -202,8 +202,8 @@ contains
 
     ! Copy some model variables to local variables
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
 
     rtest = -999
     itest = 1
@@ -899,7 +899,7 @@ contains
 
     ! local variables
 
-    integer, dimension(model%general%ewn, model%general%nsn) :: &
+    integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          ice_mask           ! = 1 where ice is present, else = 0
 
     integer :: i, j, ig, jg
@@ -913,8 +913,8 @@ contains
 
     ! Copy some model variables to local variables
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
 
     rtest = -999
     itest = 1
@@ -1000,8 +1000,8 @@ contains
 
     logical :: verbose_cleanup = .false.
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
 
     parallel = model%parallel
 
@@ -1057,8 +1057,8 @@ contains
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
 
     parallel = model%parallel
 
@@ -1075,10 +1075,10 @@ contains
              model%basal_hydro%bwat(i,j) = 0.0d0
 
              ! thermal variables
-             model%temper%temp(:,i,j) = min(model%climate%artm(i,j), 0.0d0)
+             model%temperature%temp(:,i,j) = min(model%climate%artm(i,j), 0.0d0)
 
              if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
-                model%temper%waterfrac(:,i,j) = 0.0d0
+                model%temperature%waterfrac(:,i,j) = 0.0d0
              endif
 
              ! other tracers

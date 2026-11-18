@@ -369,7 +369,7 @@ module glissade_bmlt_float
     type(glissade_ocean_data_type), intent(inout) ::  &
          ocean_data                                   !> derived type holding ocean input data
     
-    integer, dimension(model%general%ewn, model%general%nsn) ::  &
+    integer, dimension(model%grid%ewn, model%grid%nsn) ::  &
          ice_mask,                    & ! = 1 if ice is present (thck > 0)
          floating_mask,               & ! = 1 where ice is present and floating, else = 0
          ocean_mask,                  & ! = 1 if topg is below sea level and ice is absent, else = 0
@@ -394,8 +394,8 @@ module glissade_bmlt_float
 
     parallel = model%parallel
 
-    ewn = model%general%ewn
-    nsn = model%general%nsn
+    ewn = model%grid%ewn
+    nsn = model%grid%nsn
 
     dew = model%numerics%dew
     dns = model%numerics%dns
@@ -667,7 +667,7 @@ module glissade_bmlt_float
           endif
 
           call glissade_basin_average(&
-               model%general%ewn, model%general%nsn,   &
+               model%grid%ewn, model%grid%nsn,         &
                parallel,                               &
                model%ocean_data%nbasin,                &
                model%ocean_data%basin_number,          &
@@ -687,8 +687,8 @@ module glissade_bmlt_float
           dthck_dt_basin(:) = min(dthck_dt_basin(:), 0.0d0)
 
           ! Assign the basin average to a 2D array
-          do j = 1, model%general%nsn
-             do i = 1, model%general%ewn
+          do j = 1, model%grid%nsn
+             do i = 1, model%grid%ewn
                 nb = model%ocean_data%basin_number(i,j)
                 model%geometry%dthck_dt_obs_basin(i,j) = dthck_dt_basin(nb)
              enddo
@@ -767,17 +767,17 @@ module glissade_bmlt_float
 
     logical :: calibrate          ! local version of calibrate_in
 
-    integer, dimension(model%general%ewn, model%general%nsn) ::   &
+    integer, dimension(model%grid%ewn, model%grid%nsn) ::   &
          ice_mask,              & ! = 1 if ice is present (thck > 0, else = 0
          floating_mask,         & ! = 1 if ice is present (thck > 0) and floating, else = 0
          ocean_mask,            & ! = 1 if topg is below sea level and ice is absent, else = 0
          land_mask                ! = 1 if topg - eus >= 0
 
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
+    real(dp), dimension(model%grid%ewn, model%grid%nsn) ::   &
          h_cavity                 ! ocean cavity thickness, >= 0 (m)
 
     ! melt rate field for ISMIP6
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
+    real(dp), dimension(model%grid%ewn, model%grid%nsn) ::   &
          bmlt_float_transient     ! basal melt rate for ISMIP6 thermal forcing (m/s)
 
     real(dp), dimension(model%ocean_data%nbasin) :: &
@@ -808,8 +808,8 @@ module glissade_bmlt_float
     type(parallel_type) :: parallel   ! info for parallel communication
 
     ! set grid dimensions
-    ewn = model%general%ewn
-    nsn = model%general%nsn
+    ewn = model%grid%ewn
+    nsn = model%grid%nsn
 
     dew = model%numerics%dew
     dns = model%numerics%dns
@@ -1003,7 +1003,7 @@ module glissade_bmlt_float
                                          dew,                        dns,                       &
                                          itest,                      jtest,                     &
                                          rtest,                                                 &
-                                         model%general%x1,                                      & ! m
+                                         model%grid%x1,                                         & ! m
                                          model%geometry%thck,                                   & ! m
                                          model%geometry%lsrf,                                   & ! m
                                          model%geometry%topg,                                   & ! m

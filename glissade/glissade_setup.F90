@@ -459,7 +459,7 @@ contains
 
     ! Beginning of code
 
-    upn=model%general%upn
+    upn=model%grid%upn
 
     select case(model%options%which_sigma)
 
@@ -579,15 +579,15 @@ contains
     type(ConfigSection), pointer :: section
     type(glissade_global_type)  :: model
 
-    call GetValue(section,'ewn',model%general%ewn)
-    call GetValue(section,'nsn',model%general%nsn)
-    call GetValue(section,'upn',model%general%upn)
+    call GetValue(section,'ewn',model%grid%ewn)
+    call GetValue(section,'nsn',model%grid%nsn)
+    call GetValue(section,'upn',model%grid%upn)
     call GetValue(section,'dew',model%numerics%dew)
     call GetValue(section,'dns',model%numerics%dns)
     call GetValue(section,'sigma_file',model%funits%sigfile)
-    call GetValue(section,'nx_block', model%general%nx_block)
-    call GetValue(section,'ny_block', model%general%ny_block)
-    call GetOption(section,'global_bc',global_bc_choices,model%general%global_bc)
+    call GetValue(section,'nx_block', model%grid%nx_block)
+    call GetValue(section,'ny_block', model%grid%ny_block)
+    call GetOption(section,'global_bc',global_bc_choices,model%grid%global_bc)
 
     ! We set this flag to one to indicate we've got a sigfile name.
     ! A warning/error is generated if sigma levels are specified in some other way
@@ -619,17 +619,17 @@ contains
     type(glissade_global_type)  :: model
 
     call log_section('grid')
-    call log_param('ewn', model%general%ewn)
-    call log_param('nsn', model%general%nsn)
-    call log_param('upn', model%general%upn)
+    call log_param('ewn', model%grid%ewn)
+    call log_param('nsn', model%grid%nsn)
+    call log_param('upn', model%grid%upn)
     call log_param('dew', model%numerics%dew, 'm')
     call log_param('dns', model%numerics%dns, 'm')
     if (model%options%compute_blocks == COMPUTE_BLOCKS_ACTIVE_ONLY .or. &
         model%options%compute_blocks == COMPUTE_BLOCKS_INQUIRE) then
-       call log_param('nx_block', model%general%nx_block, 'block size for compute_blocks')
-       call log_param('ny_block', model%general%ny_block, 'block size for compute_blocks')
+       call log_param('nx_block', model%grid%nx_block, 'block size for compute_blocks')
+       call log_param('ny_block', model%grid%ny_block, 'block size for compute_blocks')
     endif
-    call log_option('global_bc', model%general%global_bc, global_bc_choices)
+    call log_option('global_bc', model%grid%global_bc, global_bc_choices)
     call log_option('sigma_method', model%options%which_sigma, sigma_method_choices)
     if (len_trim(model%funits%sigfile) > 0) then
        call log_string('sigma_file', model%funits%sigfile)
@@ -656,7 +656,7 @@ contains
        call write_log('Sigma levels specified twice - use only'// &
             ' config file or separate file, not both',GM_FATAL)
     else
-       call GetValue(section,'sigma_levels',model%numerics%sigma,model%general%upn)
+       call GetValue(section,'sigma_levels',model%numerics%sigma,model%grid%upn)
     end if
 
   end subroutine handle_sigma
@@ -673,7 +673,7 @@ contains
     type(glissade_global_type)  :: model
 
     call log_section('sigma')
-    call log_list('sigma_levels', model%numerics%sigma(1:model%general%upn), digits=6)
+    call log_list('sigma_levels', model%numerics%sigma(1:model%grid%upn), digits=6)
 
   end subroutine print_sigma
 
@@ -809,9 +809,9 @@ contains
 
     type(glissade_global_type)  :: model
 
-    if (model%numerics%idiag < 1 .or. model%numerics%idiag > model%general%ewn     &
+    if (model%numerics%idiag < 1 .or. model%numerics%idiag > model%grid%ewn     &
                                         .or.                                                     &
-        model%numerics%jdiag < 1 .or. model%numerics%jdiag > model%general%nsn) then
+        model%numerics%jdiag < 1 .or. model%numerics%jdiag > model%grid%nsn) then
         call write_log('Error, global diagnostic point (idiag, jdiag) is out of bounds', GM_FATAL)
     endif
 
@@ -939,7 +939,7 @@ contains
     type(glissade_global_type)  :: model
 
     if (model%options%compute_blocks /= COMPUTE_BLOCKS_ALL) then
-       if (model%general%nx_block < 1 .or. model%general%ny_block < 1) then
+       if (model%grid%nx_block < 1 .or. model%grid%ny_block < 1) then
           call write_log('Must set nx_block and ny_block > 0 for this compute_blocks option', GM_FATAL)
        endif
     endif
@@ -958,7 +958,7 @@ contains
     call log_param('thcklim_temp', model%numerics%thklim_temp, 'm; thickness limit for temperature calculations')
     call log_param('thck_gradient_ramp', model%numerics%thck_gradient_ramp, &
          'm; 0 = no ramp of land-margin thickness gradients')
-    if (model%general%global_bc == GLOBAL_BC_PERIODIC) then
+    if (model%grid%global_bc == GLOBAL_BC_PERIODIC) then
        call log_param('periodic_offset_ew', model%numerics%periodic_offset_ew, 'm')
        call log_param('periodic_offset_ns', model%numerics%periodic_offset_ns, 'm')
     endif
@@ -1108,7 +1108,7 @@ contains
     type(glissade_global_type)  :: model
 
     if (model%options%which_ho_approx == STOKES_APPROX_LOCAL_SIA) then
-       if (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
+       if (model%grid%global_bc == GLOBAL_BC_NO_PENETRATION) then
           call write_log('Error, cannot use no-penetration BC with local SIA solver', GM_FATAL)
        endif
     endif  ! Glissade local SIA solver
@@ -1325,8 +1325,8 @@ contains
     call GetOption(section,'dissipation_method', dissipation_method_choices, model%options%which_ho_disp)
 
     ! parameters
-    call GetValue(section,'pmp_offset',    model%temper%pmp_offset)
-    call GetValue(section,'pmp_threshold', model%temper%pmp_threshold)
+    call GetValue(section,'pmp_offset',    model%temperature%pmp_offset)
+    call GetValue(section,'pmp_threshold', model%temperature%pmp_threshold)
 
   end subroutine handle_temperature
 
@@ -1366,8 +1366,8 @@ contains
     else
        call log_option('dissipation_method', model%options%which_ho_disp, dissipation_method_choices)
     endif
-    call log_param('pmp_threshold', model%temper%pmp_threshold, 'K')
-    call log_param('pmp_offset', model%temper%pmp_offset, 'K')
+    call log_param('pmp_threshold', model%temperature%pmp_threshold, 'K')
+    call log_param('pmp_offset', model%temperature%pmp_offset, 'K')
 
     ! unsupported temperature options
     if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
@@ -1638,7 +1638,7 @@ contains
        call log_param('zoet_iverson_ut', model%basal_physics%zoet_iverson_ut, 'm/yr')
        call log_param('zoet_iverson_nmax', model%basal_physics%zoet_iverson_nmax, 'Pa')
     elseif (model%options%which_ho_babc == SLIDING_LAW_ISMIP_HOM_C) then
-       if (model%general%ewn /= model%general%nsn) then
+       if (model%grid%ewn /= model%grid%nsn) then
           call write_log('Error, must have ewn = nsn for ISMIP-HOM test C', GM_FATAL)
        endif
     elseif (model%options%which_ho_babc == SLIDING_LAW_POWERLAW) then
@@ -2916,7 +2916,7 @@ contains
                         model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN)
 
     glacier_inversion = (model%options%enable_glaciers .and. &
-                         model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION)
+                         model%glaciers%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION)
 
     if (.not. (babc_inversion .or. deltaT_inversion .or. glacier_inversion)) return
 
@@ -2964,30 +2964,30 @@ contains
     type(glissade_global_type)  :: model
 
     call GetLogical(section,'enable_glaciers',         model%options%enable_glaciers)
-    call GetOption(section,'mu_star_method',          mu_star_method_choices, model%glacier%set_mu_star)
-    call GetOption(section,'alpha_snow_method',       alpha_snow_method_choices, model%glacier%set_alpha_snow)
-    call GetOption(section,'glacier_powerlaw_c_method', glacier_powerlaw_c_method_choices, model%glacier%set_powerlaw_c)
-    call GetOption(section,'snow_method',             snow_method_choices, model%glacier%snow_calc)
-    call GetLogical(section,'scale_area',              model%glacier%scale_area)
-    call GetValue(section,'length_scale_factor',     model%glacier%length_scale_factor)
-    call GetValue(section,'glacier_tmlt',            model%glacier%tmlt)
-    call GetValue(section,'mu_star_const',           model%glacier%mu_star_const)
-    call GetValue(section,'mu_star_min',             model%glacier%mu_star_min)
-    call GetValue(section,'mu_star_max',             model%glacier%mu_star_max)
-    call GetValue(section,'alpha_snow_const',        model%glacier%alpha_snow_const)
-    call GetValue(section,'alpha_snow_min',          model%glacier%alpha_snow_min)
-    call GetValue(section,'alpha_snow_max',          model%glacier%alpha_snow_max)
-    call GetValue(section,'beta_artm_max',           model%glacier%beta_artm_max)
-    call GetValue(section,'beta_artm_increment',     model%glacier%beta_artm_increment)
-    call GetValue(section,'glacier_snow_threshold_min', model%glacier%snow_threshold_min)
-    call GetValue(section,'glacier_snow_threshold_max', model%glacier%snow_threshold_max)
-    call GetValue(section,'baseline_date',           model%glacier%baseline_date)
-    call GetValue(section,'rgi_date',                model%glacier%rgi_date)
-    call GetValue(section,'recent_date',             model%glacier%recent_date)
-    call GetValue(section,'glacier_diag_thck_min',   model%glacier%diagnostic_minthck)
-    call GetLogical(section,'redistribute_advanced_ice',  model%glacier%redistribute_advanced_ice)
-    call GetValue(section,'thinning_rate_advanced_ice', model%glacier%thinning_rate_advanced_ice)
-    call GetValue(section,'smb_weight_advanced_ice', model%glacier%smb_weight_advanced_ice)
+    call GetOption(section,'mu_star_method',          mu_star_method_choices, model%glaciers%set_mu_star)
+    call GetOption(section,'alpha_snow_method',       alpha_snow_method_choices, model%glaciers%set_alpha_snow)
+    call GetOption(section,'glacier_powerlaw_c_method', glacier_powerlaw_c_method_choices, model%glaciers%set_powerlaw_c)
+    call GetOption(section,'snow_method',             snow_method_choices, model%glaciers%snow_calc)
+    call GetLogical(section,'scale_area',              model%glaciers%scale_area)
+    call GetValue(section,'length_scale_factor',     model%glaciers%length_scale_factor)
+    call GetValue(section,'glacier_tmlt',            model%glaciers%tmlt)
+    call GetValue(section,'mu_star_const',           model%glaciers%mu_star_const)
+    call GetValue(section,'mu_star_min',             model%glaciers%mu_star_min)
+    call GetValue(section,'mu_star_max',             model%glaciers%mu_star_max)
+    call GetValue(section,'alpha_snow_const',        model%glaciers%alpha_snow_const)
+    call GetValue(section,'alpha_snow_min',          model%glaciers%alpha_snow_min)
+    call GetValue(section,'alpha_snow_max',          model%glaciers%alpha_snow_max)
+    call GetValue(section,'beta_artm_max',           model%glaciers%beta_artm_max)
+    call GetValue(section,'beta_artm_increment',     model%glaciers%beta_artm_increment)
+    call GetValue(section,'glacier_snow_threshold_min', model%glaciers%snow_threshold_min)
+    call GetValue(section,'glacier_snow_threshold_max', model%glaciers%snow_threshold_max)
+    call GetValue(section,'baseline_date',           model%glaciers%baseline_date)
+    call GetValue(section,'rgi_date',                model%glaciers%rgi_date)
+    call GetValue(section,'recent_date',             model%glaciers%recent_date)
+    call GetValue(section,'glacier_diag_thck_min',   model%glaciers%diagnostic_minthck)
+    call GetLogical(section,'redistribute_advanced_ice',  model%glaciers%redistribute_advanced_ice)
+    call GetValue(section,'thinning_rate_advanced_ice', model%glaciers%thinning_rate_advanced_ice)
+    call GetValue(section,'smb_weight_advanced_ice', model%glaciers%smb_weight_advanced_ice)
 
   end subroutine handle_glaciers
 
@@ -3007,63 +3007,63 @@ contains
     type(glissade_global_type)  :: model
     real(dp) :: length_scale_factor_in   ! length_scale_factor before a reset
 
-    if (model%glacier%set_mu_star /= MU_STAR_METHOD_INVERSION) then
-       if (model%glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
+    if (model%glaciers%set_mu_star /= MU_STAR_METHOD_INVERSION) then
+       if (model%glaciers%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
           call write_log('Error, must invert for mu_star if inverting for alpha_snow', GM_FATAL)
-       elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
+       elseif (model%glaciers%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
           call write_log('Error, must invert for mu_star if inverting for powerlaw_c', GM_FATAL)
        endif
     endif
 
     ! length_scale_factor is used only with scale_area
-    length_scale_factor_in = model%glacier%length_scale_factor
-    if (.not.model%glacier%scale_area) model%glacier%length_scale_factor = 1.0d0
+    length_scale_factor_in = model%glaciers%length_scale_factor
+    if (.not.model%glaciers%scale_area) model%glaciers%length_scale_factor = 1.0d0
 
     ! write the options and parameters
 
     call log_section('glaciers')
     call log_flag('enable_glaciers', model%options%enable_glaciers, 'glacier tracking and tuning')
-    call log_option('mu_star_method', model%glacier%set_mu_star, mu_star_method_choices)
-    call log_option('alpha_snow_method', model%glacier%set_alpha_snow, alpha_snow_method_choices)
-    call log_option('glacier_powerlaw_c_method', model%glacier%set_powerlaw_c, glacier_powerlaw_c_method_choices)
-    call log_option('snow_method', model%glacier%snow_calc, snow_method_choices)
-    if (model%glacier%snow_calc == SNOW_METHOD_PRECIP_ARTM) then
-       call log_param('glacier_snow_threshold_min', model%glacier%snow_threshold_min, 'deg C')
-       call log_param('glacier_snow_threshold_max', model%glacier%snow_threshold_max, 'deg C')
+    call log_option('mu_star_method', model%glaciers%set_mu_star, mu_star_method_choices)
+    call log_option('alpha_snow_method', model%glaciers%set_alpha_snow, alpha_snow_method_choices)
+    call log_option('glacier_powerlaw_c_method', model%glaciers%set_powerlaw_c, glacier_powerlaw_c_method_choices)
+    call log_option('snow_method', model%glaciers%snow_calc, snow_method_choices)
+    if (model%glaciers%snow_calc == SNOW_METHOD_PRECIP_ARTM) then
+       call log_param('glacier_snow_threshold_min', model%glaciers%snow_threshold_min, 'deg C')
+       call log_param('glacier_snow_threshold_max', model%glaciers%snow_threshold_max, 'deg C')
     endif
-    call log_param('glacier_tmlt', model%glacier%tmlt, 'deg C')
+    call log_param('glacier_tmlt', model%glaciers%tmlt, 'deg C')
 
-    call log_flag('scale_area', model%glacier%scale_area, 'scale glacier area based on latitude')
-    if (model%glacier%scale_area) then
-       call log_param('length_scale_factor', model%glacier%length_scale_factor, 'scales dew and dns')
+    call log_flag('scale_area', model%glaciers%scale_area, 'scale glacier area based on latitude')
+    if (model%glaciers%scale_area) then
+       call log_param('length_scale_factor', model%glaciers%length_scale_factor, 'scales dew and dns')
     elseif (length_scale_factor_in /= 1.0d0) then
-       call log_param('length_scale_factor', model%glacier%length_scale_factor, &
+       call log_param('length_scale_factor', model%glaciers%length_scale_factor, &
             'reset from ' // real_to_string(length_scale_factor_in) // '; used only with scale_area = .true.')
     endif
 
-    call log_param('glacier_diag_thck_min', model%glacier%diagnostic_minthck, 'm')
+    call log_param('glacier_diag_thck_min', model%glaciers%diagnostic_minthck, 'm')
 
-    call log_flag('redistribute_advanced_ice', model%glacier%redistribute_advanced_ice, &
+    call log_flag('redistribute_advanced_ice', model%glaciers%redistribute_advanced_ice, &
          'redistribute advanced ice in the accumulation zone')
-    if (model%glacier%redistribute_advanced_ice) then
-       call log_param('thinning_rate_advanced_ice', model%glacier%thinning_rate_advanced_ice, 'm/yr')
+    if (model%glaciers%redistribute_advanced_ice) then
+       call log_param('thinning_rate_advanced_ice', model%glaciers%thinning_rate_advanced_ice, 'm/yr')
     endif
 
-    if (model%glacier%set_mu_star == MU_STAR_METHOD_INVERSION) then
-       call log_param('smb_weight_advanced_ice', model%glacier%smb_weight_advanced_ice, &
+    if (model%glaciers%set_mu_star == MU_STAR_METHOD_INVERSION) then
+       call log_param('smb_weight_advanced_ice', model%glaciers%smb_weight_advanced_ice, &
             'SMB weight in the advanced ablation zone')
-       call log_param('mu_star_const', model%glacier%mu_star_const, 'mm/yr w.e./deg C')
-       call log_param('mu_star_min', model%glacier%mu_star_min, 'mm/yr w.e./deg C')
-       call log_param('mu_star_max', model%glacier%mu_star_max, 'mm/yr w.e./deg C')
-       if (model%glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
-          call log_param('alpha_snow_const', model%glacier%alpha_snow_const)
-          call log_param('alpha_snow_min', model%glacier%alpha_snow_min)
-          call log_param('alpha_snow_max', model%glacier%alpha_snow_max)
-          call log_param('beta_artm_max', model%glacier%beta_artm_max, 'deg C')
-          call log_param('beta_artm_increment', model%glacier%beta_artm_increment, 'deg C')
-          call log_param('baseline_date', model%glacier%baseline_date, 'yr; glaciers assumed in balance')
-          call log_param('rgi_date', model%glacier%rgi_date, 'yr; date of RGI observations')
-          call log_param('recent_date', model%glacier%recent_date, 'yr; date of recent SMB observations')
+       call log_param('mu_star_const', model%glaciers%mu_star_const, 'mm/yr w.e./deg C')
+       call log_param('mu_star_min', model%glaciers%mu_star_min, 'mm/yr w.e./deg C')
+       call log_param('mu_star_max', model%glaciers%mu_star_max, 'mm/yr w.e./deg C')
+       if (model%glaciers%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
+          call log_param('alpha_snow_const', model%glaciers%alpha_snow_const)
+          call log_param('alpha_snow_min', model%glaciers%alpha_snow_min)
+          call log_param('alpha_snow_max', model%glaciers%alpha_snow_max)
+          call log_param('beta_artm_max', model%glaciers%beta_artm_max, 'deg C')
+          call log_param('beta_artm_increment', model%glaciers%beta_artm_increment, 'deg C')
+          call log_param('baseline_date', model%glaciers%baseline_date, 'yr; glaciers assumed in balance')
+          call log_param('rgi_date', model%glaciers%rgi_date, 'yr; date of RGI observations')
+          call log_param('recent_date', model%glaciers%recent_date, 'yr; date of recent SMB observations')
        endif
     endif
 

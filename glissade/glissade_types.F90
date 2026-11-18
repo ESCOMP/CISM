@@ -709,7 +709,7 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_general_type
+  type glissade_grid_type
 
     !> Holds fundamental parameters of the ice model geometry.
 
@@ -748,7 +748,7 @@ module glissade_types
     integer :: nx_block = 0      ! user-specified block sizes
     integer :: ny_block = 0      ! one task per block; optionally, tasks not assigned to inactive blocks
 
-  end type glissade_general_type
+  end type glissade_grid_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -1900,7 +1900,7 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_temper_type
+  type glissade_temperature_type
 
     !> Holds fields relating to temperature.
 
@@ -1938,7 +1938,7 @@ module glissade_types
     real(dp) :: pmp_offset = 5.0d0        ! offset of initial Tbed from pressure melting point temperature (deg C)
     real(dp) :: pmp_threshold = 1.0d-3    ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
 
-  end type glissade_temper_type
+  end type glissade_temperature_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -2123,7 +2123,7 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_glacier_type
+  type glissade_glaciers_type
 
      !----------------------------------------------------------------
      ! options, fields and parameters for tracking and tuning glaciers
@@ -2300,7 +2300,7 @@ module glissade_types
           imask => null()                     !> 2D mask; indicates whether glaciers are present in the input file
                                               !> TODO - Remove this field?  Easily derived from initial thickness > 0.
 
-  end type glissade_glacier_type
+  end type glissade_glaciers_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -2648,7 +2648,7 @@ module glissade_types
 
   type glissade_global_type    ! type containing all of the above for an ice sheet model instance
     integer              :: model_id = 0 !> identifier of this model instance (1..N, where N is the number of ice sheets in this run)
-    type(glissade_general_type)  :: general
+    type(glissade_grid_type)     :: grid
     type(glissade_options_type)  :: options
     type(glissade_geometry_type) :: geometry
     type(glissade_geomderv_type) :: geomderv
@@ -2659,12 +2659,12 @@ module glissade_types
     type(glissade_climate_type)  :: climate
     type(glissade_calving_type)  :: calving
     type(glissade_lateral_melt_type) :: lateral_melt
-    type(glissade_temper_type)   :: temper
+    type(glissade_temperature_type)   :: temperature
     type(glissade_basal_hydro_type)  :: basal_hydro
     type(glissade_basal_physics_type):: basal_physics
     type(glissade_basal_melt_type)   :: basal_melt
     type(glissade_ocean_data_type)   :: ocean_data
-    type(glissade_glacier_type)  :: glacier
+    type(glissade_glaciers_type)  :: glaciers
     type(glissade_inversion_type):: inversion
     type(glimmer_funits) :: funits
     type(glissade_numerics_type) :: numerics
@@ -2694,23 +2694,23 @@ contains
     integer :: n
 
     ! for simplicity, copy these values...
-    ewn = model%general%ewn
-    nsn = model%general%nsn
-    upn = model%general%upn
+    ewn = model%grid%ewn
+    nsn = model%grid%nsn
+    upn = model%grid%upn
     global_ewn = model%parallel%global_ewn
     global_nsn = model%parallel%global_nsn
     
     ! horizontal coordinates
 
-    allocate(model%general%x0(ewn-1)); model%general%x0 = 0.d0  ! velocity grid
-    allocate(model%general%y0(nsn-1)); model%general%y0 = 0.d0
-    allocate(model%general%x1(ewn)); model%general%x1 = 0.d0    ! ice grid (for scalars)
-    allocate(model%general%y1(nsn)); model%general%y1 = 0.d0
+    allocate(model%grid%x0(ewn-1)); model%grid%x0 = 0.d0  ! velocity grid
+    allocate(model%grid%y0(nsn-1)); model%grid%y0 = 0.d0
+    allocate(model%grid%x1(ewn)); model%grid%x1 = 0.d0    ! ice grid (for scalars)
+    allocate(model%grid%y1(nsn)); model%grid%y1 = 0.d0
 
-    allocate(model%general%x0_global(global_ewn-1)); model%general%x0_global = 0.d0  ! velocity grid
-    allocate(model%general%y0_global(global_nsn-1)); model%general%y0_global = 0.d0
-    allocate(model%general%x1_global(global_ewn)); model%general%x1_global = 0.d0    ! ice grid (for scalars)
-    allocate(model%general%y1_global(global_nsn)); model%general%y1_global = 0.d0
+    allocate(model%grid%x0_global(global_ewn-1)); model%grid%x0_global = 0.d0  ! velocity grid
+    allocate(model%grid%y0_global(global_nsn-1)); model%grid%y0_global = 0.d0
+    allocate(model%grid%x1_global(global_ewn)); model%grid%x1_global = 0.d0    ! ice grid (for scalars)
+    allocate(model%grid%y1_global(global_nsn)); model%grid%y1_global = 0.d0
 
     ! vertical sigma coordinates
     ! If we already have sigma, don't reallocate
@@ -2728,14 +2728,14 @@ contains
     allocate(model%numerics%dups(upn+1,2))    !TODO - upn-1 instead?
 
     ! latitude and longitude
-    call coordsystem_allocate(model%general%ice_grid, model%general%lat)
-    call coordsystem_allocate(model%general%ice_grid, model%general%lon)
+    call coordsystem_allocate(model%grid%ice_grid, model%grid%lat)
+    call coordsystem_allocate(model%grid%ice_grid, model%grid%lon)
 
     ! ice domain mask (to identify active blocks)
-    call coordsystem_allocate(model%general%ice_grid, model%general%ice_domain_mask)
+    call coordsystem_allocate(model%grid%ice_grid, model%grid%ice_domain_mask)
 
     ! mask to identify cells at global domain edge
-    call coordsystem_allocate(model%general%ice_grid, model%general%global_edge_mask)
+    call coordsystem_allocate(model%grid%ice_grid, model%grid%global_edge_mask)
 
     ! temperature arrays
 
@@ -2744,260 +2744,260 @@ contains
     !       center of each layer k = 1:upn-1.  The temperature (but not flwa)
     !       is defined at the upper surface (k = 0) and lower surface (k = upn).
 
-    allocate(model%temper%temp(0:upn,1:ewn,1:nsn))
+    allocate(model%temperature%temp(0:upn,1:ewn,1:nsn))
     ! tempunstag has the same horizontal grid as temp, but is defined
     ! on the unstaggered vertical grid (levels 1:upn)
-    allocate(model%temper%tempunstag(upn,1:ewn,1:nsn))
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%flwa)
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%dissip)
+    allocate(model%temperature%tempunstag(upn,1:ewn,1:nsn))
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%temperature%flwa)
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%temperature%dissip)
 
     ! MJH - Set temp and flwa to physically unrealistic values so we can tell later if 
     !       arrays were initialized correctly
-    model%temper%temp(:,:,:) = unphys_val  ! large negative number
-    model%temper%flwa(:,:,:) = unphys_val
-    model%temper%dissip(:,:,:) = 0.d0
-    if (associated(model%temper%tempunstag)) &
-         model%temper%tempunstag(:,:,:) = unphys_val
+    model%temperature%temp(:,:,:) = unphys_val  ! large negative number
+    model%temperature%flwa(:,:,:) = unphys_val
+    model%temperature%dissip(:,:,:) = 0.d0
+    if (associated(model%temperature%tempunstag)) &
+         model%temperature%tempunstag(:,:,:) = unphys_val
 
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%bheatflx)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%bpmp)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%btemp)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%btemp_ground)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%btemp_float)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%ucondflx)
-    call coordsystem_allocate(model%general%ice_grid,  model%temper%flow_enhancement_factor)
+    call coordsystem_allocate(model%grid%ice_grid,  model%temperature%bheatflx)
+    call coordsystem_allocate(model%grid%ice_grid,  model%temperature%bpmp)
+    call coordsystem_allocate(model%grid%ice_grid,  model%temperature%btemp)
+    call coordsystem_allocate(model%grid%ice_grid,  model%temperature%btemp_ground)
+    call coordsystem_allocate(model%grid%ice_grid,  model%temperature%btemp_float)
+    call coordsystem_allocate(model%grid%ice_grid,  model%temperature%ucondflx)
+    call coordsystem_allocate(model%grid%ice_grid,  model%temperature%flow_enhancement_factor)
 
-    call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwat)
-    call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwatflx)
+    call coordsystem_allocate(model%grid%ice_grid,  model%basal_hydro%bwat)
+    call coordsystem_allocate(model%grid%ice_grid,  model%basal_hydro%bwatflx)
     if (model%options%which_ho_bwat == BWAT_METHOD_FLUX_ROUTING) then
-       call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bmlt_hydro)
-       call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwat_diag)
-       call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%head)
-       call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%grad_head)
+       call coordsystem_allocate(model%grid%ice_grid,  model%basal_hydro%bmlt_hydro)
+       call coordsystem_allocate(model%grid%ice_grid,  model%basal_hydro%bwat_diag)
+       call coordsystem_allocate(model%grid%ice_grid,  model%basal_hydro%head)
+       call coordsystem_allocate(model%grid%ice_grid,  model%basal_hydro%grad_head)
     endif
 
-    call coordsystem_allocate(model%general%ice_grid, model%temper%bfricflx)
-    call coordsystem_allocate(model%general%ice_grid, model%temper%bhydroflx)
+    call coordsystem_allocate(model%grid%ice_grid, model%temperature%bfricflx)
+    call coordsystem_allocate(model%grid%ice_grid, model%temperature%bhydroflx)
     ! water fraction and enthalpy live at the midpoint of each layer (with temp and flwa)
     ! enthalpy (like temp) is defined at the upper and lower surfaces as well
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%temper%waterfrac)
-    allocate(model%temper%enthalpy(0:upn,1:ewn,1:nsn))
-    model%temper%enthalpy(:,:,:) = 0.d0
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%temperature%waterfrac)
+    allocate(model%temperature%enthalpy(0:upn,1:ewn,1:nsn))
+    model%temperature%enthalpy(:,:,:) = 0.d0
 
     ! velocity arrays
 
-    call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%uvel)
-    call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%vvel)
-    call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%velnorm)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%btrc)
-    call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%resid_u)
-    call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%resid_v)
-    call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%rhs_u)
-    call coordsystem_allocate(model%general%velo_grid, upn, model%velocity%rhs_v)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%uvel_2d)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%vvel_2d)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%uvel_mean)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%vvel_mean)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%velnorm_mean)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%usfc_obs)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%vsfc_obs)
-    call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%wvel)
+    call coordsystem_allocate(model%grid%velo_grid, upn, model%velocity%uvel)
+    call coordsystem_allocate(model%grid%velo_grid, upn, model%velocity%vvel)
+    call coordsystem_allocate(model%grid%velo_grid, upn, model%velocity%velnorm)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%btrc)
+    call coordsystem_allocate(model%grid%velo_grid, upn, model%velocity%resid_u)
+    call coordsystem_allocate(model%grid%velo_grid, upn, model%velocity%resid_v)
+    call coordsystem_allocate(model%grid%velo_grid, upn, model%velocity%rhs_u)
+    call coordsystem_allocate(model%grid%velo_grid, upn, model%velocity%rhs_v)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%uvel_2d)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%vvel_2d)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%uvel_mean)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%vvel_mean)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%velnorm_mean)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%usfc_obs)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%vsfc_obs)
+    call coordsystem_allocate(model%grid%ice_grid,  upn, model%velocity%wvel)
 
     ! The following are on the extended staggered grid, which is the same size as the ice grid.
-    call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%uvel_extend)
-    call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%vvel_extend)
-    call coordsystem_allocate(model%general%ice_grid,  model%velocity%uvel_2d_extend)
-    call coordsystem_allocate(model%general%ice_grid,  model%velocity%vvel_2d_extend)
+    call coordsystem_allocate(model%grid%ice_grid,  upn, model%velocity%uvel_extend)
+    call coordsystem_allocate(model%grid%ice_grid,  upn, model%velocity%vvel_extend)
+    call coordsystem_allocate(model%grid%ice_grid,  model%velocity%uvel_2d_extend)
+    call coordsystem_allocate(model%grid%ice_grid,  model%velocity%vvel_2d_extend)
 
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%beta)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%beta_internal)
-    call coordsystem_allocate(model%general%ice_grid, model%velocity%unstagbeta)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%beta)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%beta_internal)
+    call coordsystem_allocate(model%grid%ice_grid, model%velocity%unstagbeta)
     ! Set beta and unstagbeta to physically unrealistic values so we can tell later 
     ! if these fields were read correctly from an input file
     model%velocity%beta(:,:) = unphys_val   ! large negative number
     model%velocity%unstagbeta(:,:) = unphys_val
 
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%kinbcmask)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%umask_no_penetration)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%vmask_no_penetration)
-    call coordsystem_allocate(model%general%ice_grid, model%velocity%divu)
-    call coordsystem_allocate(model%general%ice_grid, model%velocity%shear)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%kinbcmask)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%umask_no_penetration)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%vmask_no_penetration)
+    call coordsystem_allocate(model%grid%ice_grid, model%velocity%divu)
+    call coordsystem_allocate(model%grid%ice_grid, model%velocity%shear)
 
     ! higher-order stress arrays
 
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%efvs)
-    call coordsystem_allocate(model%general%ice_grid, model%stress%efvs_vertavg)
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%scalar) 
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xz)
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%yz)
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xx)
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%yy)
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%stress%tau%xy)
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%scalar) 
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xz)
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%yz)
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xx)
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%yy)
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%velocity%strain_rate%xy)
-    call coordsystem_allocate(model%general%velo_grid, model%stress%btractx)
-    call coordsystem_allocate(model%general%velo_grid, model%stress%btracty)
-    call coordsystem_allocate(model%general%velo_grid, model%stress%btract)
-    call coordsystem_allocate(model%general%ice_grid, model%stress%btractx_extend)
-    call coordsystem_allocate(model%general%ice_grid, model%stress%btracty_extend)
-    call coordsystem_allocate(model%general%velo_grid, model%stress%taudx)
-    call coordsystem_allocate(model%general%velo_grid, model%stress%taudy)
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%stress%efvs)
+    call coordsystem_allocate(model%grid%ice_grid, model%stress%efvs_vertavg)
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%stress%tau%scalar) 
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%stress%tau%xz)
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%stress%tau%yz)
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%stress%tau%xx)
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%stress%tau%yy)
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%stress%tau%xy)
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%velocity%strain_rate%scalar) 
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%velocity%strain_rate%xz)
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%velocity%strain_rate%yz)
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%velocity%strain_rate%xx)
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%velocity%strain_rate%yy)
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%velocity%strain_rate%xy)
+    call coordsystem_allocate(model%grid%velo_grid, model%stress%btractx)
+    call coordsystem_allocate(model%grid%velo_grid, model%stress%btracty)
+    call coordsystem_allocate(model%grid%velo_grid, model%stress%btract)
+    call coordsystem_allocate(model%grid%ice_grid, model%stress%btractx_extend)
+    call coordsystem_allocate(model%grid%ice_grid, model%stress%btracty_extend)
+    call coordsystem_allocate(model%grid%velo_grid, model%stress%taudx)
+    call coordsystem_allocate(model%grid%velo_grid, model%stress%taudy)
 
     ! geometry arrays
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%thck)
-    call coordsystem_allocate(model%general%velo_grid, model%geometry%stagthck)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%lsrf)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%topg)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf_obs)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt_obs)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt_obs_basin)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%thck)
+    call coordsystem_allocate(model%grid%velo_grid, model%geometry%stagthck)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%usrf)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%lsrf)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%topg)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%usrf_obs)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%dthck_dt)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%dthck_dt_obs)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%dthck_dt_obs_basin)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%cell_area)
 
     !Note: model%geometry%tracers and related arrays are allocated later, in glissade_transport_setup_tracers,
     !      once we know model%geometry%ntracers
 
-    call coordsystem_allocate(model%general%velo_grid, model%geomderv%dthckdew)
-    call coordsystem_allocate(model%general%velo_grid, model%geomderv%dthckdns)
-    call coordsystem_allocate(model%general%velo_grid, model%geomderv%dusrfdew)
-    call coordsystem_allocate(model%general%velo_grid, model%geomderv%dusrfdns)
+    call coordsystem_allocate(model%grid%velo_grid, model%geomderv%dthckdew)
+    call coordsystem_allocate(model%grid%velo_grid, model%geomderv%dthckdns)
+    call coordsystem_allocate(model%grid%velo_grid, model%geomderv%dusrfdew)
+    call coordsystem_allocate(model%grid%velo_grid, model%geomderv%dusrfdns)
 
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_mask)
-    call coordsystem_allocate(model%general%velo_grid, model%geometry%ice_mask_stag)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%floating_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%grounded_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%marine_connection_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_sheet_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_cap_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_fraction_retreat_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%removal_thck)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%removal_rate)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%removal_rate_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%reference_thck)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%ice_mask)
+    call coordsystem_allocate(model%grid%velo_grid, model%geometry%ice_mask_stag)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%floating_mask)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%grounded_mask)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%marine_connection_mask)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%ice_sheet_mask)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%ice_cap_mask)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%ice_fraction_retreat_mask)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%removal_thck)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%removal_rate)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%removal_rate_tavg)
+    call coordsystem_allocate(model%grid%ice_grid, model%geometry%reference_thck)
 
     ! mass flux arrays
-    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%sfc_mbal_flux)
-    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%sfc_mbal_flux_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%basal_mbal_flux)
-    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%basal_mbal_flux_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%calving_flux)
-    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%calving_flux_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%latmelt_flux)
-    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%latmelt_flux_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%removal_flux)
-    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%removal_flux_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%gl_flux_east)
-    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%gl_flux_north)
-    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%gl_flux)
-    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%gl_flux_tavg)
+    call coordsystem_allocate(model%grid%ice_grid, model%mass_flux%sfc_mbal_flux)
+    call coordsystem_allocate(model%grid%ice_grid, model%mass_flux%sfc_mbal_flux_tavg)
+    call coordsystem_allocate(model%grid%ice_grid, model%mass_flux%basal_mbal_flux)
+    call coordsystem_allocate(model%grid%ice_grid, model%mass_flux%basal_mbal_flux_tavg)
+    call coordsystem_allocate(model%grid%ice_grid, model%mass_flux%calving_flux)
+    call coordsystem_allocate(model%grid%ice_grid, model%mass_flux%calving_flux_tavg)
+    call coordsystem_allocate(model%grid%ice_grid, model%mass_flux%latmelt_flux)
+    call coordsystem_allocate(model%grid%ice_grid, model%mass_flux%latmelt_flux_tavg)
+    call coordsystem_allocate(model%grid%ice_grid, model%mass_flux%removal_flux)
+    call coordsystem_allocate(model%grid%ice_grid, model%mass_flux%removal_flux_tavg)
+    call coordsystem_allocate(model%grid%ice_grid, model%mass_flux%gl_flux_east)
+    call coordsystem_allocate(model%grid%ice_grid, model%mass_flux%gl_flux_north)
+    call coordsystem_allocate(model%grid%ice_grid, model%mass_flux%gl_flux)
+    call coordsystem_allocate(model%grid%ice_grid, model%mass_flux%gl_flux_tavg)
 
-    call coordsystem_allocate(model%general%ice_grid, upn-1, model%geometry%ice_age)
-    call coordsystem_allocate(model%general%ice_grid,  model%geometry%thck_old)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc_obs)
-    call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc)
-    call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
-    call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
-    call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_ground_cell)
+    call coordsystem_allocate(model%grid%ice_grid, upn-1, model%geometry%ice_age)
+    call coordsystem_allocate(model%grid%ice_grid,  model%geometry%thck_old)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%velo_sfc_obs)
+    call coordsystem_allocate(model%grid%velo_grid, model%velocity%velo_sfc)
+    call coordsystem_allocate(model%grid%ice_grid,  model%geometry%f_flotation)
+    call coordsystem_allocate(model%grid%velo_grid, model%geometry%f_ground)
+    call coordsystem_allocate(model%grid%ice_grid,  model%geometry%f_ground_cell)
 
     ! Basal Physics
-    call coordsystem_allocate(model%general%velo_grid, model%basal_physics%bpmp_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
-    call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
-    call coordsystem_allocate(model%general%ice_grid, model%basal_physics%c_space_factor)
-    call coordsystem_allocate(model%general%velo_grid, model%basal_physics%c_space_factor_stag)
-    call coordsystem_allocate(model%general%velo_grid, model%basal_physics%mintauf)
+    call coordsystem_allocate(model%grid%velo_grid, model%basal_physics%bpmp_mask)
+    call coordsystem_allocate(model%grid%ice_grid, model%basal_physics%effecpress)
+    call coordsystem_allocate(model%grid%velo_grid, model%basal_physics%effecpress_stag)
+    call coordsystem_allocate(model%grid%ice_grid, model%basal_physics%c_space_factor)
+    call coordsystem_allocate(model%grid%velo_grid, model%basal_physics%c_space_factor_stag)
+    call coordsystem_allocate(model%grid%velo_grid, model%basal_physics%mintauf)
 
     ! bmlt arrays
-    call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt)
-    call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied)
-    call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_tavg)
-    call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_ground)
+    call coordsystem_allocate(model%grid%ice_grid,  model%basal_melt%bmlt)
+    call coordsystem_allocate(model%grid%ice_grid,  model%basal_melt%bmlt_applied)
+    call coordsystem_allocate(model%grid%ice_grid,  model%basal_melt%bmlt_applied_tavg)
+    call coordsystem_allocate(model%grid%ice_grid,  model%basal_melt%bmlt_ground)
 
-    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)
-    call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float)
-    call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_anomaly)
-    call coordsystem_allocate(model%general%ice_grid, model%basal_melt%warm_ocean_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_target)
-    call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
-    call coordsystem_allocate(model%general%ice_grid, model%basal_melt%thermal_forcing_mask)
+    call coordsystem_allocate(model%grid%ice_grid, model%ocean_data%basin_number)
+    call coordsystem_allocate(model%grid%ice_grid, model%basal_melt%bmlt_float)
+    call coordsystem_allocate(model%grid%ice_grid, model%basal_melt%bmlt_float_anomaly)
+    call coordsystem_allocate(model%grid%ice_grid, model%basal_melt%warm_ocean_mask)
+    call coordsystem_allocate(model%grid%ice_grid, model%basal_melt%bmlt_float_target)
+    call coordsystem_allocate(model%grid%ice_grid, model%basal_melt%bmlt_float_external)
+    call coordsystem_allocate(model%grid%ice_grid, model%basal_melt%thermal_forcing_mask)
     ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
-    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+    call coordsystem_allocate(model%grid%ice_grid, model%ocean_data%nzocn, &
                               model%ocean_data%thermal_forcing)
-    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
-    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%bmb_float)
-    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
+    call coordsystem_allocate(model%grid%ice_grid, model%ocean_data%thermal_forcing_lsrf)
+    call coordsystem_allocate(model%grid%ice_grid, model%ocean_data%bmb_float)
+    call coordsystem_allocate(model%grid%ice_grid, model%ocean_data%deltaT_ocn)
     allocate(model%ocean_data%deltaT_ocn_basin(model%ocean_data%nbasin))
     model%ocean_data%deltaT_ocn_basin = 0.0d0   ! computed only for some deltaT_ocn options, but always written
 
     ! glacier options
     if (model%options%enable_glaciers) then
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%rgi_glacier_id)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%cism_glacier_id)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%cism_glacier_id_init)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_glacier_id)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_glacier_id_init)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%dthck_dt_annmean)
-       call coordsystem_allocate(model%general%velo_grid, model%glacier%boundary_mask)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%rgi_glacier_id)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%cism_glacier_id)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%cism_glacier_id_init)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%smb_glacier_id)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%smb_glacier_id_init)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%dthck_dt_annmean)
+       call coordsystem_allocate(model%grid%velo_grid, model%glaciers%boundary_mask)
 
        ! Note: The recent and RGI fields are used for glacier inversion
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%usrf_target)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%thck_target)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_rgi)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%delta_usrf_rgi)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_recent)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%delta_usrf_recent)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_annmean)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_annmean)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_rgi_annmean)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_rgi_annmean)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_recent_annmean)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_recent_annmean)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_applied_annmean)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%usrf_target)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%thck_target)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%smb_rgi)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%delta_usrf_rgi)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%smb_recent)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%delta_usrf_recent)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%snow_annmean)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%Tpos_annmean)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%snow_rgi_annmean)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%Tpos_rgi_annmean)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%snow_recent_annmean)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%Tpos_recent_annmean)
+       call coordsystem_allocate(model%grid%ice_grid, model%glaciers%smb_applied_annmean)
 
        ! Allocate arrays with dimension(nglacier)
        ! Note: nglacier = 1 by default, but can be changed in subroutine glissade_glacier_init
        !        after reading the input file.  If so, these arrays will be reallocated.
        !       On restart, nglacier is read from the restart file before calling glissade_allocarr,
        !        so these allocations will be correct.
-       allocate(model%glacier%glacierid(model%glacier%nglacier))
-       allocate(model%glacier%cism_to_rgi_glacier_id(model%glacier%nglacier))
-       allocate(model%glacier%area(model%glacier%nglacier))
-       allocate(model%glacier%volume(model%glacier%nglacier))
-       allocate(model%glacier%area_init(model%glacier%nglacier))
-       allocate(model%glacier%volume_init(model%glacier%nglacier))
-       allocate(model%glacier%area_init_extent(model%glacier%nglacier))
-       allocate(model%glacier%volume_init_extent(model%glacier%nglacier))
-       allocate(model%glacier%area_target(model%glacier%nglacier))
-       allocate(model%glacier%volume_target(model%glacier%nglacier))
-       allocate(model%glacier%mu_star(model%glacier%nglacier))
-       allocate(model%glacier%alpha_snow(model%glacier%nglacier))
-       allocate(model%glacier%beta_artm(model%glacier%nglacier))
-       allocate(model%glacier%smb(model%glacier%nglacier))
-       allocate(model%glacier%smb_obs(model%glacier%nglacier))
+       allocate(model%glaciers%glacierid(model%glaciers%nglacier))
+       allocate(model%glaciers%cism_to_rgi_glacier_id(model%glaciers%nglacier))
+       allocate(model%glaciers%area(model%glaciers%nglacier))
+       allocate(model%glaciers%volume(model%glaciers%nglacier))
+       allocate(model%glaciers%area_init(model%glaciers%nglacier))
+       allocate(model%glaciers%volume_init(model%glaciers%nglacier))
+       allocate(model%glaciers%area_init_extent(model%glaciers%nglacier))
+       allocate(model%glaciers%volume_init_extent(model%glaciers%nglacier))
+       allocate(model%glaciers%area_target(model%glaciers%nglacier))
+       allocate(model%glaciers%volume_target(model%glaciers%nglacier))
+       allocate(model%glaciers%mu_star(model%glaciers%nglacier))
+       allocate(model%glaciers%alpha_snow(model%glaciers%nglacier))
+       allocate(model%glaciers%beta_artm(model%glaciers%nglacier))
+       allocate(model%glaciers%smb(model%glaciers%nglacier))
+       allocate(model%glaciers%smb_obs(model%glaciers%nglacier))
     endif
 
     ! inversion and basal physics arrays
-    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c)
-    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
+    call coordsystem_allocate(model%grid%velo_grid,model%basal_physics%powerlaw_c)
+    call coordsystem_allocate(model%grid%velo_grid,model%basal_physics%coulomb_c)
 
     if (model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN .or. &
         model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN) then
        if (model%ocean_data%nbasin < 1) then
           call write_log ('Must set nbasin >= 1 for basin-scale inversion of C_c or C_p', GM_FATAL)
        endif
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%grounded_thck_target)
+       call coordsystem_allocate(model%grid%ice_grid, model%inversion%grounded_thck_target)
     endif
 
     if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
        if (model%ocean_data%nbasin < 1) then
           call write_log ('Must set nbasin >= 1 for basin-scale deltaT_ocn inversion', GM_FATAL)
        endif
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%floating_thck_target)
+       call coordsystem_allocate(model%grid%ice_grid, model%inversion%floating_thck_target)
     endif
 
     ! basin diagnostic arrays
@@ -3022,80 +3022,80 @@ contains
     endif
 
     ! climate arrays
-    call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_cpl)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_cpl_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_unapplied_glad)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_unapplied_glad_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_unapplied)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_unapplied_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%smb_anomaly)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%smb_corrected)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%smb_obs)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%artm_anomaly)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%artm_corrected)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%snow)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%snow_anomaly)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%snow_corrected)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%precip)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%precip_anomaly)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%precip_corrected)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%overwrite_acab_mask)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%acab)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%acab_applied)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%acab_applied_tavg)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%acab_cpl)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%acab_cpl_tavg)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%acab_unapplied_glad)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%acab_unapplied_glad_tavg)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%acab_unapplied)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%acab_unapplied_tavg)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%smb)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%smb_anomaly)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%smb_corrected)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%smb_obs)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%artm)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%artm_anomaly)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%artm_corrected)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%snow)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%snow_anomaly)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%snow_corrected)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%precip)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%precip_anomaly)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%precip_corrected)
+    call coordsystem_allocate(model%grid%ice_grid, model%climate%overwrite_acab_mask)
 
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
-       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_ref)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_gradz)
+       call coordsystem_allocate(model%grid%ice_grid, model%climate%smb_ref)
+       call coordsystem_allocate(model%grid%ice_grid, model%climate%smb_gradz)
        if (.not.associated(model%climate%usrf_ref)) &
-            call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref)
+            call coordsystem_allocate(model%grid%ice_grid, model%climate%usrf_ref)
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-       call coordsystem_allocate(model%general%ice_grid, model%climate%nzatm, model%climate%smb_3d)
+       call coordsystem_allocate(model%grid%ice_grid, model%climate%nzatm, model%climate%smb_3d)
        if (.not.associated(model%climate%zatm)) allocate(model%climate%zatm(model%climate%nzatm))
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
-       call coordsystem_allocate(model%general%ice_grid, model%climate%ablation)
+       call coordsystem_allocate(model%grid%ice_grid, model%climate%ablation)
     endif
 
     ! Note: Typically, smb_input_function and artm_input_function will have the same value.
     !       If both use a lapse rate, they will share the array usrf_ref
     !       If both are 3d, they will share the array smb_levels.
     if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
-       call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%artm_gradz)
+       call coordsystem_allocate(model%grid%ice_grid, model%climate%artm_ref)
+       call coordsystem_allocate(model%grid%ice_grid, model%climate%artm_gradz)
        if (.not.associated(model%climate%usrf_ref)) then
-          call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref)
+          call coordsystem_allocate(model%grid%ice_grid, model%climate%usrf_ref)
        endif
     elseif (model%options%smb_input_function == ARTM_INPUT_FUNCTION_XYZ) then
-       call coordsystem_allocate(model%general%ice_grid, model%climate%nzatm, model%climate%artm_3d)
+       call coordsystem_allocate(model%grid%ice_grid, model%climate%nzatm, model%climate%artm_3d)
        if (.not.associated(model%climate%zatm)) allocate(model%climate%zatm(model%climate%nzatm))
     elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
-       call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref)
+       call coordsystem_allocate(model%grid%ice_grid, model%climate%artm_ref)
        if (.not.associated(model%climate%usrf_ref)) then
-          call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref)
+          call coordsystem_allocate(model%grid%ice_grid, model%climate%usrf_ref)
        endif
     endif
 
     ! calving arrays
-    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
+    call coordsystem_allocate(model%grid%ice_grid, model%calving%calving_thck)
+    call coordsystem_allocate(model%grid%ice_grid, model%calving%calving_rate)
+    call coordsystem_allocate(model%grid%ice_grid, model%calving%calving_rate_tavg)
     if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
-       call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
+       call coordsystem_allocate(model%grid%ice_grid, model%calving%calving_mask)
     else
-       call coordsystem_allocate(model%general%ice_grid, model%calving%subgrid_calving_mask)
+       call coordsystem_allocate(model%grid%ice_grid, model%calving%subgrid_calving_mask)
     endif
-    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_front_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%beyond_cf_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%thck_effective)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%effective_areafrac)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen1)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen2)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen1)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen2)
+    call coordsystem_allocate(model%grid%ice_grid, model%calving%calving_front_mask)
+    call coordsystem_allocate(model%grid%ice_grid, model%calving%beyond_cf_mask)
+    call coordsystem_allocate(model%grid%ice_grid, model%calving%thck_effective)
+    call coordsystem_allocate(model%grid%ice_grid, model%calving%effective_areafrac)
+    call coordsystem_allocate(model%grid%ice_grid, model%calving%tau_eigen1)
+    call coordsystem_allocate(model%grid%ice_grid, model%calving%tau_eigen2)
+    call coordsystem_allocate(model%grid%ice_grid, model%calving%eps_eigen1)
+    call coordsystem_allocate(model%grid%ice_grid, model%calving%eps_eigen2)
     if (model%options%whichcalving == CALVING_LAW_DAMAGE) then
-       call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
+       call coordsystem_allocate(model%grid%ice_grid, upn-1, model%calving%damage)
     else
        ! allocate with size 1, since they need to be allocated to be passed to calving subroutine
        allocate(model%calving%damage(1,1,1))
@@ -3117,23 +3117,23 @@ contains
     ! lateral melt arrays
     ! Note: latmelt_thck and latmelt_rate are used in mass balance diagnostics
     !       even when lateral melt is turned off
-    call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%latmelt_thck)
-    call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%latmelt_rate)
-    call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%latmelt_rate_tavg)
+    call coordsystem_allocate(model%grid%ice_grid, model%lateral_melt%latmelt_thck)
+    call coordsystem_allocate(model%grid%ice_grid, model%lateral_melt%latmelt_rate)
+    call coordsystem_allocate(model%grid%ice_grid, model%lateral_melt%latmelt_rate_tavg)
     if (model%options%which_lateral_melt /= LATERAL_MELT_METHOD_NONE) then
-       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%runoff_applied)
-       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%thermal_forcing_applied)
-       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_front_mask)
+       call coordsystem_allocate(model%grid%ice_grid, model%lateral_melt%runoff_applied)
+       call coordsystem_allocate(model%grid%ice_grid, model%lateral_melt%thermal_forcing_applied)
+       call coordsystem_allocate(model%grid%ice_grid, model%lateral_melt%melt_front_mask)
     endif
 
     ! isostasy arrays
 
     ! Note: relx needs to be allocated always
-    call coordsystem_allocate(model%general%ice_grid, model%isostasy%relx)
+    call coordsystem_allocate(model%grid%ice_grid, model%isostasy%relx)
     if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
-       call coordsystem_allocate(model%general%ice_grid, model%isostasy%load)
-       call coordsystem_allocate(model%general%ice_grid, model%isostasy%load_factors)
-       call coordsystem_allocate(model%general%ice_grid, model%isostasy%tau_relax)
+       call coordsystem_allocate(model%grid%ice_grid, model%isostasy%load)
+       call coordsystem_allocate(model%grid%ice_grid, model%isostasy%load_factors)
+       call coordsystem_allocate(model%grid%ice_grid, model%isostasy%tau_relax)
     endif
 
   end subroutine glissade_allocarr
@@ -3150,30 +3150,30 @@ contains
 
     ! horizontal coordinates
 
-    if (associated(model%general%x0)) &
-        deallocate(model%general%x0) 
-    if (associated(model%general%y0)) &
-        deallocate(model%general%y0) 
-    if (associated(model%general%x1)) &
-        deallocate(model%general%x1) 
-    if (associated(model%general%y1)) &
-        deallocate(model%general%y1) 
-    if (associated(model%general%x0_global)) &
-        deallocate(model%general%x0_global)
-    if (associated(model%general%y0_global)) &
-        deallocate(model%general%y0_global)
-    if (associated(model%general%x1_global)) &
-        deallocate(model%general%x1_global)
-    if (associated(model%general%y1_global)) &
-        deallocate(model%general%y1_global)
-    if (associated(model%general%lat)) &
-        deallocate(model%general%lat)
-    if (associated(model%general%lon)) &
-        deallocate(model%general%lon)
-    if (associated(model%general%ice_domain_mask)) &
-        deallocate(model%general%ice_domain_mask)
-    if (associated(model%general%global_edge_mask)) &
-        deallocate(model%general%global_edge_mask)
+    if (associated(model%grid%x0)) &
+        deallocate(model%grid%x0) 
+    if (associated(model%grid%y0)) &
+        deallocate(model%grid%y0) 
+    if (associated(model%grid%x1)) &
+        deallocate(model%grid%x1) 
+    if (associated(model%grid%y1)) &
+        deallocate(model%grid%y1) 
+    if (associated(model%grid%x0_global)) &
+        deallocate(model%grid%x0_global)
+    if (associated(model%grid%y0_global)) &
+        deallocate(model%grid%y0_global)
+    if (associated(model%grid%x1_global)) &
+        deallocate(model%grid%x1_global)
+    if (associated(model%grid%y1_global)) &
+        deallocate(model%grid%y1_global)
+    if (associated(model%grid%lat)) &
+        deallocate(model%grid%lat)
+    if (associated(model%grid%lon)) &
+        deallocate(model%grid%lon)
+    if (associated(model%grid%ice_domain_mask)) &
+        deallocate(model%grid%ice_domain_mask)
+    if (associated(model%grid%global_edge_mask)) &
+        deallocate(model%grid%global_edge_mask)
 
     ! vertical sigma coordinates
 
@@ -3186,36 +3186,36 @@ contains
 
     ! temperature arrays
 
-    if (associated(model%temper%temp)) &
-        deallocate(model%temper%temp)
-    if (associated(model%temper%tempunstag)) &
-        deallocate(model%temper%tempunstag)
-    if (associated(model%temper%bheatflx)) &
-        deallocate(model%temper%bheatflx)
-    if (associated(model%temper%bpmp)) &
-        deallocate(model%temper%bpmp)
-    if (associated(model%temper%btemp)) &
-        deallocate(model%temper%btemp)
-    if (associated(model%temper%btemp_ground)) &
-        deallocate(model%temper%btemp_ground)
-    if (associated(model%temper%btemp_float)) &
-        deallocate(model%temper%btemp_float)
-    if (associated(model%temper%bfricflx)) &
-        deallocate(model%temper%bfricflx)
-    if (associated(model%temper%bhydroflx)) &
-        deallocate(model%temper%bhydroflx)
-    if (associated(model%temper%ucondflx)) &
-        deallocate(model%temper%ucondflx)
-    if (associated(model%temper%waterfrac)) &
-        deallocate(model%temper%waterfrac)
-    if (associated(model%temper%enthalpy)) &
-        deallocate(model%temper%enthalpy)
-    if (associated(model%temper%flwa)) &
-        deallocate(model%temper%flwa)
-    if (associated(model%temper%dissip)) &
-        deallocate(model%temper%dissip)
-    if (associated(model%temper%flow_enhancement_factor)) &
-        deallocate(model%temper%flow_enhancement_factor)
+    if (associated(model%temperature%temp)) &
+        deallocate(model%temperature%temp)
+    if (associated(model%temperature%tempunstag)) &
+        deallocate(model%temperature%tempunstag)
+    if (associated(model%temperature%bheatflx)) &
+        deallocate(model%temperature%bheatflx)
+    if (associated(model%temperature%bpmp)) &
+        deallocate(model%temperature%bpmp)
+    if (associated(model%temperature%btemp)) &
+        deallocate(model%temperature%btemp)
+    if (associated(model%temperature%btemp_ground)) &
+        deallocate(model%temperature%btemp_ground)
+    if (associated(model%temperature%btemp_float)) &
+        deallocate(model%temperature%btemp_float)
+    if (associated(model%temperature%bfricflx)) &
+        deallocate(model%temperature%bfricflx)
+    if (associated(model%temperature%bhydroflx)) &
+        deallocate(model%temperature%bhydroflx)
+    if (associated(model%temperature%ucondflx)) &
+        deallocate(model%temperature%ucondflx)
+    if (associated(model%temperature%waterfrac)) &
+        deallocate(model%temperature%waterfrac)
+    if (associated(model%temperature%enthalpy)) &
+        deallocate(model%temperature%enthalpy)
+    if (associated(model%temperature%flwa)) &
+        deallocate(model%temperature%flwa)
+    if (associated(model%temperature%dissip)) &
+        deallocate(model%temperature%dissip)
+    if (associated(model%temperature%flow_enhancement_factor)) &
+        deallocate(model%temperature%flow_enhancement_factor)
 
     ! velocity arrays
 
@@ -3393,76 +3393,76 @@ contains
         deallocate(model%ocean_data%bmb_float)
 
     ! glacier arrays
-    if (associated(model%glacier%glacierid)) &
-        deallocate(model%glacier%glacierid)
-    if (associated(model%glacier%rgi_glacier_id)) &
-        deallocate(model%glacier%rgi_glacier_id)
-    if (associated(model%glacier%cism_glacier_id)) &
-        deallocate(model%glacier%cism_glacier_id)
-    if (associated(model%glacier%cism_glacier_id_init)) &
-        deallocate(model%glacier%cism_glacier_id_init)
-    if (associated(model%glacier%smb_glacier_id)) &
-        deallocate(model%glacier%smb_glacier_id)
-    if (associated(model%glacier%smb_glacier_id_init)) &
-        deallocate(model%glacier%smb_glacier_id_init)
-    if (associated(model%glacier%cism_to_rgi_glacier_id)) &
-        deallocate(model%glacier%cism_to_rgi_glacier_id)
-    if (associated(model%glacier%dthck_dt_annmean)) &
-        deallocate(model%glacier%dthck_dt_annmean)
-    if (associated(model%glacier%snow_annmean)) &
-        deallocate(model%glacier%snow_annmean)
-    if (associated(model%glacier%Tpos_annmean)) &
-        deallocate(model%glacier%Tpos_annmean)
-    if (associated(model%glacier%snow_rgi_annmean)) &
-        deallocate(model%glacier%snow_rgi_annmean)
-    if (associated(model%glacier%Tpos_rgi_annmean)) &
-        deallocate(model%glacier%Tpos_rgi_annmean)
-    if (associated(model%glacier%snow_recent_annmean)) &
-        deallocate(model%glacier%snow_recent_annmean)
-    if (associated(model%glacier%Tpos_recent_annmean)) &
-        deallocate(model%glacier%Tpos_recent_annmean)
-    if (associated(model%glacier%smb_applied_annmean)) &
-        deallocate(model%glacier%smb_applied_annmean)
-    if (associated(model%glacier%smb_obs)) &
-        deallocate(model%glacier%smb_obs)
-    if (associated(model%glacier%area)) &
-        deallocate(model%glacier%area)
-    if (associated(model%glacier%volume)) &
-        deallocate(model%glacier%volume)
-    if (associated(model%glacier%area_init)) &
-        deallocate(model%glacier%area_init)
-    if (associated(model%glacier%volume_init)) &
-        deallocate(model%glacier%volume_init)
-    if (associated(model%glacier%area_init_extent)) &
-        deallocate(model%glacier%area_init_extent)
-    if (associated(model%glacier%volume_init_extent)) &
-        deallocate(model%glacier%volume_init_extent)
-    if (associated(model%glacier%area_target)) &
-        deallocate(model%glacier%area_target)
-    if (associated(model%glacier%volume_target)) &
-        deallocate(model%glacier%volume_target)
-    if (associated(model%glacier%mu_star)) &
-        deallocate(model%glacier%mu_star)
-    if (associated(model%glacier%alpha_snow)) &
-        deallocate(model%glacier%alpha_snow)
-    if (associated(model%glacier%beta_artm)) &
-        deallocate(model%glacier%beta_artm)
-    if (associated(model%glacier%smb)) &
-        deallocate(model%glacier%smb)
-    if (associated(model%glacier%usrf_target)) &
-        deallocate(model%glacier%usrf_target)
-    if (associated(model%glacier%thck_target)) &
-        deallocate(model%glacier%thck_target)
-    if (associated(model%glacier%smb_rgi)) &
-        deallocate(model%glacier%smb_rgi)
-    if (associated(model%glacier%delta_usrf_rgi)) &
-        deallocate(model%glacier%delta_usrf_rgi)
-    if (associated(model%glacier%smb_recent)) &
-        deallocate(model%glacier%smb_recent)
-    if (associated(model%glacier%delta_usrf_recent)) &
-        deallocate(model%glacier%delta_usrf_recent)
-    if (associated(model%glacier%boundary_mask)) &
-        deallocate(model%glacier%boundary_mask)
+    if (associated(model%glaciers%glacierid)) &
+        deallocate(model%glaciers%glacierid)
+    if (associated(model%glaciers%rgi_glacier_id)) &
+        deallocate(model%glaciers%rgi_glacier_id)
+    if (associated(model%glaciers%cism_glacier_id)) &
+        deallocate(model%glaciers%cism_glacier_id)
+    if (associated(model%glaciers%cism_glacier_id_init)) &
+        deallocate(model%glaciers%cism_glacier_id_init)
+    if (associated(model%glaciers%smb_glacier_id)) &
+        deallocate(model%glaciers%smb_glacier_id)
+    if (associated(model%glaciers%smb_glacier_id_init)) &
+        deallocate(model%glaciers%smb_glacier_id_init)
+    if (associated(model%glaciers%cism_to_rgi_glacier_id)) &
+        deallocate(model%glaciers%cism_to_rgi_glacier_id)
+    if (associated(model%glaciers%dthck_dt_annmean)) &
+        deallocate(model%glaciers%dthck_dt_annmean)
+    if (associated(model%glaciers%snow_annmean)) &
+        deallocate(model%glaciers%snow_annmean)
+    if (associated(model%glaciers%Tpos_annmean)) &
+        deallocate(model%glaciers%Tpos_annmean)
+    if (associated(model%glaciers%snow_rgi_annmean)) &
+        deallocate(model%glaciers%snow_rgi_annmean)
+    if (associated(model%glaciers%Tpos_rgi_annmean)) &
+        deallocate(model%glaciers%Tpos_rgi_annmean)
+    if (associated(model%glaciers%snow_recent_annmean)) &
+        deallocate(model%glaciers%snow_recent_annmean)
+    if (associated(model%glaciers%Tpos_recent_annmean)) &
+        deallocate(model%glaciers%Tpos_recent_annmean)
+    if (associated(model%glaciers%smb_applied_annmean)) &
+        deallocate(model%glaciers%smb_applied_annmean)
+    if (associated(model%glaciers%smb_obs)) &
+        deallocate(model%glaciers%smb_obs)
+    if (associated(model%glaciers%area)) &
+        deallocate(model%glaciers%area)
+    if (associated(model%glaciers%volume)) &
+        deallocate(model%glaciers%volume)
+    if (associated(model%glaciers%area_init)) &
+        deallocate(model%glaciers%area_init)
+    if (associated(model%glaciers%volume_init)) &
+        deallocate(model%glaciers%volume_init)
+    if (associated(model%glaciers%area_init_extent)) &
+        deallocate(model%glaciers%area_init_extent)
+    if (associated(model%glaciers%volume_init_extent)) &
+        deallocate(model%glaciers%volume_init_extent)
+    if (associated(model%glaciers%area_target)) &
+        deallocate(model%glaciers%area_target)
+    if (associated(model%glaciers%volume_target)) &
+        deallocate(model%glaciers%volume_target)
+    if (associated(model%glaciers%mu_star)) &
+        deallocate(model%glaciers%mu_star)
+    if (associated(model%glaciers%alpha_snow)) &
+        deallocate(model%glaciers%alpha_snow)
+    if (associated(model%glaciers%beta_artm)) &
+        deallocate(model%glaciers%beta_artm)
+    if (associated(model%glaciers%smb)) &
+        deallocate(model%glaciers%smb)
+    if (associated(model%glaciers%usrf_target)) &
+        deallocate(model%glaciers%usrf_target)
+    if (associated(model%glaciers%thck_target)) &
+        deallocate(model%glaciers%thck_target)
+    if (associated(model%glaciers%smb_rgi)) &
+        deallocate(model%glaciers%smb_rgi)
+    if (associated(model%glaciers%delta_usrf_rgi)) &
+        deallocate(model%glaciers%delta_usrf_rgi)
+    if (associated(model%glaciers%smb_recent)) &
+        deallocate(model%glaciers%smb_recent)
+    if (associated(model%glaciers%delta_usrf_recent)) &
+        deallocate(model%glaciers%delta_usrf_recent)
+    if (associated(model%glaciers%boundary_mask)) &
+        deallocate(model%glaciers%boundary_mask)
 
     ! inversion arrays
     if (associated(model%basal_physics%powerlaw_c)) &
@@ -3799,7 +3799,7 @@ contains
     integer get_ewn
     type(glissade_global_type) :: model
 
-    get_ewn = model%general%ewn
+    get_ewn = model%grid%ewn
   end function get_ewn
 
   function get_nsn(model)
@@ -3808,7 +3808,7 @@ contains
     integer get_nsn
     type(glissade_global_type) :: model
 
-    get_nsn = model%general%nsn
+    get_nsn = model%grid%nsn
   end function get_nsn
 
   function get_nzocn(model)

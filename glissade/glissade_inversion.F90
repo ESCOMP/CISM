@@ -71,13 +71,13 @@ contains
     integer :: i, j
     integer :: itest, jtest, rtest  ! local diagnostic point
 
-    integer, dimension(model%general%ewn, model%general%nsn) ::  &
+    integer, dimension(model%grid%ewn, model%grid%nsn) ::  &
          ice_mask,             & ! = 1 where ice is present, else = 0
          floating_mask,        & ! = 1 where ice is present and floating, else = 0
          ocean_mask,           & ! = 1 where topg is below sea level and ice is absent
          land_mask               ! = 1 where topg is at or above sea level
 
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+    real(dp), dimension(model%grid%ewn, model%grid%nsn) ::  &
          f_flotation,          & ! flotation function (m)
          thck_obs                ! observed ice thickness, derived from usrf_obs and topg
 
@@ -91,8 +91,8 @@ contains
 
     parallel = model%parallel
 
-    ewn = model%general%ewn
-    nsn = model%general%nsn
+    ewn = model%grid%ewn
+    nsn = model%grid%nsn
 
     ! Set local diagnostic point
     rtest = -999
@@ -362,33 +362,33 @@ contains
 
     ! local variables
 
-    integer, dimension(model%general%ewn, model%general%nsn) :: &
+    integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          ice_mask,           & ! = 1 where thck > thklim, else = 0
          floating_mask,      & ! = 1 where ice is present and floating, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent
          land_mask             ! = 1 where topg is at or above sea level
 
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+    real(dp), dimension(model%grid%ewn, model%grid%nsn) ::  &
          thck_obs              ! observed thickness target (m)
 
-    real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
+    real(dp), dimension(model%grid%ewn-1,model%grid%nsn-1) ::   &
          stag_thck,          & ! ice thickness on staggered grid (m)
          stag_topg,          & ! bed topography on staggered grid (m)
          stag_dthck_dt,      & ! dthck_dt on staggered grid (m/s)
          stag_thck_obs,      & ! thck_obs on staggered grid (m)
          stag_thck_target      ! target thickness on staggered grid (m)
 
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+    real(dp), dimension(model%grid%ewn, model%grid%nsn) ::  &
          coulomb_c_cell,     & ! coulomb_c averaged to cell centers
          deltaT_ocn_relax      ! relax deltaT_ocn toward this value
 
     real(dp), dimension(model%ocean_data%nbasin) :: &
          deltaT_ocn_basin_avg  ! basin average of deltaT_ocn (degC)
 
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+    real(dp), dimension(model%grid%ewn, model%grid%nsn) ::  &
          rmask                 ! = 1.0 where grounded_thck_target > 0, else = 0
 
-    real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
+    real(dp), dimension(model%grid%ewn-1,model%grid%nsn-1) ::   &
          stag_rmask            ! = 1.0 where Cp or Cc is physically meaningful, else = 0
 
     type(parallel_type) :: parallel  ! info for parallel communication
@@ -408,8 +408,8 @@ contains
 
     parallel = model%parallel
 
-    ewn = model%general%ewn
-    nsn = model%general%nsn
+    ewn = model%grid%ewn
+    nsn = model%grid%nsn
 
     call glissade_get_masks(ewn,                 nsn,                   &
                             parallel,                                   &
@@ -733,7 +733,7 @@ contains
 
        if (model%ocean_data%nbasin > 1) then
           call glissade_basin_average(&
-               model%general%ewn, model%general%nsn,  &
+               model%grid%ewn, model%grid%nsn,        &
                model%parallel,                        &
                model%ocean_data%nbasin,               &
                model%ocean_data%basin_number,         &

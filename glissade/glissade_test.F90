@@ -98,9 +98,9 @@ contains
     write(iulog,*) ' '
     write(iulog,*) 'In glissade_test_halo, this_rank =', this_rank
 
-    nx = model%general%ewn
-    ny = model%general%nsn
-    nz = model%general%upn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
+    nz = model%grid%upn
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
     rtest = model%numerics%rdiag_local
@@ -458,9 +458,9 @@ contains
 
     dx = model%numerics%dew
     dy = model%numerics%dns
-    nx = model%general%ewn
-    ny = model%general%nsn
-    nz = model%general%upn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
+    nz = model%grid%upn
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
     rtest = model%numerics%rdiag_local

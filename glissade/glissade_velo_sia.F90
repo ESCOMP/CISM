@@ -112,7 +112,7 @@
     integer, intent(in) ::   &
        nx, ny,               &  ! number of grid cells in each direction
        nz                       ! number of vertical levels where velocity is computed
-                                ! (same as model%general%upn)
+                                ! (same as model%grid%upn)
 
     !----------------------------------------------------------------
     ! Local variables and pointers set to components of model derived type 
@@ -185,9 +185,9 @@
     ! Assign local pointers and variables to derived type components
     !--------------------------------------------------------
 
-!    nx = model%general%ewn   ! passed in
-!    ny = model%general%nsn
-!    nz = model%general%upn
+!    nx = model%grid%ewn   ! passed in
+!    ny = model%grid%nsn
+!    nz = model%grid%upn
 
     parallel = model%parallel
 
@@ -207,9 +207,9 @@
 
     bwat     => model%basal_hydro%bwat(:,:)
     btrc     => model%velocity%btrc(:,:)
-    bfricflx => model%temper%bfricflx(:,:)
-    temp     => model%temper%temp(:,:,:)
-    flwa     => model%temper%flwa(:,:,:)
+    bfricflx => model%temperature%bfricflx(:,:)
+    temp     => model%temperature%temp(:,:,:)
+    flwa     => model%temperature%flwa(:,:,:)
 
     uvel     => model%velocity%uvel(:,:,:)
     vvel     => model%velocity%vvel(:,:,:)

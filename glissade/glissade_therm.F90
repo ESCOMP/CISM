@@ -362,7 +362,7 @@ module glissade_therm
     integer :: upn                                    ! number of vertical levels (deduced from temp array)
     integer :: k
 
-    upn = size(temp) - 1     ! temperature array has dimension (0:model%general%upn)
+    upn = size(temp) - 1     ! temperature array has dimension (0:model%grid%upn)
 
     ! Set the temperature in the column
 

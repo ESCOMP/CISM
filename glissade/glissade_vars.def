@@ -29,7 +29,7 @@ dimensions:    x0
 units:         meter
 long_name:     Cartesian x-coordinate, velocity grid
 axis:          X
-data:          data%general%x0
+data:          data%grid%x0
 dimlen:        model%parallel%global_ewn-1
 load:          1
 
@@ -38,7 +38,7 @@ dimensions:    y0
 units:         meter
 long_name:     Cartesian y-coordinate, velocity grid
 axis:          Y
-data:          data%general%y0
+data:          data%grid%y0
 dimlen:        model%parallel%global_nsn-1
 load:          1
 
@@ -47,7 +47,7 @@ dimensions:    x1
 units:         meter
 long_name:     Cartesian x-coordinate
 axis:          X
-data:          data%general%x1
+data:          data%grid%x1
 dimlen:        model%parallel%global_ewn
 load:          1
 
@@ -56,7 +56,7 @@ dimensions:    y1
 units:         meter
 long_name:     Cartesian y-coordinate
 axis:          Y
-data:          data%general%y1
+data:          data%grid%y1
 dimlen:        model%parallel%global_nsn
 load:          1
 
@@ -66,7 +66,7 @@ units:         1
 long_name:     sigma layers
 standard_name: land_ice_sigma_coordinate
 positive:      down
-dimlen:        model%general%upn
+dimlen:        model%grid%upn
 
 [staglevel]
 dimensions:    staglevel
@@ -74,7 +74,7 @@ units:         1
 long_name:     stag sigma layers
 standard_name: land_ice_stag_sigma_coordinate
 positive:      down
-dimlen:        model%general%upn-1
+dimlen:        model%grid%upn-1
 
 [stagwbndlevel]
 dimensions:    stagwbndlevel
@@ -82,7 +82,7 @@ units:         1
 long_name:     stag sigma layers with boundaries
 standard_name: land_ice_stag_sigma_coordinate_with_bnd
 positive:      down
-dimlen:        model%general%upn+1
+dimlen:        model%grid%upn+1
 
 [zocn]
 dimensions:    zocn
@@ -104,8 +104,8 @@ dimlen:        model%climate%nzatm
 dimensions:    glacierid
 units:         1
 long_name:     glacier_id_coordinate
-data:          data%glacier%glacierid
-dimlen:        model%glacier%nglacier
+data:          data%glaciers%glacierid
+dimlen:        model%glaciers%nglacier
 
 [axis]
 dimensions:    axis
@@ -126,7 +126,7 @@ dimensions:    time, y1, x1
 units:         degreeN
 standard_name: latitude
 long_name:     latitude
-data:          data%general%lat
+data:          data%grid%lat
 load:          1
 
 [lon]
@@ -134,7 +134,7 @@ dimensions:    time, y1, x1
 units:         degreeE
 standard_name: longitude
 long_name:     longitude
-data:          data%general%lon
+data:          data%grid%lon
 load:          1
 
 [cell_area]
@@ -253,7 +253,7 @@ load:          1
 dimensions:    time, y0, x0
 units:         meter/year
 long_name:     surface velocity in x direction
-data:          data%velocity%uvel(1,1:data%general%ewn-1,1:data%general%nsn-1)
+data:          data%velocity%uvel(1,1:data%grid%ewn-1,1:data%grid%nsn-1)
 factor:        scyr
 standard_name: land_ice_surface_x_velocity
 
@@ -261,7 +261,7 @@ standard_name: land_ice_surface_x_velocity
 dimensions:    time, y0, x0
 units:         meter/year
 long_name:     surface velocity in y direction
-data:          data%velocity%vvel(1,1:data%general%ewn-1,1:data%general%nsn-1)
+data:          data%velocity%vvel(1,1:data%grid%ewn-1,1:data%grid%nsn-1)
 factor:        scyr
 standard_name: land_ice_surface_y_velocity
 
@@ -269,7 +269,7 @@ standard_name: land_ice_surface_y_velocity
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     surface velocity in z direction
-data:          data%velocity%wvel(1,1:data%general%ewn,1:data%general%nsn)
+data:          data%velocity%wvel(1,1:data%grid%ewn,1:data%grid%nsn)
 factor:        scyr
 standard_name: land_ice_surface_z_velocity
 
@@ -277,7 +277,7 @@ standard_name: land_ice_surface_z_velocity
 dimensions:    time, y0, x0
 units:         meter/year
 long_name:     basal slip velocity in x direction
-data:          data%velocity%uvel(data%general%upn,1:data%general%ewn-1,1:data%general%nsn-1)
+data:          data%velocity%uvel(data%grid%upn,1:data%grid%ewn-1,1:data%grid%nsn-1)
 factor:        scyr
 standard_name: land_ice_basal_x_velocity
 
@@ -285,7 +285,7 @@ standard_name: land_ice_basal_x_velocity
 dimensions:    time, y0, x0
 units:         meter/year
 long_name:     basal slip velocity in y direction
-data:          data%velocity%vvel(data%general%upn,1:data%general%ewn-1,1:data%general%nsn-1)
+data:          data%velocity%vvel(data%grid%upn,1:data%grid%ewn-1,1:data%grid%nsn-1)
 factor:        scyr
 standard_name: land_ice_basal_y_velocity
 
@@ -293,7 +293,7 @@ standard_name: land_ice_basal_y_velocity
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     basal velocity in z direction
-data:          data%velocity%wvel(data%general%upn,1:data%general%ewn,1:data%general%nsn)
+data:          data%velocity%wvel(data%grid%upn,1:data%grid%ewn,1:data%grid%nsn)
 factor:        scyr
 standard_name: land_ice_basal_z_velocity
 
@@ -418,7 +418,7 @@ load:          1
 dimensions:    time, y1, x1
 units:         1
 long_name:     flow enhancement factor
-data:          data%temper%flow_enhancement_factor
+data:          data%temperature%flow_enhancement_factor
 load:          1
 
 [taudx]
@@ -830,7 +830,7 @@ standard_name: bedrock_altitude
 dimensions:    time, y1, x1
 units:         1
 long_name:     mask for where ice is potentially present and active
-data:          data%general%ice_domain_mask
+data:          data%grid%ice_domain_mask
 load:          1
 
 [ice_mask]
@@ -998,14 +998,14 @@ load:          1
 dimensions:    time, y1, x1
 units:         mm/year water equivalent
 long_name:     surface mass balance at RGI date
-data:          data%glacier%smb_rgi
+data:          data%glaciers%smb_rgi
 load:          1
 
 [smb_recent]
 dimensions:    time, y1, x1
 units:         mm/year water equivalent
 long_name:     surface mass balance at recent date
-data:          data%glacier%smb_recent
+data:          data%glaciers%smb_recent
 load:          1
 
 [artm_ref]
@@ -1092,14 +1092,14 @@ data:          data%climate%ablation
 dimensions:    time, y1, x1
 units:         m
 long_name:     glacier thickness target
-data:          data%glacier%thck_target
+data:          data%glaciers%thck_target
 
 #WHL: Note sign convention: positive downward
 [bheatflx]
 dimensions:    time, y1, x1
 units:         watt/meter2
 long_name:     downward basal heat flux
-data:          data%temper%bheatflx
+data:          data%temperature%bheatflx
 load:          1
 
 [bmlt]
@@ -1132,14 +1132,14 @@ average:       1
 dimensions:    time, y1, x1
 units:         watt/meter2
 long_name:     basal friction heat flux
-data:          data%temper%bfricflx
+data:          data%temperature%bfricflx
 load:          1
 
 [bhydroflx]
 dimensions:    time, y1, x1
 units:         watt/meter2
 long_name:     basal heat flux from refreezing meltwater
-data:          data%temper%bhydroflx
+data:          data%temperature%bhydroflx
 load:          1
 
 [bwat]
@@ -1210,21 +1210,21 @@ load:          1
 dimensions:    time, y1, x1
 units:         degree_Celsius
 long_name:     basal ice temperature
-data:          data%temper%btemp
+data:          data%temperature%btemp
 standard_name: land_ice_temperature
 
 [btemp_ground]
 dimensions:    time, y1, x1
 units:         degree_Celsius
 long_name:     basal ice temperature for grounded ice
-data:          data%temper%btemp_ground
+data:          data%temperature%btemp_ground
 standard_name: land_ice_temperature_ground
 
 [btemp_float]
 dimensions:    time, y1, x1
 units:         degree_Celsius
 long_name:     basal ice temperature for floating ice
-data:          data%temper%btemp_float
+data:          data%temperature%btemp_float
 standard_name: land_ice_temperature_float
 
 [uvel]
@@ -1490,20 +1490,20 @@ load:          1
 dimensions:    time, staglevel, y1, x1
 units:         unitless [0,1]
 long_name:     internal water fraction
-data:          data%temper%waterfrac(up,:,:)
+data:          data%temperature%waterfrac(up,:,:)
 load:          1
 
 [enthalpy]
 dimensions:    time, stagwbndlevel, y1, x1
 units:         J/m3
 long_name:     specific enthalpy
-data:          data%temper%enthalpy(up,:,:)
+data:          data%temperature%enthalpy(up,:,:)
 
 [flwa]
 dimensions:    time, level, y1, x1
 units:         pascal**(-n) year**(-1)
 long_name:     Pre-exponential flow law parameter
-data:          data%temper%flwa(up,:,:)
+data:          data%temperature%flwa(up,:,:)
 factor:        scyr
 load:          1
 
@@ -1511,7 +1511,7 @@ load:          1
 dimensions:    time, staglevel, y1, x1
 units:         pascal**(-n) year**(-1)
 long_name:     Pre-exponential flow law parameter
-data:          data%temper%flwa(up,:,:)
+data:          data%temperature%flwa(up,:,:)
 factor:        scyr
 # hot=0 because we do not want the stag version to be in the hotvars definition. 
 # The conversion to stag happens if needed in check_for_tempstag
@@ -1530,7 +1530,7 @@ load:          1
 dimensions:    time, level, y1, x1
 units:         degree_Celsius
 long_name:     ice temperature
-data:          data%temper%temp(up,1:data%general%ewn,1:data%general%nsn)
+data:          data%temperature%temp(up,1:data%grid%ewn,1:data%grid%nsn)
 standard_name: land_ice_temperature
 load:          1
 
@@ -1538,7 +1538,7 @@ load:          1
 dimensions:    time, stagwbndlevel, y1, x1
 units:         degree_Celsius
 long_name:     ice temperature on staggered vertical levels with boundaries
-data:          data%temper%temp(up,1:data%general%ewn,1:data%general%nsn)
+data:          data%temperature%temp(up,1:data%grid%ewn,1:data%grid%nsn)
 standard_name: land_ice_temperature_stag
 # hot=0 because we do not want the stag version to be in the hotvars definition.
 # The conversion to stag happens if needed in check_for_tempstag.
@@ -1548,7 +1548,7 @@ load:          1
 dimensions:    time, level, y1, x1
 units:         degree_Celsius
 long_name:     ice temperature on unstaggered vertical levels
-data:          data%temper%tempunstag(up,1:data%general%ewn,1:data%general%nsn)
+data:          data%temperature%tempunstag(up,1:data%grid%ewn,1:data%grid%nsn)
 standard_name: land_ice_temperature_unstag
 load:          1
 
@@ -1556,7 +1556,7 @@ load:          1
 dimensions:    time, y1, x1
 units:         degree_Celsius
 long_name:     basal pressure melting point temperature
-data:          data%temper%bpmp
+data:          data%temperature%bpmp
 standard_name: pressure_melting_point_temperature
 
 [ice_age]
@@ -1715,7 +1715,7 @@ standard_name: ice_thermal_conductivity
 dimensions:   time, level, y1, x1
 units:        deg C/yr
 long_name:    dissipation rate (W m-3) divided by rhoi Ci
-data:         data%temper%dissip(up,:,:)
+data:         data%temperature%dissip(up,:,:)
 factor:       scyr
 load:         1
 
@@ -1723,7 +1723,7 @@ load:         1
 dimensions:   time, staglevel, y1, x1
 units:        deg C/yr
 long_name:    dissipation rate (W m-3) divided by rhoi Ci
-data:         data%temper%dissip(up,:,:)
+data:         data%temperature%dissip(up,:,:)
 factor:       scyr
 load:         1
 
@@ -1743,120 +1743,120 @@ data:          data%numerics%diff_cfl_dt
 dimensions:    time, y1, x1
 units:         1
 long_name:     input RGI glacier ID
-data:          data%glacier%rgi_glacier_id
+data:          data%glaciers%rgi_glacier_id
 load:          1
 
 [cism_glacier_id]
 dimensions:    time, y1, x1
 units:         1
 long_name:     CISM-specific glacier ID
-data:          data%glacier%cism_glacier_id
+data:          data%glaciers%cism_glacier_id
 load:          1
 
 [cism_glacier_id_init]
 dimensions:    time, y1, x1
 units:         1
 long_name:     initial CISM-specific glacier ID
-data:          data%glacier%cism_glacier_id_init
+data:          data%glaciers%cism_glacier_id_init
 load:          1
 
 [smb_glacier_id]
 dimensions:    time, y1, x1
 units:         1
 long_name:     glacier ID for applying SMB
-data:          data%glacier%smb_glacier_id
+data:          data%glaciers%smb_glacier_id
 load:          1
 
 [smb_glacier_id_init]
 dimensions:    time, y1, x1
 units:         1
 long_name:     initial glacier ID for applying SMB
-data:          data%glacier%smb_glacier_id_init
+data:          data%glaciers%smb_glacier_id_init
 load:          1
 
 [cism_to_rgi_glacier_id]
 dimensions:    time, glacierid
 units:         1
 long_name:     RGI glacier ID corresponding to CISM ID
-data:          data%glacier%cism_to_rgi_glacier_id
+data:          data%glaciers%cism_to_rgi_glacier_id
 load:          1
 
 [glacier_area]
 dimensions:    time, glacierid
 units:         m2
 long_name:     glacier area
-data:          data%glacier%area
+data:          data%glaciers%area
 
 [glacier_volume]
 dimensions:    time, glacierid
 units:         m3
 long_name:     glacier volume
-data:          data%glacier%volume
+data:          data%glaciers%volume
 
 [glacier_area_init]
 dimensions:    time, glacierid
 units:         m2
 long_name:     initial glacier area
-data:          data%glacier%area_init
+data:          data%glaciers%area_init
 load:          1
 
 [glacier_volume_init]
 dimensions:    time, glacierid
 units:         m3
 long_name:     initial glacier volume
-data:          data%glacier%volume_init
+data:          data%glaciers%volume_init
 load:          1
 
 [glacier_mu_star]
 dimensions:    time, glacierid
 units:         mm w.e./yr/deg
 long_name:     glacier SMB coefficient
-data:          data%glacier%mu_star
+data:          data%glaciers%mu_star
 load:          1
 
 [glacier_alpha_snow]
 dimensions:    time, glacierid
 units:         1
 long_name:     glacier snow factor
-data:          data%glacier%alpha_snow
+data:          data%glaciers%alpha_snow
 load:          1
 
 [glacier_beta_artm]
 dimensions:    time, glacierid
 units:         degC
 long_name:     glacier temperature correction
-data:          data%glacier%beta_artm
+data:          data%glaciers%beta_artm
 load:          1
 
 [glacier_smb_obs]
 dimensions:    time, glacierid
 units:         mm w.e./yr
 long_name:     observed glacier-average SMB
-data:          data%glacier%smb_obs
+data:          data%glaciers%smb_obs
 load:          1
 
 [glacier_smb]
 dimensions:    time, glacierid
 units:         mm w.e./yr
 long_name:     modeled glacier-average SMB
-data:          data%glacier%smb
+data:          data%glaciers%smb
 
 [glacier_total_area]
 dimensions:    time
 units:         km2
 long_name:     total glacier area
 factor:        1.e-06
-data:          data%glacier%total_area
+data:          data%glaciers%total_area
 
 [glacier_total_volume]
 dimensions:    time
 units:         km3
 long_name:     total glacier volume
 factor:        1.e-09
-data:          data%glacier%total_volume
+data:          data%glaciers%total_volume
 
 [nglacier_active]
 dimensions:    time
 units:         1
 long_name:     number of active glaciers
-data:          data%glacier%nglacier_active
+data:          data%glaciers%nglacier_active

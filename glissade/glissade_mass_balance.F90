@@ -175,7 +175,7 @@
 
     ! local variables
 
-    integer, dimension(model%general%ewn, model%general%nsn) ::   &
+    integer, dimension(model%grid%ewn, model%grid%nsn) ::   &
          ice_mask,                & ! = 1 where ice is present, else = 0
          extended_ice_sheet_mask    ! extension of ice_sheet_mask to include neighbor cells
 
@@ -199,9 +199,9 @@
        jtest = model%numerics%jdiag_local
     endif
 
-    ewn = model%general%ewn
-    nsn = model%general%nsn
-    upn = model%general%upn
+    ewn = model%grid%ewn
+    nsn = model%grid%nsn
+    upn = model%grid%upn
     nzatm = model%climate%nzatm
 
     parallel = model%parallel
@@ -422,7 +422,7 @@
        ! TODO: Try without the extended mask.
 
        call glissade_extend_mask(&
-            model%general%ewn,   model%general%nsn,     &
+            model%grid%ewn,      model%grid%nsn,        &
             model%geometry%ice_sheet_mask,              &
             extended_mask = extended_ice_sheet_mask)
 
@@ -504,8 +504,8 @@
        jtest = model%numerics%jdiag_local
     endif
 
-    ewn = model%general%ewn
-    nsn = model%general%nsn
+    ewn = model%grid%ewn
+    nsn = model%grid%nsn
     nzatm = model%climate%nzatm
     parallel = model%parallel
 
@@ -650,8 +650,8 @@
        jtest = model%numerics%jdiag_local
     endif
 
-    ewn = model%general%ewn
-    nsn = model%general%nsn
+    ewn = model%grid%ewn
+    nsn = model%grid%nsn
     nzatm = model%climate%nzatm
     parallel = model%parallel
 
@@ -829,16 +829,16 @@
 
     !TODO: Put the masks in a derived type so ocean_mask doesn't have to be passed through
     !      the various interfaces.
-    integer, dimension(model%general%ewn, model%general%nsn), intent(inout) :: &
+    integer, dimension(model%grid%ewn, model%grid%nsn), intent(inout) :: &
          ocean_mask      ! = 1 if topg is below sea level and thck = 0, else = 0
 
     ! local variables
 
-    real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
+    real(dp), dimension(model%grid%ewn,model%grid%nsn) ::   &
          bmlt                 ! = model%basal_melt%bmlt (m/s) if basal mass balance is included in continuity equation, else = 0
 
     ! masks
-    integer, dimension(model%general%ewn, model%general%nsn) ::   &
+    integer, dimension(model%grid%ewn, model%grid%nsn) ::   &
          ice_mask,               & ! = 1 if thck > 0, else = 0
          floating_mask,          & ! = 1 where ice is present and floating, else = 0
          land_mask                 ! = 1 if topg is at or above sea level, else = 0
@@ -860,9 +860,9 @@
        jtest = model%numerics%jdiag_local
     endif
 
-    ewn = model%general%ewn
-    nsn = model%general%nsn
-    upn = model%general%upn
+    ewn = model%grid%ewn
+    nsn = model%grid%nsn
+    upn = model%grid%upn
     nzatm = model%climate%nzatm
 
     parallel = model%parallel

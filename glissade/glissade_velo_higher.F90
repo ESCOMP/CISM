@@ -697,7 +697,7 @@
     integer, intent(in) ::   &
        nx, ny,               &  ! number of grid cells in each horizontal direction
        nz                       ! number of vertical levels where velocity is computed
-                                ! (same as model%general%upn)
+                                ! (same as model%grid%upn)
  
     !----------------------------------------------------------------
     ! Local variables and pointers set to components of model derived type 
@@ -1073,9 +1073,9 @@
     ! Assign local pointers and variables to derived type components
     !--------------------------------------------------------
 
-!    nx = model%general%ewn   ! currently passed in
-!    ny = model%general%nsn
-!    nz = model%general%upn
+!    nx = model%grid%ewn   ! currently passed in
+!    ny = model%grid%nsn
+!    nz = model%grid%upn
 
      dx = model%numerics%dew
      dy = model%numerics%dns
@@ -1108,13 +1108,13 @@
      f_ground_cell => model%geometry%f_ground_cell(:,:)
      f_flotation => model%geometry%f_flotation(:,:)
 
-     temp     => model%temper%temp
-     flwa     => model%temper%flwa(:,:,:)
+     temp     => model%temperature%temp
+     flwa     => model%temperature%flwa(:,:,:)
      efvs     => model%stress%efvs(:,:,:)
      beta     => model%velocity%beta(:,:)
      beta_internal => model%velocity%beta_internal(:,:)
-     bfricflx => model%temper%bfricflx(:,:)
-     bpmp     => model%temper%bpmp(:,:)
+     bfricflx => model%temperature%bfricflx(:,:)
+     bpmp     => model%temperature%bpmp(:,:)
 
      uvel     => model%velocity%uvel(:,:,:)
      vvel     => model%velocity%vvel(:,:,:)
@@ -1147,7 +1147,7 @@
      eus = model%climate%eus
      efvs_constant = model%paramets%efvs_constant
      effstrain_min = model%paramets%effstrain_min
-     pmp_threshold = model%temper%pmp_threshold
+     pmp_threshold = model%temperature%pmp_threshold
 
      whichbabc            = model%options%which_ho_babc
      whichbeta_limit      = model%options%which_ho_beta_limit
@@ -1566,7 +1566,7 @@
          nx,               ny,                 &
          nz,               nhalo,              &
          parallel,                             &
-         model%general%x0, model%general%y0,   &
+         model%grid%x0,    model%grid%y0,      &
          dx,               dy,                 &
          itest,  jtest,    rtest,              &
          ice_mask,                             &
