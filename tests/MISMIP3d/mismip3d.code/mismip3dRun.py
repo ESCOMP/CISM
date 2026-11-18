@@ -112,7 +112,7 @@ for expt in experiments:
         # The run for this A value is not done and needs to continue.
         
         # Make sure restart is set to 1 in config file.
-        config.set('options', 'restart', '1')
+        config.set('options', 'restart', 'standard')
         
         # Write to config file.
         with open(configfile, 'w') as newconfigfile:

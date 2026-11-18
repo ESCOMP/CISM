@@ -4,7 +4,7 @@ nsn = 320
 upn = 5
 dew = 5000.
 dns = 5000.
-global_bc = 1     # 1 = outflow BCs
+global_bc = outflow
 
 [time]
 tstart = 0.
@@ -15,13 +15,13 @@ adaptive_cfl_threshold = 0.5
 [diagnostics]
 idiag = 162
 jdiag = 311
-dm_dt_diag = 1          # 0 = kg/s, 1 = Gt/yr
+dm_dt_diag = gt_per_yr
 dt_diag = 1.0
 
 [options]
-dycore = 2              # 0 = glide, 2 = glissade
-restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
-restart = 0             # 0 = no restart, 1 = standard restart, 2 = hybrid restart
+dycore = glissade
+restart_extend_velo = .true.
+restart = none
 
 [numerics]
 thcklim = 1.                  # min thickness (m) for dynamics

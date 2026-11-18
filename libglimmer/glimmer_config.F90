@@ -55,7 +55,7 @@ module glimmer_config
 
   implicit none
 
-  private :: handle_section, handle_value, InsertSection, InsertValue, dp
+  private :: handle_section, handle_value, InsertSection, InsertValue, dp, first_word_lower
 
   integer, parameter :: namelen=50                 !< the maximum length of key or section
   ! Note: valuelen was 400 until 2026. It was increased to allow long lists of output variables
@@ -85,6 +85,14 @@ module glimmer_config
   type ConfigData
      type(ConfigSection), pointer :: config=>null()
   end type ConfigData
+
+  !> One allowed value of an option that is given by name in the config file (see GetOption).
+  !> Each option has a parameter array of these, next to its integer constants.
+  type option_choice
+     integer :: value                   !< the integer value used in the code
+     character(len=32) :: name          !< the name used in the config file and the log (lower case)
+     character(len=100) :: description  !< description written to the log
+  end type option_choice
 
   !> generic interface for the get accessor
   interface GetValue
@@ -890,6 +898,113 @@ contains
 
   end subroutine GetDycore
 
+  !> get an option given by name
+  subroutine GetOption(section,name,choices,val)
+    ! The value is the name of one of the choices: the first word of the value, case-insensitive,
+    ! quotes optional (an inline comment after it is ignored). Any other value, including an
+    ! integer, stops the run with a message listing the valid names. If the key is absent or
+    ! has an empty value, val is unchanged (the default).
+    use glimmer_log
+    implicit none
+    type(ConfigSection), pointer :: section                   !< the section from which the value is loaded
+    character(len=*), intent(in) :: name                      !< the name of the key
+    type(option_choice), dimension(:), intent(in) :: choices  !< the allowed values
+    integer, intent(inout) :: val                             !< the integer value of the chosen option
+
+    character(len=valuelen) :: str
+    character(len=namelen) :: word
+    integer :: i
+
+    str = ''
+    call GetValueChar(section, name, str)
+    word = first_word_lower(str)
+    if (len_trim(word) == 0) return
+    do i = 1, size(choices)
+       if (trim(word) == trim(choices(i)%name)) then
+          val = choices(i)%value
+          return
+       endif
+    enddo
+    call write_log('Error, [' // trim(section%name) // '] ' // trim(name) // ' = ' // trim(word) // &
+         ': valid values are ' // trim(option_names_list(choices)), GM_FATAL)
+
+  end subroutine GetOption
+
+  !> get a logical value, allowing only forms whose meaning is clear
+  subroutine GetLogical(section,name,val)
+    ! Accepted (case-insensitive): true, .true., t, 1 and false, .false., f, 0.
+    ! Any other value stops the run. (GetValueLogical, used by Glide, is more permissive:
+    ! it reads any integer other than 1, and any word starting with f, as false.)
+    use glimmer_log
+    implicit none
+    type(ConfigSection), pointer :: section !< the section from which the value is loaded
+    character(len=*), intent(in) :: name    !< the name of the key
+    logical, intent(inout) :: val           !< the value; unchanged if the key is absent
+
+    character(len=valuelen) :: str
+    character(len=namelen) :: word
+
+    str = ''
+    call GetValueChar(section, name, str)
+    word = first_word_lower(str)
+    select case (trim(word))
+    case ('')
+       return
+    case ('true', '.true.', 't', '1')
+       val = .true.
+    case ('false', '.false.', 'f', '0')
+       val = .false.
+    case default
+       call write_log('Error, [' // trim(section%name) // '] ' // trim(name) // ' = ' // trim(word) // &
+            ': use .true. or .false.', GM_FATAL)
+    end select
+
+  end subroutine GetLogical
+
+  !> the name of an option value ('' if the value is not one of the choices)
+  function option_name(choices, val) result(name)
+    implicit none
+    type(option_choice), dimension(:), intent(in) :: choices
+    integer, intent(in) :: val
+    character(len=32) :: name
+    integer :: i
+    name = ''
+    do i = 1, size(choices)
+       if (choices(i)%value == val) then
+          name = choices(i)%name
+          return
+       endif
+    enddo
+  end function option_name
+
+  !> the description of an option value ('' if the value is not one of the choices)
+  function option_description(choices, val) result(description)
+    implicit none
+    type(option_choice), dimension(:), intent(in) :: choices
+    integer, intent(in) :: val
+    character(len=100) :: description
+    integer :: i
+    description = ''
+    do i = 1, size(choices)
+       if (choices(i)%value == val) then
+          description = choices(i)%description
+          return
+       endif
+    enddo
+  end function option_description
+
+  !> the names of all choices, separated by commas
+  function option_names_list(choices) result(list)
+    implicit none
+    type(option_choice), dimension(:), intent(in) :: choices
+    character(len=1024) :: list
+    integer :: i
+    list = trim(choices(1)%name)
+    do i = 2, size(choices)
+       list = trim(list) // ', ' // trim(choices(i)%name)
+    enddo
+  end function option_names_list
+
   !> get logical value
   subroutine GetValueLogical(section,name,val)
     implicit none
@@ -1028,4 +1143,26 @@ contains
     end if
     value=>new_value
   end subroutine InsertValue
+  !> the first word of a config value, in lower case, without quotes; an inline comment is dropped
+  function first_word_lower(str) result(word)
+    implicit none
+    character(len=*), intent(in) :: str
+    character(len=namelen) :: word
+    character(len=len(str)) :: s
+    integer :: i, n
+    s = adjustl(str)
+    n = scan(s, ' #;!')
+    if (n == 0) n = len_trim(s) + 1
+    word = s(1:min(n-1, len(word)))
+    ! remove quotes around the word
+    n = len_trim(word)
+    if (n >= 2) then
+       if ((word(1:1) == "'" .and. word(n:n) == "'") .or. (word(1:1) == '"' .and. word(n:n) == '"')) &
+            word = word(2:n-1)
+    endif
+    do i = 1, len_trim(word)
+       if (word(i:i) >= 'A' .and. word(i:i) <= 'Z') word(i:i) = achar(iachar(word(i:i)) + 32)
+    enddo
+  end function first_word_lower
+
 end module glimmer_config

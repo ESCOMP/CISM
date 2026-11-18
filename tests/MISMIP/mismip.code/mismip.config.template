@@ -12,8 +12,8 @@ dt = 1.
 adaptive_cfl_threshold = 0.5
 
 [options]
-dycore = 2              # 0 = glide, 1 = glam, 2=glissade
-restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
+dycore = glissade
+restart_extend_velo = .true.
 # restart = 0
 
 [numerics]

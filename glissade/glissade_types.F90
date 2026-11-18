@@ -44,27 +44,93 @@ module glissade_types
        HO_SPARSE_PCG_INCH, HO_SPARSE_BICG, HO_SPARSE_GMRES, &
        HO_SPARSE_PCG_STANDARD, HO_SPARSE_PCG_CHRONGEAR
   use cism_parallel, only: parallel_type
+  use glimmer_config, only: option_choice
 
   implicit none
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   ! Constants that describe the options available
-  ! We use these integer parameters elsewhere in the code to avoid hardwiring of option numbers
+  ! We use these integer parameters elsewhere in the code to avoid hardwiring of option numbers.
+  !
+  ! Options are given by name in the config file. For each such option, a parameter array of
+  ! type option_choice (glimmer_config) lists the integer value, the name and the description of
+  ! each allowed value. GetOption reads the option by name, and log_option writes the name and
+  ! the description to the log. The constants are named <KEY>_<NAME>.
 
-  ! basic options
-
+  ! [grid] global_bc
   integer, parameter :: GLOBAL_BC_PERIODIC = 0  ! doubly periodic
   integer, parameter :: GLOBAL_BC_OUTFLOW = 1   ! free outflow; scalars in global halo set to zero
   integer, parameter :: GLOBAL_BC_NO_PENETRATION = 2   ! no penetration; outflow set to zero at global boundaries
-                                                       ! NOTE: The no-penetration option is supported for Glissade only
   integer, parameter :: GLOBAL_BC_NO_ICE = 3    ! no ice at global boundary; scalars set to zero adjacent to boundary
+  type(option_choice), dimension(4), parameter :: global_bc_choices = [ &
+       option_choice(GLOBAL_BC_PERIODIC,       'periodic',       'periodic boundaries'), &
+       option_choice(GLOBAL_BC_OUTFLOW,        'outflow',        'outflow at boundaries'), &
+       option_choice(GLOBAL_BC_NO_PENETRATION, 'no_penetration', 'no penetration at boundaries'), &
+       option_choice(GLOBAL_BC_NO_ICE,         'no_ice',         'no ice at boundaries') ]
 
+  ! [grid] sigma_method
+  integer, parameter :: SIGMA_METHOD_GLIDE = 0
+  integer, parameter :: SIGMA_METHOD_FILE = 1
+  integer, parameter :: SIGMA_METHOD_CONFIG = 2
+  integer, parameter :: SIGMA_METHOD_UNIFORM = 3
+  integer, parameter :: SIGMA_METHOD_PATTYN = 4
+  type(option_choice), dimension(5), parameter :: sigma_method_choices = [ &
+       option_choice(SIGMA_METHOD_GLIDE,   'glide',   'standard Glide sigma levels'), &
+       option_choice(SIGMA_METHOD_FILE,    'file',    'sigma levels from sigma_file'), &
+       option_choice(SIGMA_METHOD_CONFIG,  'config',  'sigma levels from [sigma]'), &
+       option_choice(SIGMA_METHOD_UNIFORM, 'uniform', 'evenly spaced sigma levels'), &
+       option_choice(SIGMA_METHOD_PATTYN,  'pattyn',  'Pattyn sigma levels') ]
+
+  ! [time] dt_input_option
+  integer, parameter :: DT_INPUT_OPTION_DT = 0
+  integer, parameter :: DT_INPUT_OPTION_NSTEPS_PER_YEAR = 1
+  type(option_choice), dimension(2), parameter :: dt_input_option_choices = [ &
+       option_choice(DT_INPUT_OPTION_DT,              'dt',              'time step set by dt (yr)'), &
+       option_choice(DT_INPUT_OPTION_NSTEPS_PER_YEAR, 'nsteps_per_year', 'time step set by nsteps_per_year') ]
+
+  ! [diagnostics] dm_dt_diag
+  integer, parameter :: DM_DT_DIAG_KG_PER_S = 0
+  integer, parameter :: DM_DT_DIAG_GT_PER_YR = 1
+  type(option_choice), dimension(2), parameter :: dm_dt_diag_choices = [ &
+       option_choice(DM_DT_DIAG_KG_PER_S,  'kg_per_s',  'write dmass/dt diagnostic in units of kg/s'), &
+       option_choice(DM_DT_DIAG_GT_PER_YR, 'gt_per_yr', 'write dmass/dt diagnostic in units of Gt/yr') ]
+
+  ! [diagnostics] diag_ice_threshold
+  integer, parameter :: DIAG_ICE_THRESHOLD_ZERO = 0
+  integer, parameter :: DIAG_ICE_THRESHOLD_THCKLIM = 1
+  type(option_choice), dimension(2), parameter :: diag_ice_threshold_choices = [ &
+       option_choice(DIAG_ICE_THRESHOLD_ZERO,    'zero',    'include cells with H > 0 in global diagnostics'), &
+       option_choice(DIAG_ICE_THRESHOLD_THCKLIM, 'thcklim', 'include cells with H > thcklim in global diagnostics') ]
+
+  ! [options] dycore
+  ! Read by GetDycore (glimmer_config), which also accepts the integers; the choices are used for the log.
   ! Note: DYCORE_GLIDE is not a Glissade option, but it is used in ncdf_template.F90.in,
   !       from which both glide_io and glissade_io are generated.
   integer, parameter :: DYCORE_GLIDE = 0        ! old shallow-ice dycore from Glimmer
-  !WHL TODO - Set DYCORE_GLISSADE = 1 during the config reorg
   integer, parameter :: DYCORE_GLISSADE = 2     ! finite-element solver
+  type(option_choice), dimension(1), parameter :: dycore_choices = [ &
+       option_choice(DYCORE_GLISSADE, 'glissade', '') ]
+
+  ! [options] restart
+  ! The constants NO_RESTART, STANDARD_RESTART and HYBRID_RESTART (glimmer_ncdf) are shared with Glide.
+  type(option_choice), dimension(3), parameter :: restart_choices = [ &
+       option_choice(NO_RESTART,       'none',     'not a restart'), &
+       option_choice(STANDARD_RESTART, 'standard', 'standard restart'), &
+       option_choice(HYBRID_RESTART,   'hybrid',   'hybrid restart (model time is reset)') ]
+
+  ! [options] restart_extend_velo: a logical in the config file
+  integer, parameter :: RESTART_EXTEND_VELO_FALSE = 0
+  integer, parameter :: RESTART_EXTEND_VELO_TRUE = 1
+
+  ! [numerics] compute_blocks
+  integer, parameter :: COMPUTE_BLOCKS_ALL = 0          ! compute on all blocks in the global domain
+  integer, parameter :: COMPUTE_BLOCKS_ACTIVE_ONLY = 1  ! compute on active blocks only (where ice is potentially present)
+  integer, parameter :: COMPUTE_BLOCKS_INQUIRE = 2      ! inquire how many active blocks there are for a given ice domain mask and block size
+  type(option_choice), dimension(3), parameter :: compute_blocks_choices = [ &
+       option_choice(COMPUTE_BLOCKS_ALL,         'all',         'compute on all blocks'), &
+       option_choice(COMPUTE_BLOCKS_ACTIVE_ONLY, 'active_only', 'compute on active blocks only'), &
+       option_choice(COMPUTE_BLOCKS_INQUIRE,     'inquire',     'inquire the number of active blocks') ]
 
   !WHL TODO - Renumber the Glissade options as part of the config reorg
   integer, parameter :: EVOL_INC_REMAP = 3      ! glissade only
@@ -185,29 +251,7 @@ module glissade_types
   integer, parameter :: FORCE_RETREAT_ALL_ICE = 1
   integer, parameter :: FORCE_RETREAT_FLOATING_ICE = 2
 
-  integer, parameter :: DT_IN_YEARS = 0
-  integer, parameter :: DT_STEPS_PER_YEAR = 1
-
-  integer, parameter :: DM_DT_DIAG_KG_S = 0
-  integer, parameter :: DM_DT_DIAG_GT_Y = 1
-
-  integer, parameter :: DIAG_MINTHCK_ZERO = 0
-  integer, parameter :: DIAG_MINTHCK_THKLIM = 1
-
-  integer, parameter :: SIGMA_COMPUTE_GLIDE = 0
-  integer, parameter :: SIGMA_EXTERNAL = 1
-  integer, parameter :: SIGMA_CONFIG = 2
-  integer, parameter :: SIGMA_COMPUTE_EVEN = 3
-  integer, parameter :: SIGMA_COMPUTE_PATTYN = 4
-
-  integer, parameter :: RESTART_EXTEND_VELO_FALSE = 0
-  integer, parameter :: RESTART_EXTEND_VELO_TRUE = 1
-  
   ! higher-order options
-
-  integer, parameter :: ACTIVE_BLOCKS_ALL = 0     ! compute on all blocks in the global domain
-  integer, parameter :: ACTIVE_BLOCKS_ONLY = 1    ! compute on active blocks only (where ice is potentially present)
-  integer, parameter :: ACTIVE_BLOCKS_INQUIRE = 2 ! inquire how many active blocks there are for a given ice domain mask and block size
 
   integer, parameter :: HO_EFVS_CONSTANT = 0
   integer, parameter :: HO_EFVS_FLOWFACT = 1

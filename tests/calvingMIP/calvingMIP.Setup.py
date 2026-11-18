@@ -549,7 +549,7 @@ for expt in experiments:
 
     # Set the hybrid restart option for Experiments 1 to 5
     if expt != 'SpinupCircular' and expt != 'SpinupThule':
-        config.set('options', 'restart', '2')
+        config.set('options', 'restart', 'hybrid')
 
     # Change the default comment
     comment = 'CalvingMIP ' + expt
@@ -671,7 +671,7 @@ for expt in experiments:
         cf_advance_retreat_period = 0.
 
         config.set('time', 'tend',   str(tend))
-        config.set('options', 'restart', '1')
+        config.set('options', 'restart', 'standard')
         config.set('calving', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
         config.set('calving', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
 

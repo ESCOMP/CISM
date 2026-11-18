@@ -154,8 +154,8 @@ contains
     ! Set up coordinate systems, and change the parallel values of ewn and nsn.
     ! With no_ice BCs, scalars adjacent to the global boundary (including halos) are set to zero.
 
-    if (model%options%compute_blocks == ACTIVE_BLOCKS_ONLY .or.   &
-        model%options%compute_blocks == ACTIVE_BLOCKS_INQUIRE) then
+    if (model%options%compute_blocks == COMPUTE_BLOCKS_ACTIVE_ONLY .or.   &
+        model%options%compute_blocks == COMPUTE_BLOCKS_INQUIRE) then
 
        ! Allocate memory for a global array, ice_domain_mask, on main_task.
 
@@ -178,7 +178,7 @@ contains
        call glimmer_nc_get_var(infile, 'ice_domain_mask', &
                                model%general%ice_domain_mask)
 
-       if (model%options%compute_blocks == ACTIVE_BLOCKS_INQUIRE) then
+       if (model%options%compute_blocks == COMPUTE_BLOCKS_INQUIRE) then
 
           ! The subroutine will report how many tasks are needed to compute on all active blocks, and then abort.
           ! The user can then resubmit (on an optimal number of processors) with model%options%compute_blocks = ACTIVE_BLOCKS.
@@ -190,7 +190,7 @@ contains
                model%parallel,                                 &
                inquire_only = .true.)
 
-       else  ! compute_blocks = ACTIVE_BLOCKS_ONLY
+       else  ! compute_blocks = COMPUTE_BLOCKS_ACTIVE_ONLY
 
           ! Set up a distributed grid with computations on active blocks only.
           ! An active block contains one or more cells with ice_domain_mask = 1.

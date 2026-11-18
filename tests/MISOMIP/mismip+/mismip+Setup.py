@@ -77,7 +77,8 @@ parser.add_argument('-v', '--vlevel', dest='vertlevels',    type=int,    default
 parser.add_argument('-a', '--approx', dest='approximation', type=str, default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
 parser.add_argument('-b', '--basal',  dest='basalFriction', type=str, default='Schoof', help="basal friction law (Schoof, Tsai, powerlaw)")
 parser.add_argument('-y', '--year',   dest='yearsSpinup',   type=int,    default= 20000,   help="length of spinup run (yr)")
-parser.add_argument('-g', '--gbc',    dest='global_bc',     type=int, default=0, help="global boundary condition")
+parser.add_argument('-g', '--gbc',    dest='global_bc',     default='periodic',
+                    help="global boundary condition: periodic, outflow, no_penetration or no_ice (or 0-3)")
 
 options = parser.parse_args()
 
@@ -172,7 +173,11 @@ config.set('grid', 'nsn', str(ny))
 config.set('grid', 'upn', str(nz))
 config.set('grid', 'dew', str(dx))
 config.set('grid', 'dns', str(dy))
-config.set('grid', 'global_bc', str(options.global_bc))
+global_bc_names = ['periodic', 'outflow', 'no_penetration', 'no_ice']
+global_bc = options.global_bc
+if global_bc.isdigit():
+    global_bc = global_bc_names[int(global_bc)]
+config.set('grid', 'global_bc', global_bc)
 
 # Set the diagnostic cell
 # By default, this cell lies midway along the y-axis, near the right edge of the domain.
@@ -325,9 +330,9 @@ kinbcmask[:,:,0]  = 1   # mask out left-most column
 # For outflow BC, also zero out accumulation in motionless cells,
 #    to prevent these cells from thickening indefinitely.
 
-if options.global_bc == 0:     # periodic
+if global_bc == 'periodic':
     kinbcmask[:,:,-1] = 1      # mask out right-most column
-elif options.global_bc == 1:   # outflow
+elif global_bc == 'outflow':
     # Zero out the velocity at vertices one cell away from the global boundary.
     B0 = -150.                     # same as the value in computeBed
     j = 0                          # bottom row of vertices
@@ -486,7 +491,7 @@ for expt in experiments:
     # The Spinup run is an initialization run (restart = 0).
     # The other experiments use hybrid restart.
     if expt != 'Spinup':
-       config.set('options', 'restart', '2')
+       config.set('options', 'restart', 'hybrid')
 
     # Set the time step in the master config file.
     # Set the diagnostic interval to the same value (not necessary, but helpful for debugging).

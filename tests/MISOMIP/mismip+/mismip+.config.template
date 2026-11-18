@@ -4,7 +4,7 @@ nsn = 40
 upn = 5
 dew = 2000
 dns = 2000
-global_bc = 0
+global_bc = periodic
 
 [time]
 tstart = 0.
@@ -19,9 +19,9 @@ jdiag = 1               # set by mismip+Setup.py
 dt_diag = 0.5
 
 [options]
-dycore = 2              # 0 = glide, 2 = glissade
-restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
-restart = 0             # 0 = not a restart
+dycore = glissade
+restart_extend_velo = .true.
+restart = none
 
 [numerics]
 thcklim = 1.                  #min thickness (m) for dynamics

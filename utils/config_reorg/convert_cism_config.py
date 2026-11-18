@@ -3,7 +3,9 @@
 
 The config reorganization moves keys out of the long [options], [ho_options] and [parameters]
 sections into short sections by topic (e.g. [calving], [climate], [basal_physics]), and renames
-some keys (e.g. marine_margin -> calving_law).  Option values are not changed.
+some keys (e.g. marine_margin -> calving_law).  Options that are now given by name have their integer
+values replaced by the names (e.g. stokes_approx = 4 -> stokes_approx = diva), and options that are
+now logicals have 0/1 replaced by .false./.true. (OPTION_VALUES and LOGICAL_KEYS).
 
 Usage:
     convert_cism_config.py FILE [FILE ...]              write FILE.converted next to each FILE
@@ -28,6 +30,10 @@ How a config file is converted:
     changed.
   - Keys listed in REMOVED (keys the model no longer reads) are deleted; the report names the replacement,
     if there is one, e.g. 'deleted [isostasy] lithosphere_period: removed; see load_update_interval'.
+  - Integer values of the options in OPTION_VALUES are replaced by their names, and 0/1 values of the
+    keys in LOGICAL_KEYS by .false./.true.  An inline comment is kept, unless it explains integer
+    values ('# 0 = off, 1 = on'), which no longer fit.
+    An integer that is not a valid value is left as it is and reported (the model will stop on it).
   - Other keys are left where they are; the model warns about keys it does not read.
   - Converting a file that is already converted changes nothing.
   - Glide configs ([options] dycore = 0) are left unchanged: the Glide config format is frozen.
@@ -493,8 +499,53 @@ def is_glide(sections):
                 m = KEY_RE.match(line)
                 if m and not COMMENT_RE.match(line) and m.group(2) == 'dycore':
                     value = re.split(r'[#;!]', m.group(3).lstrip(' \t=:'))[0].strip()
-                    return value == '0'
+                    return value == '0' or value.strip("'\"").lower() == 'glide'
     return False
+
+
+# Options given by name: (section, key) -> {integer value: name}.  Values are converted after the
+# keys have been moved and renamed, so (section, key) is the new location.  Keys are unique across
+# sections, so the same tables (by key) are used for user_nl_cism files.
+OPTION_VALUES = {
+    ('grid', 'global_bc'): {0: 'periodic', 1: 'outflow', 2: 'no_penetration', 3: 'no_ice'},
+    ('grid', 'sigma_method'): {0: 'glide', 1: 'file', 2: 'config', 3: 'uniform', 4: 'pattyn'},
+    ('time', 'dt_input_option'): {0: 'dt', 1: 'nsteps_per_year'},
+    ('diagnostics', 'dm_dt_diag'): {0: 'kg_per_s', 1: 'gt_per_yr'},
+    ('diagnostics', 'diag_ice_threshold'): {0: 'zero', 1: 'thcklim'},
+    ('options', 'dycore'): {2: 'glissade'},
+    ('options', 'restart'): {0: 'none', 1: 'standard', 2: 'hybrid'},
+    ('numerics', 'compute_blocks'): {0: 'all', 1: 'active_only', 2: 'inquire'},
+}
+
+# Options that are now logicals: 0/1 -> .false./.true.
+LOGICAL_KEYS = {
+    ('options', 'restart_extend_velo'),
+}
+
+INT_COMMENT_RE = re.compile(r'^\s*[#;!].*(?<![\w.])[+-]?\d+\s*[=:]')
+INT_VALUE_RE = re.compile(r'^(\s*[=:]\s*)([+-]?\d+)(?=\s|$|[#;!])(.*)$')
+
+
+def convert_value(section, key, rest, quote=''):
+    """Return (new rest of line, change or None) for the value part ('= 4  # comment') of a key."""
+    if (section, key) in OPTION_VALUES:
+        table = OPTION_VALUES[(section, key)]
+    elif (section, key) in LOGICAL_KEYS:
+        table = {0: '.false.', 1: '.true.'}
+        quote = ''
+    else:
+        return rest, None
+    m = INT_VALUE_RE.match(rest)
+    if not m:
+        return rest, None
+    v = int(m.group(2))
+    if v not in table:
+        return rest, f'[{section}] {key} = {v} is not a valid value; left unchanged'
+    tail = m.group(3)
+    # an inline comment that explains the integer values ('# 0 = off, 1 = on') no longer fits: drop it
+    if INT_COMMENT_RE.match(tail):
+        tail = ''
+    return m.group(1) + quote + table[v] + quote + tail, f'[{section}] {key}: {v} -> {table[v]}'
 
 
 # Keys that lead their section, in this order: the major switches and the keys users edit most often.
@@ -673,7 +724,23 @@ def convert_config(text, moves=None, removed=None):
         if sec.name and order_lead_keys(sec):
             changes.append(f'lead keys of [{sec.name}] moved to the top')
 
+    # integer option values -> names; 0/1 -> logicals
+    for sec in sections:
+        if not sec.name:
+            continue
+        for i, line in enumerate(sec.lines):
+            m = KEY_RE.match(line)
+            if m and not COMMENT_RE.match(line):
+                rest, change = convert_value(sec.name, m.group(2), m.group(3))
+                if change:
+                    sec.lines[i] = m.group(1) + m.group(2) + rest
+                    changes.append(change)
+
     return render(sections), changes
+
+
+# key -> section, for the keys whose values are converted (keys are unique across sections)
+USER_NL_SECTION = {k: s for (s, k) in list(OPTION_VALUES) + list(LOGICAL_KEYS)}
 
 
 def convert_user_nl(text, renames=None):
@@ -682,9 +749,18 @@ def convert_user_nl(text, renames=None):
     out, changes = [], []
     for line in text.split('\n'):
         m = NAMELIST_KEY_RE.match(line)
-        if m and not COMMENT_RE.match(line) and m.group(2) in renames:
-            out.append(m.group(1) + renames[m.group(2)] + m.group(3))
-            changes.append(f'{m.group(2)} -> {renames[m.group(2)]}')
+        if m and not COMMENT_RE.match(line):
+            key, rest = m.group(2), m.group(3)
+            if key in renames:
+                changes.append(f'{key} -> {renames[key]}')
+                key = renames[key]
+            # option values: CESM namelist strings are quoted
+            sec = USER_NL_SECTION.get(key)
+            if sec:
+                rest, change = convert_value(sec, key, rest, quote="'")
+                if change:
+                    changes.append(change.replace(f'[{sec}] ', ''))
+            out.append(m.group(1) + key + rest)
         else:
             out.append(line)
     return '\n'.join(out), changes
@@ -709,12 +785,12 @@ def self_test():
     assert '[basal_physics]\nsliding_law = 9\n\n' in new, new
     assert '[ho_options]' not in new, new                      # emptied section removed
     assert new.index('[basal_physics]') < new.index('[calving]') < new.index('[CF output]'), new
-    assert 'dycore = 2' in new and 'ice_limit = 1.' in new
+    assert 'dycore = glissade' in new and 'ice_limit = 1.' in new
     again, changes2 = convert_config(new, moves)                # idempotent
     assert again == new and not changes2, changes2
     nl, c = convert_user_nl("which_ho_babc = 9\n! comment\nice_limit = 1.\n", {'which_ho_babc': 'sliding_law'})
     assert nl == "sliding_law = 9\n! comment\nice_limit = 1.\n" and c == ['which_ho_babc -> sliding_law'], nl
-    assert convert_config(old, {})[0] == old                    # empty table: no change
+    assert convert_config(old, {})[0] == old.replace('dycore = 2', 'dycore = glissade')   # empty table: values only
     commented = old.replace('[ho_options]', '[ho_options]   # Higher order options').replace(
         'dycore = 2', 'dycore = 2\n marine_margin = 1')
     new2, _ = convert_config(commented, moves)                  # header with a trailing comment
@@ -725,7 +801,7 @@ def self_test():
 
     # section order: comment blocks above a header (after a blank line) move with the section below
     unordered = '\n'.join([
-        '# dome test', '[options]', 'dycore = 2', '',
+        '# dome test', '[options]', 'dycore = glissade', '',
         '# basal friction', '[basal_physics]', 'sliding_law = 4', '#beta_large = 1.e10',
         '[grid]', 'ewn = 31', '',
         '####', '# I/O configuration follows', '####', '[CF default]', 'title = test', '',
@@ -735,16 +811,16 @@ def self_test():
     assert ordered == '\n'.join([
         '# dome test', '[grid]', 'ewn = 31', '',
         '[time]', 'dt = 1.', '',
-        '[options]', 'dycore = 2', '',
+        '[options]', 'dycore = glissade', '',
         '# basal friction', '[basal_physics]', 'sliding_law = 4', '#beta_large = 1.e10', '',
         '####', '# I/O configuration follows', '####', '[CF default]', 'title = test', '']), ordered
     assert convert_config(ordered, {}) == (ordered, [])          # already in order: unchanged
 
     # lead keys: idiag and jdiag (with the comment above idiag) move to the top of [diagnostics]
-    diag = '\n'.join(['[diagnostics]', 'dt_diag = 1.', '# diagnostic point', 'idiag = 10', 'jdiag = 12', 'dm_dt_diag = 1', ''])
+    diag = '\n'.join(['[diagnostics]', 'dt_diag = 1.', '# diagnostic point', 'idiag = 10', 'jdiag = 12', 'dm_dt_diag = gt_per_yr', ''])
     led, ch = convert_config(diag, {})
     assert led == '\n'.join(['[diagnostics]', '# diagnostic point', 'idiag = 10', 'jdiag = 12', 'dt_diag = 1.',
-                             'dm_dt_diag = 1', '']), led
+                             'dm_dt_diag = gt_per_yr', '']), led
     assert ch == ['lead keys of [diagnostics] moved to the top'], ch
     assert convert_config(led, {}) == (led, [])                  # already in order: unchanged
     grid = '\n'.join(['[grid]', 'upn = 10', 'ewn = 31', 'nsn = 31', '', '[time]', 'dt = 1.', ''])
@@ -759,6 +835,20 @@ def self_test():
     assert ch == ['deleted [ho_options] deltaT_ocn_extrapolate: removed (deltaT_ocn is no longer extrapolated)',
                   'deleted [isostasy] lithosphere_period: removed; see load_update_interval in [isostasy]',
                   'removed empty section [ho_options]'], ch
+    # option values -> names, 0/1 -> logicals; comments kept; invalid integers reported
+    vals = '\n'.join(['[grid]', 'global_bc = 3   # no ice', 'sigma_method = file', '',
+                       '[options]', 'restart = 1', 'restart_extend_velo = 1', '',
+                       '[numerics]', 'compute_blocks = 7', ''])
+    new3, c3 = convert_config(vals, {})
+    assert 'global_bc = no_ice   # no ice\nsigma_method = file\n' in new3, new3
+    assert 'restart = standard\nrestart_extend_velo = .true.\n' in new3, new3
+    one = convert_config('[options]\ndycore = 2   # 0 = glide, 2 = glissade\nrestart = 0  # no restart\n', {})[0]
+    assert one == '[options]\ndycore = glissade\nrestart = none  # no restart\n', one
+    assert 'compute_blocks = 7' in new3 and '[numerics] compute_blocks = 7 is not a valid value; left unchanged' in c3, c3
+    assert convert_config(new3, {})[1] == ['[numerics] compute_blocks = 7 is not a valid value; left unchanged']
+    nl3, c3 = convert_user_nl("restart = 2\nrestart_extend_velo = 0\nglobal_bc = 'outflow'\n", {})
+    assert nl3 == "restart = 'hybrid'\nrestart_extend_velo = .false.\nglobal_bc = 'outflow'\n", nl3
+    assert c3 == ['restart: 2 -> hybrid', 'restart_extend_velo: 0 -> .false.'], c3
     print('self-test passed')
 
 

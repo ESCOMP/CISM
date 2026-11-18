@@ -116,7 +116,7 @@ for expt in experiments:
             print( 'Continuing experiment from restart.')
         
             # Make sure restart is set to 1 in config file.
-            config.set('options', 'restart', '1')
+            config.set('options', 'restart', 'standard')
         
             # Write to config file.
             with open(configfile, 'w') as newconfigfile:

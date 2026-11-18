@@ -344,9 +344,9 @@
     velo_ew_ubound = ewn-uhalo
 
     ! Set the minimum ice thickness for including cells in diagnostics
-    if (model%options%diag_minthck == DIAG_MINTHCK_ZERO) then
+    if (model%options%diag_minthck == DIAG_ICE_THRESHOLD_ZERO) then
        minthck = eps  ! slightly > 0
-    elseif (model%options%diag_minthck == DIAG_MINTHCK_THKLIM) then
+    elseif (model%options%diag_minthck == DIAG_ICE_THRESHOLD_THCKLIM) then
        ! Note: If the user specifies model%numerics%thklim = 1.0 m in the config file,
        !       then thklim is reset at initialization to a number slightly less than 1.0.
        !       This protects the diagnostics below against rounding errors for cells
@@ -675,7 +675,7 @@
                                    tot_volume*1.0d-9         ! convert to km^3
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    if (model%options%dm_dt_diag == DM_DT_DIAG_KG_S) then
+    if (model%options%dm_dt_diag == DM_DT_DIAG_KG_PER_S) then
 
        write(message,'(a25,e24.16)') 'Total ice mass (kg)      ',   &
                                       tot_mass                  ! kg
@@ -689,7 +689,7 @@
                                       tot_energy                ! J
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_Y) then
+    elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_PER_YR) then
 
        write(message,'(a25,e24.16)') 'Total ice mass (Gt)      ',   &
                                       tot_mass * 1.0d-12        ! Gt
@@ -714,7 +714,7 @@
        call write_log(trim(message), type = GM_DIAGNOSTIC)
     endif
 
-    if (model%options%dm_dt_diag == DM_DT_DIAG_KG_S) then
+    if (model%options%dm_dt_diag == DM_DT_DIAG_KG_PER_S) then
 
        write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
        call write_log(trim(message), type = GM_DIAGNOSTIC)
@@ -763,7 +763,7 @@
        write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_Y) then
+    elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_PER_YR) then
 
        factor = scyr / 1.0d12
 
