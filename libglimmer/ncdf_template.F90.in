@@ -39,6 +39,10 @@ module NAME_io
   ! template for creating subsystem specific I/O routines
   ! written by Magnus Hagdorn, 2004
 
+  ! generate_ncvars.py substitutes the upper-case keys of the [VARSET] header of the .def file,
+  ! and the model-type components listed for each dycore in its DYCORE_PATHS table
+  ! (the time-stepping and grid components, and the restart and dycore options).
+
   !WHL, Sept. 2023
   ! Moved some 'use' statements to the top to avoid redundant statements that slow the build,
   ! particularly on the Intel compiler
@@ -128,7 +132,7 @@ contains
     do while(associated(oc))
        if (oc%do_averages .and. glimmer_nc_is_tavg_stream(oc)) then
           restored = .false.
-          if (model%options%is_restart == STANDARD_RESTART) then
+          if (model%options%RESTART_OPTION == STANDARD_RESTART) then
              call glimmer_nc_restore_tavg_state(oc, model%funits, restored)
              if (.not. restored) then
                 call write_log('No averaging state in the restart file; starting a new averaging interval for '// &
@@ -232,7 +236,7 @@ contains
     if (present(time)) then
        sub_time = time
     else
-       sub_time = model%numerics%time
+       sub_time = model%TIME_TYPE%time
     end if
 
     ! Restart files are written in a second pass, after all other output at this time.
@@ -281,7 +285,7 @@ contains
           !       For files that also include variables from other modules (e.g., glad_io), the driver
           !       must create and write the file itself, using external_control.
           call glimmer_nc_advance_timeslice(oc, sub_time)
-          if (glimmer_nc_write_due(oc, forcewrite, sub_time, model%numerics%tinc, model%numerics%tstep_count)) then
+          if (glimmer_nc_write_due(oc, forcewrite, sub_time, model%TIME_TYPE%tinc, model%TIME_TYPE%tstep_count)) then
              call NAME_io_write_slice(oc, data, model, glimmer_nc_slice_filename(oc, sub_time), sub_time)
              if (oc%do_averages) tavg_wrote = .true.
           end if
@@ -289,8 +293,8 @@ contains
           cycle
        end if
 
-       call glimmer_nc_checkwrite(oc, model%funits, forcewrite, sub_time, model%numerics%tinc, &
-            model%numerics%tstep_count, wrote_timeslice=wrote_timeslice)
+       call glimmer_nc_checkwrite(oc, model%funits, forcewrite, sub_time, model%TIME_TYPE%tinc, &
+            model%TIME_TYPE%tstep_count, wrote_timeslice=wrote_timeslice)
        ! Note: Write the fields only if a new time slice was written during this call.
        !       NCO%just_processed is not a reliable test, since it stays true for later calls at the same time
        !        (e.g., in glide_finalise), which would rewrite the fields and (for tavg files) overwrite the averages.
@@ -352,7 +356,7 @@ contains
     call glimmer_nc_createfile(outfile, model%funits, model%projection, external_baseline_year, external_time_units)
     call NAME_io_create(outfile, model, data)
     call DYCORE_PREFIX_nc_filldvars(outfile, model)   ! also leaves define mode
-    call glimmer_nc_write_timeslice(outfile, model%funits, time, sub_external_time, model%numerics%tstep_count)
+    call glimmer_nc_write_timeslice(outfile, model%funits, time, sub_external_time, model%TIME_TYPE%tstep_count)
     call NAME_io_write(outfile, data)
 #ifdef HAVE_AVG
     if (outfile%do_averages) then
@@ -374,9 +378,9 @@ contains
     type(DYCORE_PREFIX_global_type) :: model
 
     ! level and staglevel dimensions
-    nc%nlevel = model%general%upn
-    nc%nstaglevel = model%general%upn-1
-    nc%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
+    nc%nlevel = model%GRID_TYPE%upn
+    nc%nstaglevel = model%GRID_TYPE%upn-1
+    nc%nstagwbndlevel = model%GRID_TYPE%upn ! MJH this is the max index, not the size
 
     ! dimensions that depend on the dycore (e.g., ocean levels, glaciers, basins)
     call DYCORE_PREFIX_nc_set_custom_dims(nc, model)
@@ -438,7 +442,7 @@ contains
 
     ! Convert temp and flwa to versions on stag grid, if needed
     ! Note: this check must occur after restart variables are expanded in glimmer_nc_readparams
-    call check_for_tempstag(model%options%whichdycore /= DYCORE_GLIDE, NCO)
+    call check_for_tempstag(model%options%DYCORE_OPTION /= DYCORE_GLIDE, NCO)
 
     ! checking if we need to handle time averages
     ! Note: Match whole words ending in '_tavg'. Restart files hold the running sums as '_tavg_sum' variables,
@@ -663,8 +667,8 @@ contains
       ic=>model%funits%frc_first
     endif
     do while(associated(ic))
-       call glimmer_nc_checkread(ic, model%options%is_restart, model%numerics%tstart, model%numerics%time, &
-            model%numerics%tinc, model%numerics%tstep_count)
+       call glimmer_nc_checkread(ic, model%options%RESTART_OPTION, model%TIME_TYPE%tstart, model%TIME_TYPE%time, &
+            model%TIME_TYPE%tinc, model%TIME_TYPE%tstep_count)
        if (ic%nc%just_processed) then
           call NAME_set_nc_dims(ic%nc, model)
           call NAME_io_read(ic,data)
@@ -693,7 +697,7 @@ contains
     logical, parameter :: verbose_read_forcing = .false.
 
     ! Make eps a fraction of the time step.
-    eps = model%numerics%tinc * 1.0d-3
+    eps = model%TIME_TYPE%tinc * 1.0d-3
 
     ! read forcing files
     ic=>model%funits%frc_first
@@ -716,7 +720,7 @@ contains
           ! Compute the current forcing time.
           ! This is the current model time, plus any offset to be consistent with the time in the forcing file,
           !  plus a small number to allow for roundoff error.
-          current_forcing_time = model%numerics%time + ic%time_offset + eps
+          current_forcing_time = model%TIME_TYPE%time + ic%time_offset + eps
 
           ! If cycling repeatedly through a subset of the forcing data, make a further correction:
           ! compute the current time relative to time_start_cycle.
@@ -727,7 +731,7 @@ contains
 
           if (main_task .and. verbose_read_forcing) then
              write(iulog,*) ' '
-             write(iulog,*) 'In NAME_read_forcing, model time + eps =', model%numerics%time + eps
+             write(iulog,*) 'In NAME_read_forcing, model time + eps =', model%TIME_TYPE%time + eps
              write(iulog,*) 'Forcing file nt, time_offset =', ic%nt, ic%time_offset
              write(iulog,*) 'time_start_cycle, nyear_cycle:', ic%time_start_cycle, ic%nyear_cycle
              write(iulog,*) 'current forcing time =', current_forcing_time
@@ -736,7 +740,7 @@ contains
           ! Find the time index associated with the previous model time step
           t_prev = 0
           do t = ic%nt, 1, -1  ! look through the time array backwards
-             if (ic%times(t) <= current_forcing_time - model%numerics%tinc) then
+             if (ic%times(t) <= current_forcing_time - model%TIME_TYPE%tinc) then
                 t_prev = t
                 if (main_task .and. verbose_read_forcing) write(iulog,*) 'Previous time index =', t_prev
                 exit
@@ -760,7 +764,7 @@ contains
                 endif ! t > t_prev
 
                 exit  ! once we find the time, exit the loop
-             end if   ! ic%times(t) <= model%numerics%time + eps
+             end if   ! ic%times(t) <= model%TIME_TYPE%time + eps
 
           end do  ! if we get to end of loop without exiting, then this file will not be read at this time
 
@@ -801,7 +805,7 @@ contains
     logical, parameter :: verbose_read_forcing = .true.
 
     ! Make eps a fraction of the time step.
-    eps = model%numerics%tinc * 1.0d-3
+    eps = model%TIME_TYPE%tinc * 1.0d-3
 
     ! read forcing files
     ic=>model%funits%frc_first
@@ -888,7 +892,7 @@ contains
     logical, parameter :: verbose_read_forcing = .false.
 
     ! Make eps a fraction of the time step
-    eps = model%numerics%tinc * 1.0d-3
+    eps = model%TIME_TYPE%tinc * 1.0d-3
 
     ! read forcing files
 
@@ -904,7 +908,7 @@ contains
           !  plus a small number to allow for roundoff error.
           ! Code adapted from the read_forcing subroutine above
 
-          current_forcing_time = model%numerics%time + ic%time_offset + eps
+          current_forcing_time = model%TIME_TYPE%time + ic%time_offset + eps
 
           ! If cycling repeatedly through a subset of the forcing data, make a further correction:
           ! compute the current time relative to time_start_cycle.
@@ -915,7 +919,7 @@ contains
 
           if (main_task .and. verbose_read_forcing) then
              write(iulog,*) ' '
-             write(iulog,*) 'In NAME_retrieve_forcing, model time + eps =', model%numerics%time + eps
+             write(iulog,*) 'In NAME_retrieve_forcing, model time + eps =', model%TIME_TYPE%time + eps
              write(iulog,*) 'Filename = ', trim(ic%nc%filename)
              write(iulog,*) 'Forcing file nt, time_offset =', ic%nt, ic%time_offset
              write(iulog,*) 'time_start_cycle, nyear_cycle:', ic%time_start_cycle, ic%nyear_cycle
@@ -931,10 +935,10 @@ contains
 
           if (trim(ic%shuffle_file) /= '') then  ! shuffle_file exists
              open(unit=11, file=trim(ic%shuffle_file), status='old')
-             this_year = int(current_forcing_time - model%numerics%tstart)
+             this_year = int(current_forcing_time - model%TIME_TYPE%tstart)
              if (main_task .and. verbose_read_forcing) then
                 write(iulog,*) 'shuffle_file = ', trim(ic%shuffle_file)
-                write(iulog,*) 'tstart, this_year =', model%numerics%tstart, this_year
+                write(iulog,*) 'tstart, this_year =', model%TIME_TYPE%tstart, this_year
              endif
              forcing_year = 0
              do while (forcing_year == 0)
@@ -958,7 +962,7 @@ contains
           ! Find the time index associated with the previous model time step
           t_prev = 0
           do t = ic%nt, 1, -1  ! look through the time array backwards
-             if (ic%times(t) <= current_forcing_time - model%numerics%tinc) then
+             if (ic%times(t) <= current_forcing_time - model%TIME_TYPE%tinc) then
                 t_prev = t
                 if (main_task .and. verbose_read_forcing) write(iulog,*) 'Previous time index =', t_prev
                 exit
@@ -984,7 +988,7 @@ contains
                 endif ! t > t_prev
 
                 exit  ! once we find the time, exit the loop
-             end if   ! ic%times(t) <= model%numerics%time + eps
+             end if   ! ic%times(t) <= model%TIME_TYPE%time + eps
 
           end do  ! if we get to end of loop without exiting, then there is nothing to retrieve at this time
 
@@ -1076,12 +1080,12 @@ contains
     ! Accumulate only if the model has advanced since the last accumulation.
     ! This prevents double counting when NAME_io_writeall is called more than once
     !  at the same time (e.g., at initialization and in glide_finalise).
-    if (model%numerics%tstep_count <= outfile%accum_tstep_count) return
-    outfile%accum_tstep_count = model%numerics%tstep_count
+    if (model%TIME_TYPE%tstep_count <= outfile%accum_tstep_count) return
+    outfile%accum_tstep_count = model%TIME_TYPE%tstep_count
 
     ! increase total time
-    outfile%total_time = outfile%total_time + model%numerics%tinc
-    factor = model%numerics%tinc
+    outfile%total_time = outfile%total_time + model%TIME_TYPE%tinc
+    factor = model%TIME_TYPE%tinc
 
     !GENVAR_CALCAVG!
   end subroutine NAME_avg_accumulate

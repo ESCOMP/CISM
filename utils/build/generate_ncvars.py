@@ -33,6 +33,16 @@ NOATTRIB = ['name','dimensions','dimlen','data','factor','load','hot','type','av
 dimensions = {}
 module = {}
 
+# Components of the dycore model type that ncdf_template.F90.in refers to, by dycore_prefix.
+# Each key is substituted in the template in upper case (e.g. TIME_TYPE), like the [VARSET] keys.
+# Glide and Glissade name these differently once Glissade variables follow its config keys.
+DYCORE_PATHS = {
+    'glide':    {'time_type': 'numerics', 'grid_type': 'general',
+                 'restart_option': 'is_restart', 'dycore_option': 'whichdycore'},
+    'glissade': {'time_type': 'numerics', 'grid_type': 'general',
+                 'restart_option': 'is_restart', 'dycore_option': 'whichdycore'},
+}
+
 AVERAGE_SUFFIX = 'tavg'
 READ_ONCE_SUFFIX = 'read_once'
 
@@ -269,6 +279,8 @@ class PrintNC_template(PrintVars):
 
         PrintVars.__init__(self,filename,'%s_io.F90'%module['name'])
         self.numvars = 0
+        # model-type paths used by the template (TIME_TYPE, GRID_TYPE, RESTART_OPTION, DYCORE_OPTION)
+        module.update(DYCORE_PATHS[module['dycore_prefix'].strip()])
         self.handletoken['!GENVAR_VARDEF!'] = self.print_vardef
         self.handletoken['!GENVAR_WRITE!'] = self.print_var_write
         self.handletoken['!GENVAR_READ!'] = self.print_var_read
