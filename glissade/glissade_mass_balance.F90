@@ -106,7 +106,7 @@
     endif
 
     ! Initialize acab, if SMB (with different units) was read in
-    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+    if (model%options%smb_input == SMB_INPUT_UNITS_MM_WE_PER_YR) then
        ! Convert units from mm/yr w.e. to m/s ice
        model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scyr
     endif
@@ -362,7 +362,7 @@
     endif
 
     ! Note on glacier SMB calculations
-    ! Glaciers require smb_input = SMB_INPUT_MMYR_WE and compute SMB as follows:
+    ! Glaciers require smb_input = SMB_INPUT_UNITS_MM_WE_PER_YR and compute SMB as follows:
     ! * Temperature and snowfall are accumulated during each call to glissade_glacier_update.
     ! * The annual mean SMB is computed at the end of the year in units of mm/yr w.e.
     !   and copied to model%climate%smb,
@@ -370,7 +370,7 @@
     ! Thus, the only thing to do here is to convert SMB (mm/yr w.e.) to acab (m/s ice).
 
     ! Convert units from mm/yr w.e. to acab units of m/s ice, if needed.
-    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+    if (model%options%smb_input == SMB_INPUT_UNITS_MM_WE_PER_YR) then
        model%climate%acab(:,:) = (model%climate%smb_corrected(:,:) * (rhow/rhoi)/1000.d0) / scyr
     endif
 
@@ -381,7 +381,7 @@
 
     ! Optionally, overwrite acab where overwrite_acab_mask = 1.
     ! Note: overwrite_acab_value has scaled model units for now
-    if (model%options%overwrite_acab /= 0) then
+    if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
        call overwrite_acab(&
             model%climate%overwrite_acab_mask,  &
             model%climate%overwrite_acab_value, &
@@ -663,7 +663,7 @@
     ! (2) SMB(x,y,z); SMB obtained by linear interpolation between values prescribed at adjacent vertical levels
     ! (3) SMB obtained from precip and artm using a positive-degree scheme
     !
-    ! Options (1) and (2) require input fields with SMB units of mm/yr w.e. (SMB_INPUT_MMYR_WE)
+    ! Options (1) and (2) require input fields with SMB units of mm/yr w.e. (SMB_INPUT_UNITS_MM_WE_PER_YR)
     ! For these options, the elevation-dependent SMB is computed here.
     ! ------------------------------------------------------------------------
 
@@ -1619,7 +1619,7 @@
     ewn = size(overwrite_acab_mask,1)
     nsn = size(overwrite_acab_mask,2)
 
-    if (overwrite_acab == OVERWRITE_ACAB_ZERO_ACAB) then
+    if (overwrite_acab == OVERWRITE_ACAB_ACAB_ZERO) then
 
        do j = 1, nsn
           do i = 1, ewn
@@ -1633,7 +1633,7 @@
           enddo
        enddo
 
-    elseif (overwrite_acab == OVERWRITE_ACAB_THCKMIN) then
+    elseif (overwrite_acab == OVERWRITE_ACAB_THCK_MIN) then
 
        do j = 1, nsn
           do i = 1, ewn

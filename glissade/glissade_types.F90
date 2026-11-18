@@ -595,59 +595,123 @@ module glissade_types
   integer, parameter :: SUBGRID_CALVING_FRONT_FALSE = 0
   integer, parameter :: SUBGRID_CALVING_FRONT_TRUE = 1
 
-  !TODO - Deprecate the quadratic option?
+  ! [climate] smb_input_units
+  integer, parameter :: SMB_INPUT_UNITS_M_ICE_PER_YR = 0
+  integer, parameter :: SMB_INPUT_UNITS_MM_WE_PER_YR = 1
+  type(option_choice), dimension(2), parameter :: smb_input_units_choices = [ &
+       option_choice(SMB_INPUT_UNITS_M_ICE_PER_YR, 'm_ice_per_yr', 'SMB input in units of m/yr ice (acab)'), &
+       option_choice(SMB_INPUT_UNITS_MM_WE_PER_YR, 'mm_we_per_yr', 'SMB input in units of mm/yr w.e. (smb)') ]
 
-  integer, parameter :: SMB_INPUT_MYR_ICE = 0     ! use 'acab' for input
-  integer, parameter :: SMB_INPUT_MMYR_WE = 1     ! use 'smb' for input
-
+  ! [climate] smb_input_function
   integer, parameter :: SMB_INPUT_FUNCTION_XY = 0
   integer, parameter :: SMB_INPUT_FUNCTION_XY_GRADZ = 1
   integer, parameter :: SMB_INPUT_FUNCTION_XYZ = 2
   integer, parameter :: SMB_INPUT_FUNCTION_PDD = 3
+  type(option_choice), dimension(4), parameter :: smb_input_function_choices = [ &
+       option_choice(SMB_INPUT_FUNCTION_XY,       'xy',       'SMB input as function of (x,y)'), &
+       option_choice(SMB_INPUT_FUNCTION_XY_GRADZ, 'xy_gradz', 'SMB and d(SMB)/dz input as function of (x,y)'), &
+       option_choice(SMB_INPUT_FUNCTION_XYZ,      'xyz',      'SMB input as function of (x,y,z)'), &
+       option_choice(SMB_INPUT_FUNCTION_PDD,      'pdd',      'SMB computed with positive-degree scheme') ]
 
+  ! [climate] artm_input_function
   integer, parameter :: ARTM_INPUT_FUNCTION_XY = 0
   integer, parameter :: ARTM_INPUT_FUNCTION_XY_GRADZ = 1
   integer, parameter :: ARTM_INPUT_FUNCTION_XYZ = 2
   integer, parameter :: ARTM_INPUT_FUNCTION_XY_LAPSE = 3
- 
+  type(option_choice), dimension(4), parameter :: artm_input_function_choices = [ &
+       option_choice(ARTM_INPUT_FUNCTION_XY,       'xy',       'artm input as function of (x,y)'), &
+       option_choice(ARTM_INPUT_FUNCTION_XY_GRADZ, 'xy_gradz', 'artm and d(artm)/dz input as function of (x,y)'), &
+       option_choice(ARTM_INPUT_FUNCTION_XYZ,      'xyz',      'artm input as function of (x,y,z)'), &
+       option_choice(ARTM_INPUT_FUNCTION_XY_LAPSE, 'xy_lapse', 'artm input as function of (x,y) with lapse rate') ]
+
+  ! [climate] overwrite_acab
+  ! (OVERWRITE_ACAB_INPUT_MASK, not OVERWRITE_ACAB_MASK: Fortran names are case-insensitive, and
+  !  overwrite_acab_mask is a field)
   integer, parameter :: OVERWRITE_ACAB_NONE = 0
-  integer, parameter :: OVERWRITE_ACAB_ZERO_ACAB = 1
-  integer, parameter :: OVERWRITE_ACAB_THCKMIN = 2
+  integer, parameter :: OVERWRITE_ACAB_ACAB_ZERO = 1
+  integer, parameter :: OVERWRITE_ACAB_THCK_MIN = 2
   integer, parameter :: OVERWRITE_ACAB_INPUT_MASK = 3
+  type(option_choice), dimension(4), parameter :: overwrite_acab_choices = [ &
+       option_choice(OVERWRITE_ACAB_NONE,      'none',      'do not overwrite acab anywhere'), &
+       option_choice(OVERWRITE_ACAB_ACAB_ZERO, 'acab_zero', 'overwrite acab where input acab = 0'), &
+       option_choice(OVERWRITE_ACAB_THCK_MIN,  'thck_min',  'overwrite acab where input thck <= overwrite_acab_thck_min'), &
+       option_choice(OVERWRITE_ACAB_INPUT_MASK,      'mask',      'overwrite acab based on input mask') ]
 
-  integer, parameter :: GTHF_UNIFORM = 0
-  integer, parameter :: GTHF_PRESCRIBED_2D = 1
+  ! [geothermal] geothermal_method
+  integer, parameter :: GEOTHERMAL_METHOD_UNIFORM = 0
+  integer, parameter :: GEOTHERMAL_METHOD_FILE = 1
+  type(option_choice), dimension(2), parameter :: geothermal_method_choices = [ &
+       option_choice(GEOTHERMAL_METHOD_UNIFORM, 'uniform', 'uniform geothermal flux'), &
+       option_choice(GEOTHERMAL_METHOD_FILE,    'file',    'read flux from file, if present') ]
 
-  integer, parameter :: RELAXED_TOPO_DEFAULT = 0  ! topo and relx are separate input fields
-  integer, parameter :: RELAXED_TOPO_INPUT = 1    ! set relx to input topg
-  integer, parameter :: RELAXED_TOPO_COMPUTE = 2  ! Input topo in isostatic equilibrium; compute relaxed topo
+  ! [isostasy] lithosphere_method
+  integer, parameter :: LITHOSPHERE_METHOD_LOCAL = 0
+  integer, parameter :: LITHOSPHERE_METHOD_ELASTIC = 1
+  type(option_choice), dimension(2), parameter :: lithosphere_method_choices = [ &
+       option_choice(LITHOSPHERE_METHOD_LOCAL,   'local',   'local lithosphere'), &
+       option_choice(LITHOSPHERE_METHOD_ELASTIC, 'elastic', 'elastic lithosphere') ]
 
-  integer, parameter :: ISOSTASY_NONE = 0
-  integer, parameter :: ISOSTASY_COMPUTE = 1
+  ! [isostasy] asthenosphere_method
+  integer, parameter :: ASTHENOSPHERE_METHOD_FLUID = 0
+  integer, parameter :: ASTHENOSPHERE_METHOD_RELAXING = 1
+  integer, parameter :: ASTHENOSPHERE_METHOD_RELAXING_LATVAR = 2
+  type(option_choice), dimension(3), parameter :: asthenosphere_method_choices = [ &
+       option_choice(ASTHENOSPHERE_METHOD_FLUID,           'fluid',           'fluid asthenosphere'), &
+       option_choice(ASTHENOSPHERE_METHOD_RELAXING,        'relaxing',        'relaxing with constant timescale'), &
+       option_choice(ASTHENOSPHERE_METHOD_RELAXING_LATVAR, 'relaxing_latvar', 'relaxing with latitude-varying timescale') ]
 
-  integer, parameter :: LITHOSPHERE_LOCAL = 0
-  integer, parameter :: LITHOSPHERE_ELASTIC = 1
+  ! [isostasy] input_topg_method
+  integer, parameter :: INPUT_TOPG_METHOD_SEPARATE_RELX = 0
+  integer, parameter :: INPUT_TOPG_METHOD_RELX_FROM_TOPG = 1
+  integer, parameter :: INPUT_TOPG_METHOD_RELX_FROM_LOAD = 2
+  type(option_choice), dimension(3), parameter :: input_topg_method_choices = [ &
+       option_choice(INPUT_TOPG_METHOD_SEPARATE_RELX,  'separate_relx',  'read both topg and relx from input file'), &
+       option_choice(INPUT_TOPG_METHOD_RELX_FROM_TOPG, 'relx_from_topg', 'set relx to input topg'), &
+       option_choice(INPUT_TOPG_METHOD_RELX_FROM_LOAD, 'relx_from_load', 'compute relx = input topg + load') ]
 
-  integer, parameter :: ASTHENOSPHERE_FLUID = 0
-  integer, parameter :: ASTHENOSPHERE_RELAXING_CONST = 1
-  integer, parameter :: ASTHENOSPHERE_RELAXING_LATVAR = 2
+  ! [glaciers] mu_star_method
+  integer, parameter :: MU_STAR_METHOD_CONSTANT = 0
+  integer, parameter :: MU_STAR_METHOD_INVERSION = 1
+  integer, parameter :: MU_STAR_METHOD_FILE = 2
+  type(option_choice), dimension(3), parameter :: mu_star_method_choices = [ &
+       option_choice(MU_STAR_METHOD_CONSTANT,  'constant',  'spatially uniform glacier parameter mu_star'), &
+       option_choice(MU_STAR_METHOD_INVERSION, 'inversion', 'glacier-specific mu_star found by inversion'), &
+       option_choice(MU_STAR_METHOD_FILE,      'file',      'glacier-specific mu_star read from file') ]
+
+  ! [glaciers] alpha_snow_method
+  integer, parameter :: ALPHA_SNOW_METHOD_CONSTANT = 0
+  integer, parameter :: ALPHA_SNOW_METHOD_INVERSION = 1
+  integer, parameter :: ALPHA_SNOW_METHOD_FILE = 2
+  type(option_choice), dimension(3), parameter :: alpha_snow_method_choices = [ &
+       option_choice(ALPHA_SNOW_METHOD_CONSTANT,  'constant',  'spatially uniform glacier parameter alpha_snow'), &
+       option_choice(ALPHA_SNOW_METHOD_INVERSION, 'inversion', 'glacier-specific alpha_snow found by inversion'), &
+       option_choice(ALPHA_SNOW_METHOD_FILE,      'file',      'glacier-specific alpha_snow read from file') ]
+
+  ! [glaciers] glacier_powerlaw_c_method
+  integer, parameter :: GLACIER_POWERLAW_C_METHOD_CONSTANT = 0
+  integer, parameter :: GLACIER_POWERLAW_C_METHOD_INVERSION = 1
+  integer, parameter :: GLACIER_POWERLAW_C_METHOD_FILE = 2
+  type(option_choice), dimension(3), parameter :: glacier_powerlaw_c_method_choices = [ &
+       option_choice(GLACIER_POWERLAW_C_METHOD_CONSTANT,  'constant',  'spatially uniform glacier parameter Cp'), &
+       option_choice(GLACIER_POWERLAW_C_METHOD_INVERSION, 'inversion', 'Cp for glaciers found by inversion'), &
+       option_choice(GLACIER_POWERLAW_C_METHOD_FILE,      'file',      'Cp for glaciers read from file') ]
+
+  ! [glaciers] snow_method
+  integer, parameter :: SNOW_METHOD_SNOW = 0
+  integer, parameter :: SNOW_METHOD_PRECIP_ARTM = 1
+  type(option_choice), dimension(2), parameter :: snow_method_choices = [ &
+       option_choice(SNOW_METHOD_SNOW,        'snow',        'read in snowfall rate directly'), &
+       option_choice(SNOW_METHOD_PRECIP_ARTM, 'precip_artm', 'compute snowfall rate from precip and artm') ]
+
+  ! [isostasy] compute_isostasy: a logical in the config file
+  integer, parameter :: COMPUTE_ISOSTASY_FALSE = 0
+  integer, parameter :: COMPUTE_ISOSTASY_TRUE = 1
+
+  !TODO - Deprecate the quadratic option?
+
+ 
 
   ! higher-order options
-
-  integer, parameter :: GLACIER_MU_STAR_CONSTANT = 0
-  integer, parameter :: GLACIER_MU_STAR_INVERSION = 1
-  integer, parameter :: GLACIER_MU_STAR_EXTERNAL = 2
-
-  integer, parameter :: GLACIER_ALPHA_SNOW_CONSTANT = 0
-  integer, parameter :: GLACIER_ALPHA_SNOW_INVERSION = 1
-  integer, parameter :: GLACIER_ALPHA_SNOW_EXTERNAL = 2
-
-  integer, parameter :: GLACIER_POWERLAW_C_CONSTANT = 0
-  integer, parameter :: GLACIER_POWERLAW_C_INVERSION = 1
-  integer, parameter :: GLACIER_POWERLAW_C_EXTERNAL = 2
-
-  integer, parameter :: GLACIER_SNOW_CALC_SNOW = 0
-  integer, parameter :: GLACIER_SNOW_CALC_PRECIP_ARTM = 1
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -812,32 +876,32 @@ module glissade_types
     !> \end{description}
 
     !WHL TODO - During the config reorg, Change name to smb_input_units
-    integer :: smb_input = 0
+    integer :: smb_input = SMB_INPUT_UNITS_M_ICE_PER_YR
 
     !> units for SMB input:
     !> \begin{description}
-    !> \item[0] SMB input in units of m/yr ice (same as acab)
-    !> \item[1] SMB input in units of mm/yr water equivalent
+    !> \item[m_ice_per_yr] SMB input in units of m/yr ice (same as acab)
+    !> \item[mm_we_per_yr] SMB input in units of mm/yr water equivalent
     !> \end{description}
     
-    integer :: smb_input_function = 0
+    integer :: smb_input_function = SMB_INPUT_FUNCTION_XY
 
     !> functional form of SMB input:
     !> \begin{description}
-    !> \item[0] SMB(x,y); input as a function of horizontal location only
-    !> \item[1] SMB(x,y) + dSMB/dz(x,y) * dz; input SMB and its vertical gradient
-    !> \item[2] SMB(x,y,z); input SMB at multiple elevations
-    !> \item[3] SMB computed with a positive-degree scheme
+    !> \item[xy] SMB(x,y); input as a function of horizontal location only
+    !> \item[xy_gradz] SMB(x,y) + dSMB/dz(x,y) * dz; input SMB and its vertical gradient
+    !> \item[xyz] SMB(x,y,z); input SMB at multiple elevations
+    !> \item[pdd] SMB computed with a positive-degree scheme
     !> \end{description}
 
-    integer :: artm_input_function = 0
+    integer :: artm_input_function = ARTM_INPUT_FUNCTION_XY
 
     !> functional form of surface temperature (artm) input:
     !> \begin{description}
-    !> \item[0] artm(x,y); input as a function of horizontal location only
-    !> \item[1] artm(x,y) + dartm/dz(x,y) * dz; input artm and its vertical gradient
-    !> \item[2] artm(x,y,z); input artm at multiple elevations
-    !> \item[3] artm(x,y) + tlapse * dz; input artm and uniform lapse rate
+    !> \item[xy] artm(x,y); input as a function of horizontal location only
+    !> \item[xy_gradz] artm(x,y) + dartm/dz(x,y) * dz; input artm and its vertical gradient
+    !> \item[xyz] artm(x,y,z); input artm at multiple elevations
+    !> \item[xy_lapse] artm(x,y) + tlapse * dz; input artm and uniform lapse rate
     !> \end{description}
 
     logical :: enable_smb_anomaly = .false.
@@ -852,32 +916,32 @@ module glissade_types
     logical :: enable_precip_anomaly = .false.
     !> if true, then apply a prescribed anomaly to precip
 
-    integer :: overwrite_acab = 0
+    integer :: overwrite_acab = OVERWRITE_ACAB_NONE
     !> overwrite acab (m/yr ice) in selected regions:
     !> \begin{description}
-    !> \item[0] Do not overwrite acab anywhere
-    !> \item[1] Overwrite acab where input acab = 0
-    !> \item[2] Overwrite acab where input thickness <= threshold value
-    !> \item[3] Overwrite acab where input mask = 1
+    !> \item[none] Do not overwrite acab anywhere
+    !> \item[acab_zero] Overwrite acab where input acab = 0
+    !> \item[thck_min] Overwrite acab where input thickness <= threshold value
+    !> \item[mask] Overwrite acab where input mask = 1
     !> \end{description}
 
     logical :: enable_acab_dthck_dt_correction = .false.
     !> if true, then add (-dthck_dt_obs) to acab for floating ice
 
-    integer :: gthf = 0
+    integer :: gthf = GEOTHERMAL_METHOD_UNIFORM
 
     !> geothermal heat flux:
     !> \begin{description}
-    !> \item[0] prescribed uniform geothermal heat flux
-    !> \item[1] read 2D geothermal flux field from input file (if present)
+    !> \item[uniform] prescribed uniform geothermal heat flux
+    !> \item[file] read 2D geothermal flux field from input file (if present)
     !> \end{description}
 
-    integer :: isostasy = 0
+    integer :: isostasy = COMPUTE_ISOSTASY_FALSE
 
     !> isostasy:
     !> \begin{description}
-    !> \item[0] no isostatic adjustment
-    !> \item[1] compute isostatic adjustment using lithosphere/asthenosphere model
+    !> \item[.false.] no isostatic adjustment
+    !> \item[.true.] compute isostatic adjustment using lithosphere/asthenosphere model
     !> \end{description}
 
     integer :: whichcalving = CALVING_LAW_FLOAT_ZERO
@@ -2077,32 +2141,32 @@ module glissade_types
 
      ! inversion options
 
-     integer :: set_mu_star = 0
+     integer :: set_mu_star = MU_STAR_METHOD_CONSTANT
      !> \begin{description}
-     !> \item[0] apply spatially uniform mu_star
-     !> \item[1] invert for glacier-specific mu_star
-     !> \item[2] read glacier-specific mu_star from external file
+     !> \item[constant] apply spatially uniform mu_star
+     !> \item[inversion] invert for glacier-specific mu_star
+     !> \item[file] read glacier-specific mu_star from external file
      !> \end{description}
 
-     integer :: set_alpha_snow = 0
+     integer :: set_alpha_snow = ALPHA_SNOW_METHOD_CONSTANT
      !> \begin{description}
-     !> \item[0] apply spatially uniform alpha_snow
-     !> \item[1] invert for glacier-specific alpha_snow
-     !> \item[2] read glacier-specific alpha_snow from external file
+     !> \item[constant] apply spatially uniform alpha_snow
+     !> \item[inversion] invert for glacier-specific alpha_snow
+     !> \item[file] read glacier-specific alpha_snow from external file
      !> \end{description}
 
-     integer :: set_powerlaw_c = 0
+     integer :: set_powerlaw_c = GLACIER_POWERLAW_C_METHOD_CONSTANT
      !> \begin{description}
-     !> \item[0] apply spatially uniform powerlaw_c
-     !> \item[1] invert for 2D powerlaw_c
-     !> \item[2] read 2D powerlaw_c from external file
+     !> \item[constant] apply spatially uniform powerlaw_c
+     !> \item[inversion] invert for 2D powerlaw_c
+     !> \item[file] read 2D powerlaw_c from external file
      !> \end{description}
 
      ! other options
-     integer :: snow_calc = 1
+     integer :: snow_calc = SNOW_METHOD_PRECIP_ARTM
      !> \begin{description}
-     !> \item[0] read the snowfall rate directly
-     !> \item[1] compute the snowfall rate from precip and downscaled artm
+     !> \item[snow] read the snowfall rate directly
+     !> \item[precip_artm] compute the snowfall rate from precip and downscaled artm
      !> \end{description}
 
      logical :: scale_area = .false.
@@ -2474,28 +2538,28 @@ module glissade_types
   type glissade_isostasy_type
      !> contains isostasy configuration
 
-     integer :: lithosphere = 1
+     integer :: lithosphere = LITHOSPHERE_METHOD_ELASTIC
      !> method for calculating equilibrium bedrock depression
      !> \begin{description}
-     !> \item[0] local lithosphere, equilibrium bedrock depression is found using Archimedes' principle
-     !> \item[1] elastic lithosphere, flexural rigidity is taken into account
+     !> \item[local] local lithosphere, equilibrium bedrock depression is found using Archimedes' principle
+     !> \item[elastic] elastic lithosphere, flexural rigidity is taken into account
      !> \end{description}
 
-     integer :: asthenosphere = 1
+     integer :: asthenosphere = ASTHENOSPHERE_METHOD_RELAXING
      !> method for approximating the mantle
      !> \begin{description}
-     !> \item[0] fluid mantle, isostatic adjustment happens instantaneously
-     !> \item[1] relaxing mantle, exp adjust toward (relx - load), constant timescale
-     !> \item[2] relaxing mantle, exp adjust toward (relx - load), laterally varying timescale
+     !> \item[fluid] fluid mantle, isostatic adjustment happens instantaneously
+     !> \item[relaxing] relaxing mantle, exp adjust toward (relx - load), constant timescale
+     !> \item[relaxing_latvar] relaxing mantle, exp adjust toward (relx - load), laterally varying timescale
      !> \end{description}
 
-    integer :: which_relaxed = 0
+    integer :: which_relaxed = INPUT_TOPG_METHOD_SEPARATE_RELX
 
     !> relaxed topography:
     !> \begin{description}
-    !> \item[0] get current topo (topg) and relaxed topo (relx) from separate input fields
-    !> \item[1] first time slice of input topo is relaxed
-    !> \item[2] first time slice of input topo is in isostatic equilibrium
+    !> \item[separate_relx] get current topo (topg) and relaxed topo (relx) from separate input fields
+    !> \item[relx_from_topg] first time slice of input topo is relaxed
+    !> \item[relx_from_load] first time slice of input topo is in isostatic equilibrium
     !> \end{description}
 
      real(dp) :: tau_relax_const = 3000.d0    ! characteristic time constant of relaxing mantle (yr)
@@ -3071,7 +3135,7 @@ contains
 
     ! Note: relx needs to be allocated always
     call coordsystem_allocate(model%general%ice_grid, model%isostasy%relx)
-    if (model%options%isostasy == ISOSTASY_COMPUTE) then
+    if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load)
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load_factors)
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%tau_relax)

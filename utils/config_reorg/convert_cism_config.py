@@ -277,7 +277,7 @@ MOVES = {
     ('options', 'dm_dt_diag'): ('diagnostics', 'dm_dt_diag'),
     ('options', 'diag_minthck'): ('diagnostics', 'diag_ice_threshold'),
     # [isostasy], [lateral_melt], [glaciers]: section switches move in; keys renamed in place
-    ('options', 'isostasy'): ('isostasy', 'isostasy'),
+    ('options', 'isostasy'): ('isostasy', 'compute_isostasy'),
     ('isostasy', 'lithosphere'): ('isostasy', 'lithosphere_method'),
     ('isostasy', 'asthenosphere'): ('isostasy', 'asthenosphere_method'),
     ('isostasy', 'which_relaxed'): ('isostasy', 'input_topg_method'),
@@ -312,6 +312,7 @@ MOVES = {
     ('basal_melt', 'basal_mass_balance'): ('basal_melt', 'basal_mbal_in_continuity'),
     ('ocean_data', 'ocean_data_extrapolate'): ('ocean_data', 'extrapolate_ocean_data'),
     ('calving', 'calving_init'): ('calving', 'calve_at_startup'),
+    ('isostasy', 'isostasy'): ('isostasy', 'compute_isostasy'),
 }
 
 # (section, key) -> note: keys that Glissade no longer reads.  The converter deletes them and reports the
@@ -456,6 +457,7 @@ USER_NL_RENAMES = {
     'basal_mass_balance': 'basal_mbal_in_continuity',
     'ocean_data_extrapolate': 'extrapolate_ocean_data',
     'calving_init': 'calve_at_startup',
+    'isostasy': 'compute_isostasy',
 }
 
 # Match the CISM reader (glimmer_config.F90): a section header is a line starting with '[' in
@@ -580,6 +582,18 @@ OPTION_VALUES = {
     ('calving', 'calvingmip_domain'): {0: 'none', 1: 'circular', 2: 'thule'},
     ('lateral_melt', 'lateral_melt_method'): {0: 'none', 1: 'constant', 2: 'ismip'},
     ('removal', 'force_retreat'): {0: 'none', 1: 'all_ice', 2: 'floating_ice'},
+    ('climate', 'smb_input_units'): {0: 'm_ice_per_yr', 1: 'mm_we_per_yr'},
+    ('climate', 'smb_input_function'): {0: 'xy', 1: 'xy_gradz', 2: 'xyz', 3: 'pdd'},
+    ('climate', 'artm_input_function'): {0: 'xy', 1: 'xy_gradz', 2: 'xyz', 3: 'xy_lapse'},
+    ('climate', 'overwrite_acab'): {0: 'none', 1: 'acab_zero', 2: 'thck_min', 3: 'mask'},
+    ('geothermal', 'geothermal_method'): {0: 'uniform', 1: 'file'},
+    ('isostasy', 'lithosphere_method'): {0: 'local', 1: 'elastic'},
+    ('isostasy', 'asthenosphere_method'): {0: 'fluid', 1: 'relaxing', 2: 'relaxing_latvar'},
+    ('isostasy', 'input_topg_method'): {0: 'separate_relx', 1: 'relx_from_topg', 2: 'relx_from_load'},
+    ('glaciers', 'mu_star_method'): {0: 'constant', 1: 'inversion', 2: 'file'},
+    ('glaciers', 'alpha_snow_method'): {0: 'constant', 1: 'inversion', 2: 'file'},
+    ('glaciers', 'glacier_powerlaw_c_method'): {0: 'constant', 1: 'inversion', 2: 'file'},
+    ('glaciers', 'snow_method'): {0: 'snow', 1: 'precip_artm'},
 }
 
 # Options that are now logicals: 0/1 -> .false./.true.
@@ -590,6 +604,7 @@ LOGICAL_KEYS = {
     ('ocean_data', 'extrapolate_ocean_data'),
     ('calving', 'calve_at_startup'),
     ('calving', 'subgrid_calving_front'),
+    ('isostasy', 'compute_isostasy'),
 }
 
 # Removed option values: (section, key) -> {integer: note}; reported instead of 'not a valid value'.
@@ -650,7 +665,7 @@ LEAD_KEYS = {
     'removal': ['remove_ice_caps'],
     'climate': ['smb_input_units', 'smb_input_function'],
     'geothermal': ['geothermal_method'],
-    'isostasy': ['isostasy'],
+    'isostasy': ['compute_isostasy'],
     'glaciers': ['enable_glaciers'],
 }
 

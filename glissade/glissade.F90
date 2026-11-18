@@ -414,7 +414,7 @@ contains
     ! Note: Optionally, can pass a user-specified fill value and replacement value,
     !        and return a mask of grid cells where values are replaced.
 
-    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+    if (model%options%smb_input == SMB_INPUT_UNITS_MM_WE_PER_YR) then
        if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
           call check_fill_values(model%climate%smb_3d)
           call check_fill_values(model%climate%artm_3d)
@@ -425,7 +425,7 @@ contains
        call check_fill_values(model%climate%acab)
     endif
 
-    if (model%options%gthf == GTHF_PRESCRIBED_2D) then
+    if (model%options%gthf == GEOTHERMAL_METHOD_FILE) then
        call check_fill_values(model%temper%bheatflx)
        !TODO - Pass in model%paramets%geot as the replacement value?
     endif
@@ -559,19 +559,19 @@ contains
     ! If no bheatflx field is present in the input file, then we default to the
     !  prescribed uniform value, model%paramets%geot.
 
-    if (model%options%gthf == GTHF_UNIFORM) then
+    if (model%options%gthf == GEOTHERMAL_METHOD_UNIFORM) then
 
        ! Check to see if this flux was present in the input file
        ! (by checking whether the flux is nonuniform over the domain)
        if (abs(maxval(model%temper%bheatflx) - minval(model%temper%bheatflx)) > 1.d-6) then
           call write_log('Setting uniform prescribed geothermal flux')
-          call write_log('(Set geothermal_method = 1 to read geothermal flux field from input file)')
+          call write_log('(Set geothermal_method = file to read geothermal flux field from input file)')
        endif
 
        ! set uniform basal heat flux (positive down)
        model%temper%bheatflx = model%paramets%geot
 
-    elseif (model%options%gthf == GTHF_PRESCRIBED_2D) then
+    elseif (model%options%gthf == GEOTHERMAL_METHOD_FILE) then
 
        ! Make sure the input basal heat flux follows the positive-down sign convention.
        local_maxval = maxval(model%temper%bheatflx)
@@ -915,7 +915,7 @@ contains
     ! Note: When running with glaciers, there is an independent glacier option,
     !        set_powerlaw_c, that controls glacier inversion.
     !       We can have model%options%which_ho_powerlaw_c = POWERLAW_C_METHOD_CONSTANT,
-    !        while model%glacier%set_powerlaw_c = GLACIER_POWERLAW_C_INVERSION.
+    !        while model%glacier%set_powerlaw_c = GLACIER_POWERLAW_C_METHOD_INVERSION.
     !       In that case, we do *not* want to reset powerlaw_c.
     !TODO:  Have a single option that is applied with or without glaciers enabled?
 
@@ -925,7 +925,7 @@ contains
     elseif (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_CONSTANT .or. &
         parallel_is_zero(model%basal_physics%powerlaw_c)) then
        if (model%options%enable_glaciers .and. &
-            model%glacier%set_powerlaw_c /= GLACIER_POWERLAW_C_CONSTANT) then
+            model%glacier%set_powerlaw_c /= GLACIER_POWERLAW_C_METHOD_CONSTANT) then
           ! do nothing; see note above
        else
           model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_const

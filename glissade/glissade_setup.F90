@@ -2451,14 +2451,14 @@ contains
     type(glissade_global_type)   :: model
 
     ! options
-    call GetValue(section,'smb_input_units',                 model%options%smb_input)
-    call GetValue(section,'smb_input_function',              model%options%smb_input_function)
-    call GetValue(section,'artm_input_function',             model%options%artm_input_function)
+    call GetOption(section,'smb_input_units',                 smb_input_units_choices, model%options%smb_input)
+    call GetOption(section,'smb_input_function',              smb_input_function_choices, model%options%smb_input_function)
+    call GetOption(section,'artm_input_function',             artm_input_function_choices, model%options%artm_input_function)
     call GetLogical(section,'enable_smb_anomaly',              model%options%enable_smb_anomaly)
     call GetLogical(section,'enable_artm_anomaly',             model%options%enable_artm_anomaly)
     call GetLogical(section,'enable_snow_anomaly',             model%options%enable_snow_anomaly)
     call GetLogical(section,'enable_precip_anomaly',           model%options%enable_precip_anomaly)
-    call GetValue(section,'overwrite_acab',                  model%options%overwrite_acab)
+    call GetOption(section,'overwrite_acab',                  overwrite_acab_choices, model%options%overwrite_acab)
     call GetLogical(section,'enable_acab_dthck_dt_correction', model%options%enable_acab_dthck_dt_correction)
     call GetLogical(section,'block_inception',                 model%options%block_inception)
 
@@ -2495,70 +2495,30 @@ contains
     type(glissade_global_type)  :: model
     character(len=500) :: message
 
-    character(len=*), dimension(0:1), parameter :: smb_input_units = (/ &
-         'SMB input in units of m/yr ice  ', &
-         'SMB input in units of mm/yr w.e.' /)
-
-    character(len=*), dimension(0:3), parameter :: smb_input_function = (/ &
-         'SMB input as function of (x,y)              ', &
-         'SMB and d(SMB)/dz input as function of (x,y)', &
-         'SMB input as function of (x,y,z)            ', &
-         'SMB computed with positive-degree scheme    ' /)
-
-    character(len=*), dimension(0:3), parameter :: artm_input_function = (/ &
-         'artm input as function of (x,y)               ', &
-         'artm and d(artm)/dz input as function of (x,y)', &
-         'artm input as function of (x,y,z)             ', &
-         'artm input as function of (x,y) w/ lapse rate ' /)
-
-    character(len=*), dimension(0:3), parameter :: overwrite_acab = (/ &
-         'do not overwrite acab anywhere            ', &
-         'overwrite acab where input acab = 0       ', &
-         'overwrite acab where input thck <= minthck', &
-         'overwrite acab based on input mask        ' /)
-
     ! check the options
 
-    if (model%options%smb_input < 0 .or. model%options%smb_input >= size(smb_input_units)) then
-       call write_log('Error, smb_input_units option out of range',GM_FATAL)
-    end if
-
-    if (model%options%smb_input_function < 0 .or. model%options%smb_input_function >= size(smb_input_function)) then
-       call write_log('Error, smb_input_function option out of range',GM_FATAL)
-    end if
-
-    if (model%options%smb_input == SMB_INPUT_MYR_ICE) then
+    if (model%options%smb_input == SMB_INPUT_UNITS_M_ICE_PER_YR) then
        if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
            model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
            model%options%enable_smb_anomaly .or. &
            model%options%enable_glaciers) then
-          write(message,*) 'Error, input SMB must have units of mm/yr w.e., smb_input_units =', SMB_INPUT_MMYR_WE
-          call write_log(message, GM_FATAL)
+          call write_log('Error, this setting requires input SMB in mm/yr w.e.: set smb_input_units = mm_we_per_yr', &
+               GM_FATAL)
        endif
     endif
-
-    if (model%options%artm_input_function < 0 .or. model%options%artm_input_function >= size(artm_input_function)) then
-       call write_log('Error, artm_input_function option out of range',GM_FATAL)
-    end if
-
-    if (model%options%overwrite_acab < 0 .or. model%options%overwrite_acab >= size(overwrite_acab)) then
-       call write_log('Error, overwrite_acab option out of range',GM_FATAL)
-    end if
 
     ! write the options and parameters
 
     call log_section('climate')
-    call log_option('smb_input_units', model%options%smb_input, smb_input_units(model%options%smb_input))
-    call log_option('smb_input_function', model%options%smb_input_function, &
-         smb_input_function(model%options%smb_input_function))
+    call log_option('smb_input_units', model%options%smb_input, smb_input_units_choices)
+    call log_option('smb_input_function', model%options%smb_input_function, smb_input_function_choices)
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
        call log_param('degree_factor', model%climate%degree_factor, 'mm/yr w.e./deg C')
        call log_param('tmlt', model%climate%tmlt, 'deg C; melt threshold')
        call log_param('snow_threshold_min', model%climate%snow_threshold_min, 'deg C')
        call log_param('snow_threshold_max', model%climate%snow_threshold_max, 'deg C')
     endif
-    call log_option('artm_input_function', model%options%artm_input_function, &
-         artm_input_function(model%options%artm_input_function))
+    call log_option('artm_input_function', model%options%artm_input_function, artm_input_function_choices)
     if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
        call log_param('t_lapse', model%climate%t_lapse, 'deg C/m; artm lapse rate')
     endif
@@ -2577,10 +2537,10 @@ contains
     call log_flag('enable_snow_anomaly', model%options%enable_snow_anomaly)
     call log_flag('enable_precip_anomaly', model%options%enable_precip_anomaly)
 
-    call log_option('overwrite_acab', model%options%overwrite_acab, overwrite_acab(model%options%overwrite_acab))
+    call log_option('overwrite_acab', model%options%overwrite_acab, overwrite_acab_choices)
     if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
        call log_param('overwrite_acab_value', model%climate%overwrite_acab_value, 'm/yr')
-       if (model%options%overwrite_acab == OVERWRITE_ACAB_THCKMIN) then
+       if (model%options%overwrite_acab == OVERWRITE_ACAB_THCK_MIN) then
           call log_param('overwrite_acab_thck_min', model%climate%overwrite_acab_minthck, 'm')
        endif
     endif
@@ -2802,7 +2762,7 @@ contains
     type(ConfigSection), pointer :: section
     type(glissade_global_type)   :: model
 
-    call GetValue(section,'geothermal_method', model%options%gthf)
+    call GetOption(section,'geothermal_method', geothermal_method_choices, model%options%gthf)
     call GetValue(section,'geothermal_flux',   model%paramets%geot)
 
   end subroutine handle_geothermal
@@ -2821,19 +2781,11 @@ contains
 
     type(glissade_global_type)  :: model
 
-    ! NOTE: Set geothermal_method = 1 in the config file to read the geothermal heat flux from an input file.
+    ! NOTE: Set geothermal_method = file in the config file to read the geothermal heat flux from an input file.
     !       Otherwise it will be overwritten, even if the 'bheatflx' field is present.
 
-    character(len=*), dimension(0:1), parameter :: geothermal_method = (/ &
-         'uniform geothermal flux         ', &
-         'read flux from file, if present ' /)
-
-    if (model%options%gthf < 0 .or. model%options%gthf >= size(geothermal_method)) then
-       call write_log('Error, geothermal flux option out of range',GM_FATAL)
-    end if
-
     call log_section('geothermal')
-    call log_option('geothermal_method', model%options%gthf, geothermal_method(model%options%gthf))
+    call log_option('geothermal_method', model%options%gthf, geothermal_method_choices)
     call log_param('geothermal_flux', model%paramets%geot, 'W/m^2')
 
   end subroutine print_geothermal
@@ -2846,11 +2798,18 @@ contains
     implicit none
     type(ConfigSection), pointer :: section
     type(glissade_global_type)  :: model
+    logical :: flag   ! compute_isostasy is a logical in the config file
 
-    call GetValue(section,'isostasy',model%options%isostasy)
-    call GetValue(section,'lithosphere_method',model%isostasy%lithosphere)
-    call GetValue(section,'asthenosphere_method',model%isostasy%asthenosphere)
-    call GetValue(section,'input_topg_method',model%isostasy%which_relaxed)
+    flag = (model%options%isostasy == COMPUTE_ISOSTASY_TRUE)
+    call GetLogical(section,'compute_isostasy', flag)
+    if (flag) then
+       model%options%isostasy = COMPUTE_ISOSTASY_TRUE
+    else
+       model%options%isostasy = COMPUTE_ISOSTASY_FALSE
+    endif
+    call GetOption(section,'lithosphere_method',lithosphere_method_choices, model%isostasy%lithosphere)
+    call GetOption(section,'asthenosphere_method',asthenosphere_method_choices, model%isostasy%asthenosphere)
+    call GetOption(section,'input_topg_method',input_topg_method_choices, model%isostasy%which_relaxed)
     call GetValue(section,'tau_relax_const',model%isostasy%tau_relax_const)
     call GetValue(section,'load_update_interval',model%isostasy%load_update_interval)
     call GetValue(section,'flexural_rigidity',model%isostasy%rbel%d)
@@ -2870,61 +2829,20 @@ contains
     implicit none
     type(glissade_global_type)  :: model
 
-    character(len=*), dimension(0:1), parameter :: isostasy = (/ &
-         'no isostasy calculation         ', &
-         'compute isostasy with model     ' /)
-
-    character(len=*), dimension(0:1), parameter :: lithosphere_method = (/ &
-         'local lithosphere         ', &
-         'elastic lithosphere       ' /)
-
-    character(len=*), dimension(0:2), parameter :: asthenosphere_method = (/ &
-         'fluid asthenosphere                ', &
-         'relaxing with constant timescale   ', &
-         'relaxing with lat varying timescale' /)
-
-    character(len=*), dimension(0:2), parameter :: input_topg_method = (/ &
-         'read both topg and relx from input file', &
-         'set relx to input topg                 ', &
-         'compute relx = input topg + load       ' /)
-
-    ! check the options
-
-    if (model%options%isostasy < 0 .or. model%options%isostasy >= size(isostasy)) then
-       call write_log('Error, isostasy option out of range',GM_FATAL)
-    end if
-
-    if (model%options%isostasy == ISOSTASY_COMPUTE) then
-       if (model%isostasy%lithosphere < 0 .or. model%isostasy%lithosphere >= size(lithosphere_method)) then
-          call write_log('Error, lithosphere_method out of range', GM_FATAL)
-       endif
-       if (model%isostasy%asthenosphere < 0 .or. model%isostasy%asthenosphere >= size(asthenosphere_method)) then
-          call write_log('Error, asthenosphere_method out of range', GM_FATAL)
-       endif
-       if (model%isostasy%which_relaxed < 0 .or. model%isostasy%which_relaxed >= size(input_topg_method)) then
-          call write_log('Error, input_topg_method out of range', GM_FATAL)
-       endif
-    endif
-
-    ! write the options and parameters
-
     call log_section('isostasy')
-    call log_option('isostasy', model%options%isostasy, isostasy(model%options%isostasy))
+    call log_flag('compute_isostasy', model%options%isostasy == COMPUTE_ISOSTASY_TRUE)
 
-    if (model%options%isostasy == ISOSTASY_COMPUTE) then
-       call log_option('lithosphere_method', model%isostasy%lithosphere, &
-            lithosphere_method(model%isostasy%lithosphere))
-       if (model%isostasy%lithosphere == LITHOSPHERE_ELASTIC) then
+    if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
+       call log_option('lithosphere_method', model%isostasy%lithosphere, lithosphere_method_choices)
+       if (model%isostasy%lithosphere == LITHOSPHERE_METHOD_ELASTIC) then
           call log_param('flexural_rigidity', model%isostasy%rbel%d, 'N m')
           call log_param('load_update_interval', model%isostasy%load_update_interval, 'yr')
        end if
-       call log_option('asthenosphere_method', model%isostasy%asthenosphere, &
-            asthenosphere_method(model%isostasy%asthenosphere))
-       if (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_CONST) then
+       call log_option('asthenosphere_method', model%isostasy%asthenosphere, asthenosphere_method_choices)
+       if (model%isostasy%asthenosphere == ASTHENOSPHERE_METHOD_RELAXING) then
           call log_param('tau_relax_const', model%isostasy%tau_relax_const, 'yr; relaxation timescale')
        endif
-       call log_option('input_topg_method', model%isostasy%which_relaxed, &
-            input_topg_method(model%isostasy%which_relaxed))
+       call log_option('input_topg_method', model%isostasy%which_relaxed, input_topg_method_choices)
     endif   ! compute isostasy
 
   end subroutine print_isostasy
@@ -3000,7 +2918,7 @@ contains
                         model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN)
 
     glacier_inversion = (model%options%enable_glaciers .and. &
-                         model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION)
+                         model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION)
 
     if (.not. (babc_inversion .or. deltaT_inversion .or. glacier_inversion)) return
 
@@ -3048,10 +2966,10 @@ contains
     type(glissade_global_type)  :: model
 
     call GetLogical(section,'enable_glaciers',         model%options%enable_glaciers)
-    call GetValue(section,'mu_star_method',          model%glacier%set_mu_star)
-    call GetValue(section,'alpha_snow_method',       model%glacier%set_alpha_snow)
-    call GetValue(section,'glacier_powerlaw_c_method', model%glacier%set_powerlaw_c)
-    call GetValue(section,'snow_method',             model%glacier%snow_calc)
+    call GetOption(section,'mu_star_method',          mu_star_method_choices, model%glacier%set_mu_star)
+    call GetOption(section,'alpha_snow_method',       alpha_snow_method_choices, model%glacier%set_alpha_snow)
+    call GetOption(section,'glacier_powerlaw_c_method', glacier_powerlaw_c_method_choices, model%glacier%set_powerlaw_c)
+    call GetOption(section,'snow_method',             snow_method_choices, model%glacier%snow_calc)
     call GetLogical(section,'scale_area',              model%glacier%scale_area)
     call GetValue(section,'length_scale_factor',     model%glacier%length_scale_factor)
     call GetValue(section,'glacier_tmlt',            model%glacier%tmlt)
@@ -3091,57 +3009,10 @@ contains
     type(glissade_global_type)  :: model
     real(dp) :: length_scale_factor_in   ! length_scale_factor before a reset
 
-    character(len=*), dimension(0:2), parameter :: mu_star_method = (/ &
-         'spatially uniform glacier parameter mu_star', &
-         'glacier-specific mu_star found by inversion', &
-         'glacier-specific mu_star read from file    ' /)
-
-    character(len=*), dimension(0:2), parameter :: alpha_snow_method = (/ &
-         'spatially uniform glacier parameter alpha_snow', &
-         'glacier-specific alpha_snow found by inversion', &
-         'glacier-specific alpha_snow read from file    ' /)
-
-    character(len=*), dimension(0:2), parameter :: glacier_powerlaw_c_method = (/ &
-         'spatially uniform glacier parameter Cp', &
-         'Cp for glaciers found by inversion    ', &
-         'Cp for glaciers read from file        ' /)
-
-    character(len=*), dimension(0:1), parameter :: snow_method = (/ &
-         'read in snowfall rate directly            ', &
-         'compute snowfall rate from precip and artm' /)
-
-    if (.not.model%options%enable_glaciers) then
-       call log_section('glaciers')
-       call log_flag('enable_glaciers', model%options%enable_glaciers)
-       return
-    endif
-
-    ! check the options
-
-    if (model%glacier%set_mu_star < 0 .or. &
-        model%glacier%set_mu_star >= size(mu_star_method)) then
-       call write_log('Error, glacier_set_mu_star option out of range', GM_FATAL)
-    end if
-
-    if (model%glacier%set_alpha_snow < 0 .or. &
-        model%glacier%set_alpha_snow >= size(alpha_snow_method)) then
-       call write_log('Error, glacier_set_alpha_snow option out of range', GM_FATAL)
-    end if
-
-    if (model%glacier%set_powerlaw_c < 0 .or. &
-        model%glacier%set_powerlaw_c >= size(glacier_powerlaw_c_method)) then
-       call write_log('Error, glacier_set_powerlaw_c option out of range', GM_FATAL)
-    end if
-
-    if (model%glacier%snow_calc < 0 .or. &
-        model%glacier%snow_calc >= size(snow_method)) then
-       call write_log('Error, glacier_snow_calc option out of range', GM_FATAL)
-    end if
-
-    if (model%glacier%set_mu_star /= GLACIER_MU_STAR_INVERSION) then
-       if (model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+    if (model%glacier%set_mu_star /= MU_STAR_METHOD_INVERSION) then
+       if (model%glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
           call write_log('Error, must invert for mu_star if inverting for alpha_snow', GM_FATAL)
-       elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+       elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
           call write_log('Error, must invert for mu_star if inverting for powerlaw_c', GM_FATAL)
        endif
     endif
@@ -3154,13 +3025,11 @@ contains
 
     call log_section('glaciers')
     call log_flag('enable_glaciers', model%options%enable_glaciers, 'glacier tracking and tuning')
-    call log_option('mu_star_method', model%glacier%set_mu_star, mu_star_method(model%glacier%set_mu_star))
-    call log_option('alpha_snow_method', model%glacier%set_alpha_snow, &
-         alpha_snow_method(model%glacier%set_alpha_snow))
-    call log_option('glacier_powerlaw_c_method', model%glacier%set_powerlaw_c, &
-         glacier_powerlaw_c_method(model%glacier%set_powerlaw_c))
-    call log_option('snow_method', model%glacier%snow_calc, snow_method(model%glacier%snow_calc))
-    if (model%glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
+    call log_option('mu_star_method', model%glacier%set_mu_star, mu_star_method_choices)
+    call log_option('alpha_snow_method', model%glacier%set_alpha_snow, alpha_snow_method_choices)
+    call log_option('glacier_powerlaw_c_method', model%glacier%set_powerlaw_c, glacier_powerlaw_c_method_choices)
+    call log_option('snow_method', model%glacier%snow_calc, snow_method_choices)
+    if (model%glacier%snow_calc == SNOW_METHOD_PRECIP_ARTM) then
        call log_param('glacier_snow_threshold_min', model%glacier%snow_threshold_min, 'deg C')
        call log_param('glacier_snow_threshold_max', model%glacier%snow_threshold_max, 'deg C')
     endif
@@ -3182,13 +3051,13 @@ contains
        call log_param('thinning_rate_advanced_ice', model%glacier%thinning_rate_advanced_ice, 'm/yr')
     endif
 
-    if (model%glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
+    if (model%glacier%set_mu_star == MU_STAR_METHOD_INVERSION) then
        call log_param('smb_weight_advanced_ice', model%glacier%smb_weight_advanced_ice, &
             'SMB weight in the advanced ablation zone')
        call log_param('mu_star_const', model%glacier%mu_star_const, 'mm/yr w.e./deg C')
        call log_param('mu_star_min', model%glacier%mu_star_min, 'mm/yr w.e./deg C')
        call log_param('mu_star_max', model%glacier%mu_star_max, 'mm/yr w.e./deg C')
-       if (model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+       if (model%glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
           call log_param('alpha_snow_const', model%glacier%alpha_snow_const)
           call log_param('alpha_snow_min', model%glacier%alpha_snow_min)
           call log_param('alpha_snow_max', model%glacier%alpha_snow_max)
@@ -3265,9 +3134,9 @@ contains
        case(SMB_INPUT_FUNCTION_XY)
 
           select case (options%smb_input)
-          case (SMB_INPUT_MYR_ICE)
+          case (SMB_INPUT_UNITS_M_ICE_PER_YR)
              call glissade_add_to_restart_variable_list('acab', model_id)
-          case (SMB_INPUT_MMYR_WE)
+          case (SMB_INPUT_UNITS_MM_WE_PER_YR)
              call glissade_add_to_restart_variable_list('smb', model_id)
           end select  ! smb_input
 
@@ -3485,7 +3354,7 @@ contains
 
      ! If overwriting acab in certain grid cells, than overwrite_acab_mask needs to be in the restart file.
      ! This mask is read in at model initialization, or is set based on the input acab or ice thickness.
-     if (options%overwrite_acab /= 0) then
+     if (options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
         call glissade_add_to_restart_variable_list('overwrite_acab_mask', model_id)
      endif
 
@@ -3564,7 +3433,7 @@ contains
     endif
 
     select case (options%isostasy)
-      case(ISOSTASY_COMPUTE)
+      case(COMPUTE_ISOSTASY_TRUE)
          ! restart needs to know relaxed topography (the topography to which the mantle would relax with no load)
          ! MJH: I suspect that relx is only needed when asthenosphere=1 (relaxing mantle), but I'm not sure -
          !      this should be tested when isostasy implementation is finalized/tested.
@@ -3575,7 +3444,7 @@ contains
          !      at a period set by isostasy%period. If we restart between two updates, we need to use the most
          !      recently computed load. If we recompute the load right after restarting, the restart may not be exact.
          call glissade_add_to_restart_variable_list('load', model_id)
-         if (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_LATVAR) then
+         if (model%isostasy%asthenosphere == ASTHENOSPHERE_METHOD_RELAXING_LATVAR) then
             ! The relaxation timescale is a 2d field read at initialization and again on restart
             call glissade_add_to_restart_variable_list('tau_relax', model_id)
          endif

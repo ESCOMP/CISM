@@ -1121,7 +1121,7 @@
           usrf_diag = model%geometry%usrf(i,j)
           thck_diag = model%geometry%thck(i,j)
           topg_diag = model%geometry%topg(i,j)
-          if (model%options%isostasy == ISOSTASY_COMPUTE) then
+          if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
              relx_diag = model%isostasy%relx(i,j)
              load_diag = model%isostasy%load(i,j)
           endif
@@ -1148,7 +1148,7 @@
        usrf_diag = parallel_reduce_max(usrf_diag)
        thck_diag = parallel_reduce_max(thck_diag)
        topg_diag = parallel_reduce_max(topg_diag)
-       if (model%options%isostasy == ISOSTASY_COMPUTE) then
+       if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
           relx_diag = parallel_reduce_max(relx_diag)
           load_diag = parallel_reduce_max(load_diag)
        endif
@@ -1190,7 +1190,7 @@
        write(message,'(a25,f24.16)') 'Bedrock topo (m)         ', topg_diag
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       if (model%options%isostasy == ISOSTASY_COMPUTE) then
+       if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
           write(message,'(a25,f24.16)') 'Relaxed bedrock (m)   ', relx_diag
           call write_log(trim(message), type = GM_DIAGNOSTIC)
           write(message,'(a25,f24.16)') 'Load deflection (m)   ', load_diag
@@ -1325,7 +1325,7 @@
             tot_glc_volume_init_extent / 1.0d9
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
 
           ! diagnostics related to thickness inversion
 
@@ -1468,7 +1468,7 @@
     ! surface mass balance in units of mm/yr w.e.
     ! (model%climate%acab has units of m/s of ice)
     ! Note: This is not necessary (and can break exact restart) if the SMB was already input in units of mm/yr
-    if (model%options%smb_input /= SMB_INPUT_MMYR_WE) then
+    if (model%options%smb_input /= SMB_INPUT_UNITS_MM_WE_PER_YR) then
        model%climate%smb(:,:) = (model%climate%acab(:,:) * scyr) * (1000.d0 * rhoi/rhow)
     endif
 

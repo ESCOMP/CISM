@@ -86,7 +86,7 @@ cf_advance_retreat_amplitude = 0.
 cf_advance_retreat_period = 0.
 
 [climate]
-smb_input_units = 0           # 0 = m/yr ice, 1 = mm/yr w.e.
+smb_input_units = m_ice_per_yr
 
 [geothermal]
 geothermal_flux = 0.
