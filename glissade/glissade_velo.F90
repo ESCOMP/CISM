@@ -81,11 +81,11 @@ contains
       ! There is also a local shallow-ice solver, glissade_velo_sia_solve.
       !-------------------------------------------------------------------
       
-      if (model%options%which_ho_approx == STOKES_APPROX_LOCAL_SIA) then
+      if (model%velocity%stokes_approx == STOKES_APPROX_LOCAL_SIA) then
  
          call glissade_velo_sia_solve(model, ewn, nsn, upn)
 
-      elseif (model%options%which_ho_approx == STOKES_APPROX_HYBRID) then
+      elseif (model%velocity%stokes_approx == STOKES_APPROX_HYBRID) then
 
          !-------------------------------------------------------------------
          ! compute the SIA part of the velocity, assuming no basal sliding
@@ -124,7 +124,7 @@ contains
          !-------------------------------------------------------------------
 
          ! temporarily set the approximation to SSA
-         model%options%which_ho_approx = STOKES_APPROX_SSA
+         model%velocity%stokes_approx = STOKES_APPROX_SSA
 
          call t_startf('glissade_velo_higher_solver')
          call glissade_velo_higher_solve(model, ewn, nsn, upn)
@@ -150,13 +150,13 @@ contains
          model%velocity%vvel = model%velocity%vvel + vvel_sia
 
          ! restore the approximation option and clean up
-         model%options%which_ho_approx = STOKES_APPROX_HYBRID
+         model%velocity%stokes_approx = STOKES_APPROX_HYBRID
 
          deallocate(uvel_sia)
          deallocate(vvel_sia)
 
       else   ! standard higher-order solve
-             ! can be BP, L1L2, SSA or SIA, depending on model%options%which_ho_approx
+             ! can be BP, L1L2, SSA or SIA, depending on model%velocity%stokes_approx
 
          ! Note: The geometry fields (thck, topg, and usrf) must be updated in halos
          !        before calling glissade_velo_higher_solve.
@@ -167,7 +167,7 @@ contains
          call glissade_velo_higher_solve(model, ewn, nsn, upn)
          call t_stopf('glissade_velo_higher_solver')
 
-      endif   ! which_ho_approx
+      endif   ! stokes_approx
 
       ! optional diagnostics
       if (verbose_velo .and. this_rank == rtest) then

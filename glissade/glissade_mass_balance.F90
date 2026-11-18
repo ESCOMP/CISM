@@ -960,7 +960,7 @@
          model%geometry%tracers(:,:,:,:),                  &
          model%geometry%tracers_usrf(:,:,:),               &
          model%geometry%tracers_lsrf(:,:,:),               &
-         model%options%which_ho_vertical_remap)
+         model%advection%vertical_remap_order)
 
     ! Diagnose the SMB that was passed to the dycore but not applied (m/s).
     ! On input, acab_unapplied holds the acab received by the dycore, saved in glissade_prepare_climate_forcing

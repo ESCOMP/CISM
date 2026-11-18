@@ -251,7 +251,7 @@ contains
 
     endif
 
-    if (model%options%which_ho_precond == PRECONDITIONER_TRIDIAG_GLOBAL) then
+    if (model%velocity_solver%preconditioner == PRECONDITIONER_TRIDIAG_GLOBAL) then
 
        ! Set up row-based and column-based communicators (in addition to mpi_comm_world).
        ! These communicators are used to solve tridiagonal matrix problems in parallel along global rows and columns.
@@ -1146,7 +1146,7 @@ contains
     ! Note: Internally, the age has the same units as dt, but on output is converted to years.
     ! ------------------------------------------------------------------------
 
-    if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
+    if (model%advection%compute_ice_age) then
        do j = 1, model%grid%nsn
           do i = 1, model%grid%ewn
              if (model%geometry%thck(i,j) > 0.0d0) then
@@ -1583,11 +1583,11 @@ contains
     parallel = model%parallel
 
     ! TODO - Remove the case logic
-    select case(model%options%whichevol)
+    select case(model%advection%advection_method)
 
     case(ADVECTION_METHOD_REMAP, ADVECTION_METHOD_UPWIND, ADVECTION_METHOD_FIXED_THICKNESS) 
 
-       if (model%options%whichevol == ADVECTION_METHOD_UPWIND) then
+       if (model%advection%advection_method == ADVECTION_METHOD_UPWIND) then
           do_upwind_transport = .true.
        else
           do_upwind_transport = .false.
@@ -1867,7 +1867,7 @@ contains
                                          model%geometry%tracers(:,:,:,:),                      &
                                          model%geometry%tracers_usrf(:,:,:),                   &
                                          model%geometry%tracers_lsrf(:,:,:),                   &
-                                         model%options%which_ho_vertical_remap,                &
+                                         model%advection%vertical_remap_order,                 &
                                          upwind_transport_in = do_upwind_transport)
 
           ! halo updates for thickness and tracers
@@ -1935,7 +1935,7 @@ contains
 
        call t_stopf('inc_remap_driver')
 
-       if (model%options%whichevol == ADVECTION_METHOD_FIXED_THICKNESS) then
+       if (model%advection%advection_method == ADVECTION_METHOD_FIXED_THICKNESS) then
           ! restore old thickness
           model%geometry%thck(:,:) = model%geometry%thck_old(:,:)
        endif
@@ -2327,7 +2327,7 @@ contains
        ! If these fields were input on the extended mesh, they need to be copied to the standard staggered mesh.
        ! Halo updates are then needed to make sure they have the correct values along the boundaries.
 
-       if (model%options%which_ho_approx == STOKES_APPROX_DIVA) then
+       if (model%velocity%stokes_approx == STOKES_APPROX_DIVA) then
 
           if  ( (maxval(abs(model%velocity%uvel_2d_extend)) /= 0.0d0) .or. & 
                 (maxval(abs(model%velocity%vvel_2d_extend)) /= 0.0d0) ) then
@@ -2623,7 +2623,7 @@ contains
 
     ! Copy some additional 2D arrays to the extended grid if using the DIVA solver.
 
-    if (model%options%which_ho_approx == STOKES_APPROX_DIVA) then
+    if (model%velocity%stokes_approx == STOKES_APPROX_DIVA) then
 
        model%velocity%uvel_2d_extend(:,:) = 0.d0
        model%velocity%vvel_2d_extend(:,:) = 0.d0

@@ -1073,16 +1073,16 @@ contains
     type(glissade_global_type)   :: model
 
     ! options
-    call GetOption(section,'stokes_approx',                  stokes_approx_choices, model%options%which_ho_approx)
-    call GetLogical(section,'diva_slope_correction',          model%options%diva_slope_correction)
-    call GetOption(section,'efvs_method',                    efvs_method_choices, model%options%which_ho_efvs)
-    call GetOption(section,'surface_gradient_method',        surface_gradient_method_choices, model%options%which_ho_gradient)
-    call GetOption(section,'surface_gradient_margin_method', surface_gradient_margin_method_choices, model%options%which_ho_gradient_margin)
+    call GetOption(section,'stokes_approx',                  stokes_approx_choices, model%velocity%stokes_approx)
+    call GetLogical(section,'diva_slope_correction',          model%velocity%diva_slope_correction)
+    call GetOption(section,'efvs_method',                    efvs_method_choices, model%velocity%efvs_method)
+    call GetOption(section,'surface_gradient_method',        surface_gradient_method_choices, model%velocity%surface_gradient_method)
+    call GetOption(section,'surface_gradient_margin_method', surface_gradient_margin_method_choices, model%velocity%surface_gradient_margin_method)
 
     ! parameters
-    call GetValue(section,'efvs_const',    model%paramets%efvs_constant)
-    call GetValue(section,'effstrain_min', model%paramets%effstrain_min)
-    call GetValue(section,'max_slope',     model%paramets%max_slope)
+    call GetValue(section,'efvs_const',    model%velocity%efvs_const)
+    call GetValue(section,'effstrain_min', model%velocity%effstrain_min)
+    call GetValue(section,'max_slope',     model%velocity%max_slope)
 
   end subroutine handle_velocity
 
@@ -1100,28 +1100,28 @@ contains
 
     type(glissade_global_type)  :: model
 
-    if (model%options%which_ho_approx == STOKES_APPROX_LOCAL_SIA) then
+    if (model%velocity%stokes_approx == STOKES_APPROX_LOCAL_SIA) then
        if (model%grid%global_bc == GLOBAL_BC_NO_PENETRATION) then
           call write_log('Error, cannot use no-penetration BC with local SIA solver', GM_FATAL)
        endif
     endif  ! Glissade local SIA solver
 
     call log_section('velocity')
-    call log_option('stokes_approx', model%options%which_ho_approx, stokes_approx_choices)
-    if (model%options%which_ho_approx == STOKES_APPROX_DIVA) then
-       call log_flag('diva_slope_correction', model%options%diva_slope_correction, &
+    call log_option('stokes_approx', model%velocity%stokes_approx, stokes_approx_choices)
+    if (model%velocity%stokes_approx == STOKES_APPROX_DIVA) then
+       call log_flag('diva_slope_correction', model%velocity%diva_slope_correction, &
             'if true, DIVA includes a correction for steep slopes')
     endif
-    call log_option('efvs_method', model%options%which_ho_efvs, efvs_method_choices)
-    if (model%options%which_ho_efvs == EFVS_METHOD_CONSTANT) then
-       call log_param('efvs_const', model%paramets%efvs_constant, 'Pa yr')
-    elseif (model%options%which_ho_efvs == EFVS_METHOD_NONLINEAR) then
-       call log_param('effstrain_min', model%paramets%effstrain_min, 'yr^-1')
+    call log_option('efvs_method', model%velocity%efvs_method, efvs_method_choices)
+    if (model%velocity%efvs_method == EFVS_METHOD_CONSTANT) then
+       call log_param('efvs_const', model%velocity%efvs_const, 'Pa yr')
+    elseif (model%velocity%efvs_method == EFVS_METHOD_NONLINEAR) then
+       call log_param('effstrain_min', model%velocity%effstrain_min, 'yr^-1')
     end if
-    call log_option('surface_gradient_method', model%options%which_ho_gradient, surface_gradient_method_choices)
-    call log_option('surface_gradient_margin_method', model%options%which_ho_gradient_margin, &
+    call log_option('surface_gradient_method', model%velocity%surface_gradient_method, surface_gradient_method_choices)
+    call log_option('surface_gradient_margin_method', model%velocity%surface_gradient_margin_method, &
          surface_gradient_margin_method_choices)
-    call log_param('max_slope', model%paramets%max_slope, 'maximum surface slope')
+    call log_param('max_slope', model%velocity%max_slope, 'maximum surface slope')
 
   end subroutine print_velocity
 
@@ -1140,22 +1140,22 @@ contains
     type(glissade_global_type)   :: model
 
     ! nonlinear iteration
-    call GetOption(section,'nonlinear_method',    nonlinear_method_choices, model%options%which_ho_nonlinear)
-    call GetOption(section,'nonlinear_residual',  nonlinear_residual_choices, model%options%which_ho_resid)
-    call GetValue(section,'nonlinear_maxiters',  model%options%glissade_maxiter)
+    call GetOption(section,'nonlinear_method',    nonlinear_method_choices, model%velocity_solver%nonlinear_method)
+    call GetOption(section,'nonlinear_residual',  nonlinear_residual_choices, model%velocity_solver%nonlinear_residual)
+    call GetValue(section,'nonlinear_maxiters',  model%velocity_solver%nonlinear_maxiters)
 
     ! linear solver
-    call GetOption(section,'linear_solver',       linear_solver_choices, model%options%which_ho_sparse)
-    call GetOption(section,'preconditioner',      preconditioner_choices, model%options%which_ho_precond)
-    call GetValue(section,'linear_solve_ncheck', model%options%linear_solve_ncheck)
-    call GetValue(section,'linear_maxiters',     model%options%linear_maxiters)
-    call GetValue(section,'linear_tolerance',    model%options%linear_tolerance)
+    call GetOption(section,'linear_solver',       linear_solver_choices, model%velocity_solver%linear_solver)
+    call GetOption(section,'preconditioner',      preconditioner_choices, model%velocity_solver%preconditioner)
+    call GetValue(section,'linear_solve_ncheck', model%velocity_solver%linear_solve_ncheck)
+    call GetValue(section,'linear_maxiters',     model%velocity_solver%linear_maxiters)
+    call GetValue(section,'linear_tolerance',    model%velocity_solver%linear_tolerance)
 
     ! matrix assembly
-    call GetOption(section,'assemble_beta',       assemble_beta_choices, model%options%which_ho_assemble_beta)
-    call GetOption(section,'assemble_taud',       assemble_taud_choices, model%options%which_ho_assemble_taud)
-    call GetOption(section,'assemble_bfric',      assemble_bfric_choices, model%options%which_ho_assemble_bfric)
-    call GetOption(section,'assemble_lateral',    assemble_lateral_choices, model%options%which_ho_assemble_lateral)
+    call GetOption(section,'assemble_beta',       assemble_beta_choices, model%velocity_solver%assemble_beta)
+    call GetOption(section,'assemble_taud',       assemble_taud_choices, model%velocity_solver%assemble_taud)
+    call GetOption(section,'assemble_bfric',      assemble_bfric_choices, model%velocity_solver%assemble_bfric)
+    call GetOption(section,'assemble_lateral',    assemble_lateral_choices, model%velocity_solver%assemble_lateral)
 
   end subroutine handle_velocity_solver
 
@@ -1177,35 +1177,35 @@ contains
     character(len=100) :: note
 
     ! Forbidden options for running in parallel
-    ! Note: The local SIA solver does not use a sparse linear solver, so which_ho_sparse is ignored.
-    if (tasks > 1 .and. model%options%which_ho_approx /= STOKES_APPROX_LOCAL_SIA .and.  &
-                        (model%options%which_ho_sparse==LINEAR_SOLVER_SLAP_BICG  .or.  &
-                         model%options%which_ho_sparse==LINEAR_SOLVER_SLAP_GMRES .or.  &
-                         model%options%which_ho_sparse==LINEAR_SOLVER_SLAP_PCG) ) then
+    ! Note: The local SIA solver does not use a sparse linear solver, so linear_solver is ignored.
+    if (tasks > 1 .and. model%velocity%stokes_approx /= STOKES_APPROX_LOCAL_SIA        .and.  &
+                        (model%velocity_solver%linear_solver==LINEAR_SOLVER_SLAP_BICG  .or.  &
+                         model%velocity_solver%linear_solver==LINEAR_SOLVER_SLAP_GMRES .or.  &
+                         model%velocity_solver%linear_solver==LINEAR_SOLVER_SLAP_PCG) ) then
        call write_log('Error, SLAP solver not supported for more than one processor', GM_FATAL)
     end if
 
     ! The SIA preconditioner cannot be used for 2D solves
     note = ''
-    if ( (model%options%which_ho_approx == STOKES_APPROX_SSA  .or.  &
-          model%options%which_ho_approx == STOKES_APPROX_L1L2 .or.  &
-          model%options%which_ho_approx == STOKES_APPROX_DIVA .or.  &
-          model%options%which_ho_approx == STOKES_APPROX_HYBRID)    &
+    if ( (model%velocity%stokes_approx == STOKES_APPROX_SSA  .or.  &
+          model%velocity%stokes_approx == STOKES_APPROX_L1L2 .or.  &
+          model%velocity%stokes_approx == STOKES_APPROX_DIVA .or.  &
+          model%velocity%stokes_approx == STOKES_APPROX_HYBRID)    &
                              .and.                            &
-          (model%options%which_ho_sparse == LINEAR_SOLVER_PCG .or.    &
-           model%options%which_ho_sparse == LINEAR_SOLVER_PCG_CHRONGEAR) ) then
-       if (model%options%which_ho_precond == PRECONDITIONER_SIA) then
+          (model%velocity_solver%linear_solver == LINEAR_SOLVER_PCG .or.    &
+           model%velocity_solver%linear_solver == LINEAR_SOLVER_PCG_CHRONGEAR) ) then
+       if (model%velocity_solver%preconditioner == PRECONDITIONER_SIA) then
           !TODO - Change default to tridiagonal if it turns out to be faster than diagonal
-          model%options%which_ho_precond = PRECONDITIONER_DIAGONAL
+          model%velocity_solver%preconditioner = PRECONDITIONER_DIAGONAL
           note = 'reset from sia, which cannot be used for 2D solves'
        endif
     endif
 
-    if ((model%options%which_ho_sparse == LINEAR_SOLVER_PCG .or.  &
-         model%options%which_ho_sparse == LINEAR_SOLVER_PCG_CHRONGEAR) ) then
+    if ((model%velocity_solver%linear_solver == LINEAR_SOLVER_PCG .or.  &
+         model%velocity_solver%linear_solver == LINEAR_SOLVER_PCG_CHRONGEAR) ) then
        if (model%numerics%reproducible_sums) then
-          if (model%options%which_ho_precond == PRECONDITIONER_TRIDIAG_LOCAL .or. &
-              model%options%which_ho_precond == PRECONDITIONER_TRIDIAG_GLOBAL) then
+          if (model%velocity_solver%preconditioner == PRECONDITIONER_TRIDIAG_LOCAL .or. &
+              model%velocity_solver%preconditioner == PRECONDITIONER_TRIDIAG_GLOBAL) then
              call write_log ('Tridiagonal preconditioners are not supported with reproducible sums.')
              call write_log ('Please choose a different preconditioner (e.g., diagonal)', GM_FATAL)
           endif
@@ -1213,36 +1213,36 @@ contains
     endif
 
     call log_section('velocity_solver')
-    call log_option('nonlinear_method', model%options%which_ho_nonlinear, nonlinear_method_choices)
-    call log_option('nonlinear_residual', model%options%which_ho_resid, nonlinear_residual_choices)
-    call log_param('nonlinear_maxiters', model%options%glissade_maxiter)
-    call log_option('linear_solver', model%options%which_ho_sparse, linear_solver_choices)
-    if ((model%options%which_ho_sparse == LINEAR_SOLVER_PCG .or.  &
-         model%options%which_ho_sparse == LINEAR_SOLVER_PCG_CHRONGEAR) ) then
+    call log_option('nonlinear_method', model%velocity_solver%nonlinear_method, nonlinear_method_choices)
+    call log_option('nonlinear_residual', model%velocity_solver%nonlinear_residual, nonlinear_residual_choices)
+    call log_param('nonlinear_maxiters', model%velocity_solver%nonlinear_maxiters)
+    call log_option('linear_solver', model%velocity_solver%linear_solver, linear_solver_choices)
+    if ((model%velocity_solver%linear_solver == LINEAR_SOLVER_PCG .or.  &
+         model%velocity_solver%linear_solver == LINEAR_SOLVER_PCG_CHRONGEAR) ) then
        if (len_trim(note) > 0) then
-          call log_option('preconditioner', model%options%which_ho_precond, preconditioner_choices, trim(note))
+          call log_option('preconditioner', model%velocity_solver%preconditioner, preconditioner_choices, trim(note))
        else
-          call log_option('preconditioner', model%options%which_ho_precond, preconditioner_choices)
+          call log_option('preconditioner', model%velocity_solver%preconditioner, preconditioner_choices)
        endif
     end if
-    call log_param('linear_solve_ncheck', model%options%linear_solve_ncheck)
-    call log_param('linear_maxiters', model%options%linear_maxiters)
-    call log_param('linear_tolerance', model%options%linear_tolerance)
-    call log_option('assemble_beta', model%options%which_ho_assemble_beta, assemble_beta_choices)
-    call log_option('assemble_taud', model%options%which_ho_assemble_taud, assemble_taud_choices)
-    call log_option('assemble_bfric', model%options%which_ho_assemble_bfric, assemble_bfric_choices)
-    call log_option('assemble_lateral', model%options%which_ho_assemble_lateral, assemble_lateral_choices)
+    call log_param('linear_solve_ncheck', model%velocity_solver%linear_solve_ncheck)
+    call log_param('linear_maxiters', model%velocity_solver%linear_maxiters)
+    call log_param('linear_tolerance', model%velocity_solver%linear_tolerance)
+    call log_option('assemble_beta', model%velocity_solver%assemble_beta, assemble_beta_choices)
+    call log_option('assemble_taud', model%velocity_solver%assemble_taud, assemble_taud_choices)
+    call log_option('assemble_bfric', model%velocity_solver%assemble_bfric, assemble_bfric_choices)
+    call log_option('assemble_lateral', model%velocity_solver%assemble_lateral, assemble_lateral_choices)
 
     ! unsupported resid options
-    if (model%options%which_ho_resid == NONLINEAR_RESIDUAL_MAX) then
+    if (model%velocity_solver%nonlinear_residual == NONLINEAR_RESIDUAL_MAX) then
       call write_log('Residual as max. value of normalized velocity vector update is not currently scientifically supported.  &
            &USE AT YOUR OWN RISK.', GM_WARNING)
     endif
-    if (model%options%which_ho_resid == NONLINEAR_RESIDUAL_MAX_NO_UBAS) then
+    if (model%velocity_solver%nonlinear_residual == NONLINEAR_RESIDUAL_MAX_NO_UBAS) then
       call write_log('Residual as max. value of normalized velocity vector update with basal velocity omitted is not currently &
            &scientifically supported.  USE AT YOUR OWN RISK.', GM_WARNING)
     endif
-    if (model%options%which_ho_resid == NONLINEAR_RESIDUAL_MEAN) then
+    if (model%velocity_solver%nonlinear_residual == NONLINEAR_RESIDUAL_MEAN) then
       call write_log('Residual as mean value of normalized velocity vector update is not currently scientifically supported.  &
            &USE AT YOUR OWN RISK.', GM_WARNING)
     endif
@@ -1262,17 +1262,10 @@ contains
 
     type(ConfigSection), pointer :: section
     type(glissade_global_type)   :: model
-    logical :: compute_ice_age   ! a logical in the config file
 
-    call GetOption(section,'advection_method',     advection_method_choices, model%options%whichevol)
-    call GetOption(section,'vertical_remap_order', vertical_remap_order_choices, model%options%which_ho_vertical_remap)
-    compute_ice_age = (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE)
-    call GetLogical(section,'compute_ice_age',    compute_ice_age)
-    if (compute_ice_age) then
-       model%options%which_ho_ice_age = COMPUTE_ICE_AGE_TRUE
-    else
-       model%options%which_ho_ice_age = COMPUTE_ICE_AGE_FALSE
-    endif
+    call GetOption(section,'advection_method',     advection_method_choices, model%advection%advection_method)
+    call GetOption(section,'vertical_remap_order', vertical_remap_order_choices, model%advection%vertical_remap_order)
+    call GetLogical(section,'compute_ice_age',     model%advection%compute_ice_age)
 
   end subroutine handle_advection
 
@@ -1291,9 +1284,9 @@ contains
     type(glissade_global_type)  :: model
 
     call log_section('advection')
-    call log_option('advection_method', model%options%whichevol, advection_method_choices)
-    call log_option('vertical_remap_order', model%options%which_ho_vertical_remap, vertical_remap_order_choices)
-    call log_flag('compute_ice_age', model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE)
+    call log_option('advection_method', model%advection%advection_method, advection_method_choices)
+    call log_option('vertical_remap_order', model%advection%vertical_remap_order, vertical_remap_order_choices)
+    call log_flag('compute_ice_age', model%advection%compute_ice_age)
 
   end subroutine print_advection
 
@@ -1341,7 +1334,7 @@ contains
 
     ! The local SIA solver cannot use first-order dissipation
     note = ''
-    if (model%options%which_ho_approx == STOKES_APPROX_LOCAL_SIA) then
+    if (model%velocity%stokes_approx == STOKES_APPROX_LOCAL_SIA) then
        if (model%options%which_ho_disp == DISSIPATION_METHOD_FIRST_ORDER ) then
           model%options%which_ho_disp = DISSIPATION_METHOD_SIA
           note = 'reset from first_order, which cannot be used with the local SIA solver'
@@ -1580,7 +1573,7 @@ contains
 
     call log_section('basal_physics')
     call log_option('sliding_law', model%options%which_ho_babc, sliding_law_choices)
-    if (model%options%which_ho_approx == STOKES_APPROX_LOCAL_SIA) then
+    if (model%velocity%stokes_approx == STOKES_APPROX_LOCAL_SIA) then
        call log_option('btrc_method', model%options%whichbtrc, btrc_method_choices)
     endif
     call log_option('beta_limit_method', model%options%which_ho_beta_limit, beta_limit_method_choices)
@@ -1613,11 +1606,11 @@ contains
           call log_param('pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin, 'm')
           call log_param('pseudo_plastic_bedmax', model%basal_physics%pseudo_plastic_bedmax, 'm')
        endif
-       if (model%options%which_ho_assemble_beta == ASSEMBLE_BETA_STANDARD) then
+       if (model%velocity_solver%assemble_beta == ASSEMBLE_BETA_STANDARD) then
           call write_log('Local beta assembly is recommended for the pseudo-plastic sliding law; ' // &
                'set assemble_beta = local', GM_WARNING)
        endif
-       if (model%options%which_ho_assemble_bfric == ASSEMBLE_BFRIC_STANDARD) then
+       if (model%velocity_solver%assemble_bfric == ASSEMBLE_BFRIC_STANDARD) then
           call write_log('Local bfric assembly is recommended for the pseudo-plastic sliding law; ' // &
                'set assemble_bfric = local', GM_WARNING)
        endif
@@ -3241,7 +3234,7 @@ contains
      endif
 
      ! Glissade approximation options
-     select case (model%options%which_ho_approx)
+     select case (model%velocity%stokes_approx)
 
         case (STOKES_APPROX_DIVA)
            ! DIVA requires the 2D velocity, basal traction and effective viscosity for exact restart.
@@ -3264,7 +3257,7 @@ contains
         case default
            ! Other approximations (including SSA and L1L2) use the 3D uvel and vvel to initialize the velocity
 
-     end select   ! which_ho_approx
+     end select   ! stokes_approx
         
      ! mask used to limit computation to active blocks
      if (model%numerics%compute_blocks == COMPUTE_BLOCKS_ACTIVE_ONLY) then
@@ -3432,12 +3425,9 @@ contains
          ! no new restart variables needed
     end select
 
-    select case (model%options%which_ho_ice_age)
-       case(COMPUTE_ICE_AGE_TRUE)
-          call glissade_add_to_restart_variable_list('ice_age', model_id)
-       case default
-          ! no restart variables needed
-    end select
+    if (model%advection%compute_ice_age) then
+       call glissade_add_to_restart_variable_list('ice_age', model_id)
+    endif
 
     if (model%options%enable_glaciers) then
        ! some fields related to glacier indexing

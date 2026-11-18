@@ -530,7 +530,7 @@ contains
 
     ! Determine which transport scheme
 
-    if (model%options%whichevol == ADVECTION_METHOD_UPWIND) then
+    if (model%advection%advection_method == ADVECTION_METHOD_UPWIND) then
        do_upwind_transport = .true.
     else
        do_upwind_transport = .false.
@@ -559,7 +559,7 @@ contains
                                       model%geometry%tracers(:,:,:,:),                      &
                                       model%geometry%tracers_usrf(:,:,:),                   &
                                       model%geometry%tracers_lsrf(:,:,:),                   &
-                                      model%options%which_ho_vertical_remap,                &
+                                      model%advection%vertical_remap_order,                 &
                                       upwind_transport_in = do_upwind_transport)
 
        call glissade_transport_finish_tracers(model)

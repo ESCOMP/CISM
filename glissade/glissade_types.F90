@@ -259,9 +259,6 @@ module glissade_types
        option_choice(VERTICAL_REMAP_ORDER_FIRST,  'first',  'first-order accurate'), &
        option_choice(VERTICAL_REMAP_ORDER_SECOND, 'second', 'second-order accurate') ]
 
-  ! [advection] compute_ice_age: a logical in the config file
-  integer, parameter :: COMPUTE_ICE_AGE_FALSE = 0
-  integer, parameter :: COMPUTE_ICE_AGE_TRUE = 1
 
   ! [temperature] temperature_method (enthalpy is not scientifically supported)
   integer, parameter :: TEMPERATURE_METHOD_ISOTHERMAL_ARTM = 0
@@ -789,15 +786,6 @@ module glissade_types
     !> \item[glissade] Glissade dycore (1st-order, FEM, serial (SLAP) or parallel (F90 native PCG solver) )
     !> \end{description}
 
-    integer :: whichevol = ADVECTION_METHOD_REMAP
-
-    !> Thickness evolution method:
-    !> \begin{description}
-    !> \item[remap] Incremental remapping
-    !> \item[upwind] 1st-order upwind scheme
-    !> \item[fixed_thickness] Temperature evolves but thickness does not
-    !> \end{description}
-
     integer :: whichtemp = TEMPERATURE_METHOD_PROGNOSTIC
 
     !> Method of ice temperature calculation:
@@ -1055,15 +1043,6 @@ module glissade_types
     ! Higher-order options associated with the glissade dycore
     !-----------------------------------------------------------------------
 
-    integer :: which_ho_efvs = EFVS_METHOD_NONLINEAR
-
-    !> Flag that indicates how effective viscosity is computed
-    !> \begin{description}
-    !> \item[constant] constant value
-    !> \item[flow_factor] multiple of flow factor
-    !> \item[nonlinear] compute from effective strain rate
-    !> \end{description}
-
     integer :: which_ho_disp = DISSIPATION_METHOD_FIRST_ORDER
 
     !> Flag that indicates method for computing the dissipation during the temperature calc.
@@ -1161,131 +1140,8 @@ module glissade_types
     !> \item[5] N is reduced where the bed is at or near the pressure melting point
     !> \end{description}
 
-    integer :: which_ho_nonlinear = NONLINEAR_METHOD_PICARD
-    !> Flag that indicates method for solving the nonlinear iteration when solving 
-    !> the first-order momentum balance
-    !> \begin{description}
-    !> \item[picard] do standard Picard iteration
-    !> \item[accelerated_picard] do Picard iteration with acceleration
-    !> \end{description}
-
-    integer :: which_ho_resid = NONLINEAR_RESIDUAL_L2NORM
-    !> Flag that indicates method for computing residual in PP dyn core: 
-    !> \begin{description}
-    !> \item[max] maxval 
-    !> \item[max_no_ubas] maxval ignoring basal velocity 
-    !> \item[mean] mean value
-    !> \item[l2norm] L2 norm of system residual, Ax-b=resid
-    !> \item[relative_l2norm] L2 norm of system residual relative to rhs, |Ax-b|/|b|
-    !> \end{description}
-
-    integer :: which_ho_sparse = LINEAR_SOLVER_PCG_CHRONGEAR
-    !> Flag that indicates method for solving the sparse linear system
-    !> that arises from the higher-order solver
-    !> \begin{description}
-    !> \item[slap_pcg] SLAP (serial): Preconditioned conjugate gradient, incomplete Cholesky preconditioner
-    !> \item[slap_bicg]  SLAP (serial): Biconjugate gradient, incomplete LU preconditioner
-    !> \item[slap_gmres]  SLAP (serial): GMRES, incomplete LU preconditioner
-    !> \item[pcg] Native PCG, parallel-enabled, standard solver
-    !> \item[pcg_chrongear] Native PCG, parallel-enabled, Chronopoulos-Gear solver (default)
-    !> \end{description}
-
-    integer :: which_ho_approx = STOKES_APPROX_DIVA
-    !> Flag that indicates which Stokes approximation to use with the glissade dycore.
-    !> Not valid for other dycores 
-    !> The default is diva; it was blatter_pattyn until the config reorganization.
-    !> Note: There are two SIA options:
-    !>       local_sia uses module glissade_velo_sia to compute local SIA velocities, similar to Glide
-    !>       sia uses module glissade_velo_higher to compute SIA velocities via an iterative solve
-    !> \begin{description}
-    !> \item[local_sia] Shallow-ice approximation, Glide-type calculation; uses glissade_velo_sia
-    !> \item[sia]  Shallow-ice approximation, vertical-shear stresses only; uses glissade_velo_higher
-    !> \item[ssa]  Shallow-shelf approximation, horizontal-plane stresses only; uses glissade_velo_higher
-    !> \item[blatter_pattyn]  Blatter-Pattyn approximation with both vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
-    !> \item[l1l2]  Vertically integrated 'L1L2' approximation with vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
-    !> \item[diva]  Depth-integrated viscosity approximation (DIVA) based on Goldberg (2011); uses glissade_velo_higher
-    !> \item[hybrid]  Hybrid solver combining an SSA basal solve with a local vertical SIA solve
-    !> \end{description}
-
-    logical :: diva_slope_correction = .true.
-    !> Flag that indicates whether the DIVA solver includes a correction for steep slopes
-
-    integer :: which_ho_precond = PRECONDITIONER_DIAGONAL   ! default was PRECONDITIONER_SIA until the config reorganization
-    !> Flag that indicates which Stokes preconditioner to use in the glissade dycore.
-    !> Not valid for other dycores 
-    !> \begin{description}
-    !> \item[none] No preconditioner
-    !> \item[diagonal] Diagonal preconditioner
-    !> \item[sia] Physics-based shallow-ice preconditioner
-    !> \item[tridiag_local] Local tridiagonal preconditioner (one solve per task)
-    !> \item[tridiag_global] Global tridiagonal preconditioner (global solve)
-    !> \end{description}
-
-    integer :: which_ho_gradient = SURFACE_GRADIENT_METHOD_CENTERED    
-    !> Flag that indicates which gradient operator to use in the glissade dycore.
-    !> Not valid for other dycores
-    !> NOTE: Upstream may be better for ice evolution because it damps checkerboard noise.
-    !> \begin{description}
-    !> \item[centered] Centered gradient
-    !> \item[upstream1] First-order accurate upstream gradient
-    !> \item[upstream2] Second-order accurate upstream gradient
-    !> \end{description}
-
-    integer :: which_ho_gradient_margin = SURFACE_GRADIENT_MARGIN_METHOD_HYBRID
-    !> Flag that indicates how to compute the gradient at the ice margin in the glissade dycore.
-    !> Note: Gradients are always computed at edges with ice on both sides.
-    !>       The methods differ in whether gradients are computed when an ice-covered cell
-    !>        lies above an ice-free cell (land or ocean).
-    !        Option 1 is appropriate for ice sheets with both land and marine boundaries,
-    !         when a lateral spreading force is computed for marine ice cliffs.
-    !         This lateral force ensures spreading where the gradient is zero.
-    !> \begin{description}
-    !> \item[land] Compute edge gradient when either cell is ice-covered
-    !> \item[hybrid] Compute edge gradient for ice-covered cell above ice-free land (not ocean)
-    !> \item[marine] Compute edge gradient only when both cells have ice
-    !> \end{description}
-
     !TODO: Change the default to 2nd order vertical remapping
     ! WHL: Keeping 1st order vertical remapping for now, pending more testing
-    integer :: which_ho_vertical_remap = VERTICAL_REMAP_ORDER_FIRST
-    !> Flag that indicates the order of accuracy for vertical remapping
-    !> \begin{description}
-    !> \item[first] first-order accurate in the vertical direction
-    !> \item[second] second-order accurate in the vertical direction
-    !> \end{description}
-
-    integer :: which_ho_assemble_taud = ASSEMBLE_TAUD_LOCAL
-
-    !> Flag that describes how driving-stress terms are assembled in the glissade finite-element calculation
-    !> \begin{description}
-    !> \item[standard] standard finite-element calculation (which effectively smooths the driving stress)
-    !> \item[local] apply local value of driving stress at each vertex
-    !> \end{description}
-
-    integer :: which_ho_assemble_beta = ASSEMBLE_BETA_LOCAL
-
-    !> Flag that describes how beta terms are assembled in the glissade finite-element calculation
-    !> \begin{description}
-    !> \item[standard] standard finite-element calculation (which effectively smooths beta at discontinuities)
-    !> \item[local] apply local value of beta at each vertex
-    !> \end{description}
-
-    integer :: which_ho_assemble_bfric = ASSEMBLE_BFRIC_LOCAL
-
-    !> Flag that describes how the basal friction heat flux is assembled in the glissade finite-element calculation
-    !> \begin{description}
-    !> \item[standard] standard finite-element calculation summing over quadrature points
-    !> \item[local] apply local value of beta*(u^2 + v^2) at each vertex
-    !> \end{description}
-
-    integer :: which_ho_assemble_lateral = ASSEMBLE_LATERAL_LOCAL   ! default was STANDARD until the config reorganization
-
-    !> Flag that describes how lateral stress terms are assembled in the glissade finite-element calculation
-    !> \begin{description}
-    !> \item[standard] standard finite-element calculation of thck and usrf at quadrature points
-    !> \item[local] apply local cell-center value of thck and usrf on each face
-    !> \end{description}
-
     integer :: which_ho_ground = GROUNDING_LINE_PARAM_NONE
     !> Flag that indicates how to compute the grounded fraction of each gridcell in the glissade dycore.
     !> Not valid for other dycores
@@ -1334,30 +1190,11 @@ module glissade_types
     !> item[1] force retreat of all ice identified by a retreat mask
     !> item[2] force retreat of floating or weakly grounded ice identified by a retreat mask
 
-    integer :: which_ho_ice_age = COMPUTE_ICE_AGE_TRUE
-    !> Flag that indicates whether to compute a 3d ice age tracer
-    !> \begin{description}
-    !> \item[.false.] ice age computation off
-    !> \item[.true.] ice age computation on
-    !> \end{description}
-
     logical :: enable_glaciers = .false.
     !> if true, then read glacier info at initialization and (optionally)
     !>  tune glacier parameters during the run
 
     !WHL TODO - Put the next few variables in a solver derived type during the config reorg
-    integer :: glissade_maxiter = 100    
-    !> maximum number of nonlinear iterations to be used by the Glissade velocity solver
-
-    integer :: linear_solve_ncheck = 5
-    !> check the linear solver for convergence every linear_solve_ncheck iterations
-
-    integer :: linear_maxiters = 200
-    !> max number of linear iterations before quitting
-
-    real(dp) :: linear_tolerance = 1.0d-08
-    !> error tolerance for linear solver
-
   end type glissade_options_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1614,7 +1451,183 @@ module glissade_types
     real(dp), dimension(:,:), pointer :: divu => null()        ! horizontal divergence rate, eps_xx + eps_yy (s^-1)
     real(dp), dimension(:,:), pointer :: shear => null()       ! invariant related to shear (s^-1): sqrt{[(eps_xx - eps_yy)/2]^2 + eps_xy^2}
 
+    !> [velocity] keys
+
+    integer :: stokes_approx = STOKES_APPROX_DIVA
+    !> Flag that indicates which Stokes approximation to use with the glissade dycore.
+    !> Not valid for other dycores 
+    !> The default is diva; it was blatter_pattyn until the config reorganization.
+    !> Note: There are two SIA options:
+    !>       local_sia uses module glissade_velo_sia to compute local SIA velocities, similar to Glide
+    !>       sia uses module glissade_velo_higher to compute SIA velocities via an iterative solve
+    !> \begin{description}
+    !> \item[local_sia] Shallow-ice approximation, Glide-type calculation; uses glissade_velo_sia
+    !> \item[sia]  Shallow-ice approximation, vertical-shear stresses only; uses glissade_velo_higher
+    !> \item[ssa]  Shallow-shelf approximation, horizontal-plane stresses only; uses glissade_velo_higher
+    !> \item[blatter_pattyn]  Blatter-Pattyn approximation with both vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
+    !> \item[l1l2]  Vertically integrated 'L1L2' approximation with vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
+    !> \item[diva]  Depth-integrated viscosity approximation (DIVA) based on Goldberg (2011); uses glissade_velo_higher
+    !> \item[hybrid]  Hybrid solver combining an SSA basal solve with a local vertical SIA solve
+    !> \end{description}
+
+    logical :: diva_slope_correction = .true.
+    !> Flag that indicates whether the DIVA solver includes a correction for steep slopes
+
+    integer :: efvs_method = EFVS_METHOD_NONLINEAR
+    !> Flag that indicates how effective viscosity is computed
+    !> \begin{description}
+    !> \item[constant] constant value
+    !> \item[flow_factor] multiple of flow factor
+    !> \item[nonlinear] compute from effective strain rate
+    !> \end{description}
+
+    integer :: surface_gradient_method = SURFACE_GRADIENT_METHOD_CENTERED    
+    !> Flag that indicates which gradient operator to use in the glissade dycore.
+    !> Not valid for other dycores
+    !> NOTE: Upstream may be better for ice evolution because it damps checkerboard noise.
+    !> \begin{description}
+    !> \item[centered] Centered gradient
+    !> \item[upstream1] First-order accurate upstream gradient
+    !> \item[upstream2] Second-order accurate upstream gradient
+    !> \end{description}
+
+    integer :: surface_gradient_margin_method = SURFACE_GRADIENT_MARGIN_METHOD_HYBRID
+    !> Flag that indicates how to compute the gradient at the ice margin in the glissade dycore.
+    !> Note: Gradients are always computed at edges with ice on both sides.
+    !>       The methods differ in whether gradients are computed when an ice-covered cell
+    !>        lies above an ice-free cell (land or ocean).
+    !        Option 1 is appropriate for ice sheets with both land and marine boundaries,
+    !         when a lateral spreading force is computed for marine ice cliffs.
+    !         This lateral force ensures spreading where the gradient is zero.
+    !> \begin{description}
+    !> \item[land] Compute edge gradient when either cell is ice-covered
+    !> \item[hybrid] Compute edge gradient for ice-covered cell above ice-free land (not ocean)
+    !> \item[marine] Compute edge gradient only when both cells have ice
+    !> \end{description}
+
+    real(dp) :: efvs_const = 2336041.d0    ! value of efvs to use in constant efvs case, in units Pa yr
+                                       ! = 0.5*A^(-1), where A = 2.140373 Pa^(-1) yr^(1) is the value used in ISMIP-HOM Test F
+    real(dp) :: effstrain_min = 1.0d-8 ! min value of effective strain (yr^-1) for computation of effective viscosity
+                                       ! 1.d-8 generally works well for SSA and DIVA, but a larger value (~1.e-6) may be needed for BP
+    real(dp) :: max_slope = 1.0d0      ! maximum surface slope allowed in Glissade dycore (unitless)
+                                       ! Note: It may be necessary to reduce max_slope to ~0.1 to prevent huge velocities
+                                       !       in regions of rough coastal topography
+
   end type glissade_velocity_type
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  type glissade_velocity_solver_type
+
+    !> [velocity_solver] keys
+
+    integer :: nonlinear_method = NONLINEAR_METHOD_PICARD
+    !> Flag that indicates method for solving the nonlinear iteration when solving 
+    !> the first-order momentum balance
+    !> \begin{description}
+    !> \item[picard] do standard Picard iteration
+    !> \item[accelerated_picard] do Picard iteration with acceleration
+    !> \end{description}
+
+    integer :: nonlinear_residual = NONLINEAR_RESIDUAL_L2NORM
+    !> Flag that indicates method for computing residual in PP dyn core: 
+    !> \begin{description}
+    !> \item[max] maxval 
+    !> \item[max_no_ubas] maxval ignoring basal velocity 
+    !> \item[mean] mean value
+    !> \item[l2norm] L2 norm of system residual, Ax-b=resid
+    !> \item[relative_l2norm] L2 norm of system residual relative to rhs, |Ax-b|/|b|
+    !> \end{description}
+
+    integer :: nonlinear_maxiters = 100    
+    !> maximum number of nonlinear iterations to be used by the Glissade velocity solver
+
+    integer :: linear_solver = LINEAR_SOLVER_PCG_CHRONGEAR
+    !> Flag that indicates method for solving the sparse linear system
+    !> that arises from the higher-order solver
+    !> \begin{description}
+    !> \item[slap_pcg] SLAP (serial): Preconditioned conjugate gradient, incomplete Cholesky preconditioner
+    !> \item[slap_bicg]  SLAP (serial): Biconjugate gradient, incomplete LU preconditioner
+    !> \item[slap_gmres]  SLAP (serial): GMRES, incomplete LU preconditioner
+    !> \item[pcg] Native PCG, parallel-enabled, standard solver
+    !> \item[pcg_chrongear] Native PCG, parallel-enabled, Chronopoulos-Gear solver (default)
+    !> \end{description}
+
+    integer :: preconditioner = PRECONDITIONER_DIAGONAL   ! default was PRECONDITIONER_SIA until the config reorganization
+    !> Flag that indicates which Stokes preconditioner to use in the glissade dycore.
+    !> Not valid for other dycores 
+    !> \begin{description}
+    !> \item[none] No preconditioner
+    !> \item[diagonal] Diagonal preconditioner
+    !> \item[sia] Physics-based shallow-ice preconditioner
+    !> \item[tridiag_local] Local tridiagonal preconditioner (one solve per task)
+    !> \item[tridiag_global] Global tridiagonal preconditioner (global solve)
+    !> \end{description}
+
+    integer :: linear_solve_ncheck = 5
+    !> check the linear solver for convergence every linear_solve_ncheck iterations
+
+    integer :: linear_maxiters = 200
+    !> max number of linear iterations before quitting
+
+    real(dp) :: linear_tolerance = 1.0d-08
+    !> error tolerance for linear solver
+
+    integer :: assemble_beta = ASSEMBLE_BETA_LOCAL
+    !> Flag that describes how beta terms are assembled in the glissade finite-element calculation
+    !> \begin{description}
+    !> \item[standard] standard finite-element calculation (which effectively smooths beta at discontinuities)
+    !> \item[local] apply local value of beta at each vertex
+    !> \end{description}
+
+    integer :: assemble_taud = ASSEMBLE_TAUD_LOCAL
+    !> Flag that describes how driving-stress terms are assembled in the glissade finite-element calculation
+    !> \begin{description}
+    !> \item[standard] standard finite-element calculation (which effectively smooths the driving stress)
+    !> \item[local] apply local value of driving stress at each vertex
+    !> \end{description}
+
+    integer :: assemble_bfric = ASSEMBLE_BFRIC_LOCAL
+    !> Flag that describes how the basal friction heat flux is assembled in the glissade finite-element calculation
+    !> \begin{description}
+    !> \item[standard] standard finite-element calculation summing over quadrature points
+    !> \item[local] apply local value of beta*(u^2 + v^2) at each vertex
+    !> \end{description}
+
+    integer :: assemble_lateral = ASSEMBLE_LATERAL_LOCAL   ! default was STANDARD until the config reorganization
+    !> Flag that describes how lateral stress terms are assembled in the glissade finite-element calculation
+    !> \begin{description}
+    !> \item[standard] standard finite-element calculation of thck and usrf at quadrature points
+    !> \item[local] apply local cell-center value of thck and usrf on each face
+    !> \end{description}
+
+  end type glissade_velocity_solver_type
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  type glissade_advection_type
+
+    !> [advection] keys
+
+    integer :: advection_method = ADVECTION_METHOD_REMAP
+    !> Thickness evolution method:
+    !> \begin{description}
+    !> \item[remap] Incremental remapping
+    !> \item[upwind] 1st-order upwind scheme
+    !> \item[fixed_thickness] Temperature evolves but thickness does not
+    !> \end{description}
+
+    integer :: vertical_remap_order = VERTICAL_REMAP_ORDER_FIRST
+    !> Flag that indicates the order of accuracy for vertical remapping
+    !> \begin{description}
+    !> \item[first] first-order accurate in the vertical direction
+    !> \item[second] second-order accurate in the vertical direction
+    !> \end{description}
+
+    logical :: compute_ice_age = .true.
+    !> if true, then compute the ice age as a tracer
+
+  end type glissade_advection_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -2650,14 +2663,6 @@ module glissade_types
     !TODO - Move the following higher-order velocity parameters to a different type?
     real(dp) :: default_flwa = 1.0d-16 ! Glen's A to use in isothermal case, in units Pa^{-n} yr^{-1} 
                                        ! (would change to e.g. 4.6e-18 in EISMINT-ROSS case)
-    real(dp) :: efvs_constant = 2336041.d0  ! value of efvs to use in constant efvs case, in units Pa yr
-                                       ! = 0.5*A^(-1), where A = 2.140373 Pa^(-1) yr^(1) is the value used in ISMIP-HOM Test F
-    real(dp) :: effstrain_min = 1.0d-8 ! min value of effective strain (yr^-1) for computation of effective viscosity
-                                       ! 1.d-8 generally works well for SSA and DIVA, but a larger value (~1.e-6) may be needed for BP
-    real(dp) :: max_slope = 1.0d0      ! maximum surface slope allowed in Glissade dycore (unitless)
-                                       ! Note: It may be necessary to reduce max_slope to ~0.1 to prevent huge velocities
-                                       !       in regions of rough coastal topography
-
   end type glissade_paramets_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -2669,6 +2674,8 @@ module glissade_types
     type(glissade_geometry_type) :: geometry
     type(glissade_geomderv_type) :: geomderv
     type(glissade_velocity_type) :: velocity
+    type(glissade_velocity_solver_type) :: velocity_solver
+    type(glissade_advection_type) :: advection
     type(glissade_scalars_type)  :: scalars
     type(glissade_mass_flux_type):: mass_flux
     type(glissade_stress_type) :: stress   

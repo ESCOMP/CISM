@@ -112,7 +112,7 @@
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
-         if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
+         if (model%advection%compute_ice_age) then
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
@@ -189,7 +189,7 @@
          endif
          
          ! ice age parameter
-         if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
+         if (model%advection%compute_ice_age) then
 
             nt = nt + 1
             do k = 1, nlyr
@@ -260,7 +260,7 @@
       endif
 
       ! ice age parameter
-      if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
+      if (model%advection%compute_ice_age) then
          nt = nt + 1
          do k = 1, nlyr
             model%geometry%ice_age(k,:,:) = model%geometry%tracers(:,:,nt,k)

@@ -1141,7 +1141,7 @@
           temp_diag(:) = model%temperature%temp(1:upn,i,j)          
           spd_diag(:) = sqrt(model%velocity%uvel(1:upn,i,j)**2   &
                            + model%velocity%vvel(1:upn,i,j)**2) * scyr
-          if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) &
+          if (model%advection%compute_ice_age) &
                age_diag(:) = model%geometry%ice_age(:,i,j)/scyr
        endif
 
@@ -1231,7 +1231,7 @@
           endif
 
           ! temp (and optionally age) at layer midpoint
-          if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
+          if (model%advection%compute_ice_age) then
              write (message,'(f6.3,24x,f24.16,f18.6)') model%grid%stagsigma(k), temp_diag(k), age_diag(k)
              call write_log(trim(message), type = GM_DIAGNOSTIC)
           else

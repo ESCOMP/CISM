@@ -28,7 +28,7 @@
 !
 ! It is roughly based on module glissade_velo_higher but is much simpler, 
 !  computing only the SIA velocities. 
-! It is called with dycore = DYCORE_GLISSADE, which_ho_approx = STOKES_APPROX_LOCAL_SIA. 
+! It is called with dycore = glissade, stokes_approx = local_sia. 
 !
 ! The calculation is similar to the one in Glide, except that it
 !  computes only the SIA velocity profile and does not evolve thickness.  
@@ -38,7 +38,7 @@
 !
 ! The function of the module is to allow a parallel SIA calculation using an 
 !  explicit transport scheme, instead of an implicit diffusion calculation as in Glide.
-! This can also be done using glissade_velo_higher, setting which_ho_approx = STOKES_APPROX_SIA.
+! This can also be done using glissade_velo_higher, setting stokes_approx = sia.
 !  That method uses the same numerical techniques as the higher-order solve but with only the
 !  SIA matrix elements.  However, STOKES_APPROX_SIA is much more expensive than STOKES_APPROX_LOCAL_SIA,
 !  and is somewhat less accurate for the Halfar test problem.
@@ -198,7 +198,7 @@
     eus    = model%climate%eus
     btrc_const = model%paramets%btrc_const
     whichbtrc = model%options%whichbtrc
-    whichgradient_margin = model%options%which_ho_gradient_margin
+    whichgradient_margin = model%velocity%surface_gradient_margin_method
 
     sigma    => model%grid%sigma(:)
     thck     => model%geometry%thck(:,:)

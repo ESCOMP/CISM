@@ -1088,7 +1088,7 @@ contains
                 model%calving%damage(:,i,j) = 0.0d0
              endif
 
-             if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
+             if (model%advection%compute_ice_age) then
                 model%geometry%ice_age(:,i,j) = 0.0d0
              endif
 

@@ -661,7 +661,7 @@
     ! Solve the ice sheet flow equations for the horizontal velocity (uvel, vvel)
     !  at each node of each grid cell where ice is present.
     ! The standard solver is based on the Blatter-Pattyn first-order approximation
-    !  of Stokes flow (which_ho_approx = STOKES_APPROX_BLATTER_PATTYN).
+    !  of Stokes flow (stokes_approx = blatter_pattyn).
     ! There are also options to solve the shallow-ice equations (STOKES_APPROX_SIA),
     !  shallow-shelf equations (STOKES_APPROX_SIA), or L1L2 equations (STOKES_APPROX_L1L2).
     ! Note: The SIA solver does a full matrix solution and is much slower than
@@ -1143,34 +1143,34 @@
      dt = model%time%dt
      thklim = model%numerics%thcklim
      thck_gradient_ramp  = model%numerics%thck_gradient_ramp
-     max_slope = model%paramets%max_slope
+     max_slope = model%velocity%max_slope
      eus = model%climate%eus
-     efvs_constant = model%paramets%efvs_constant
-     effstrain_min = model%paramets%effstrain_min
+     efvs_constant = model%velocity%efvs_const
+     effstrain_min = model%velocity%effstrain_min
      pmp_threshold = model%temperature%pmp_threshold
 
      whichbabc            = model%options%which_ho_babc
      whichbeta_limit      = model%options%which_ho_beta_limit
-     whichefvs            = model%options%which_ho_efvs
-     whichresid           = model%options%which_ho_resid
-     whichsparse          = model%options%which_ho_sparse
-     whichnonlinear       = model%options%which_ho_nonlinear
-     whichapprox          = model%options%which_ho_approx
-     whichprecond         = model%options%which_ho_precond
-     maxiter_nonlinear    = model%options%glissade_maxiter
-     linear_solve_ncheck  = model%options%linear_solve_ncheck
-     linear_maxiters      = model%options%linear_maxiters
-     linear_tolerance     = model%options%linear_tolerance
-     whichgradient        = model%options%which_ho_gradient
-     whichgradient_margin = model%options%which_ho_gradient_margin
-     whichassemble_beta   = model%options%which_ho_assemble_beta
-     whichassemble_taud   = model%options%which_ho_assemble_taud
-     whichassemble_bfric  = model%options%which_ho_assemble_bfric
-     whichassemble_lateral= model%options%which_ho_assemble_lateral
+     whichefvs            = model%velocity%efvs_method
+     whichresid           = model%velocity_solver%nonlinear_residual
+     whichsparse          = model%velocity_solver%linear_solver
+     whichnonlinear       = model%velocity_solver%nonlinear_method
+     whichapprox          = model%velocity%stokes_approx
+     whichprecond         = model%velocity_solver%preconditioner
+     maxiter_nonlinear    = model%velocity_solver%nonlinear_maxiters
+     linear_solve_ncheck  = model%velocity_solver%linear_solve_ncheck
+     linear_maxiters      = model%velocity_solver%linear_maxiters
+     linear_tolerance     = model%velocity_solver%linear_tolerance
+     whichgradient        = model%velocity%surface_gradient_method
+     whichgradient_margin = model%velocity%surface_gradient_margin_method
+     whichassemble_beta   = model%velocity_solver%assemble_beta
+     whichassemble_taud   = model%velocity_solver%assemble_taud
+     whichassemble_bfric  = model%velocity_solver%assemble_bfric
+     whichassemble_lateral= model%velocity_solver%assemble_lateral
      whichcalving_front   = model%options%which_ho_calving_front
      whichground          = model%options%which_ho_ground
      whichflotation_function = model%options%which_ho_flotation_function
-     diva_slope_correction= model%options%diva_slope_correction
+     diva_slope_correction= model%velocity%diva_slope_correction
 
     !--------------------------------------------------------
     ! Convert input variables to appropriate units for this solver.
@@ -1813,8 +1813,8 @@
        ! Note: The first of these quantities is the load vector on the rhs of the matrix.
        !       The second is the value that would go on the rhs by simply taking rho*g*H*ds/dx.
        !       These will not agree exactly because of the way H is handled in FE assembly,
-       !        but they should be close if which_ho_assemble_taud = ASSEMBLE_TAUD_LOCAL.
-       !       If which_ho_assemble_taud = ASSEMBLE_TAUD_STANDARD, they can differ substantially.
+       !        but they should be close if assemble_taud = local.
+       !       If assemble_taud = standard, they can differ substantially.
        call point_diag(taudx, 'vert sum of grav load vector', itest, jtest, rtest, 7, 7, '(f10.0)')
        call point_diag(-rhoi*grav*stagthck(i,j)*dusrf_dx, 'rhoi*g*H*ds/dx', itest, jtest, rtest, 7, 7, '(f10.0)')
        call point_diag(uvel_2d, 'Starting uvel_2d (m/yr)', itest, jtest, rtest, 7, 7)
@@ -6498,14 +6498,14 @@
     ! and velocity (e.g., Cuffey & Paterson, p. 418).
     !
     ! Note: There is a choice of two methods for this calculation:
-    !       (0) a finite-element method, summing over beta*(u^2 + v^2) at quadrature points
-    !       (1) a simple method, computing beta*(u^2 + v^2) at vertices
-    !       Method (0) should formally be more accurate, at least where the flow is smooth.
+    !       (standard) a finite-element method, summing over beta*(u^2 + v^2) at quadrature points
+    !       (local) a simple method, computing beta*(u^2 + v^2) at vertices
+    !       Method (standard) should formally be more accurate, at least where the flow is smooth.
     !       However, it can lead to inaccurate and hugely excessive frictional fluxes where
     !        the flow transitions steeply from high beta/low velo to low beta/high velo
     !        (e.g., at the edge of fjords). In this case there are QPs with relatively
     !        high velocity combined with large beta.
-    !       To choose method (1), set which_ho_assemble_bfric = 1 in the config file.
+    !       The local method (assemble_bfric = local) is the default.
     !----------------------------------------------------------------
 
     !----------------------------------------------------------------
