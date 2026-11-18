@@ -80,24 +80,24 @@
     !  given a flotation function (based on thickness and topography) at the corners of the square or rectangle.
     !
     ! There are three options for computing the grounded fraction, based on the value of which_ho_ground:
-    ! (0) HO_GROUND_NO_GLP: f_ground = 1 for grounded vertices
+    ! (0) GROUNDING_LINE_PARAM_NONE: f_ground = 1 for grounded vertices
     !                       f_ground = 0 for floating vertices
     !     Vertices are identified as grounded or floating based on (a) presence of grounded neighbors
     !      or (b) interpolation of the flotation function.
-    ! (1) HO_GROUND_GLP_BASAL_FRICTION: GLP for basal friction with 0 <= f_ground <= 1.
+    ! (1) GROUNDING_LINE_PARAM_VERTICES: GLP for basal friction with 0 <= f_ground <= 1.
     !        A flotation function is interpolated over the staggered cell around each vertex
     !        and analytically integrated to compute the grounded and floating fractions.
     !        Then f_ground_cell is computed by averaging the values computed at vertices.
     !        TODO: Is f_ground_cell ever used with this option?  If not, then might not need to compute here.
-    ! (2) HO_GROUND_GLP_DELUXE: similar to (1), but f_flotation is interpolated over cell quadrants,
+    ! (2) GROUNDING_LINE_PARAM_DELUXE: similar to (1), but f_flotation is interpolated over cell quadrants,
     !        and then both f_ground (at vertices) and f_ground_cell are computed by summing over quadrants.
     !        A GLP is applied not only to basal friction but also to basal melting and other processes near the GL.
     !
     ! For options (1) and (2), there are three options for the flotation function:
-    ! (0) HO_FLOTATION_FUNCTION_PATTYN: f_flotation = (-rhoo*b)/(rhoi*H) - 1 = f_pattyn - 1
+    ! (0) FLOTATION_FUNCTION_PATTYN: f_flotation = (-rhoo*b)/(rhoi*H) - 1 = f_pattyn - 1
     !     Here, f_pattyn = (-rhoo*b)/(rhoi*H) as in Pattyn et al. (2006).
-    ! (1) HO_FLOTATION_FUNCTION_INVERSE_PATTYN: f_flotation = 1 - (rhoi*H)/(-rhoo*b) = 1 - 1/f_pattyn
-    ! (2) HO_FLOTATION_FUNCTION_LINEAR: f_flotation = -b - (rhoi/rhoo)*H = ocean cavity thickness
+    ! (1) FLOTATION_FUNCTION_INVERSE_PATTYN: f_flotation = 1 - (rhoi*H)/(-rhoo*b) = 1 - 1/f_pattyn
+    ! (2) FLOTATION_FUNCTION_LINEAR: f_flotation = -b - (rhoi/rhoo)*H = ocean cavity thickness
     !     This function was suggested by Xylar Asay-Davis and is linear in both b and H.
     !     Unlike a previous version of this option, f_flotation is not extrapolated from
     !     ice-covered cells to ice-free ocean.
@@ -230,7 +230,7 @@
     !       All values used in the f_ground calculation come from cells with ice,
     !        or are extrapolated from cells with ice.
 
-    if (which_ho_flotation_function == HO_FLOTATION_FUNCTION_PATTYN) then
+    if (which_ho_flotation_function == FLOTATION_FUNCTION_PATTYN) then
 
        ! subtract 1 from (-rhoo*b)/(rhoi*H) so that f > 0 for floating ice, f <= 0 for grounded ice
        do j = 1, ny
@@ -245,7 +245,7 @@
           enddo
        enddo
 
-    elseif (which_ho_flotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
+    elseif (which_ho_flotation_function == FLOTATION_FUNCTION_INVERSE_PATTYN) then
 
        ! subtract (rhoi*H)/(-rhoo*b) from 1 so that f > 0 for floating ice, f <= 0 for grounded ice
        do j = 1, ny
@@ -262,7 +262,7 @@
           enddo
        enddo
 
-    elseif (which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR) then
+    elseif (which_ho_flotation_function == FLOTATION_FUNCTION_LINEAR) then
 
        ! If > 0, f_flotation is the thickness of the ocean cavity beneath the ice shelf.
        ! This function (unlike PATTYN and INVERSE_PATTYN) is linear in both thck and topg.
@@ -295,8 +295,8 @@
     ! Extrapolate f_flotation to ice-free ocean cells for the first two options.
     ! TODO - Remove extrapolation for these options too?
 
-    if (which_ho_flotation_function == HO_FLOTATION_FUNCTION_PATTYN .or. &
-        which_ho_flotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
+    if (which_ho_flotation_function == FLOTATION_FUNCTION_PATTYN .or. &
+        which_ho_flotation_function == FLOTATION_FUNCTION_INVERSE_PATTYN) then
 
        ! In ice-free ocean cells, fill in f_flotation by extrapolation.
        ! Take the minimum (i.e., most grounded) value from adjacent ice-filled neighbors, using
@@ -383,7 +383,7 @@
 
     ! Compute f_ground according to the value of which_ho_ground
 
-    if (which_ho_ground == HO_GROUND_NO_GLP) then
+    if (which_ho_ground == GROUNDING_LINE_PARAM_NONE) then
 
        ! default: no sub-grid grounding-line parameterization
 
@@ -405,7 +405,7 @@
 
        ! Determine whether each vertex is grounded (f_ground = 1.0) or floating (f_ground = 0.0)
 
-       if (which_ho_fground_no_glp == HO_FGROUND_NO_GLP_FLOTATION_FUNCTION) then
+       if (which_ho_fground_no_glp == FGROUND_NO_GLP_FLOTATION_FUNCTION) then
 
           ! Set f_ground = 0 or 1 based on interpolation of f_flotation to vertices.
           ! For stagger_margin_in = 0, each neighboring value of f_flotation is included in the interpolation,
@@ -444,7 +444,7 @@
 
        endif  ! which_ho_no_glp_stagger
 
-    elseif (which_ho_ground == HO_GROUND_GLP_BASAL_FRICTION) then
+    elseif (which_ho_ground == GROUNDING_LINE_PARAM_VERTICES) then
 
        ! Loop over vertices, computing f_ground for each vertex with vmask = 1.
        ! Note: All vertices with vmask = 1 (i.e., all vertices with at least one ice-covered neighbor)
@@ -478,7 +478,7 @@
 
        call parallel_halo(f_ground_cell, parallel)
 
-    elseif (which_ho_ground == HO_GROUND_GLP_DELUXE) then
+    elseif (which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then
 
        !----------------------------------------------------------------
        ! Compute f_ground_vertex by finding f_ground for 4 neighboring quadrants

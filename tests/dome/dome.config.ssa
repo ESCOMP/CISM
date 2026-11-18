@@ -39,7 +39,7 @@ temperature_method = prognostic
 flow_law = paterson_budd
 
 [basal_physics]
-sliding_law = 0           # 0 = uniform
+sliding_law = beta_constant
 beta_const = 10000.
 
 [CF default]

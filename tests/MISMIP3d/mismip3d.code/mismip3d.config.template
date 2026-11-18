@@ -54,9 +54,9 @@ flow_factor_float = 1.
 flwa_const = 3.1536e-18
 
 [basal_physics]
-sliding_law = 10                # 10 = Coulomb friction (Schoof 2005) with effective pressure
+sliding_law = coulomb
 use_c_space_factor = .true.     # beta is multiplied by c_space_factor (the P75S friction perturbation)
-effecpress_method = 0           # 0 = overburden; the ocean connection is set by p_ocean_penetration
+effecpress_method = overburden
 coulomb_c_const = 0.2332
 coulomb_bump_max_slope = 0.5    ; maximum bed obstacle slope
 coulomb_bump_wavelength = 2.0   ; bedrock wavelength
@@ -64,8 +64,8 @@ flwa_basal_const = 1.0e-16      ; flow factor at the bed (Pa^-3 yr^-1)
 p_ocean_penetration = 0.        ; p values for coulomb friction law
 
 [grounding_line]
-grounding_line_param = 1               # 0 = no GLP, 1 = GLP
-flotation_function = 0   # 0 = f_pattyn, 1 = 1/f_pattyn
+grounding_line_param = vertices
+flotation_function = pattyn
 
 [basal_melt]
 bmlt_float_method = 0               # 0 = no melting of floating ice

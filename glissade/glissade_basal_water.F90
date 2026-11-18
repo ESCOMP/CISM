@@ -60,12 +60,12 @@ module glissade_basal_water
 
     select case (model%options%which_ho_bwat)
 
-    ! HO_BWAT_NONE:         basal water depth = 0
-    ! HO_BWAT_CONSTANT:     basal water depth = prescribed constant
-    ! HO_BWAT_LOCAL_TILL:   local basal till model with prescribed drainage rate
-    ! HO_BWAT_FLUX_ROUTING: steady-state water routing with flux calculation
+    ! BWAT_METHOD_NONE:         basal water depth = 0
+    ! BWAT_METHOD_CONSTANT:     basal water depth = prescribed constant
+    ! BWAT_METHOD_LOCAL_TILL:   local basal till model with prescribed drainage rate
+    ! BWAT_METHOD_FLUX_ROUTING: steady-state water routing with flux calculation
 
-    case(HO_BWAT_CONSTANT)
+    case(BWAT_METHOD_CONSTANT)
 
        ! Set a constant water thickness where ice is present
        where (model%geometry%thck > model%numerics%thklim)
@@ -124,16 +124,16 @@ module glissade_basal_water
 
     select case (which_ho_bwat)
 
-    ! HO_BWAT_NONE:         basal water depth = 0
-    ! HO_BWAT_CONSTANT:     basal water depth = prescribed constant
-    ! HO_BWAT_LOCAL_TILL:   local basal till model with prescribed drainage rate
-    ! HO_BWAT_FLUX_ROUTING: steady-state water routing with flux calculation (handled in a different subroutine)
+    ! BWAT_METHOD_NONE:         basal water depth = 0
+    ! BWAT_METHOD_CONSTANT:     basal water depth = prescribed constant
+    ! BWAT_METHOD_LOCAL_TILL:   local basal till model with prescribed drainage rate
+    ! BWAT_METHOD_FLUX_ROUTING: steady-state water routing with flux calculation (handled in a different subroutine)
 
-    case(HO_BWAT_NONE)
+    case(BWAT_METHOD_NONE)
 
        bwat(:,:) = 0.0d0
 
-    case(HO_BWAT_CONSTANT)
+    case(BWAT_METHOD_CONSTANT)
 
        ! Use a constant water thickness where ice is present, to force Tbed = Tpmp
 
@@ -143,7 +143,7 @@ module glissade_basal_water
           bwat(:,:) = 0.0d0
        endwhere
 
-     case(HO_BWAT_LOCAL_TILL)
+     case(BWAT_METHOD_LOCAL_TILL)
 
         ! Change bwat based on input bmlt, while also draining water at a constant rate.
         ! Note: bmlt > 0 for ice melting, which increases bwat. Freeze-on (bmlt < 0) will reduce bwat.
@@ -1451,7 +1451,7 @@ module glissade_basal_water
           ! Dinf is less suited for the dome problem because there are many ties for 2nd greatest slope,
           !  so i2 and j2 for slope2 are not well defined.
 
-          if (flux_routing_scheme == HO_FLUX_ROUTING_D8) then
+          if (flux_routing_scheme == FLUX_ROUTING_METHOD_D8) then
 
              ! route to the lowest-lying adjacent cell
              slope1 = 0.0d0
@@ -1483,7 +1483,7 @@ module glissade_basal_water
                 write(iulog,*) 'i1, j1, slope1 =', i1, j1, slope1
              endif
 
-          elseif (flux_routing_scheme == HO_FLUX_ROUTING_DINF) then
+          elseif (flux_routing_scheme == FLUX_ROUTING_METHOD_DINF) then
 
              ! route to the two lowest-lying adjacent cells
              i1 = 0; j1 = 0
@@ -1551,7 +1551,7 @@ module glissade_basal_water
 !!                write(iulog,*) 'sum_frac error: r, i, j, sum:', this_rank, i, j, sum_frac
              endif
 
-          elseif (flux_routing_scheme == HO_FLUX_ROUTING_FD8) then
+          elseif (flux_routing_scheme == FLUX_ROUTING_METHOD_FD8) then
 
              ! route to all adjacent downhill cells in proportion to the slope
              if (sum_slope > 0.d0) then

@@ -1364,7 +1364,7 @@
     vmask_dirichlet(:,:,:) = 0   
 
     ! Set the Dirichlet mask at the bed for no-slip BCs.
-    if (whichbabc == HO_BABC_NO_SLIP .and. whichapprox /= STOKES_APPROX_DIVA) then
+    if (whichbabc == SLIDING_LAW_NO_SLIP_DIRICHLET .and. whichapprox /= STOKES_APPROX_DIVA) then
        ! Impose zero sliding everywhere at the bed
        ! Note: For the DIVA case, this BC is handled by setting beta_eff = 1/omega
        !TODO - Allow application of no-slip BC at selected basal nodes instead of all nodes?
@@ -1612,7 +1612,7 @@
     !        This value is saved in model%velocity%beta.
     !       The glissade solver uses a beta field weighted by f_ground.
     !        This field is stored in model%velocity%beta_internal and can change over time.
-    !       For a no-slip boundary condition (HO_BABC_NO_SLIP), beta_internal is not computed,
+    !       For a no-slip boundary condition (SLIDING_LAW_NO_SLIP_DIRICHLET), beta_internal is not computed,
     !        so beta_internal = 0 will be written to output.
     !------------------------------------------------------------------------------
 
@@ -1621,14 +1621,14 @@
     ! Note: There was a call here to calc_effective_pressure, moved to the glissade diagnostic solve.
 
     !------------------------------------------------------------------------------
-    ! For the HO_BABC_BETA_BPMP option, compute a mask of vertices where the bed is at
+    ! For the SLIDING_LAW_BETA_BPMP option, compute a mask of vertices where the bed is at
     ! the pressure melting point, resulting in lower traction.
     !------------------------------------------------------------------------------
 
     ! initialize to 0 everywhere
     model%basal_physics%bpmp_mask(:,:) = 0
   
-    if (whichbabc == HO_BABC_BETA_BPMP) then
+    if (whichbabc == SLIDING_LAW_BETA_BPMP) then
 
        ! interpolate bed temperature to vertices
        ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation
@@ -1648,7 +1648,7 @@
           model%basal_physics%bpmp_mask = 1
        endwhere
 
-    endif   ! HO_BABC_BETA_BPMP
+    endif   ! SLIDING_LAW_BETA_BPMP
 
     !------------------------------------------------------------------------------
     ! Compute the factor A^(-1/n) appearing in the expression for effective viscosity.
@@ -2113,7 +2113,7 @@
           !     DIVA does not compute the basal velocity in the 2D matrix solve,
           !     but computes the full 3D velocity after each iteration so that
           !     uvel/vvel(nz,:,:) are available here.
-          ! (5) For which_ho_babc = HO_BABC_BETA_EXTERNAL, beta currently has
+          ! (5) For which_ho_babc = SLIDING_LAW_BETA_FILE, beta currently has
           !     dimensionless Glimmer units. Rather than incur roundoff errors by
           !     repeatedly multiplying and dividing by scaling constants, the conversion
           !     to Pa yr/m is done here in the argument list.
@@ -2358,7 +2358,7 @@
                 !      equations reduce to the simpler ones when slope_factor = 1.0 and theta_slope = 0.0.
                 if (diva_slope_correction) then  ! compute a larger beta_eff at each vertex based on the slope
 
-                   if (whichbabc == HO_BABC_NO_SLIP) then
+                   if (whichbabc == SLIDING_LAW_NO_SLIP_DIRICHLET) then
                       where(stag_omega > 0.0d0)
                          beta_eff_x = stag_diva_slope_factor_x / (stag_omega*cos(stag_theta_slope_x))
                          beta_eff_y = stag_diva_slope_factor_y / (stag_omega*cos(stag_theta_slope_y))
@@ -2372,7 +2372,7 @@
 
                 else   ! no slope correction
 
-                   if (whichbabc == HO_BABC_NO_SLIP) then
+                   if (whichbabc == SLIDING_LAW_NO_SLIP_DIRICHLET) then
                       where (stag_omega > 0.d0)
                          beta_eff_x = 1.d0 / stag_omega
                          beta_eff_y = 1.d0 / stag_omega
@@ -2676,7 +2676,7 @@
              ! Incorporate basal sliding boundary conditions, based on beta_internal
              !---------------------------------------------------------------------------
 
-             if (whichbabc /= HO_BABC_NO_SLIP) then
+             if (whichbabc /= SLIDING_LAW_NO_SLIP_DIRICHLET) then
 
                 call basal_sliding_bc_3d(&
                      nx,                  ny,              &
@@ -3012,13 +3012,13 @@
              call point_diag(vvel(1,:,:), 'Sfc vvel (m/yr)', itest, jtest, rtest, 7, 7)
           endif
 
-          if (whichbabc == HO_BABC_BETA_BPMP) then
+          if (whichbabc == SLIDING_LAW_BETA_BPMP) then
              call point_diag(stagbedtemp, 'staggered bed temp', itest, jtest, rtest, 7, 7, '(f10.5)')
              call point_diag(stagbedpmp, 'staggered bed pmp', itest, jtest, rtest, 7, 7, '(f10.5)')
              call point_diag(model%basal_physics%bpmp_mask, 'bpmp mask', itest, jtest, rtest, 7, 7)
-          endif  ! HO_BABC_BETA_BPMP
+          endif  ! SLIDING_LAW_BETA_BPMP
 
-          if (whichbabc == HO_BABC_YIELD_PICARD) then
+          if (whichbabc == SLIDING_LAW_YIELD_PICARD) then
              call point_diag(model%basal_physics%mintauf, 'mintauf', itest, jtest, rtest, 7, 7, '(e10.3)')
           endif
 
@@ -3037,7 +3037,7 @@
        !---------------------------------------------------------------------------
 
        if ((whichapprox==STOKES_APPROX_L1L2 .or. whichapprox==STOKES_APPROX_SSA) .and. &
-              whichbabc==HO_BABC_NO_SLIP) then
+              whichbabc==SLIDING_LAW_NO_SLIP_DIRICHLET) then
 
           ! zero out velocity and related fields
           uvel_2d(:,:) = 0.d0

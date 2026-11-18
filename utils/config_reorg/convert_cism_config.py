@@ -538,6 +538,26 @@ OPTION_VALUES = {
                                           4: 'file'},
     ('temperature', 'dissipation_method'): {-1: 'none', 0: 'sia', 1: 'first_order'},
     ('flow_law', 'flow_law'): {0: 'constant', 1: 'paterson_budd_minus5c', 2: 'paterson_budd'},
+    ('basal_physics', 'sliding_law'): {0: 'beta_constant', 1: 'beta_bpmp', 2: 'pseudo_plastic',
+                                       3: 'pseudo_plastic_old', 4: 'no_slip', 5: 'beta_file',
+                                       6: 'no_slip_dirichlet', 7: 'zoet_iverson', 8: 'ismip_hom_c',
+                                       9: 'powerlaw', 10: 'coulomb', 11: 'schoof', 12: 'tsai',
+                                       13: 'powerlaw_effecpress', 14: 'yield_picard'},
+    ('basal_physics', 'btrc_method'): {0: 'none', 1: 'constant', 2: 'constant_bwat', 3: 'constant_bpmp'},
+    ('basal_physics', 'beta_limit_method'): {0: 'absolute', 1: 'fground_scaled'},
+    ('basal_physics', 'powerlaw_c_method'): {0: 'constant', 1: 'inversion', 2: 'file', 3: 'inversion_basin',
+                                             4: 'from_coulomb_c'},
+    ('basal_physics', 'coulomb_c_method'): {0: 'constant', 1: 'inversion', 2: 'file', 3: 'inversion_basin'},
+    ('basal_physics', 'effecpress_method'): {0: 'overburden', 1: 'bpmp', 2: 'bwat', 3: 'cavity_sheet',
+                                             4: 'bwat_bvp'},
+    ('basal_hydro', 'bwat_method'): {0: 'none', 1: 'constant', 2: 'local_till', 3: 'flux_routing'},
+    ('basal_hydro', 'flux_routing_method'): {0: 'd8', 1: 'dinf', 2: 'fd8'},
+    ('basal_hydro', 'cavity_open_slide'): {0: 'none', 1: 'fixed_ub', 2: 'dynamic_ub'},
+    ('basal_hydro', 'cavity_open_melt'): {0: 'none', 1: 'bmlt', 2: 'dissipation', 3: 'bmlt_dissipation'},
+    ('grounding_line', 'grounding_line_param'): {0: 'none', 1: 'vertices', 2: 'deluxe'},
+    ('grounding_line', 'fground_no_glp'): {0: 'grounded_neighbor', 1: 'flotation_function'},
+    ('grounding_line', 'grounding_line_bmlt'): {0: 'none', 1: 'floating_fraction', 2: 'zero_grounded'},
+    ('grounding_line', 'flotation_function'): {0: 'pattyn', 1: 'inverse_pattyn', 2: 'linear'},
 }
 
 # Options that are now logicals: 0/1 -> .false./.true.
@@ -806,19 +826,20 @@ def self_test():
         '[CF output]', 'name = out.nc', ''])
     new, changes = convert_config(old, moves)
     assert '[calving]\n# calving: 4 = thickness threshold\ncalving_law = 4   # see docs\ncalving_timescale = 1.0\n\n' in new, new
-    assert '[basal_physics]\nsliding_law = 9\n\n' in new, new
+    assert '[basal_physics]\nsliding_law = powerlaw\n\n' in new, new
     assert '[ho_options]' not in new, new                      # emptied section removed
     assert new.index('[basal_physics]') < new.index('[calving]') < new.index('[CF output]'), new
     assert 'dycore = glissade' in new and 'ice_limit = 1.' in new
     again, changes2 = convert_config(new, moves)                # idempotent
     assert again == new and not changes2, changes2
     nl, c = convert_user_nl("which_ho_babc = 9\n! comment\nice_limit = 1.\n", {'which_ho_babc': 'sliding_law'})
-    assert nl == "sliding_law = 9\n! comment\nice_limit = 1.\n" and c == ['which_ho_babc -> sliding_law'], nl
+    assert nl == "sliding_law = 'powerlaw'\n! comment\nice_limit = 1.\n", nl
+    assert c == ['which_ho_babc -> sliding_law', 'sliding_law: 9 -> powerlaw'], c
     assert convert_config(old, {})[0] == old.replace('dycore = 2', 'dycore = glissade')   # empty table: values only
     commented = old.replace('[ho_options]', '[ho_options]   # Higher order options').replace(
         'dycore = 2', 'dycore = 2\n marine_margin = 1')
     new2, _ = convert_config(commented, moves)                  # header with a trailing comment
-    assert '[basal_physics]\nsliding_law = 9\n' in new2 and '[ho_options]' not in new2, new2
+    assert '[basal_physics]\nsliding_law = powerlaw\n' in new2 and '[ho_options]' not in new2, new2
     assert ' marine_margin = 1' in new2                         # indented key (ignored by CISM) left alone
     glide = old.replace('dycore = 2', 'dycore = 0   # Glide')
     assert convert_config(glide, moves) == (glide, [])          # Glide config: no change
@@ -826,7 +847,7 @@ def self_test():
     # section order: comment blocks above a header (after a blank line) move with the section below
     unordered = '\n'.join([
         '# dome test', '[options]', 'dycore = glissade', '',
-        '# basal friction', '[basal_physics]', 'sliding_law = 4', '#beta_large = 1.e10',
+        '# basal friction', '[basal_physics]', 'sliding_law = no_slip', '#beta_large = 1.e10',
         '[grid]', 'ewn = 31', '',
         '####', '# I/O configuration follows', '####', '[CF default]', 'title = test', '',
         '[time]', 'dt = 1.', ''])
@@ -836,7 +857,7 @@ def self_test():
         '# dome test', '[grid]', 'ewn = 31', '',
         '[time]', 'dt = 1.', '',
         '[options]', 'dycore = glissade', '',
-        '# basal friction', '[basal_physics]', 'sliding_law = 4', '#beta_large = 1.e10', '',
+        '# basal friction', '[basal_physics]', 'sliding_law = no_slip', '#beta_large = 1.e10', '',
         '####', '# I/O configuration follows', '####', '[CF default]', 'title = test', '']), ordered
     assert convert_config(ordered, {}) == (ordered, [])          # already in order: unchanged
 

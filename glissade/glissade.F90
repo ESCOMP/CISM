@@ -756,7 +756,7 @@ contains
     !  subroutine calcbeta instead of interpolating from unstagbeta (one processor only).
 
     if (maxval(model%velocity%unstagbeta) > 0.d0 .and.   &
-               model%options%which_ho_babc /= HO_BABC_ISHOMC) then  ! interpolate to staggered grid
+               model%options%which_ho_babc /= SLIDING_LAW_ISMIP_HOM_C) then  ! interpolate to staggered grid
        call write_log('Interpolating beta from unstaggered (unstagbeta) to staggered grid (beta)')
        if (maxval(model%velocity%beta) > 0.0d0 ) then
           call write_log('Warning: the input "beta" field will be overwritten with values interpolated from the input &
@@ -874,7 +874,7 @@ contains
     ! Note: If inverting for coulomb_c, then coulomb_c is initialized here.
     !       On restart, the saved coulomb_c is read from the restart file and is not reset here.
 
-    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT) then
+    if (model%options%which_ho_coulomb_c == COULOMB_C_METHOD_CONSTANT) then
 
        model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
 
@@ -914,15 +914,15 @@ contains
 
     ! Note: When running with glaciers, there is an independent glacier option,
     !        set_powerlaw_c, that controls glacier inversion.
-    !       We can have model%options%which_ho_powerlaw_c = HO_POWERLAW_C_CONSTANT,
+    !       We can have model%options%which_ho_powerlaw_c = POWERLAW_C_METHOD_CONSTANT,
     !        while model%glacier%set_powerlaw_c = GLACIER_POWERLAW_C_INVERSION.
     !       In that case, we do *not* want to reset powerlaw_c.
     !TODO:  Have a single option that is applied with or without glaciers enabled?
 
-    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_FUNCTION_COULOMB_C) then
+    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_FROM_COULOMB_C) then
        model%basal_physics%powerlaw_c = model%basal_physics%schoof_gamma * &
             model%basal_physics%coulomb_c**model%basal_physics%schoof_p
-    elseif (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT .or. &
+    elseif (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_CONSTANT .or. &
         parallel_is_zero(model%basal_physics%powerlaw_c)) then
        if (model%options%enable_glaciers .and. &
             model%glacier%set_powerlaw_c /= GLACIER_POWERLAW_C_CONSTANT) then
@@ -936,10 +936,10 @@ contains
     ! At the start of the run (but not on restart), this might lead to further thickness adjustments,
     !  so it should be called before computing the calving mask.
 
-    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION       .or.  &
-        model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or.  &
-        model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION        .or.  &
-        model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION_BASIN  .or.  &
+    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION       .or.  &
+        model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or.  &
+        model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION        .or.  &
+        model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION_BASIN  .or.  &
         model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION       .or.  &
         model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
 
@@ -1377,7 +1377,7 @@ contains
 
     !TODO - Move the following calls to a new basal hydrology solver?
 
-    if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+    if (model%options%which_ho_bwat == BWAT_METHOD_FLUX_ROUTING) then
 
        !WHL - Temporary code for debugging: Make up a simple basal melt field.
 !       model%basal_hydro%head(:,:) = &
@@ -2430,7 +2430,7 @@ contains
        endif
 
        !! extrapolate value of mintauf into halos to enforce periodic lateral bcs (only if field covers entire domain)
-       if (model%options%which_ho_babc == HO_BABC_YIELD_PICARD) then
+       if (model%options%which_ho_babc == SLIDING_LAW_YIELD_PICARD) then
           call staggered_parallel_halo_extrapolate(model%basal_physics%mintauf, parallel)
        endif
 
@@ -2654,7 +2654,7 @@ contains
     !       The copy would break exact restart, however, if beta is read from an external file.
     !        In that case, users must specify 'beta_internal' to see the weighted beta field.
 
-    if (model%options%which_ho_babc /= HO_BABC_BETA_EXTERNAL) then
+    if (model%options%which_ho_babc /= SLIDING_LAW_BETA_FILE) then
        model%velocity%beta(:,:) = model%velocity%beta_internal(:,:)
     endif
 

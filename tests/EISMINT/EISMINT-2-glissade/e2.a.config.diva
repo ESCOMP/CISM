@@ -43,8 +43,8 @@ temperature_method = prognostic
 flow_law = paterson_budd
 
 [basal_physics]
-sliding_law = 4          # 4 = no slip
-btrc_method = 0
+sliding_law = no_slip
+btrc_method = none
 
 [basal_melt]
 basal_mass_balance = 0

@@ -280,7 +280,7 @@
                              ice_mask,    stagger_margin_in = 1)
     enddo
 
-    if (whichbtrc == BTRC_CONSTANT_BWAT) then
+    if (whichbtrc == BTRC_METHOD_CONSTANT_BWAT) then
 
        ! stagger_margin_in = 1 omits empty cells from the average
 
@@ -288,7 +288,7 @@
                              bwat(:,:),    stagbwat(:,:),   &
                              ice_mask,     stagger_margin_in = 1)
 
-    elseif (whichbtrc == BTRC_CONSTANT_BPMP) then
+    elseif (whichbtrc == BTRC_METHOD_CONSTANT_BPMP) then
 
        call glissade_stagger(nx,           ny,         &
                              temp(nz,:,:), stagbtemp,  &
@@ -592,11 +592,11 @@
 
              select case(whichbtrc)
 
-             case(BTRC_CONSTANT)
+             case(BTRC_METHOD_CONSTANT)
 
                 btrc(i,j) = btrc_const
 
-             case(BTRC_CONSTANT_BWAT)
+             case(BTRC_METHOD_CONSTANT_BWAT)
 
                 ! btrc is constant where basal melt water is present, else no slip
                 ! This option can be used for EISMINT-2 experiment H, provided that 
@@ -608,11 +608,11 @@
                    btrc(i,j) = 0.d0
                 end if
 
-             case(BTRC_CONSTANT_BPMP)
+             case(BTRC_METHOD_CONSTANT_BPMP)
 
                 ! constant where basal temperature equal to pressure melting point, else = 0
                 ! This is the actual condition for EISMINT-2 experiment H, which may not be 
-                ! the same as case BTRC_CONSTANT_BWAT above, depending on the hydrology
+                ! the same as case BTRC_METHOD_CONSTANT_BWAT above, depending on the hydrology
 
                 if (abs(stagbpmp(i,j) - stagbtemp(i,j)) < 1.d-3) then
                    btrc(i,j) = btrc_const
@@ -620,7 +620,7 @@
                    btrc(i,j) = 0.d0
                 end if
                 
-             case default  ! includes BTRC_ZERO
+             case default  ! includes BTRC_METHOD_NONE
 
                 ! no sliding
                 ! This is used for EISMINT-2 experiments A to F

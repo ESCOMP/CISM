@@ -308,10 +308,167 @@ module glissade_types
        option_choice(FLOW_LAW_PATERSON_BUDD_MINUS5C, 'paterson_budd_minus5c', 'Paterson and Budd (T = -5 C)'), &
        option_choice(FLOW_LAW_PATERSON_BUDD,         'paterson_budd',         'Paterson and Budd') ]
 
-  integer, parameter :: BTRC_ZERO = 0
-  integer, parameter :: BTRC_CONSTANT = 1
-  integer, parameter :: BTRC_CONSTANT_BWAT = 2
-  integer, parameter :: BTRC_CONSTANT_BPMP = 3
+  ! [basal_physics] sliding_law
+  integer, parameter :: SLIDING_LAW_BETA_CONSTANT = 0
+  integer, parameter :: SLIDING_LAW_BETA_BPMP = 1
+  integer, parameter :: SLIDING_LAW_PSEUDO_PLASTIC = 2
+  integer, parameter :: SLIDING_LAW_PSEUDO_PLASTIC_OLD = 3
+  integer, parameter :: SLIDING_LAW_NO_SLIP = 4
+  integer, parameter :: SLIDING_LAW_BETA_FILE = 5
+  integer, parameter :: SLIDING_LAW_NO_SLIP_DIRICHLET = 6
+  integer, parameter :: SLIDING_LAW_ZOET_IVERSON = 7
+  integer, parameter :: SLIDING_LAW_ISMIP_HOM_C = 8
+  integer, parameter :: SLIDING_LAW_POWERLAW = 9
+  integer, parameter :: SLIDING_LAW_COULOMB = 10
+  integer, parameter :: SLIDING_LAW_SCHOOF = 11
+  integer, parameter :: SLIDING_LAW_TSAI = 12
+  integer, parameter :: SLIDING_LAW_POWERLAW_EFFECPRESS = 13
+  integer, parameter :: SLIDING_LAW_YIELD_PICARD = 14
+  type(option_choice), dimension(15), parameter :: sliding_law_choices = [ &
+       option_choice(SLIDING_LAW_BETA_CONSTANT,       'beta_constant',       'constant beta'), &
+       option_choice(SLIDING_LAW_BETA_BPMP,           'beta_bpmp',           'beta depends on basal temperature (melting or frozen)'), &
+       option_choice(SLIDING_LAW_PSEUDO_PLASTIC,      'pseudo_plastic',      'pseudo-plastic sliding law, new C_c options'), &
+       option_choice(SLIDING_LAW_PSEUDO_PLASTIC_OLD,  'pseudo_plastic_old',  'pseudo-plastic sliding law, old tan(phi) options'), &
+       option_choice(SLIDING_LAW_NO_SLIP,             'no_slip',             'no slip (using large beta)'), &
+       option_choice(SLIDING_LAW_BETA_FILE,           'beta_file',           'beta from external file'), &
+       option_choice(SLIDING_LAW_NO_SLIP_DIRICHLET,   'no_slip_dirichlet',   'no slip (Dirichlet implementation)'), &
+       option_choice(SLIDING_LAW_ZOET_IVERSON,        'zoet_iverson',        'Zoet-Iverson sliding law'), &
+       option_choice(SLIDING_LAW_ISMIP_HOM_C,         'ismip_hom_c',         'beta as in ISMIP-HOM test C'), &
+       option_choice(SLIDING_LAW_POWERLAW,            'powerlaw',            'power law'), &
+       option_choice(SLIDING_LAW_COULOMB,             'coulomb',             'Coulomb friction law with effective pressure'), &
+       option_choice(SLIDING_LAW_SCHOOF,              'schoof',              'Schoof friction law'), &
+       option_choice(SLIDING_LAW_TSAI,                'tsai',                'min of Coulomb stress and power-law stress (Tsai)'), &
+       option_choice(SLIDING_LAW_POWERLAW_EFFECPRESS, 'powerlaw_effecpress', 'power law using effective pressure'), &
+       option_choice(SLIDING_LAW_YIELD_PICARD,        'yield_picard',        'till yield stress (Picard)') ]
+
+  ! [basal_physics] btrc_method (local SIA solver only)
+  integer, parameter :: BTRC_METHOD_NONE = 0
+  integer, parameter :: BTRC_METHOD_CONSTANT = 1
+  integer, parameter :: BTRC_METHOD_CONSTANT_BWAT = 2
+  integer, parameter :: BTRC_METHOD_CONSTANT_BPMP = 3
+  type(option_choice), dimension(4), parameter :: btrc_method_choices = [ &
+       option_choice(BTRC_METHOD_NONE,          'none',          'no basal sliding'), &
+       option_choice(BTRC_METHOD_CONSTANT,      'constant',      'constant basal traction'), &
+       option_choice(BTRC_METHOD_CONSTANT_BWAT, 'constant_bwat', 'constant where bwat > 0'), &
+       option_choice(BTRC_METHOD_CONSTANT_BPMP, 'constant_bpmp', 'constant where T = Tpmp') ]
+
+  ! [basal_physics] beta_limit_method
+  integer, parameter :: BETA_LIMIT_METHOD_ABSOLUTE = 0
+  integer, parameter :: BETA_LIMIT_METHOD_FGROUND_SCALED = 1
+  type(option_choice), dimension(2), parameter :: beta_limit_method_choices = [ &
+       option_choice(BETA_LIMIT_METHOD_ABSOLUTE,       'absolute',       'absolute beta limit based on beta_grounded_min'), &
+       option_choice(BETA_LIMIT_METHOD_FGROUND_SCALED, 'fground_scaled', 'beta is limited, then scaled by f_ground_cell') ]
+
+  ! [basal_physics] powerlaw_c_method
+  integer, parameter :: POWERLAW_C_METHOD_CONSTANT = 0
+  integer, parameter :: POWERLAW_C_METHOD_INVERSION = 1
+  integer, parameter :: POWERLAW_C_METHOD_FILE = 2
+  integer, parameter :: POWERLAW_C_METHOD_INVERSION_BASIN = 3
+  integer, parameter :: POWERLAW_C_METHOD_FROM_COULOMB_C = 4
+  type(option_choice), dimension(5), parameter :: powerlaw_c_method_choices = [ &
+       option_choice(POWERLAW_C_METHOD_CONSTANT,        'constant',        'spatially uniform friction parameter Cp'), &
+       option_choice(POWERLAW_C_METHOD_INVERSION,       'inversion',       'invert for 2D friction parameter Cp'), &
+       option_choice(POWERLAW_C_METHOD_FILE,            'file',            'read friction parameter Cp from file'), &
+       option_choice(POWERLAW_C_METHOD_INVERSION_BASIN, 'inversion_basin', 'invert for basin-scale friction parameter Cp'), &
+       option_choice(POWERLAW_C_METHOD_FROM_COULOMB_C,  'from_coulomb_c',  'friction parameter Cp is a function of Cc') ]
+
+  ! [basal_physics] coulomb_c_method
+  integer, parameter :: COULOMB_C_METHOD_CONSTANT = 0
+  integer, parameter :: COULOMB_C_METHOD_INVERSION = 1
+  integer, parameter :: COULOMB_C_METHOD_FILE = 2
+  integer, parameter :: COULOMB_C_METHOD_INVERSION_BASIN = 3
+  type(option_choice), dimension(4), parameter :: coulomb_c_method_choices = [ &
+       option_choice(COULOMB_C_METHOD_CONSTANT,        'constant',        'spatially uniform friction parameter Cc'), &
+       option_choice(COULOMB_C_METHOD_INVERSION,       'inversion',       'invert for 2D friction parameter Cc'), &
+       option_choice(COULOMB_C_METHOD_FILE,            'file',            'read friction parameter Cc from file'), &
+       option_choice(COULOMB_C_METHOD_INVERSION_BASIN, 'inversion_basin', 'invert for basin-scale friction parameter Cc') ]
+
+  ! [basal_physics] effecpress_method
+  integer, parameter :: EFFECPRESS_METHOD_OVERBURDEN = 0
+  integer, parameter :: EFFECPRESS_METHOD_BPMP = 1
+  integer, parameter :: EFFECPRESS_METHOD_BWAT = 2
+  integer, parameter :: EFFECPRESS_METHOD_CAVITY_SHEET = 3
+  integer, parameter :: EFFECPRESS_METHOD_BWAT_BVP = 4
+  type(option_choice), dimension(5), parameter :: effecpress_method_choices = [ &
+       option_choice(EFFECPRESS_METHOD_OVERBURDEN,   'overburden',   'full overburden pressure'), &
+       option_choice(EFFECPRESS_METHOD_BPMP,         'bpmp',         'reduced effecpress near pressure melting point'), &
+       option_choice(EFFECPRESS_METHOD_BWAT,         'bwat',         'macroporous sheet; effecpress depends on bwat'), &
+       option_choice(EFFECPRESS_METHOD_CAVITY_SHEET, 'cavity_sheet', 'cavity-sheet; effecpress depends on opening, closing'), &
+       option_choice(EFFECPRESS_METHOD_BWAT_BVP,     'bwat_bvp',     'reduced effecpress where bwat > 0 (B/vP)') ]
+
+  ! [basal_hydro] bwat_method
+  integer, parameter :: BWAT_METHOD_NONE = 0
+  integer, parameter :: BWAT_METHOD_CONSTANT = 1
+  integer, parameter :: BWAT_METHOD_LOCAL_TILL = 2
+  integer, parameter :: BWAT_METHOD_FLUX_ROUTING = 3
+  type(option_choice), dimension(4), parameter :: bwat_method_choices = [ &
+       option_choice(BWAT_METHOD_NONE,         'none',         'zero basal water depth'), &
+       option_choice(BWAT_METHOD_CONSTANT,     'constant',     'constant basal water depth'), &
+       option_choice(BWAT_METHOD_LOCAL_TILL,   'local_till',   'basal water depth computed from local till model'), &
+       option_choice(BWAT_METHOD_FLUX_ROUTING, 'flux_routing', 'steady-state flux routing') ]
+
+  ! [basal_hydro] flux_routing_method
+  integer, parameter :: FLUX_ROUTING_METHOD_D8 = 0
+  integer, parameter :: FLUX_ROUTING_METHOD_DINF = 1
+  integer, parameter :: FLUX_ROUTING_METHOD_FD8 = 2
+  type(option_choice), dimension(3), parameter :: flux_routing_method_choices = [ &
+       option_choice(FLUX_ROUTING_METHOD_D8,   'd8',   'D8; route flux to lowest-elevation neighbor'), &
+       option_choice(FLUX_ROUTING_METHOD_DINF, 'dinf', 'Dinf; route flux to two lower-elevation neighbors'), &
+       option_choice(FLUX_ROUTING_METHOD_FD8,  'fd8',  'FD8; route flux to all lower-elevation neighbors') ]
+
+  ! [basal_hydro] cavity_open_slide (only with flux routing and the cavity-sheet model)
+  integer, parameter :: CAVITY_OPEN_SLIDE_NONE = 0
+  integer, parameter :: CAVITY_OPEN_SLIDE_FIXED_UB = 1
+  integer, parameter :: CAVITY_OPEN_SLIDE_DYNAMIC_UB = 2
+  type(option_choice), dimension(3), parameter :: cavity_open_slide_choices = [ &
+       option_choice(CAVITY_OPEN_SLIDE_NONE,       'none',       'no opening by sliding'), &
+       option_choice(CAVITY_OPEN_SLIDE_FIXED_UB,   'fixed_ub',   'opening by sliding with fixed u_b'), &
+       option_choice(CAVITY_OPEN_SLIDE_DYNAMIC_UB, 'dynamic_ub', 'opening by sliding with dynamic u_b') ]
+
+  ! [basal_hydro] cavity_open_melt (only with flux routing and the cavity-sheet model)
+  integer, parameter :: CAVITY_OPEN_MELT_NONE = 0
+  integer, parameter :: CAVITY_OPEN_MELT_BMLT = 1
+  integer, parameter :: CAVITY_OPEN_MELT_DISSIPATION = 2
+  integer, parameter :: CAVITY_OPEN_MELT_BMLT_DISSIPATION = 3
+  type(option_choice), dimension(4), parameter :: cavity_open_melt_choices = [ &
+       option_choice(CAVITY_OPEN_MELT_NONE,             'none',             'no opening by melting'), &
+       option_choice(CAVITY_OPEN_MELT_BMLT,             'bmlt',             'opening by melting based on bmlt_ground'), &
+       option_choice(CAVITY_OPEN_MELT_DISSIPATION,      'dissipation',      'opening by melting based on cavity dissipation'), &
+       option_choice(CAVITY_OPEN_MELT_BMLT_DISSIPATION, 'bmlt_dissipation', 'opening based on bmlt_ground plus dissipation') ]
+
+  ! [grounding_line] grounding_line_param
+  integer, parameter :: GROUNDING_LINE_PARAM_NONE = 0
+  integer, parameter :: GROUNDING_LINE_PARAM_VERTICES = 1
+  integer, parameter :: GROUNDING_LINE_PARAM_DELUXE = 2
+  type(option_choice), dimension(3), parameter :: grounding_line_param_choices = [ &
+       option_choice(GROUNDING_LINE_PARAM_NONE,     'none',     'f_ground = 0 or 1; no GLP'), &
+       option_choice(GROUNDING_LINE_PARAM_VERTICES, 'vertices', 'GLP for basal friction with 0 <= f_ground <= 1 for vertices'), &
+       option_choice(GROUNDING_LINE_PARAM_DELUXE,   'deluxe',   'deluxe GLP, 0 <= f_ground <= 1 for both vertices and cells') ]
+
+  ! [grounding_line] fground_no_glp
+  integer, parameter :: FGROUND_NO_GLP_GROUNDED_NEIGHBOR = 0
+  integer, parameter :: FGROUND_NO_GLP_FLOTATION_FUNCTION = 1
+  type(option_choice), dimension(2), parameter :: fground_no_glp_choices = [ &
+       option_choice(FGROUND_NO_GLP_GROUNDED_NEIGHBOR,  'grounded_neighbor',  'f_ground = 1 at vertex if any neighbor cell is grounded'), &
+       option_choice(FGROUND_NO_GLP_FLOTATION_FUNCTION, 'flotation_function', 'f_ground = 0 or 1 at vertex based on staggered f_flotation') ]
+
+  ! [grounding_line] grounding_line_bmlt
+  integer, parameter :: GROUNDING_LINE_BMLT_NONE = 0
+  integer, parameter :: GROUNDING_LINE_BMLT_FLOATING_FRACTION = 1
+  integer, parameter :: GROUNDING_LINE_BMLT_ZERO_GROUNDED = 2
+  type(option_choice), dimension(3), parameter :: grounding_line_bmlt_choices = [ &
+       option_choice(GROUNDING_LINE_BMLT_NONE,              'none',              'no GLP for bmlt_float'), &
+       option_choice(GROUNDING_LINE_BMLT_FLOATING_FRACTION, 'floating_fraction', 'weigh bmlt_float by floating fraction of cell'), &
+       option_choice(GROUNDING_LINE_BMLT_ZERO_GROUNDED,     'zero_grounded',     'set bmlt_float = 0 in partly grounded cells') ]
+
+  ! [grounding_line] flotation_function
+  integer, parameter :: FLOTATION_FUNCTION_PATTYN = 0
+  integer, parameter :: FLOTATION_FUNCTION_INVERSE_PATTYN = 1
+  integer, parameter :: FLOTATION_FUNCTION_LINEAR = 2
+  type(option_choice), dimension(3), parameter :: flotation_function_choices = [ &
+       option_choice(FLOTATION_FUNCTION_PATTYN,         'pattyn',         'f_pattyn = (-rhoo*b)/(rhoi*H)'), &
+       option_choice(FLOTATION_FUNCTION_INVERSE_PATTYN, 'inverse_pattyn', '1/fpattyn = (rhoi*H)/(-rhoo*b)'), &
+       option_choice(FLOTATION_FUNCTION_LINEAR,         'linear',         'linear = -b - (rhoi/rhoo)*H') ]
 
   integer, parameter :: BMLT_FLOAT_NONE = 0
   integer, parameter :: BMLT_FLOAT_MISMIP = 1
@@ -408,84 +565,12 @@ module glissade_types
 
   ! higher-order options
 
-
-  !WHL TODO - Deprecate some little-used options during the config reorg
-  !           This would include HO_BABC_PSEUDO_PLASTIC_OLD
-  integer, parameter :: HO_BABC_BETA_CONSTANT = 0
-  integer, parameter :: HO_BABC_BETA_BPMP = 1
-  integer, parameter :: HO_BABC_PSEUDO_PLASTIC = 2
-  integer, parameter :: HO_BABC_PSEUDO_PLASTIC_OLD = 3
-  integer, parameter :: HO_BABC_BETA_LARGE = 4
-  integer, parameter :: HO_BABC_BETA_EXTERNAL = 5
-  integer, parameter :: HO_BABC_NO_SLIP = 6
-  integer, parameter :: HO_BABC_ZOET_IVERSON = 7
-  integer, parameter :: HO_BABC_ISHOMC = 8
-  integer, parameter :: HO_BABC_POWERLAW = 9
-  integer, parameter :: HO_BABC_COULOMB_FRICTION = 10
-  integer, parameter :: HO_BABC_SCHOOF = 11
-  integer, parameter :: HO_BABC_TSAI = 12
-  integer, parameter :: HO_BABC_POWERLAW_EFFECPRESS = 13
-  integer, parameter :: HO_BABC_YIELD_PICARD = 14
-
-  integer, parameter :: HO_BETA_LIMIT_ABSOLUTE = 0
-  integer, parameter :: HO_BETA_LIMIT_FLOATING_FRAC = 1
-
-  integer, parameter :: HO_POWERLAW_C_CONSTANT = 0
-  integer, parameter :: HO_POWERLAW_C_INVERSION = 1
-  integer, parameter :: HO_POWERLAW_C_EXTERNAL = 2
-  integer, parameter :: HO_POWERLAW_C_INVERSION_BASIN = 3
-  integer, parameter :: HO_POWERLAW_C_FUNCTION_COULOMB_C = 4
-
-  integer, parameter :: HO_COULOMB_C_CONSTANT = 0
-  integer, parameter :: HO_COULOMB_C_INVERSION = 1
-  integer, parameter :: HO_COULOMB_C_EXTERNAL = 2
-  integer, parameter :: HO_COULOMB_C_INVERSION_BASIN = 3
-
   integer, parameter :: HO_DELTAT_OCN_NONE = 0
   integer, parameter :: HO_DELTAT_OCN_INVERSION = 1
   integer, parameter :: HO_DELTAT_OCN_EXTERNAL = 2
   integer, parameter :: HO_DELTAT_OCN_INVERSION_BASIN = 3
   integer, parameter :: HO_DELTAT_OCN_CALIBRATE_BASIN = 4
   integer, parameter :: HO_DELTAT_OCN_DTHCK_DT = 5
-
-  integer, parameter :: HO_BWAT_NONE = 0
-  integer, parameter :: HO_BWAT_CONSTANT = 1
-  integer, parameter :: HO_BWAT_LOCAL_TILL = 2
-  integer, parameter :: HO_BWAT_FLUX_ROUTING = 3
-
-  integer, parameter :: HO_FLUX_ROUTING_D8 = 0
-  integer, parameter :: HO_FLUX_ROUTING_DINF = 1
-  integer, parameter :: HO_FLUX_ROUTING_FD8 = 2
-
-  integer, parameter :: CAVITY_OPEN_SLIDE_NONE = 0
-  integer, parameter :: CAVITY_OPEN_SLIDE_FIXED_UB = 1
-  integer, parameter :: CAVITY_OPEN_SLIDE_DYNAMIC_UB = 2
-
-  integer, parameter :: CAVITY_OPEN_MELT_NONE = 0
-  integer, parameter :: CAVITY_OPEN_MELT_BMLT = 1
-  integer, parameter :: CAVITY_OPEN_MELT_DISSIP = 2
-  integer, parameter :: CAVITY_OPEN_MELT_BMLT_DISSIP = 3
-
-  integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
-  integer, parameter :: HO_EFFECPRESS_BPMP = 1
-  integer, parameter :: HO_EFFECPRESS_BWAT = 2
-  integer, parameter :: HO_EFFECPRESS_CAVITY_SHEET = 3
-  integer, parameter :: HO_EFFECPRESS_BWAT_BVP = 4
-
-  integer, parameter :: HO_GROUND_NO_GLP = 0
-  integer, parameter :: HO_GROUND_GLP_BASAL_FRICTION = 1
-  integer, parameter :: HO_GROUND_GLP_DELUXE = 2
-
-  integer, parameter :: HO_FGROUND_NO_GLP_GROUNDED_NEIGHBOR = 0
-  integer, parameter :: HO_FGROUND_NO_GLP_FLOTATION_FUNCTION = 1
-
-  integer, parameter :: HO_GROUND_BMLT_NO_GLP = 0
-  integer, parameter :: HO_GROUND_BMLT_FLOATING_FRAC = 1
-  integer, parameter :: HO_GROUND_BMLT_ZERO_GROUNDED = 2
-
-  integer, parameter :: HO_FLOTATION_FUNCTION_PATTYN = 0
-  integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
-  integer, parameter :: HO_FLOTATION_FUNCTION_LINEAR = 2
 
   integer, parameter :: GLACIER_MU_STAR_CONSTANT = 0
   integer, parameter :: GLACIER_MU_STAR_INVERSION = 1
@@ -603,14 +688,14 @@ module glissade_types
     !> \item[paterson_budd] \emph{Paterson and Budd} relationship
     !> \end{description}
 
-    integer :: whichbtrc = 0
+    integer :: whichbtrc = BTRC_METHOD_NONE
 
     !> Basal slip coefficient (used for glide and for glissade local SIA; not glissade HO):
     !> \begin{description}
-    !> \item[0] Set equal to zero everywhere
-    !> \item[1] Set to (non--zero) constant
-    !> \item[2] Set to (non--zero) constant where basal water is present, otherwise to zero
-    !> \item[3] Set to (non--zero) constant where bed temperature is at pressure melting point, otherwise to zero
+    !> \item[none] Set equal to zero everywhere
+    !> \item[constant] Set to (non--zero) constant
+    !> \item[constant_bwat] Set to (non--zero) constant where basal water is present, otherwise to zero
+    !> \item[constant_bpmp] Set to (non--zero) constant where bed temperature is at pressure melting point, otherwise to zero
     !> \item[4] linear function of basal melt rate
     !> \item[5] \texttt{tanh} function of basal water depth 
     !> \end{description}
@@ -895,27 +980,26 @@ module glissade_types
     !> \item[first_order] for first-order dissipation (Blatter-Pattyn)
     !> \end{description}
 
-
-    integer :: which_ho_babc = 4
+    integer :: which_ho_babc = SLIDING_LAW_NO_SLIP
 
     !WHL TODO - Option 3 to be removed during the config reorg
     !> Flag that describes basal boundary condition for HO dyn core: 
     !> \begin{description}
-    !> \item[0] spatially uniform value of ho_beta_const
-    !> \item[1] large value for frozen bed, lower value for bed at pressure melting point
-    !> \item[2] pseudo-plastic basal sliding law; new version with coulomb_c options
-    !> \item[3] pseudo-plastic basal sliding law; old version with tan(phi)
-    !> \item[4] very large value for beta to enforce no slip everywhere 
-    !> \item[5] beta field passed in from .nc input file as part of standard i/o
-    !> \item[6] no slip everywhere (using Dirichlet BC rather than large beta)
-    !> \item[7] Zoet-Iverson law combining Coulomb and powerlaw behavior
-    !> \item[8] beta field as prescribed for ISMIP-HOM test C (serial only)
-    !> \item[9] power law
-    !> \item[10] Coulomb friction law using effective pressure, with flwa from lowest ice layer
-    !> \item[11] Schoof law that blends powerlaw and Coulomb behavior
-    !> \item[12] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
-    !> \item[13] power law using effective pressure
-    !> \item[14] treat beta value as a till yield stress (in Pa) using Picard iteration
+    !> \item[beta_constant] spatially uniform value of ho_beta_const
+    !> \item[beta_bpmp] large value for frozen bed, lower value for bed at pressure melting point
+    !> \item[pseudo_plastic] pseudo-plastic basal sliding law; new version with coulomb_c options
+    !> \item[pseudo_plastic_old] pseudo-plastic basal sliding law; old version with tan(phi)
+    !> \item[no_slip] very large value for beta to enforce no slip everywhere 
+    !> \item[beta_file] beta field passed in from .nc input file as part of standard i/o
+    !> \item[no_slip_dirichlet] no slip everywhere (using Dirichlet BC rather than large beta)
+    !> \item[zoet_iverson] Zoet-Iverson law combining Coulomb and powerlaw behavior
+    !> \item[ismip_hom_c] beta field as prescribed for ISMIP-HOM test C (serial only)
+    !> \item[powerlaw] power law
+    !> \item[coulomb] Coulomb friction law using effective pressure, with a constant basal flow factor (flwa_basal_const)
+    !> \item[schoof] Schoof law that blends powerlaw and Coulomb behavior
+    !> \item[tsai] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
+    !> \item[powerlaw_effecpress] power law using effective pressure
+    !> \item[yield_picard] treat beta value as a till yield stress (in Pa) using Picard iteration
     !> \end{description}
 
     !WHL TODO - Remove this option during the config reorg?
@@ -923,30 +1007,30 @@ module glissade_types
     logical :: use_c_space_factor = .false.
     !> Flag that indicates whether to multiply beta by a 2D scalar field
 
-    integer :: which_ho_beta_limit = 0
+    integer :: which_ho_beta_limit = BETA_LIMIT_METHOD_ABSOLUTE
     !> Flag for setting minimum beta beneath grounded ice
     !> \begin{description}
-    !> \item[0] absolute limit given by beta_grounded_min
-    !> \item[1] limited using beta_grounded_min, then multiplied by f_ground
+    !> \item[absolute] absolute limit given by beta_grounded_min
+    !> \item[fground_scaled] limited using beta_grounded_min, then multiplied by f_ground
     !> \end{description}
 
-    integer :: which_ho_powerlaw_c = 0
+    integer :: which_ho_powerlaw_c = POWERLAW_C_METHOD_CONSTANT
     !> Flag for basal powerlaw_c options
     !> \begin{description}
-    !> \item[0] powerlaw_c = spatially uniform constant
-    !> \item[1] invert for 2D powerlaw_c
-    !> \item[2] read 2D powerlaw_c from external file
-    !> \item[3] invert for basin-scale powerlaw_c
-    !> \item[4] relate to coulomb_c: Cp = gamma*Cc^p
+    !> \item[constant] powerlaw_c = spatially uniform constant
+    !> \item[inversion] invert for 2D powerlaw_c
+    !> \item[file] read 2D powerlaw_c from external file
+    !> \item[inversion_basin] invert for basin-scale powerlaw_c
+    !> \item[from_coulomb_c] relate to coulomb_c: Cp = gamma*Cc^p
     !> \end{description}
 
-    integer :: which_ho_coulomb_c = 0
+    integer :: which_ho_coulomb_c = COULOMB_C_METHOD_CONSTANT
     !> Flag for basal coulomb_c options
     !> \begin{description}
-    !> \item[0] coulomb_c = spatially uniform constant
-    !> \item[1] invert for 2D coulomb_c
-    !> \item[2] read 2D coulomb_c from external file
-    !> \item[3] invert for basin-scale coulomb_c
+    !> \item[constant] coulomb_c = spatially uniform constant
+    !> \item[inversion] invert for 2D coulomb_c
+    !> \item[file] read 2D coulomb_c from external file
+    !> \item[inversion_basin] invert for basin-scale coulomb_c
     !> \end{description}
 
     logical :: elevation_based_coulomb_c = .false.
@@ -963,23 +1047,23 @@ module glissade_types
     !> \item[5] set deltaT_ocn to match a local dH/dt target
     !> \end{description}
 
-    integer :: which_ho_bwat = 0
+    integer :: which_ho_bwat = BWAT_METHOD_NONE
     !> Basal water depth:
     !> \begin{description}
-    !> \item[0] Set to zero everywhere
-    !> \item[1] Set to constant everywhere, to force T = Tpmp
-    !> \item[2] Local basal till model with constant drainage
-    !> \item[3] Steady-state water routing with flux calculation
+    !> \item[none] Set to zero everywhere
+    !> \item[constant] Set to constant everywhere, to force T = Tpmp
+    !> \item[local_till] Local basal till model with constant drainage
+    !> \item[flux_routing] Steady-state water routing with flux calculation
     !> \end{description}
 
-    integer :: which_ho_effecpress = 0
+    integer :: which_ho_effecpress = EFFECPRESS_METHOD_OVERBURDEN
     !> Flag that describes effective pressure calculation for HO dyn core: 
     !> \begin{description}
-    !> \item[0] N = overburden pressure, rhoi*grav*thck
-    !> \item[1] N is proportional to height above flotation
-    !> \item[2] N is reduced based on basal water thickness from active hydrology
-    !> \item[3] N depends on cavity opening and closing
-    !> \item[4] N is reduced based on basal water thickness, following Bueler/van Pelt
+    !> \item[overburden] N = overburden pressure, rhoi*grav*thck
+    !> \item[bpmp] N is proportional to height above flotation
+    !> \item[bwat] N is reduced based on basal water thickness from active hydrology
+    !> \item[cavity_sheet] N depends on cavity opening and closing
+    !> \item[bwat_bvp] N is reduced based on basal water thickness, following Bueler/van Pelt
     !> \item[5] N is reduced where the bed is at or near the pressure melting point
     !> \end{description}
 
@@ -1108,38 +1192,38 @@ module glissade_types
     !> \item[local] apply local cell-center value of thck and usrf on each face
     !> \end{description}
 
-    integer :: which_ho_ground = 0
+    integer :: which_ho_ground = GROUNDING_LINE_PARAM_NONE
     !> Flag that indicates how to compute the grounded fraction of each gridcell in the glissade dycore.
     !> Not valid for other dycores
     !> \begin{description}
-    !> \item[0] f_ground = 0 in floating cells (based on flotation condition), else f_ground = 1
-    !> \item[1] basal friction GLP with 0 <= f_ground <= 1 at vertices
-    !> \item[2] "deluxe" GLP with f_ground at both cells and vertices; includes basal fraction and basal melting
+    !> \item[none] f_ground = 0 in floating cells (based on flotation condition), else f_ground = 1
+    !> \item[vertices] basal friction GLP with 0 <= f_ground <= 1 at vertices
+    !> \item[deluxe] "deluxe" GLP with f_ground at both cells and vertices; includes basal fraction and basal melting
     !> \end{description}
 
-    integer :: which_ho_fground_no_glp = 0
+    integer :: which_ho_fground_no_glp = FGROUND_NO_GLP_GROUNDED_NEIGHBOR
     !> Flag that indicates how to identify grounded and floating vertices when running without a GLP
     !> \begin{description}
-    !> \item[0] f_ground = 1 if any neighbor cell is grounded or land, else f_ground = 0
-    !> \item[1] f_ground = 0 or 1 based on staggered flotation function
+    !> \item[grounded_neighbor] f_ground = 1 if any neighbor cell is grounded or land, else f_ground = 0
+    !> \item[flotation_function] f_ground = 0 or 1 based on staggered flotation function
     !> \end{description}
 
-    integer :: which_ho_ground_bmlt = 0
+    integer :: which_ho_ground_bmlt = GROUNDING_LINE_BMLT_NONE
     !> Flag that indicates how to compute bmlt_float in partly grounded cells
     !> \begin{description}
-    !> \item[0] Apply bmlt_float in all floating cells, based on floating_mask
-    !> \item[1] Weigh bmlt by floating fraction of cell if 0 < f_ground < 1
-    !> \item[2] Set bmlt_float = 0 in partly grounded cells (f_ground > 0)
+    !> \item[none] Apply bmlt_float in all floating cells, based on floating_mask
+    !> \item[floating_fraction] Weigh bmlt by floating fraction of cell if 0 < f_ground < 1
+    !> \item[zero_grounded] Set bmlt_float = 0 in partly grounded cells (f_ground > 0)
     !> \end{description}
 
-    integer :: which_ho_flotation_function = 2
+    integer :: which_ho_flotation_function = FLOTATION_FUNCTION_LINEAR
     !WHL TODO - Remove option 3 during the config reorg
     !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore
     !> Not valid for other dycores
     !> \begin{description}
-    !> \item[0] f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
-    !> \item[1] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
-    !> \item[2] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
+    !> \item[pattyn] f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
+    !> \item[inverse_pattyn] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
+    !> \item[linear] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
     !>          (without extrapolation to ice-free ocean, as in an older version)
     !> \item[3] Like (2), but with a correction for topg
     !> \end{description}
@@ -2106,29 +2190,29 @@ module glissade_types
 
      ! hydrology options
 
-     integer :: ho_flux_routing_scheme = 0
+     integer :: ho_flux_routing_scheme = FLUX_ROUTING_METHOD_D8
      !> Flux routing scheme for basal water:
      !> \begin{description}
-     !> \item[0] D8; send flux to lowest-elevation neighbor
-     !> \item[1] Dinf; divide flux between two lower-elevation neighbors
-     !> \item[2] FD8; divide flux among all lower-elevation neighbors
+     !> \item[d8] D8; send flux to lowest-elevation neighbor
+     !> \item[dinf] Dinf; divide flux between two lower-elevation neighbors
+     !> \item[fd8] FD8; divide flux among all lower-elevation neighbors
      !> \end{description}
 
-     integer :: cavity_open_slide = 0
+     integer :: cavity_open_slide = CAVITY_OPEN_SLIDE_NONE
      !> Treatment of opening by sliding in cavity-sheet equations
      !> \begin{description}
-     !> \item[0] no opening by sliding
-     !> \item[1] opening by sliding with fixed u_b
-     !> \item[2] opening by sliding with dynamic u_b
+     !> \item[none] no opening by sliding
+     !> \item[fixed_ub] opening by sliding with fixed u_b
+     !> \item[dynamic_ub] opening by sliding with dynamic u_b
      !> \end{description}
 
-     integer :: cavity_open_melt = 0
+     integer :: cavity_open_melt = CAVITY_OPEN_MELT_NONE
      !> Treatment of opening by melting in cavity-sheet equations
      !> \begin{description}
-     !> \item[0] no opening by melting
-     !> \item[1] opening by melting based on bmlt_ground
-     !> \item[2] opening by melting based on dissipation in cavities
-     !> \item[3] opening by melting based on bmlt_ground plus dissipation
+     !> \item[none] no opening by melting
+     !> \item[bmlt] opening by melting based on bmlt_ground
+     !> \item[dissipation] opening by melting based on dissipation in cavities
+     !> \item[bmlt_dissipation] opening by melting based on bmlt_ground plus dissipation
      !> \end{description}
 
      !TODO - Add options for closing by creep?
@@ -2146,11 +2230,11 @@ module glissade_types
      real(dp),dimension(:,:),  pointer :: grad_head => null()   !> Gradient of hydraulic head (m/m)
 
      ! parameters for constant basal water
-     ! Note: This parameter applies to the case HO_BWAT_CONSTANT.
+     ! Note: This parameter applies to the case BWAT_METHOD_CONSTANT.
      real(dp) :: const_bwat = 10.d0              !> constant basal water depth (m)
 
      ! parameters for local till model
-     ! These parameters apply to the case HO_BWAT_LOCAL_TILL.
+     ! These parameters apply to the case BWAT_METHOD_LOCAL_TILL.
      ! The default values are from Aschwanden et al. (2016) and Bueler and van Pelt (2015).
      real(dp) :: bwat_till_max = 2.0d0           !> maximum water depth in till (m)
      real(dp) :: c_drainage = 1.0d-3             !> uniform drainage rate (m/yr)
@@ -2210,10 +2294,9 @@ module glissade_types
                                                                 !> Note: Defined on velocity grid, whereas temp and bpmp are on ice grid
 
      !WHL TODO - Remove c_space_factor during the config reorg?
-     !           Currently used for which_ho_babc = HO_BABC_COULOMB_FRICTION, *SCHOOF AND *TSAI
+     !           Currently used for which_ho_babc = SLIDING_LAW_COULOMB, *SCHOOF AND *TSAI
      real(dp), dimension(:,:), pointer :: c_space_factor => null()      !> spatial factor for basal shear stress (no dimension)
      real(dp), dimension(:,:), pointer :: c_space_factor_stag => null() !> spatial factor for basal shear stress on staggered grid
-
 
      ! parameters for the Zoet-Iverson sliding law
      ! tau_b = N * tan(phi) * [u_b / (u_b + u_t)]^(1/m), Eq. 3 in ZI(2020)
@@ -2232,7 +2315,7 @@ module glissade_types
      real(dp) :: pseudo_plastic_u0 = 100.d0      !> threshold velocity for pseudo-plastic law (m/yr)
 
      ! The following 4 parameters give a linear increase in phi between elevations bedmin and bedmax
-     ! Note: These four parameters are used with option HO_BABC_PSEUDO_PLASTIC_OLD
+     ! Note: These four parameters are used with option SLIDING_LAW_PSEUDO_PLASTIC_OLD
      !       This option will be deprecated but was used for many CESM runs and is kept for backward compatibility
      real(dp) :: pseudo_plastic_phimin =    5.d0 !> min(phi) in pseudo-plastic law, for topg <= bedmin (degrees, 0 < phi < 90)
      real(dp) :: pseudo_plastic_phimax =   40.d0 !> max(phi) in pseudo-plastic law, for topg >= bedmax (degrees, 0 < phi < 90)
@@ -2249,7 +2332,7 @@ module glissade_types
           powerlaw_c => null(), &                !> powerlaw_c on staggered grid, Pa (m/yr)^(-1/m)
           coulomb_c => null()                    !> coulomb_c on staggered grid, unitless in range [0,1]
 
-     ! parameters for Weertman-type power law, taub_b = C * u_b^(1/m); used for HO_BABC_SCHOOF AND *_TSAI
+     ! parameters for Weertman-type power law, taub_b = C * u_b^(1/m); used for SLIDING_LAW_SCHOOF AND *_TSAI
      ! The default values are from Asay-Davis et al. (2016).
      ! The value of powerlaw_c suggested by Tsai et al. (2015) is 7.624d6 Pa m^(-1/3) s^(1/3).
      ! This value can be converted to CISM units by dividing by scyr^(1/3), to obtain 2.413d4 Pa m^(-1/3) yr^(1/3).
@@ -2272,7 +2355,7 @@ module glissade_types
      ! parameters for Schoof basal friction law
      ! Typically, schoof_n (from Eq. 2 in Schoof 2005) has the same value as powerlaw_m, but this is not required.
      ! The parameters gamma and p are not in Schoof (2005) but can be used to relate Cc and Cp during inversion,
-     !  with either the Schoof law or the Tsai law, if which_ho_powerlaw_c = HO_POWERLAW_C_FUNCTION_COULOMB_C.
+     !  with either the Schoof law or the Tsai law, if which_ho_powerlaw_c = POWERLAW_C_METHOD_FROM_COULOMB_C.
      !  The default values here are consistent with Cc_max = 1.0, Cp_max = 1.e5, Cc_const = 1.0, Cp_const ~ 2.e4
      real(dp) :: schoof_n = 3.0d0                !> exponent in the Schoof basal friction law;
                                                  !> modulates the transition between powerlaw and coulomb behavior
@@ -2287,7 +2370,7 @@ module glissade_types
 
      ! parameters for older form of Coulomb friction sliding law (default values from Pimentel et al. 2010)
      ! Pimentel et al. have coulomb_c = 0.84*m_max, where m_max = coulomb_bump_max_slope
-     !TODO - Remove these constants? They are used for babc option HO_BABC_COULOMB_FRICTION,
+     !TODO - Remove these constants? They are used for babc option SLIDING_LAW_COULOMB,
      !       which is functionally equivalent to the Schoof law.
      real(dp) :: coulomb_bump_wavelength = 2.0d0 !> bedrock wavelength at subgrid scale precision (m)
      real(dp) :: flwa_basal_const = 1.0d-16      !> flow factor at the bed for sliding_law = 10 (Pa^{-n} yr^{-1});
@@ -2395,8 +2478,6 @@ module glissade_types
     real(dp),dimension(:),pointer :: stagsigma => null()     !> Staggered values of sigma (layer midpts)
     real(dp),dimension(:),pointer :: stagwbndsigma => null() !> Staggered values of sigma (layer midpts) with boundaries
     real(dp), dimension(:,:), pointer :: dups => null()      !> vertical grid quantities related to sigma and stagsigma
-
-
 
     real(dp) :: dt_diag = 0.d0     ! diagnostic interval (write diagnostic output every dt_diag years)
                                    ! dt_diag = 0 => never write diagnostic output
@@ -2567,7 +2648,7 @@ contains
 
     call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwat)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwatflx)
-    if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+    if (model%options%which_ho_bwat == BWAT_METHOD_FLUX_ROUTING) then
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bmlt_hydro)
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwat_diag)
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%head)
@@ -2783,8 +2864,8 @@ contains
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
 
-    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN .or. &
-        model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
+    if (model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN .or. &
+        model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN) then
        if (model%ocean_data%nbasin < 1) then
           call write_log ('Must set nbasin >= 1 for basin-scale inversion of C_c or C_p', GM_FATAL)
        endif
@@ -3386,7 +3467,6 @@ contains
          deallocate(model%scalars%bmlt_float_basin)
     if (associated(model%scalars%bmlt_float_target_basin)) &
          deallocate(model%scalars%bmlt_float_target_basin)
-
 
     if (associated(model%geometry%ice_age)) &
         deallocate(model%geometry%ice_age)

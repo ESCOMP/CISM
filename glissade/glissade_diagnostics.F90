@@ -1128,7 +1128,7 @@
           artm_diag = model%climate%artm_corrected(i,j)  ! artm_corrected = artm + artm_anomaly
           acab_diag = model%climate%acab_applied(i,j) * scyr
           bmlt_diag = model%basal_melt%bmlt_applied(i,j) * scyr
-          if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+          if (model%options%which_ho_bwat == BWAT_METHOD_FLUX_ROUTING) then
              bwat_diag = model%basal_hydro%bwat_diag(i,j)
           else
              bwat_diag = model%basal_hydro%bwat(i,j)

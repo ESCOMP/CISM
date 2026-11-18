@@ -60,17 +60,17 @@ flow_law = constant
 flwa_const = 2.9377e-18
 
 [basal_physics]
-sliding_law = 9                 # 9 = power law
-effecpress_method = 0           # 0 = overburden
-powerlaw_c_method = 0           # 0 = spatially uniform constant
+sliding_law = powerlaw
+effecpress_method = overburden
+powerlaw_c_method = constant
 powerlaw_c_const = 10000.       # constant for the power law stress
 powerlaw_m = 3.                 # exponent for the power law stress
 beta_grounded_min = 1.
 
 [grounding_line]
-grounding_line_param = 1               # 0 = no GLP, 1 = GLP
-grounding_line_bmlt = 0          # 0 = no bmlt GLP, 1 = bmlt GLP
-flotation_function = 2   # 0 = f_pattyn, 2 = linear
+grounding_line_param = vertices
+grounding_line_bmlt = none
+flotation_function = linear
 
 [basal_melt]
 bmlt_float_method = 0          # 0 = no melting of floating ice

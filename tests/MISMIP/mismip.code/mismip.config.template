@@ -53,8 +53,8 @@ flow_factor_float = 1.
 flwa_const = 1.0e-17
 
 [basal_physics]
-sliding_law = 9              # 4 = no-slip at bed, 10 = Coulomb friction law, 11 = Coulomb w/const basal flwa
-effecpress_method = 0         # 0 = overburden; the ocean connection is set by p_ocean_penetration
+sliding_law = powerlaw
+effecpress_method = overburden
 powerlaw_m = 3
 powerlaw_c_const = 2.4131e4
 coulomb_c_const = 0.1778
@@ -63,8 +63,8 @@ coulomb_bump_wavelength = 2.0
 p_ocean_penetration = 0      ; p values for coulomb friction law
 
 [grounding_line]
-grounding_line_param = 1              # 0 = no GLP, 1 = GLP
-flotation_function = 0  # 0 = fpattyn, 1 = 1/fpattyn, 2 = ocean cavity thickness
+grounding_line_param = vertices
+flotation_function = pattyn
 
 [basal_melt]
 bmlt_float_method = 0          # 0 = no melting of floating ice

@@ -1041,11 +1041,11 @@ module glissade_bmlt_float
 
     ! Reduce or zero out bmlt_float in cells with fully or partly grounded ice
 
-    if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE) then
+    if (model%options%which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then
 
        ! Reduce bmlt_float in partly or fully grounded cells based on f_ground_cell
 
-       if (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_FLOATING_FRAC) then
+       if (model%options%which_ho_ground_bmlt == GROUNDING_LINE_BMLT_FLOATING_FRACTION) then
 
           ! Multiply bmlt_float by the fraction of the cell that is floating.
           ! Cells that are fully grounded will have bmlt_float = 0.
@@ -1057,7 +1057,7 @@ module glissade_bmlt_float
                                          * (1.0d0 - model%geometry%f_ground_cell)
           endwhere
 
-       elseif (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_ZERO_GROUNDED) then
+       elseif (model%options%which_ho_ground_bmlt == GROUNDING_LINE_BMLT_ZERO_GROUNDED) then
 
           ! Where f_ground_cell > 0, set bmlt_float = 0.
           ! Cells that are even partly grounded will have bmlt_float = 0.
@@ -1068,7 +1068,7 @@ module glissade_bmlt_float
              model%basal_melt%bmlt_float = 0.0d0
           endwhere
 
-       elseif (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_NO_GLP) then
+       elseif (model%options%which_ho_ground_bmlt == GROUNDING_LINE_BMLT_NONE) then
 
           ! Zero out bmlt_float in grounded cells based on floating_mask.
           ! Note: CISM typically would not be run with this combination, but it is included for generality.
@@ -1133,7 +1133,7 @@ module glissade_bmlt_float
           write(iulog,*) ' '
           write(iulog,*) 'After glissade_bmlt_float_solve, which_ho_ground_bmlt =', model%options%which_ho_ground_bmlt
        endif
-       if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE) then
+       if (model%options%which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then
           call point_diag(1.0d0 - model%geometry%f_ground_cell, '1 - f_ground_cell', itest, jtest, rtest, 7, 7)
        else
           call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)

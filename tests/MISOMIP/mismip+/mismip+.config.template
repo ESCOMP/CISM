@@ -61,7 +61,7 @@ flow_factor_float = 1.
 flwa_const = 2.0e-17
 
 [basal_physics]
-sliding_law = 11                # 11 = Coulomb w/const basal flwa, 12 = Tsai law, 9 = power law
+sliding_law = schoof
 beta_grounded_min = 10.
 p_ocean_penetration = 1.        # p value for Coulomb friction law
 coulomb_c_const = 0.5
@@ -69,9 +69,9 @@ powerlaw_c_const = 1.e4         # constant for the power law stress
 powerlaw_m = 3                  # exponent for the power law stress
 
 [grounding_line]
-grounding_line_param = 1               # 0 = no GLP, 1 = GLP
-grounding_line_bmlt = 0          # 0 = no bmlt GLP, 1 = bmlt GLP
-flotation_function = 2   # 0 = f_pattyn, 2 = linear
+grounding_line_param = vertices
+grounding_line_bmlt = none
+flotation_function = linear
 
 [basal_melt]
 bmlt_float_method = 0          # 0 = no melting of floating ice, 1 = Ice1 melting, 2 = Ice2 melting

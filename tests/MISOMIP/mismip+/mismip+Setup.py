@@ -210,19 +210,19 @@ config.set('velocity', 'stokes_approx', which_ho_approx)
 # Note: Each of these friction laws is associate with certain basal parameters.
 #       The desired parameters should be set in the config template.
 if options.basalFriction == 'Schoof':
-    which_ho_babc = 11
+    which_ho_babc = 'schoof'
     print( 'Using Schoof basal friction law')
 elif options.basalFriction == 'Tsai':
-    which_ho_babc = 12
+    which_ho_babc = 'tsai'
     print( 'Using Tsai basal friction law')
 elif options.basalFriction == 'powerlaw':
-    which_ho_babc = 9
+    which_ho_babc = 'powerlaw'
     print( 'Using basal friction power law')
 else:
-    which_ho_babc = 11   # Schoof is default
+    which_ho_babc = 'schoof'   # Schoof is default
     print( 'Defaulting to Schoof basal friction law')
 
-config.set('basal_physics', 'sliding_law', str(which_ho_babc))
+config.set('basal_physics', 'sliding_law', which_ho_babc)
 
 yearsSpinup = float(options.yearsSpinup)
 config.set('time', 'tend', str(yearsSpinup))

@@ -93,7 +93,7 @@ contains
 
          ! make sure basal sliding is turned off
          whichbtrc_sav = model%options%whichbtrc
-         model%options%whichbtrc = BTRC_ZERO
+         model%options%whichbtrc = BTRC_METHOD_NONE
 
          call glissade_velo_sia_solve(model, ewn, nsn, upn)
 

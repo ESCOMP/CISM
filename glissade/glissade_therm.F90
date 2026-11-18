@@ -725,9 +725,9 @@ module glissade_therm
     !  For partly grounded cells, we assume the current basal temperature is a weighted average
     !  of the grounded and floating temperatures.
     ! Also compute a mask of cells with grounded ice.
-    !  For which_ho_ground = HO_GROUND_GLP_DELUXE, this includes cells where the ice is partly grounded.
+    !  For which_ho_ground = GROUNDING_LINE_PARAM_DELUXE, this includes cells where the ice is partly grounded.
 
-    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then  ! use f_ground_cell to set grounded_mask, btemp_ground, btemp_float
+    if (which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then  ! use f_ground_cell to set grounded_mask, btemp_ground, btemp_float
 
        do ns = 1, nsn
           do ew = 1, ewn
@@ -974,7 +974,7 @@ module glissade_therm
                    write(iulog,*) ' '
                    write(iulog,*) 'bpmp =', bpmp(ew,ns)
                    write(iulog,*) 'bpmp - btemp_ground =', bpmp(ew,ns) - btemp_ground(ew,ns)
-                   if (which_ho_ground == HO_GROUND_GLP_DELUXE) then
+                   if (which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then
                       write(iulog,*) ' '
                       write(iulog,*) 'f_ground_cell, btemp_ground, btemp_float =', &
                            f_ground_cell(ew,ns), btemp_ground(ew,ns), btemp_float(ew,ns)
@@ -1041,7 +1041,7 @@ module glissade_therm
                 ! For lcondflx, there are two different values in cells that are partly grounded and partly floating.
                 ! See comments above on which_ho_ground.
 
-                if (which_ho_ground == HO_GROUND_GLP_DELUXE) then
+                if (which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then
 
                    ! cells can be partly grounded and partly floating; two distinct basal temperatures
                    ! Note: We are inside a loop over cells with ice_mask = 1.
@@ -1218,7 +1218,7 @@ module glissade_therm
     ! Reset the basal temperature, temp(upn), in case btemp_ground has changed.
     ! Weigh bmlt_ground by f_ground_cell in partly grounded cells.
 
-    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then
+    if (which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then
 
        do ns = 1, nsn
           do ew = 1, ewn
@@ -1414,7 +1414,7 @@ module glissade_therm
     !       That is, net heat flux at lower boundary must equal zero.
     !      If T(upn) >= Tpmp, then set T(upn) = Tpmp
 
-    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then   ! use f_ground_cell to compute matrix elements
+    if (which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then   ! use f_ground_cell to compute matrix elements
 
        ! The basal temperature satisfies one BC beneath floating ice and a different BC beneath grounded ice.
        ! The matrix elements computed here are valid for ice that is partly grounded and partly floating
@@ -2510,7 +2510,7 @@ module glissade_therm
     ! Set the flow enhancement factor, using one parameter for grounded ice, another parameter
     !  for floating ice, and optionally a weighted average for partly floating cells.
 
-    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then  ! using a GLP for f_ground_cell
+    if (which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then  ! using a GLP for f_ground_cell
 
        ! set flow_enhancement factor based on f_ground_cell, giving a weighted mean in partly floating cells
        flow_enhancement_factor(:,:) = flow_enhancement_factor_ground * f_ground_cell(:,:) &
