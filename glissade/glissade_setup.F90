@@ -103,7 +103,7 @@ contains
     ! **** N.B. Here, dew and dns are unscaled - i.e. real distances in m
 
     call glimmap_readconfig(model%projection,   config,   &
-                            model%numerics%dew, model%numerics%dns)
+                            model%grid%dew,     model%grid%dns)
 
     ! netCDF I/O
     if (trim(model%funits%ncfile) == '') then
@@ -112,7 +112,7 @@ contains
        call ConfigRead(process_path(model%funits%ncfile), ncconfig, unit)
     end if
 
-    call glimmer_nc_readparams(model%funits, model%options%is_restart, ncconfig)
+    call glimmer_nc_readparams(model%funits, model%options%restart, ncconfig)
 
   end subroutine glissade_config
 
@@ -374,7 +374,7 @@ contains
     type(glissade_global_type)  :: model !> model instance
 
     ! convert dt from yr to s
-    model%numerics%dt     = model%numerics%tinc * scyr
+    model%time%dt     = model%time%tinc * scyr
 
     ! scale calving parameters
     model%calving%timescale = model%calving%timescale * scyr                ! convert from yr to s
@@ -415,14 +415,14 @@ contains
     type(ConfigSection), pointer :: section
 
     ! read sigma levels
-    ! NOTE: The [sigma] section is ignored unless model%options%which_sigma = SIGMA_METHOD_CONFIG
+    ! NOTE: The [sigma] section is ignored unless model%grid%sigma_method = SIGMA_METHOD_CONFIG
 
-    if (model%options%which_sigma == SIGMA_METHOD_CONFIG) then
+    if (model%grid%sigma_method == SIGMA_METHOD_CONFIG) then
        call GetSection(config,section,'sigma')
        if (associated(section)) then
           call handle_sigma(section, model)
        else
-          model%options%which_sigma = SIGMA_METHOD_GLIDE  ! default to standard sigma levels
+          model%grid%sigma_method = SIGMA_METHOD_GLIDE  ! default to standard sigma levels
           call write_log('No [sigma] section present; will compute standard Glide sigma levels')
        end if
     endif
@@ -436,7 +436,7 @@ contains
     ! Compute sigma coordinates or read them from a file
     ! Note: This subroutine is called from glissade_initialise.
     !       If sigma levels are provided in the config file, then they are read
-    !        in by glissade_read_sigma, and model%options%which_sigma is set to
+    !        in by glissade_read_sigma, and model%grid%sigma_method is set to
     !        SIGMA_METHOD_CONFIG, in which case this subroutine does nothing.
 
     use glissade_types
@@ -461,32 +461,32 @@ contains
 
     upn=model%grid%upn
 
-    select case(model%options%which_sigma)
+    select case(model%grid%sigma_method)
 
     case(SIGMA_METHOD_GLIDE)   !  compute standard Glide sigma levels
 
        do up = 1,upn
           level = real(up-1,kind=dp) / real(upn-1,kind=dp)
-          model%numerics%sigma(up) = glissade_calc_sigma(level, 2.d0)
+          model%grid%sigma(up) = glissade_calc_sigma(level, 2.d0)
        end do
 
        call write_log('Computing Glide sigma levels')
 
     case(SIGMA_METHOD_FILE)        ! read from external file
 
-       if (main_task) inquire (exist=there, file=process_path(model%funits%sigfile))
+       if (main_task) inquire (exist=there, file=process_path(model%grid%sigma_file))
        call broadcast(there)
        if (.not.there) then
-          call write_log('Sigma levels file: '//trim(process_path(model%funits%sigfile))// &
+          call write_log('Sigma levels file: '//trim(process_path(model%grid%sigma_file))// &
                ' does not exist',GM_FATAL)
        end if
-       call write_log('Reading sigma file: '//process_path(model%funits%sigfile))
+       call write_log('Reading sigma file: '//process_path(model%grid%sigma_file))
        if (main_task) then
-          open(unit,file=process_path(model%funits%sigfile))
-          read(unit,'(f9.7)',err=10,end=10) (model%numerics%sigma(up), up=1,upn)
+          open(unit,file=process_path(model%grid%sigma_file))
+          read(unit,'(f9.7)',err=10,end=10) (model%grid%sigma(up), up=1,upn)
           close(unit)
        end if
-       call broadcast(model%numerics%sigma)
+       call broadcast(model%grid%sigma)
 
     case(SIGMA_METHOD_CONFIG)          ! read from config file
 
@@ -497,7 +497,7 @@ contains
     case(SIGMA_METHOD_UNIFORM)
 
        do up = 1,upn
-          model%numerics%sigma(up) = real(up-1,kind=dp) / real(upn-1,kind=dp)
+          model%grid%sigma(up) = real(up-1,kind=dp) / real(upn-1,kind=dp)
        enddo
 
        call write_log('Computing evenly spaced sigma levels')
@@ -506,12 +506,12 @@ contains
 
        do up = 1,upn
           if (up == 1) then
-             model%numerics%sigma(up) = 0.d0
+             model%grid%sigma(up) = 0.d0
           else if (up == upn) then
-             model%numerics%sigma(up) = 1.d0
+             model%grid%sigma(up) = 1.d0
           else
              level = real(up-1,kind=dp) / real(upn-1,kind=dp)
-             model%numerics%sigma(up) = glissade_calc_sigma_pattyn(level)
+             model%grid%sigma(up) = glissade_calc_sigma_pattyn(level)
           end if
        enddo
 
@@ -521,14 +521,14 @@ contains
 
     ! Compute stagsigma (= sigma values at layers midpoints)
 
-    model%numerics%stagsigma(1:upn-1) =   &
-            (model%numerics%sigma(1:upn-1) + model%numerics%sigma(2:upn)) / 2.0_dp
+    model%grid%stagsigma(1:upn-1) =   &
+            (model%grid%sigma(1:upn-1) + model%grid%sigma(2:upn)) / 2.0_dp
 
     ! Compute stagwbndsigma, adding the boundaries to stagsigma
 
-    model%numerics%stagwbndsigma(1:upn-1) = model%numerics%stagsigma(1:upn-1)
-    model%numerics%stagwbndsigma(0) = 0.d0
-    model%numerics%stagwbndsigma(upn) = 1.d0        
+    model%grid%stagwbndsigma(1:upn-1) = model%grid%stagsigma(1:upn-1)
+    model%grid%stagwbndsigma(0) = 0.d0
+    model%grid%stagwbndsigma(upn) = 1.d0        
 
     call print_sigma(model)
 
@@ -582,25 +582,25 @@ contains
     call GetValue(section,'ewn',model%grid%ewn)
     call GetValue(section,'nsn',model%grid%nsn)
     call GetValue(section,'upn',model%grid%upn)
-    call GetValue(section,'dew',model%numerics%dew)
-    call GetValue(section,'dns',model%numerics%dns)
-    call GetValue(section,'sigma_file',model%funits%sigfile)
+    call GetValue(section,'dew',model%grid%dew)
+    call GetValue(section,'dns',model%grid%dns)
+    call GetValue(section,'sigma_file',model%grid%sigma_file)
     call GetValue(section,'nx_block', model%grid%nx_block)
     call GetValue(section,'ny_block', model%grid%ny_block)
     call GetOption(section,'global_bc',global_bc_choices,model%grid%global_bc)
 
-    ! We set this flag to one to indicate we've got a sigfile name.
-    ! A warning/error is generated if sigma levels are specified in some other way
-    ! and mangle the name
-    if (trim(model%funits%sigfile) /= '') then
-       model%funits%sigfile = filenames_inputname(model%funits%sigfile)
-       model%options%which_sigma = SIGMA_METHOD_FILE
+    ! If a sigma file is given, then sigma_method = file.
+    ! A warning/error is generated if sigma levels are specified in some other way.
+    ! If the file is not in the working directory, look for it in the config file directory.
+    if (trim(model%grid%sigma_file) /= '') then
+       model%grid%sigma_file = filenames_inputname(model%grid%sigma_file)
+       model%grid%sigma_method = SIGMA_METHOD_FILE
     end if
 
     ! Note: sigma_method is read after sigma_file, so that an explicit sigma_method overrides
     !       the SIGMA_METHOD_FILE setting above (as when the sigma option was read from [options]).
-    call GetOption(section,'sigma_method',sigma_method_choices,model%options%which_sigma)
-    call GetLogical(section,'read_lat_lon',model%options%read_lat_lon)
+    call GetOption(section,'sigma_method',sigma_method_choices,model%grid%sigma_method)
+    call GetLogical(section,'read_lat_lon',model%grid%read_lat_lon)
 
   end subroutine handle_grid
 
@@ -622,19 +622,19 @@ contains
     call log_param('ewn', model%grid%ewn)
     call log_param('nsn', model%grid%nsn)
     call log_param('upn', model%grid%upn)
-    call log_param('dew', model%numerics%dew, 'm')
-    call log_param('dns', model%numerics%dns, 'm')
-    if (model%options%compute_blocks == COMPUTE_BLOCKS_ACTIVE_ONLY .or. &
-        model%options%compute_blocks == COMPUTE_BLOCKS_INQUIRE) then
+    call log_param('dew', model%grid%dew, 'm')
+    call log_param('dns', model%grid%dns, 'm')
+    if (model%numerics%compute_blocks == COMPUTE_BLOCKS_ACTIVE_ONLY .or. &
+        model%numerics%compute_blocks == COMPUTE_BLOCKS_INQUIRE) then
        call log_param('nx_block', model%grid%nx_block, 'block size for compute_blocks')
        call log_param('ny_block', model%grid%ny_block, 'block size for compute_blocks')
     endif
     call log_option('global_bc', model%grid%global_bc, global_bc_choices)
-    call log_option('sigma_method', model%options%which_sigma, sigma_method_choices)
-    if (len_trim(model%funits%sigfile) > 0) then
-       call log_string('sigma_file', model%funits%sigfile)
+    call log_option('sigma_method', model%grid%sigma_method, sigma_method_choices)
+    if (len_trim(model%grid%sigma_file) > 0) then
+       call log_string('sigma_file', model%grid%sigma_file)
     endif
-    call log_flag('read_lat_lon', model%options%read_lat_lon, &
+    call log_flag('read_lat_lon', model%grid%read_lat_lon, &
          'if true, lat and lon are read from the input file and written to restart')
 
   end subroutine print_grid
@@ -652,11 +652,11 @@ contains
     type(ConfigSection), pointer :: section
     type(glissade_global_type)  :: model
 
-    if (model%options%which_sigma==SIGMA_METHOD_FILE) then
+    if (model%grid%sigma_method==SIGMA_METHOD_FILE) then
        call write_log('Sigma levels specified twice - use only'// &
             ' config file or separate file, not both',GM_FATAL)
     else
-       call GetValue(section,'sigma_levels',model%numerics%sigma,model%grid%upn)
+       call GetValue(section,'sigma_levels',model%grid%sigma,model%grid%upn)
     end if
 
   end subroutine handle_sigma
@@ -673,7 +673,7 @@ contains
     type(glissade_global_type)  :: model
 
     call log_section('sigma')
-    call log_list('sigma_levels', model%numerics%sigma(1:model%grid%upn), digits=6)
+    call log_list('sigma_levels', model%grid%sigma(1:model%grid%upn), digits=6)
 
   end subroutine print_sigma
 
@@ -691,7 +691,7 @@ contains
     real(dp) :: dt_in      ! dt from the config file, if present
     integer  :: nsteps_in  ! nsteps_per_year from the config file, if present
 
-!       Set dt_input_option to specify whether the dynamic timestep (model%numerics%tinc)
+!       Set dt_input_option to specify whether the dynamic timestep (model%time%tinc)
 !        is based on dt (the timestep in years) or nsteps_per_year in the config file.
 !       The default (dt_input_option = dt) is to read dt directly,
 !        but the nsteps_per_year option allows more flexibility.
@@ -699,16 +699,16 @@ contains
 !        e.g., if running coupled with the mass balance timestep of 1 year,
 !        or if writing output at annual intervals.
 !       Note: This used to be called dt_option; renamed to avoid a naming conflict with CESM.
-    call GetValue(section,'tstart',model%numerics%tstart)
-    call GetValue(section,'tend',model%numerics%tend)
-    call GetOption(section,'dt_input_option',dt_input_option_choices,model%options%dt_input_option)
+    call GetValue(section,'tstart',model%time%tstart)
+    call GetValue(section,'tend',model%time%tend)
+    call GetOption(section,'dt_input_option',dt_input_option_choices,model%time%dt_input_option)
     ! Give either dt (dt_input_option = dt) or nsteps_per_year (dt_input_option = nsteps_per_year), not both.
     ! Initialize to impossible values to tell whether each key is in the config file.
     dt_in = -huge(1.0d0)
     nsteps_in = -huge(1)
     call GetValue(section,'dt',dt_in)
     call GetValue(section,'nsteps_per_year',nsteps_in)
-    if (model%options%dt_input_option == DT_INPUT_OPTION_NSTEPS_PER_YEAR) then
+    if (model%time%dt_input_option == DT_INPUT_OPTION_NSTEPS_PER_YEAR) then
        if (dt_in /= -huge(1.0d0)) then
           call write_log('Error, dt is set in [time] with dt_input_option = nsteps_per_year; ' // &
                'set nsteps_per_year instead', GM_FATAL)
@@ -719,21 +719,21 @@ contains
                'or set dt_input_option = nsteps_per_year', GM_FATAL)
        endif
     endif
-    if (dt_in /= -huge(1.0d0)) model%numerics%tinc = dt_in
-    if (nsteps_in /= -huge(1)) model%numerics%nsteps_per_year = nsteps_in
-    call GetValue(section,'adaptive_cfl_threshold', model%numerics%adaptive_cfl_threshold)
+    if (dt_in /= -huge(1.0d0)) model%time%tinc = dt_in
+    if (nsteps_in /= -huge(1)) model%time%nsteps_per_year = nsteps_in
+    call GetValue(section,'adaptive_cfl_threshold', model%time%adaptive_cfl_threshold)
 
     ! If the time step was entered in number of steps per year, then set the timestep in years.
     ! If the time step was entered in years, then set nsteps_per_year.
-    if (model%options%dt_input_option == DT_INPUT_OPTION_NSTEPS_PER_YEAR) then
-       if (model%numerics%nsteps_per_year > 0) then
-          model%numerics%tinc = 1.d0 / real(model%numerics%nsteps_per_year, dp)
+    if (model%time%dt_input_option == DT_INPUT_OPTION_NSTEPS_PER_YEAR) then
+       if (model%time%nsteps_per_year > 0) then
+          model%time%tinc = 1.d0 / real(model%time%nsteps_per_year, dp)
        else
           call write_log('Must set nsteps_per_year > 0 with this dt option', GM_FATAL)
        endif
     else   ! input dt (in years) directly
-       if (model%numerics%tinc > 0.0d0) then
-          model%numerics%nsteps_per_year = nint(1.d0/model%numerics%tinc)
+       if (model%time%tinc > 0.0d0) then
+          model%time%nsteps_per_year = nint(1.d0/model%time%tinc)
        else
           call write_log('Must set dt > 0.0 with this dt option', GM_FATAL)
        endif
@@ -756,16 +756,16 @@ contains
     type(glissade_global_type)  :: model
 
     call log_section('time')
-    call log_param('tstart', model%numerics%tstart, 'yr')
-    call log_param('tend', model%numerics%tend, 'yr')
-    call log_option('dt_input_option', model%options%dt_input_option, dt_input_option_choices)
-    if (model%options%dt_input_option == DT_INPUT_OPTION_NSTEPS_PER_YEAR) then
-       call log_param('nsteps_per_year', model%numerics%nsteps_per_year)
-       call log_param('dt', model%numerics%tinc, 'yr; computed as 1/nsteps_per_year')
+    call log_param('tstart', model%time%tstart, 'yr')
+    call log_param('tend', model%time%tend, 'yr')
+    call log_option('dt_input_option', model%time%dt_input_option, dt_input_option_choices)
+    if (model%time%dt_input_option == DT_INPUT_OPTION_NSTEPS_PER_YEAR) then
+       call log_param('nsteps_per_year', model%time%nsteps_per_year)
+       call log_param('dt', model%time%tinc, 'yr; computed as 1/nsteps_per_year')
     else
-       call log_param('dt', model%numerics%tinc, 'yr')
+       call log_param('dt', model%time%tinc, 'yr')
     endif
-    call log_param('adaptive_cfl_threshold', model%numerics%adaptive_cfl_threshold, &
+    call log_param('adaptive_cfl_threshold', model%time%adaptive_cfl_threshold, &
          'advection is subcycled when CFL exceeds this value; 0 = no adaptive subcycling')
 
   end subroutine print_time
@@ -786,12 +786,12 @@ contains
 
     !Note: Either dt_diag or ndiag can be specified in the config file.
     !      If dt_diag is specified, it is used to compute ndiag. (Output is written every ndiag timesteps.)
-    call GetValue(section,'idiag',        model%numerics%idiag)
-    call GetValue(section,'jdiag',        model%numerics%jdiag)
-    call GetValue(section,'dt_diag',      model%numerics%dt_diag)
-    call GetValue(section,'ndiag',        model%numerics%ndiag)
-    call GetOption(section,'dm_dt_diag',   dm_dt_diag_choices, model%options%dm_dt_diag)
-    call GetOption(section,'diag_ice_threshold', diag_ice_threshold_choices, model%options%diag_minthck)
+    call GetValue(section,'idiag',        model%diagnostics%idiag)
+    call GetValue(section,'jdiag',        model%diagnostics%jdiag)
+    call GetValue(section,'dt_diag',      model%diagnostics%dt_diag)
+    call GetValue(section,'ndiag',        model%diagnostics%ndiag)
+    call GetOption(section,'dm_dt_diag',   dm_dt_diag_choices, model%diagnostics%dm_dt_diag)
+    call GetOption(section,'diag_ice_threshold', diag_ice_threshold_choices, model%diagnostics%diag_ice_threshold)
 
   end subroutine handle_diagnostics
 
@@ -809,24 +809,24 @@ contains
 
     type(glissade_global_type)  :: model
 
-    if (model%numerics%idiag < 1 .or. model%numerics%idiag > model%grid%ewn     &
+    if (model%diagnostics%idiag < 1 .or. model%diagnostics%idiag > model%grid%ewn     &
                                         .or.                                                     &
-        model%numerics%jdiag < 1 .or. model%numerics%jdiag > model%grid%nsn) then
+        model%diagnostics%jdiag < 1 .or. model%diagnostics%jdiag > model%grid%nsn) then
         call write_log('Error, global diagnostic point (idiag, jdiag) is out of bounds', GM_FATAL)
     endif
 
     call log_section('diagnostics')
-    call log_param('idiag', model%numerics%idiag, 'global i index of the diagnostic point')
-    call log_param('jdiag', model%numerics%jdiag, 'global j index of the diagnostic point')
-    if (model%numerics%dt_diag > 0.d0) then
-       call log_param('dt_diag', model%numerics%dt_diag, 'yr')
-    elseif (model%numerics%ndiag > 0) then
-       call log_param('ndiag', model%numerics%ndiag, 'time steps')
+    call log_param('idiag', model%diagnostics%idiag, 'global i index of the diagnostic point')
+    call log_param('jdiag', model%diagnostics%jdiag, 'global j index of the diagnostic point')
+    if (model%diagnostics%dt_diag > 0.d0) then
+       call log_param('dt_diag', model%diagnostics%dt_diag, 'yr')
+    elseif (model%diagnostics%ndiag > 0) then
+       call log_param('ndiag', model%diagnostics%ndiag, 'time steps')
     else
-       call log_param('dt_diag', model%numerics%dt_diag, 'yr; 0 = no diagnostic output')
+       call log_param('dt_diag', model%diagnostics%dt_diag, 'yr; 0 = no diagnostic output')
     endif
-    call log_option('dm_dt_diag', model%options%dm_dt_diag, dm_dt_diag_choices)
-    call log_option('diag_ice_threshold', model%options%diag_minthck, diag_ice_threshold_choices)
+    call log_option('dm_dt_diag', model%diagnostics%dm_dt_diag, dm_dt_diag_choices)
+    call log_option('diag_ice_threshold', model%diagnostics%diag_ice_threshold, diag_ice_threshold_choices)
 
   end subroutine print_diagnostics
 
@@ -842,24 +842,17 @@ contains
     implicit none
     type(ConfigSection), pointer :: section
     type(glissade_global_type)  :: model
-    integer :: loglevel
-    logical :: extend_velo   ! restart_extend_velo is a logical in the config file
+    integer :: log_level     ! passed to glimmer_log; not stored in the model
 
-    loglevel = GM_levels-GM_ERROR
-    call GetValue(section,'log_level',loglevel)
-    call glimmer_set_msg_level(loglevel)
+    log_level = GM_levels-GM_ERROR
+    call GetValue(section,'log_level',log_level)
+    call glimmer_set_msg_level(log_level)
 
-    call GetDycore(section,model%options%whichdycore)   ! 2 or glissade (see glimmer_config)
+    call GetDycore(section,model%options%dycore)   ! 2 or glissade (see glimmer_config)
     call GetValue(section,'ioparams',model%funits%ncfile)
     call GetLogical(section,'forcewrite_final', model%options%forcewrite_final)
-    call GetOption(section,'restart',restart_choices,model%options%is_restart)
-    extend_velo = (model%options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE)
-    call GetLogical(section,'restart_extend_velo',extend_velo)
-    if (extend_velo) then
-       model%options%restart_extend_velo = RESTART_EXTEND_VELO_TRUE
-    else
-       model%options%restart_extend_velo = RESTART_EXTEND_VELO_FALSE
-    endif
+    call GetOption(section,'restart',restart_choices,model%options%restart)
+    call GetLogical(section,'restart_extend_velo',model%options%restart_extend_velo)
 
   end subroutine handle_options
 
@@ -877,18 +870,18 @@ contains
 
     type(glissade_global_type)  :: model
 
-    if (model%options%whichdycore /= DYCORE_GLISSADE) then
+    if (model%options%dycore /= DYCORE_GLISSADE) then
        call write_log('Error, the Glissade dycore requires dycore = glissade (or 2)',GM_FATAL)
     end if
 
     call log_section('options')
-    call log_option('dycore', model%options%whichdycore, dycore_choices)
+    call log_option('dycore', model%options%dycore, dycore_choices)
     if (len_trim(model%funits%ncfile) > 0) then
        call log_string('ioparams', model%funits%ncfile)
     endif
-    call log_option('restart', model%options%is_restart, restart_choices)
-    if (model%options%is_restart /= NO_RESTART) then
-       call log_flag('restart_extend_velo', model%options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE, &
+    call log_option('restart', model%options%restart, restart_choices)
+    if (model%options%restart /= NO_RESTART) then
+       call log_flag('restart_extend_velo', model%options%restart_extend_velo, &
             'if true, use extended velocity fields for restart')
     endif
     call log_flag('forcewrite_final', model%options%forcewrite_final, &
@@ -912,12 +905,12 @@ contains
     type(glissade_global_type)   :: model
 
     ! options
-    call GetOption(section,'compute_blocks',    compute_blocks_choices, model%options%compute_blocks)
-    call GetLogical(section,'reproducible_sums', model%options%reproducible_sums)
+    call GetOption(section,'compute_blocks',    compute_blocks_choices, model%numerics%compute_blocks)
+    call GetLogical(section,'reproducible_sums', model%numerics%reproducible_sums)
 
     ! parameters
-    call GetValue(section,'thcklim',            model%numerics%thklim)
-    call GetValue(section,'thcklim_temp',       model%numerics%thklim_temp)
+    call GetValue(section,'thcklim',            model%numerics%thcklim)
+    call GetValue(section,'thcklim_temp',       model%numerics%thcklim_temp)
     call GetValue(section,'thck_gradient_ramp', model%numerics%thck_gradient_ramp)
     call GetValue(section,'periodic_offset_ew', model%numerics%periodic_offset_ew)
     call GetValue(section,'periodic_offset_ns', model%numerics%periodic_offset_ns)
@@ -938,7 +931,7 @@ contains
 
     type(glissade_global_type)  :: model
 
-    if (model%options%compute_blocks /= COMPUTE_BLOCKS_ALL) then
+    if (model%numerics%compute_blocks /= COMPUTE_BLOCKS_ALL) then
        if (model%grid%nx_block < 1 .or. model%grid%ny_block < 1) then
           call write_log('Must set nx_block and ny_block > 0 for this compute_blocks option', GM_FATAL)
        endif
@@ -947,15 +940,15 @@ contains
     !Note: The Glissade dycore is known to crash for thklim = 0, but has not
     !      been extensively tested for small values of thklim.
     !      Values smaller than 1 mm may be OK, but no guarantees.
-    if (model%numerics%thklim < 1.d-3) then   ! 1 mm
+    if (model%numerics%thcklim < 1.d-3) then   ! 1 mm
        call write_log('ice limit (thklim) is too small for Glissade dycore', GM_FATAL)
     endif
 
     call log_section('numerics')
-    call log_option('compute_blocks', model%options%compute_blocks, compute_blocks_choices)
-    call log_flag('reproducible_sums', model%options%reproducible_sums)
-    call log_param('thcklim', model%numerics%thklim, 'm; thickness limit for dynamically active ice')
-    call log_param('thcklim_temp', model%numerics%thklim_temp, 'm; thickness limit for temperature calculations')
+    call log_option('compute_blocks', model%numerics%compute_blocks, compute_blocks_choices)
+    call log_flag('reproducible_sums', model%numerics%reproducible_sums)
+    call log_param('thcklim', model%numerics%thcklim, 'm; thickness limit for dynamically active ice')
+    call log_param('thcklim_temp', model%numerics%thcklim_temp, 'm; thickness limit for temperature calculations')
     call log_param('thck_gradient_ramp', model%numerics%thck_gradient_ramp, &
          'm; 0 = no ramp of land-margin thickness gradients')
     if (model%grid%global_bc == GLOBAL_BC_PERIODIC) then
@@ -1040,8 +1033,8 @@ contains
     type(glissade_global_type)   :: model
 
     ! options
-    call GetLogical(section,'adjust_input_thickness',  model%options%adjust_input_thickness)
-    call GetLogical(section,'smooth_input_usrf',       model%options%smooth_input_usrf)
+    call GetLogical(section,'adjust_input_thickness',  model%initialization%adjust_input_thickness)
+    call GetLogical(section,'smooth_input_usrf',       model%initialization%smooth_input_usrf)
 
   end subroutine handle_initialization
 
@@ -1060,9 +1053,9 @@ contains
     type(glissade_global_type)  :: model
 
     call log_section('initialization')
-    call log_flag('adjust_input_thickness', model%options%adjust_input_thickness, &
+    call log_flag('adjust_input_thickness', model%initialization%adjust_input_thickness, &
          'if true, input thickness is adjusted based on surface and bed topography')
-    call log_flag('smooth_input_usrf', model%options%smooth_input_usrf)
+    call log_flag('smooth_input_usrf', model%initialization%smooth_input_usrf)
 
   end subroutine print_initialization
 
@@ -1210,7 +1203,7 @@ contains
 
     if ((model%options%which_ho_sparse == LINEAR_SOLVER_PCG .or.  &
          model%options%which_ho_sparse == LINEAR_SOLVER_PCG_CHRONGEAR) ) then
-       if (model%options%reproducible_sums) then
+       if (model%numerics%reproducible_sums) then
           if (model%options%which_ho_precond == PRECONDITIONER_TRIDIAG_LOCAL .or. &
               model%options%which_ho_precond == PRECONDITIONER_TRIDIAG_GLOBAL) then
              call write_log ('Tridiagonal preconditioners are not supported with reproducible sums.')
@@ -1785,7 +1778,7 @@ contains
           call write_log('Error, bwat_method = local_till requires effecpress_method = bwat_bvp', GM_FATAL)
        endif
     elseif (model%options%which_ho_bwat == BWAT_METHOD_FLUX_ROUTING) then
-       if (model%options%reproducible_sums) then
+       if (model%numerics%reproducible_sums) then
           if (model%basal_hydro%ho_flux_routing_scheme /= FLUX_ROUTING_METHOD_D8) then
              call write_log('Error, this flux_routing scheme is not supported with reproducible sums')
              call write_log('Please use D8 flux-routing or turn off reproducible sums', GM_FATAL)
@@ -3093,17 +3086,6 @@ contains
     integer, intent(in) :: model_id  !> identifier of this ice sheet instance (1 - N, where N is the total number of ice sheet models in this run)
 
     !------------------------------------------------------------------------------------
-    ! Internal variables
-    !------------------------------------------------------------------------------------
-    type(glissade_options_type) :: options  !> Derived type holding all model options
-
-    ! Copy model%options to options to save typing below
-    ! Note: Originally, only model%options was passed in, but passing in the full model derived type
-    !       allows the restart logic to be based on parameter values also.
-
-    options = model%options
-
-    !------------------------------------------------------------------------------------
 
     !This was the restart list as of 1/11/13 using the old hot=1 system in glide_vars.def:
     !restart_variable_list=' lat  relx  tauf  thk  thkmask  topg  bheatflx  bmlt_ground  bwat  uvel  vvel  wgrd  flwa  temp  litho_temp  age '
@@ -3119,7 +3101,7 @@ contains
     !        Note that bheatflx may not be an input variable but can also be assigned as a parameter in the config file!
     call glissade_add_to_restart_variable_list('topg thk temp bheatflx artm', model_id)
 
-    ! add the SMB variable, based on options%smb_input
+    ! add the SMB variable, based on model%options%smb_input
     ! Note: SMB can be input in one of several functional forms:
     !       - SMB(x,y)
     !       - SMB(x,y) at reference elevation, plus vertical gradient dSMB/dz(x,y)
@@ -3127,11 +3109,11 @@ contains
     ! Note: If the SMB field is 'acab', it is assumed to have units of m/y ice
     !       If the SMB field is 'smb', it is assumed to have units of mm/y w.e.
 
-    select case(options%smb_input_function)
+    select case(model%options%smb_input_function)
 
        case(SMB_INPUT_FUNCTION_XY)
 
-          select case (options%smb_input)
+          select case (model%options%smb_input)
           case (SMB_INPUT_UNITS_M_ICE_PER_YR)
              call glissade_add_to_restart_variable_list('acab', model_id)
           case (SMB_INPUT_UNITS_MM_WE_PER_YR)
@@ -3151,15 +3133,15 @@ contains
 
     end select  ! smb_input_function
 
-    ! Similarly for surface temperature (artm), based on options%artm_input
+    ! Similarly for surface temperature (artm), based on model%options%artm_input
     ! Note: These options share usrf_ref and zatm with the SMB options above.
 
-    select case(options%artm_input_function)
+    select case(model%options%artm_input_function)
 
        case(ARTM_INPUT_FUNCTION_XY_GRADZ)
           call glissade_add_to_restart_variable_list('artm_ref', model_id)
           call glissade_add_to_restart_variable_list('artm_gradz', model_id)
-          if (options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+          if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
              ! usrf_ref was added to restart above; nothing to do here
           else
              call glissade_add_to_restart_variable_list('usrf_ref', model_id)
@@ -3167,7 +3149,7 @@ contains
 
        case(ARTM_INPUT_FUNCTION_XYZ)
           call glissade_add_to_restart_variable_list('artm_3d', model_id)
-          if (options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+          if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
              ! smb_levels was added to restart above; nothing to do here
           else
              call glissade_add_to_restart_variable_list('smb_levels', model_id)
@@ -3176,7 +3158,7 @@ contains
        case(ARTM_INPUT_FUNCTION_XY_LAPSE)
           call glissade_add_to_restart_variable_list('artm_ref', model_id)
           ! Note: Instead of artm_gradz, there is a uniform lapse rate
-          if (options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+          if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
              ! usrf_ref was added to restart above; nothing to do here
           else
              call glissade_add_to_restart_variable_list('usrf_ref', model_id)
@@ -3187,24 +3169,24 @@ contains
     ! Add anomaly forcing variables
     !TODO - Remove these? Anomaly forcing is typically in a forcing file, not the main input file.
 
-    if (options%enable_smb_anomaly) then
+    if (model%options%enable_smb_anomaly) then
           call glissade_add_to_restart_variable_list('smb_anomaly', model_id)
     endif
 
-    if (options%enable_artm_anomaly) then
+    if (model%options%enable_artm_anomaly) then
        call glissade_add_to_restart_variable_list('artm_anomaly', model_id)
     endif
 
-    if (options%enable_bmlt_anomaly) then
+    if (model%options%enable_bmlt_anomaly) then
        call glissade_add_to_restart_variable_list('bmlt_float_anomaly', model_id)
     endif
 
-    if (options%read_lat_lon) then
+    if (model%grid%read_lat_lon) then
        ! If lat and lon are to be read from the input file, they should be written to the restart file
        call glissade_add_to_restart_variable_list('lat lon', model_id)
     endif
 
-    select case (options%whichbmlt_float)
+    select case (model%options%whichbmlt_float)
 
        ! If bmlt_float is read from an external file at startup, then it needs to be in the restart file
        case (BMLT_FLOAT_METHOD_FILE)
@@ -3227,11 +3209,11 @@ contains
     !  basin-scale quantities, we need a 2D field of basin numbers.
     ! Not strictly needed for the ISMIP6_LOCAL option, but included for diagnostics.
     ! The thermal-forcing parameterization matters only when bmlt_float_method uses thermal forcing.
-    if ( (options%whichbmlt_float == BMLT_FLOAT_METHOD_THERMAL_FORCING .and.  &
-          (options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_LOCAL .or.  &
-           options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL .or. &
-           options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE) ) .or. &
-         options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+    if ( (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_THERMAL_FORCING .and.  &
+          (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_LOCAL .or.  &
+           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL .or. &
+           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE) ) .or. &
+         model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
        call glissade_add_to_restart_variable_list('basin_number', model_id)
     endif
 
@@ -3247,19 +3229,19 @@ contains
      !                     points along the north and east boundaries of the domain.
      !                    CISM requires these fields for exact restart if the boundary velocities are nonzero,
      !                     as in MISMIP test problems with periodic BCs.
-     !                    To output these fields, the user must set restart_extend_velo = 1 in the config file.
+     !                    To output these fields, the user must set restart_extend_velo = .true. in the config file.
      ! Note: It never hurts to write uvel/vvel_extend in place of uvel/vvel. But for most cases where restart
      !       is required (e.g., whole-ice-sheet simulations), velocities are zero along the boundaries
      !       and uvel/vvel are sufficient.
 
-     if (options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE) then
+     if (model%options%restart_extend_velo) then
         call glissade_add_to_restart_variable_list('uvel_extend vvel_extend', model_id)
      else
         call glissade_add_to_restart_variable_list('uvel vvel', model_id)
      endif
 
      ! Glissade approximation options
-     select case (options%which_ho_approx)
+     select case (model%options%which_ho_approx)
 
         case (STOKES_APPROX_DIVA)
            ! DIVA requires the 2D velocity, basal traction and effective viscosity for exact restart.
@@ -3272,7 +3254,7 @@ contains
            ! Note: In addition to uvel/vvel_2D, DIVA requires the full 3D velocity field for exact restart,
            !       because horizontal transport is done before updating the velocity.
            
-           if (options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE) then
+           if (model%options%restart_extend_velo) then
               call glissade_add_to_restart_variable_list('uvel_2d_extend vvel_2d_extend btractx_extend btracty_extend efvs', &
                    model_id)
            else
@@ -3285,12 +3267,12 @@ contains
      end select   ! which_ho_approx
         
      ! mask used to limit computation to active blocks
-     if (options%compute_blocks == COMPUTE_BLOCKS_ACTIVE_ONLY) then
+     if (model%numerics%compute_blocks == COMPUTE_BLOCKS_ACTIVE_ONLY) then
         call glissade_add_to_restart_variable_list('ice_domain_mask', model_id)
      endif
 
      ! basal water option for Glissade
-     select case (options%which_ho_bwat)
+     select case (model%options%which_ho_bwat)
      case (BWAT_METHOD_NONE, BWAT_METHOD_CONSTANT)
         ! no restart variables needed
      case (BWAT_METHOD_FLUX_ROUTING)
@@ -3305,9 +3287,9 @@ contains
 
      !TODO: CALVING_LAW_GRID_MASK and apply_calving_mask are redundant; remove one option?
      !      The advantage of apply_calving_mask is that it can be combined with other whichcalving options.
-     if (options%whichcalving == CALVING_LAW_GRID_MASK .or. options%apply_calving_mask .or. &
-          options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION) then
-        if (options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
+     if (model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask .or. &
+          model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION) then
+        if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
            call glissade_add_to_restart_variable_list('calving_mask', model_id)
         else   ! using a subgrid CF scheme
            call glissade_add_to_restart_variable_list('subgrid_calving_mask', model_id)
@@ -3317,25 +3299,25 @@ contains
      ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
      !  which depends on the stress tensor, which is computed by the HO solver.
      ! On restart, the correct stress and strain rate tensors are not available, so we read in the eigenproduct.
-     if (options%whichcalving == CALVING_LAW_EIGENCALVING) then
+     if (model%options%whichcalving == CALVING_LAW_EIGENCALVING) then
         call glissade_add_to_restart_variable_list('eps_eigen1', model_id)
         call glissade_add_to_restart_variable_list('eps_eigen2', model_id)
-     elseif (options%whichcalving == CALVING_LAW_STRESS .or. &
-             options%whichcalving == CALVING_LAW_STRESS_STOCHASTIC .or. &
-             options%whichcalving == CALVING_LAW_DAMAGE) then
+     elseif (model%options%whichcalving == CALVING_LAW_STRESS .or. &
+             model%options%whichcalving == CALVING_LAW_STRESS_STOCHASTIC .or. &
+             model%options%whichcalving == CALVING_LAW_DAMAGE) then
         call glissade_add_to_restart_variable_list('tau_eigen1', model_id)
         call glissade_add_to_restart_variable_list('tau_eigen2', model_id)
      endif
 
      ! If forcing ice retreat, then we need ice_fraction_retreat_mask (which specifies the cells where retreat is forced)
      !  and reference_thck (which sets up an upper thickness limit for partly retreating cells)
-     if (options%force_retreat /= FORCE_RETREAT_NONE) then
+     if (model%options%force_retreat /= FORCE_RETREAT_NONE) then
         call glissade_add_to_restart_variable_list('ice_fraction_retreat_mask', model_id)
         call glissade_add_to_restart_variable_list('reference_thck', model_id)
      endif
 
      ! lateral melt options
-     if (options%which_lateral_melt == LATERAL_MELT_METHOD_ISMIP) then
+     if (model%options%which_lateral_melt == LATERAL_MELT_METHOD_ISMIP) then
         if (model%lateral_melt%runoff_from_ablation) then
            ! Need input SMB; this is already in the restart file
         else   ! lateral melt parameterization needs runoff_applied (= subglacial discharge)
@@ -3352,14 +3334,14 @@ contains
 
      ! If overwriting acab in certain grid cells, than overwrite_acab_mask needs to be in the restart file.
      ! This mask is read in at model initialization, or is set based on the input acab or ice thickness.
-     if (options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
+     if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE) then
         call glissade_add_to_restart_variable_list('overwrite_acab_mask', model_id)
      endif
 
     ! ==== Other options ====
 
     ! internal water option (for enthalpy scheme)
-    select case (options%whichtemp)
+    select case (model%options%whichtemp)
       case (TEMPERATURE_METHOD_ENTHALPY)
          ! restart needs to know internal water fraction
          call glissade_add_to_restart_variable_list('waterfrac', model_id)
@@ -3368,10 +3350,10 @@ contains
     end select
 
     ! basal sliding option
-    select case (options%which_ho_babc)
+    select case (model%options%which_ho_babc)
       case (SLIDING_LAW_COULOMB, SLIDING_LAW_SCHOOF, SLIDING_LAW_TSAI)
          ! Note: These options compute beta internally, so it does not need to be in the restart file.
-         if (options%use_c_space_factor) then
+         if (model%options%use_c_space_factor) then
             ! c_space_factor needs to be in the restart file
             call glissade_add_to_restart_variable_list('c_space_factor', model_id)
          endif
@@ -3384,28 +3366,28 @@ contains
 
     ! basal friction inversion options
 
-    if (options%which_ho_powerlaw_c /= POWERLAW_C_METHOD_CONSTANT .and. &
-        options%which_ho_powerlaw_c /= POWERLAW_C_METHOD_FROM_COULOMB_C) then
+    if (model%options%which_ho_powerlaw_c /= POWERLAW_C_METHOD_CONSTANT .and. &
+        model%options%which_ho_powerlaw_c /= POWERLAW_C_METHOD_FROM_COULOMB_C) then
        call glissade_add_to_restart_variable_list('powerlaw_c', model_id)
     endif
 
-    if (options%which_ho_coulomb_c /= COULOMB_C_METHOD_CONSTANT) then
+    if (model%options%which_ho_coulomb_c /= COULOMB_C_METHOD_CONSTANT) then
        call glissade_add_to_restart_variable_list('coulomb_c', model_id)
     endif
 
     ! If using the basin-scale inversion option for powerlaw_c or coulomb_c, we need a target thickness for grounded ice
-    if (options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
-        options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN) then
+    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
+        model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN) then
        call glissade_add_to_restart_variable_list('grounded_thck_target', model_id)
     endif
 
     ! inversion options for ocean temperature corrections
-    if (options%which_ho_deltaT_ocn /= DELTAT_OCN_METHOD_NONE) then
+    if (model%options%which_ho_deltaT_ocn /= DELTAT_OCN_METHOD_NONE) then
        call glissade_add_to_restart_variable_list('deltaT_ocn', model_id)
     endif
 
     ! If using the basin-scale inversion option for deltaT_ocn, we need a target thickness for floating ice
-    if (options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+    if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
        call glissade_add_to_restart_variable_list('floating_thck_target', model_id)
     endif
 
@@ -3413,24 +3395,24 @@ contains
     ! Note: If usrf_obs is supplied, thck_obs will be computed at initialization.
     ! Note: Some options do not need usrf_obs and/or velo_sfc_obs as targets,
     !       but they can still be useful diagnostics.
-    if (options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION .or. &
-        options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION  .or. &
-        options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION .or. &
-        options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
-        options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION_BASIN  .or. &
-        options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION .or. &
+        model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION  .or. &
+        model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION .or. &
+        model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
+        model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION_BASIN  .or. &
+        model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
        call glissade_add_to_restart_variable_list('usrf_obs', model_id)
        call glissade_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif
 
     ! fields needed for inversion options that try to match observed dthck_dt
-    if (options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_DTHCK_DT .or. &
-        options%enable_acab_dthck_dt_correction) then
+    if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_DTHCK_DT .or. &
+        model%options%enable_acab_dthck_dt_correction) then
        call glissade_add_to_restart_variable_list('dthk_dt_obs', model_id)
        call glissade_add_to_restart_variable_list('dthk_dt_obs_basin', model_id)
     endif
 
-    select case (options%isostasy)
+    select case (model%options%isostasy)
       case(COMPUTE_ISOSTASY_TRUE)
          ! restart needs to know relaxed topography (the topography to which the mantle would relax with no load)
          ! MJH: I suspect that relx is only needed when asthenosphere=1 (relaxing mantle), but I'm not sure -
@@ -3450,7 +3432,7 @@ contains
          ! no new restart variables needed
     end select
 
-    select case (options%which_ho_ice_age)
+    select case (model%options%which_ho_ice_age)
        case(COMPUTE_ICE_AGE_TRUE)
           call glissade_add_to_restart_variable_list('ice_age', model_id)
        case default

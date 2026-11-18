@@ -101,9 +101,9 @@ contains
     nx = model%grid%ewn
     ny = model%grid%nsn
     nz = model%grid%upn
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
-    rtest = model%numerics%rdiag_local
+    itest = model%diagnostics%idiag_local
+    jtest = model%diagnostics%jdiag_local
+    rtest = model%diagnostics%rdiag_local
     parallel = model%parallel
 
     allocate(logvar(nx,ny))
@@ -456,14 +456,14 @@ contains
 
     ! Initialize
 
-    dx = model%numerics%dew
-    dy = model%numerics%dns
+    dx = model%grid%dew
+    dy = model%grid%dns
     nx = model%grid%ewn
     ny = model%grid%nsn
     nz = model%grid%upn
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
-    rtest = model%numerics%rdiag_local
+    itest = model%diagnostics%idiag_local
+    jtest = model%diagnostics%jdiag_local
+    rtest = model%diagnostics%rdiag_local
     parallel = model%parallel
 
     allocate(uvel(nz,nx-1,ny-1))
@@ -548,11 +548,11 @@ contains
        call glissade_transport_driver(dt*scyr,                                              &
                                       dx,                        dy,                        &
                                       nx,                        ny,                        &
-                                      nz-1,                      model%numerics%sigma,      &
+                                      nz-1,                      model%grid%sigma,          &
                                       parallel,                                             &
-                                      model%numerics%idiag_local,                           &
-                                      model%numerics%jdiag_local,                           &
-                                      model%numerics%rdiag_local,                           &
+                                      model%diagnostics%idiag_local,                        &
+                                      model%diagnostics%jdiag_local,                        &
+                                      model%diagnostics%rdiag_local,                        &
                                       uvel(:,:,:)/scyr,          vvel(:,:,:)/scyr,          &
                                       model%geometry%thck(:,:),                             &
                                       model%geometry%ntracers,                              &

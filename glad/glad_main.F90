@@ -674,9 +674,9 @@ contains
        write(message,*) 'In glad_gcm, time (hr), valid_inputs =', time, valid_inputs
        call write_log(trim(message))
 
-       rtest = params%instances(instance_index)%model%numerics%rdiag_local
-       itest = params%instances(instance_index)%model%numerics%idiag_local
-       jtest = params%instances(instance_index)%model%numerics%jdiag_local
+       rtest = params%instances(instance_index)%model%diagnostics%rdiag_local
+       itest = params%instances(instance_index)%model%diagnostics%idiag_local
+       jtest = params%instances(instance_index)%model%diagnostics%jdiag_local
 
        write(message,*) 'itest, jtest, rtest =', itest, jtest, rtest
        call write_log(trim(message))

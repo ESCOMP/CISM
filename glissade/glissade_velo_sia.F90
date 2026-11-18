@@ -28,7 +28,7 @@
 !
 ! It is roughly based on module glissade_velo_higher but is much simpler, 
 !  computing only the SIA velocities. 
-! It is called with whichdycore = DYCORE_GLISSADE, which_ho_approx = STOKES_APPROX_LOCAL_SIA. 
+! It is called with dycore = DYCORE_GLISSADE, which_ho_approx = STOKES_APPROX_LOCAL_SIA. 
 !
 ! The calculation is similar to the one in Glide, except that it
 !  computes only the SIA velocity profile and does not evolve thickness.  
@@ -191,16 +191,16 @@
 
     parallel = model%parallel
 
-    dx = model%numerics%dew
-    dy = model%numerics%dns
+    dx = model%grid%dew
+    dy = model%grid%dns
 
-    thklim = model%numerics%thklim
+    thklim = model%numerics%thcklim
     eus    = model%climate%eus
     btrc_const = model%paramets%btrc_const
     whichbtrc = model%options%whichbtrc
     whichgradient_margin = model%options%which_ho_gradient_margin
 
-    sigma    => model%numerics%sigma(:)
+    sigma    => model%grid%sigma(:)
     thck     => model%geometry%thck(:,:)
     usrf     => model%geometry%usrf(:,:)
     topg     => model%geometry%topg(:,:)
@@ -217,10 +217,10 @@
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     if (verbose_sia .and. this_rank==rtest) then

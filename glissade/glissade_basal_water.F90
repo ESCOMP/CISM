@@ -68,7 +68,7 @@ module glissade_basal_water
     case(BWAT_METHOD_CONSTANT)
 
        ! Set a constant water thickness where ice is present
-       where (model%geometry%thck > model%numerics%thklim)
+       where (model%geometry%thck > model%numerics%thcklim)
           model%basal_hydro%bwat(:,:) = model%basal_hydro%const_bwat
        elsewhere
           model%basal_hydro%bwat(:,:) = 0.0d0
@@ -221,7 +221,7 @@ module glissade_basal_water
 
     real(dp), intent(in) ::  &
          thklim                     ! minimum ice thickness for basal melt and hydropotential calculations (m)
-                                    ! Note: This is typically model%geometry%thklim_temp
+                                    ! Note: This is typically model%numerics%thcklim_temp
 
     ! Note: These scales ensure a smooth transition in behavior between frozen and thawed beds.
     !       Both scales are computed in a similar way, but they apply to different parts of the algorithm.

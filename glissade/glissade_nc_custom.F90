@@ -128,22 +128,22 @@ contains
 
        status = parallel_inq_varid(NCO%id,'x0',varid)
        status = parallel_put_var(NCO%id, varid, &
-            (/ ((real(i,dp)-0.5d0)*model%numerics%dew, i = 1, model%parallel%global_ewn-1) /))
+            (/ ((real(i,dp)-0.5d0)*model%grid%dew, i = 1, model%parallel%global_ewn-1) /))
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        status = parallel_inq_varid(NCO%id,'y0',varid)
        status = parallel_put_var(NCO%id, varid, &
-            (/ ((real(i,dp)-0.5d0)*model%numerics%dns, i = 1, model%parallel%global_nsn-1) /))
+            (/ ((real(i,dp)-0.5d0)*model%grid%dns, i = 1, model%parallel%global_nsn-1) /))
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        status = parallel_inq_varid(NCO%id,'x1',varid)
        status = parallel_put_var(NCO%id, varid, &
-            (/ ((real(i,dp)-1.0d0)*model%numerics%dew, i = 1, model%parallel%global_ewn) /))
+            (/ ((real(i,dp)-1.0d0)*model%grid%dew, i = 1, model%parallel%global_ewn) /))
        call nc_errorhandle(__FILE__,__LINE__,status)
 
        status = parallel_inq_varid(NCO%id,'y1',varid)
        status = parallel_put_var(NCO%id, varid, &
-            (/ ((real(i,dp)-1.0d0)*model%numerics%dns, i = 1, model%parallel%global_nsn) /))
+            (/ ((real(i,dp)-1.0d0)*model%grid%dns, i = 1, model%parallel%global_nsn) /))
        call nc_errorhandle(__FILE__,__LINE__,status)
 
     end if   ! associated(model%funits%in_first)
@@ -151,20 +151,20 @@ contains
     ! layer interfaces
 
     status = parallel_inq_varid(NCO%id,'level',varid)
-    status = parallel_put_var(NCO%id,varid,model%numerics%sigma)
+    status = parallel_put_var(NCO%id,varid,model%grid%sigma)
     call nc_errorhandle(__FILE__,__LINE__,status)
 
     ! layer midpoints
 
     status = parallel_inq_varid(NCO%id,'staglevel',varid)
-    status = parallel_put_var(NCO%id,varid,model%numerics%stagsigma)
+    status = parallel_put_var(NCO%id,varid,model%grid%stagsigma)
     call nc_errorhandle(__FILE__,__LINE__,status)
 
     ! layer midpoints, plus upper and lower surfaces
     ! (e.g., temperature field in HO dycore)
 
     status = parallel_inq_varid(NCO%id,'stagwbndlevel',varid)
-    status = parallel_put_var(NCO%id,varid,model%numerics%stagwbndsigma)
+    status = parallel_put_var(NCO%id,varid,model%grid%stagwbndsigma)
     call nc_errorhandle(__FILE__,__LINE__,status)
 
     ! ocean level dimension (used for ocean data input)

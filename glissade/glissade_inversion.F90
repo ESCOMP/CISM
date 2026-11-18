@@ -98,10 +98,10 @@ contains
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     !----------------------------------------------------------------------
@@ -130,7 +130,7 @@ contains
             model%climate%eus,        &
             thck_obs)
 
-       if (model%options%is_restart == NO_RESTART) then
+       if (model%options%restart == NO_RESTART) then
 
           ! At the start of the run, adjust thck_obs so that the observational target is not too close to thck_flotation.
           ! The reason for this is that if we restore H to values very close to thck_flotation,
@@ -180,7 +180,7 @@ contains
              enddo
           enddo
 
-          model%inversion%thck_threshold = max(model%inversion%thck_threshold, model%numerics%thklim)
+          model%inversion%thck_threshold = max(model%inversion%thck_threshold, model%numerics%thcklim)
           where (thck_obs + eps08 <= model%inversion%thck_threshold)
              thck_obs = 0.0d0
           endwhere
@@ -217,13 +217,13 @@ contains
 
     ! Set masks that are used below
     ! Modify glissade_get_masks so that 'parallel' is not needed
-    call glissade_get_masks(ewn,                 nsn,                   &
-                            parallel,                                   &
-                            model%geometry%thck, model%geometry%topg,   &
-                            model%climate%eus,   model%numerics%thklim, &
-                            ice_mask,                                   &
-                            floating_mask = floating_mask,              &
-                            ocean_mask = ocean_mask,                    &
+    call glissade_get_masks(ewn,                 nsn,                    &
+                            parallel,                                    &
+                            model%geometry%thck, model%geometry%topg,    &
+                            model%climate%eus,   model%numerics%thcklim, &
+                            ice_mask,                                    &
+                            floating_mask = floating_mask,               &
+                            ocean_mask = ocean_mask,                     &
                             land_mask = land_mask)
 
     !----------------------------------------------------------------------
@@ -268,7 +268,7 @@ contains
     if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
         model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN) then
 
-       if (model%options%is_restart == NO_RESTART) then
+       if (model%options%restart == NO_RESTART) then
 
           ! Set thickness targets for grounded ice.
           ! The inversion will nudge the basin-mean ice thickness toward the target mean.
@@ -305,7 +305,7 @@ contains
 
     if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
 
-       if (model%options%is_restart == NO_RESTART) then
+       if (model%options%restart == NO_RESTART) then
 
           ! Set floating_thck_target for floating ice and lightly grounded ice.
           ! Here, "lightly grounded" means that the magnitude of f_flotation = (-topg - eus) - (rhoi/rhoo)*thck
@@ -400,10 +400,10 @@ contains
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     parallel = model%parallel
@@ -411,13 +411,13 @@ contains
     ewn = model%grid%ewn
     nsn = model%grid%nsn
 
-    call glissade_get_masks(ewn,                 nsn,                   &
-                            parallel,                                   &
-                            model%geometry%thck, model%geometry%topg,   &
-                            model%climate%eus,   model%numerics%thklim, &
-                            ice_mask,                                   &
-                            floating_mask = floating_mask,              &
-                            ocean_mask = ocean_mask,                    &
+    call glissade_get_masks(ewn,                 nsn,                    &
+                            parallel,                                    &
+                            model%geometry%thck, model%geometry%topg,    &
+                            model%climate%eus,   model%numerics%thcklim, &
+                            ice_mask,                                    &
+                            floating_mask = floating_mask,               &
+                            ocean_mask = ocean_mask,                     &
                             land_mask = land_mask)
 
     ! If inverting for Cp = powerlaw_c or Cc = coulomb_c, then update it here.
@@ -462,10 +462,10 @@ contains
           endif
 
           call invert_basal_friction(&
-               model%numerics%dt,                        &  ! s
+               model%time%dt,                            &  ! s
                ewn,               nsn,                   &
-               model%numerics%dew,                       &  ! m
-               model%numerics%dns,                       &  ! m
+               model%grid%dew,                           &  ! m
+               model%grid%dns,                           &  ! m
                itest,    jtest,   rtest,                 &
                model%inversion%babc_thck_scale,          &  ! m
                model%inversion%babc_timescale,           &  ! s
@@ -498,10 +498,10 @@ contains
           endif
 
           call invert_basal_friction(&
-               model%numerics%dt,                        &  ! s
+               model%time%dt,                            &  ! s
                ewn,               nsn,                   &
-               model%numerics%dew,                       &  ! m
-               model%numerics%dns,                       &  ! m
+               model%grid%dew,                           &  ! m
+               model%grid%dns,                           &  ! m
                itest,    jtest,   rtest,                 &
                model%inversion%babc_thck_scale,          &  ! m
                model%inversion%babc_timescale,           &  ! s
@@ -591,10 +591,10 @@ contains
           endif
 
           call invert_basal_friction_basin(&
-               model%numerics%dt,                         &  ! s
+               model%time%dt,                             &  ! s
                ewn, nsn,                                  &
-               model%numerics%dew,                        &  ! m
-               model%numerics%dns,                        &  ! m
+               model%grid%dew,                            &  ! m
+               model%grid%dns,                            &  ! m
                parallel,                                  &
                itest, jtest, rtest,                       &
                model%ocean_data%nbasin,                   &
@@ -626,10 +626,10 @@ contains
           endif
 
           call invert_basal_friction_basin(&
-               model%numerics%dt,                         &  ! s
+               model%time%dt,                             &  ! s
                ewn, nsn,                                  &
-               model%numerics%dew,                        &  ! m
-               model%numerics%dns,                        &  ! m
+               model%grid%dew,                            &  ! m
+               model%grid%dns,                            &  ! m
                parallel,                                  &
                itest, jtest, rtest,                       &
                model%ocean_data%nbasin,                   &
@@ -692,10 +692,10 @@ contains
        endif
 
        call invert_deltaT_ocn_basin(&
-            model%numerics%dt,                         &  ! s
+            model%time%dt,                             &  ! s
             ewn, nsn,                                  &
-            model%numerics%dew,                        &  ! m
-            model%numerics%dns,                        &  ! m
+            model%grid%dew,                            &  ! m
+            model%grid%dns,                            &  ! m
             parallel,                                  &
             itest, jtest, rtest,                       &
             model%ocean_data%nbasin,                   &
@@ -758,10 +758,10 @@ contains
        endif
 
        call invert_deltaT_ocn(&
-            model%numerics%dt,                     &  ! s
+            model%time%dt,                         &  ! s
             ewn,           nsn,                    &
-            model%numerics%dew,                    &  ! m
-            model%numerics%dns,                    &  ! m
+            model%grid%dew,                        &  ! m
+            model%grid%dns,                        &  ! m
             itest, jtest,  rtest,                  &
             model%inversion%deltaT_ocn_thck_scale, &  ! m
             model%inversion%deltaT_ocn_timescale,  &  ! s

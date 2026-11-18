@@ -106,10 +106,10 @@ contains
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
        itest_m3 = max(itest-3, 1)
        itest_p3 = min(itest+3, nx)
        jtest_m3 = max(jtest-3, 1)
@@ -208,10 +208,10 @@ contains
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     ! compute the initial surface elevation
@@ -919,10 +919,10 @@ contains
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     parallel = model%parallel
@@ -930,10 +930,10 @@ contains
     call parallel_halo(model%geometry%thck, parallel)
 
     call glissade_get_masks(&
-         nx,                  ny,                    &
-         parallel,                                   &
-         model%geometry%thck, model%geometry%topg,   &
-         model%climate%eus,   model%numerics%thklim, &
+         nx,                  ny,                     &
+         parallel,                                    &
+         model%geometry%thck, model%geometry%topg,    &
+         model%climate%eus,   model%numerics%thcklim, &
          ice_mask)
 
     call glissade_ice_sheet_mask(&

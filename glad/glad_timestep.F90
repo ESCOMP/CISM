@@ -228,8 +228,8 @@ contains
 
           ! This will work only for single-processor runs
           if (GLC_DEBUG .and. tasks==1) then
-             il = instance%model%numerics%idiag
-             jl = instance%model%numerics%jdiag
+             il = instance%model%diagnostics%idiag
+             jl = instance%model%diagnostics%jdiag
              write (iulog,*) ' '
              write (iulog,*) 'After glissade_set_acab, glissade_set_artm, glissade_set_thermal_forcing: i, j =', il, jl
              write (iulog,*) 'acab (m/y), artm (C), thermal_forcing (K) =', &
@@ -242,7 +242,7 @@ contains
              instance%acab = -thck_temp
           end where
 
-          instance%glissade_time = instance%glissade_time + instance%model%numerics%tinc
+          instance%glissade_time = instance%glissade_time + instance%model%time%tinc
 
           ! call the dynamic ice sheet model (provided the ice is allowed to evolve)
 
@@ -258,7 +258,7 @@ contains
              ! needed so that CESM's exact restart tests pass, since tstep_count is
              ! written to CISM's history files.
              !TODO - Always increment tstep_count outside the dycore?
-             instance%model%numerics%tstep_count = instance%model%numerics%tstep_count + 1
+             instance%model%time%tstep_count = instance%model%time%tstep_count + 1
 
              ! Given acab, compute the surface mass balance in units of mm/yr w.e.
              ! Note: model%climate%acab has units of m/s of ice; multiply by scyr to convert to m/yr of ice.
@@ -269,11 +269,11 @@ contains
 
           endif  ! evolve_ice
 
-          ! write ice sheet diagnostics at specified interval (model%numerics%dt_diag)
+          ! write ice sheet diagnostics at specified interval (model%diagnostics%dt_diag)
 
           call glissade_write_diagnostics(instance%model,                  &
-                                       instance%model%numerics%time,    &
-                                       tstep_count = instance%model%numerics%tstep_count)
+                                       instance%model%time%time,    &
+                                       tstep_count = instance%model%time%tstep_count)
 
           ! write netCDF output
 

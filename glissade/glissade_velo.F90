@@ -69,10 +69,10 @@ contains
       rtest = -999
       itest = 1
       jtest = 1
-      if (this_rank == model%numerics%rdiag_local) then
-         rtest = model%numerics%rdiag_local
-         itest = model%numerics%idiag_local
-         jtest = model%numerics%jdiag_local
+      if (this_rank == model%diagnostics%rdiag_local) then
+         rtest = model%diagnostics%rdiag_local
+         itest = model%diagnostics%idiag_local
+         jtest = model%diagnostics%jdiag_local
       endif
 
       !-------------------------------------------------------------------
@@ -187,7 +187,7 @@ contains
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     subroutine glissade_wvelintg(uvel,  vvel,      &
-                                 geomderv, numerics, &
+                                 geomderv, grid, numerics, &
                                  wgrd,  thck,  stagthck, &
                                  bmlt,  wvel)
 
@@ -201,7 +201,7 @@ contains
       ! Adapted from subroutine wvelintg in glide_velo.F90.
 
       use glimmer_global, only: dp
-      use glissade_types, only: glissade_geomderv_type, glissade_numerics_type
+      use glissade_types, only: glissade_geomderv_type, glissade_grid_type, glissade_numerics_type
 
       real(dp), dimension(:,:,:), intent(in) :: &
            uvel, vvel                ! horizontal velocity components on the staggered grid
@@ -209,8 +209,11 @@ contains
       type(glissade_geomderv_type), intent(in) :: &
            geomderv                  ! horizontal derivatives of thickness and upper surface
 
+      type(glissade_grid_type), intent(in) :: &
+           grid                      ! grid parameters, including sigma values
+
       type(glissade_numerics_type), intent(in) :: &
-           numerics                  ! numerical parameters, including sigma values
+           numerics                  ! numerical parameters
 
       real(dp), dimension(:,:), intent(in) :: &
            wgrd,                   & ! grid vertical velocity at the lowest model level
@@ -235,15 +238,15 @@ contains
 
       upn = size(uvel,1) ; ewn = size(uvel,2) ; nsn = size(uvel,3)
 
-      dupsw  = (/ (numerics%sigma(up+1) - numerics%sigma(up), up=1,upn-1), 0.0d0 /)
-      depthw = (/ ((numerics%sigma(up+1) + numerics%sigma(up)) / 2.0d0, up=1,upn-1), 0.0d0 /)
+      dupsw  = (/ (grid%sigma(up+1) - grid%sigma(up), up=1,upn-1), 0.0d0 /)
+      depthw = (/ ((grid%sigma(up+1) + grid%sigma(up)) / 2.0d0, up=1,upn-1), 0.0d0 /)
 
-      dew16 = 1.d0/(16.0d0 * numerics%dew)
-      dns16 = 1.d0/(16.0d0 * numerics%dns)
+      dew16 = 1.d0/(16.0d0 * grid%dew)
+      dns16 = 1.d0/(16.0d0 * grid%dns)
 
       do ns = 2, nsn
          do ew = 2, ewn
-            if (thck(ew,ns) > numerics%thklim) then
+            if (thck(ew,ns) > numerics%thcklim) then
 
                ! bottom boundary condition
                wvel(upn,ew,ns) = wgrd(ew,ns) - bmlt(ew,ns)

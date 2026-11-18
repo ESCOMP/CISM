@@ -128,7 +128,7 @@
                'Setting artm_anomaly = constant value (degC):', model%climate%artm_anomaly_const
           call write_log(trim(message))
        else
-          if (model%options%is_restart == NO_RESTART) then
+          if (model%options%restart == NO_RESTART) then
              call write_log('Setting artm_anomaly from external file')
           endif
        endif
@@ -142,7 +142,7 @@
     ! Note: This option is designed for standalone runs, and should be used with caution for coupled runs.
     !       On restart, overwrite_acab_mask is read from the restart file.
     
-    if (model%climate%overwrite_acab_value /= 0 .and. model%options%is_restart == NO_RESTART) then
+    if (model%climate%overwrite_acab_value /= 0 .and. model%options%restart == NO_RESTART) then
 
        call set_overwrite_acab_mask(&
             model%options%overwrite_acab,          &
@@ -193,10 +193,10 @@
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     ewn = model%grid%ewn
@@ -248,7 +248,7 @@
             model%climate%artm_anomaly,            &   ! degC
             model%climate%artm_anomaly_tstart,     &   ! yr
             model%climate%artm_anomaly_timescale,  &   ! yr
-            model%numerics%time)                       ! yr
+            model%time%time)                       ! yr
 
     endif
 
@@ -266,7 +266,7 @@
             model%climate%snow_anomaly,            &   ! mm/yr w.e.
             model%climate%artm_anomaly_tstart,     &   ! yr
             model%climate%artm_anomaly_timescale,  &   ! yr
-            model%numerics%time)                       ! yr
+            model%time%time)                       ! yr
 
     endif
 
@@ -279,7 +279,7 @@
             model%climate%precip_anomaly,          &   ! mm/yr w.e.
             model%climate%artm_anomaly_tstart,     &   ! yr
             model%climate%artm_anomaly_timescale,  &   ! yr
-            model%numerics%time)                       ! yr
+            model%time%time)                       ! yr
 
     endif
 
@@ -288,7 +288,7 @@
           i = itest
           j = jtest
           write(iulog,*) 'rank, i, j, time, anomaly timescale (yr):', &
-               this_rank, i, j, model%numerics%time, model%climate%artm_anomaly_timescale
+               this_rank, i, j, model%time%time, model%climate%artm_anomaly_timescale
           write(iulog,*) '   artm, artm anomaly, corrected artm (deg C):', model%climate%artm(i,j), &
                model%climate%artm_anomaly(i,j), model%climate%artm_corrected(i,j)
           if (model%options%enable_snow_anomaly) then
@@ -350,13 +350,13 @@
             model%climate%smb_anomaly,             &   ! mm/yr w.e.
             model%climate%smb_anomaly_tstart,      &   ! yr
             model%climate%smb_anomaly_timescale,   &   ! yr
-            model%numerics%time)                       ! yr
+            model%time%time)                       ! yr
 
        if (verbose_smb .and. this_rank==rtest) then
           i = itest
           j = jtest
           write(iulog,*) 'i, j, time, input smb, smb anomaly, corrected smb (mm/yr):', &
-               i, j, model%numerics%time, model%climate%smb(i,j), model%climate%smb_anomaly(i,j), model%climate%smb_corrected(i,j)
+               i, j, model%time%time, model%climate%smb(i,j), model%climate%smb_anomaly(i,j), model%climate%smb_corrected(i,j)
        endif
 
     endif
@@ -398,10 +398,10 @@
        call parallel_halo(model%geometry%thck, parallel)
 
        call glissade_get_masks(&
-            ewn,                 nsn,     &
-            parallel,                                   &
-            model%geometry%thck, model%geometry%topg,   &
-            model%climate%eus,   model%numerics%thklim, &
+            ewn,                 nsn,                    &
+            parallel,                                    &
+            model%geometry%thck, model%geometry%topg,    &
+            model%climate%eus,   model%numerics%thcklim, &
             ice_mask)
 
        call glissade_ice_sheet_mask(&
@@ -498,10 +498,10 @@
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     ewn = model%grid%ewn
@@ -644,10 +644,10 @@
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     ewn = model%grid%ewn
@@ -854,10 +854,10 @@
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     ewn = model%grid%ewn
@@ -943,10 +943,10 @@
     endif
 
     call mass_balance_driver(&
-         model%numerics%dt,                                    &  ! s
-         model%numerics%dew,       model%numerics%dns,     &  ! m
+         model%time%dt,                                    &  ! s
+         model%grid%dew,           model%grid%dns,         &  ! m
          ewn,         nsn,         upn-1,                  &
-         model%numerics%sigma,                             &
+         model%grid%sigma,                                 &
          parallel,                                         &
          itest,       jtest,       rtest,                  &
          model%geometry%thck(:,:),                         &  ! m
@@ -1765,7 +1765,7 @@
 !       anomaly_fraction = (time - anomaly_tstart) / anomaly_timescale
 !       anomaly_fraction = floor(time + eps08 - anomaly_tstart, dp) / anomaly_timescale
 
-       ! Subtract a small number from the time, given that model%numerics%time is the time
+       ! Subtract a small number from the time, given that model%time%time is the time
        ! at the end of the timestep, so e.g. the December time at the end of 1983 would be
        ! close to 1984.0, and we don't want to jump to the following year due to rounding error.
 

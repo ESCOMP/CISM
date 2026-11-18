@@ -397,12 +397,12 @@ module glissade_bmlt_float
     ewn = model%grid%ewn
     nsn = model%grid%nsn
 
-    dew = model%numerics%dew
-    dns = model%numerics%dns
+    dew = model%grid%dew
+    dns = model%grid%dns
 
-    rtest = model%numerics%rdiag_local
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
+    rtest = model%diagnostics%rdiag_local
+    itest = model%diagnostics%idiag_local
+    jtest = model%diagnostics%jdiag_local
 
     if (verbose_bmlt_float .and. main_task) then
        write(iulog,*) 'In glissade_bmlt_float_thermal_forcing_init'
@@ -441,7 +441,7 @@ module glissade_bmlt_float
 
     ! Note: Most of the following code is ignored on a standard restart but applied with a hybrid restart.
 
-    if (model%options%is_restart == NO_RESTART .or. model%options%is_restart == HYBRID_RESTART) then
+    if (model%options%restart == NO_RESTART .or. model%options%restart == HYBRID_RESTART) then
 
        !----------------------------------------------------------------------
        ! Optionally, prepare the ocean thermal forcing for extrapolation to ice shelf cavities.
@@ -811,13 +811,13 @@ module glissade_bmlt_float
     ewn = model%grid%ewn
     nsn = model%grid%nsn
 
-    dew = model%numerics%dew
-    dns = model%numerics%dns
+    dew = model%grid%dew
+    dns = model%grid%dns
 
     ! set debug diagnostics
-    rtest = model%numerics%rdiag_local
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
+    rtest = model%diagnostics%rdiag_local
+    itest = model%diagnostics%idiag_local
+    jtest = model%diagnostics%jdiag_local
 
     parallel = model%parallel
 
@@ -920,7 +920,7 @@ module glissade_bmlt_float
        !-----------------------------------------------
 
        if (model%ocean_data%thermal_forcing_anomaly /= 0.0d0) then
-          time_from_start = model%numerics%time - model%ocean_data%thermal_forcing_anomaly_tstart
+          time_from_start = model%time%time - model%ocean_data%thermal_forcing_anomaly_tstart
           if (time_from_start + eps08 > model%ocean_data%thermal_forcing_anomaly_timescale .or.  &
                model%ocean_data%thermal_forcing_anomaly_timescale == 0.0d0) then
              anomaly_fraction = 1.0d0   ! apply the full anomaly
@@ -1025,7 +1025,7 @@ module glissade_bmlt_float
             model%basal_melt%bmlt_float_anomaly,      &   !
             model%basal_melt%bmlt_anomaly_tstart,     &   ! yr
             model%basal_melt%bmlt_anomaly_timescale,  &   ! yr
-            model%numerics%time)                          ! yr
+            model%time%time)                          ! yr
 
     endif
 

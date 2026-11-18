@@ -105,7 +105,7 @@ contains
 
     ! Convert to kg/m^2/s
     output_fluxes%rofi_sum(:,:) = output_fluxes%rofi_sum(:,:)  &
-         + (model%calving%calving_thck(:,:) + model%geometry%removal_thck(:,:)) * rhoi / model%numerics%dt
+         + (model%calving%calving_thck(:,:) + model%geometry%removal_thck(:,:)) * rhoi / model%time%dt
 
     ! Add the positive SMB that was passed to the dycore but not applied.
     ! Note: model%climate%acab_unapplied has units of m/s ice; multiply by rhoi to convert to kg/m^2/s.
@@ -135,7 +135,7 @@ contains
 
     ! Convert to kg/m^2/s
     output_fluxes%rofl_sum(:,:) = output_fluxes%rofl_sum(:,:) + model%basal_melt%bmlt(:,:) * rhoi &
-         + model%lateral_melt%latmelt_thck(:,:) * rhoi / model%numerics%dt
+         + model%lateral_melt%latmelt_thck(:,:) * rhoi / model%time%dt
 
     !--------------------------------------------------------------------
     ! Accumulate basal heat flux

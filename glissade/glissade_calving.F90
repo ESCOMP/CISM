@@ -665,10 +665,10 @@ contains
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     parallel = model%parallel
@@ -700,7 +700,7 @@ contains
 
        if (verbose_retreat) then
           if (this_rank == rtest) then
-             write(iulog,*) 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
+             write(iulog,*) 'Forcing retreat using ice_fraction_retreat_mask, time =', model%time%time
           endif
           call point_diag(model%geometry%thck, 'Before forced retreat, thck (m)', itest, jtest, rtest, 7, 7)
           call point_diag(model%geometry%ice_fraction_retreat_mask, 'ice_fraction_retreat_mask', &
@@ -751,8 +751,8 @@ contains
                parallel,                          &
                model%calving,                     &        ! calving object; includes calving_thck (m)
                itest, jtest, rtest,               &
-               model%numerics%dt,                 &        ! s
-               model%numerics%thklim,             &        ! m
+               model%time%dt,                     &        ! s
+               model%numerics%thcklim,            &        ! m
                model%geometry%thck,               &        ! m
                model%isostasy%relx,               &        ! m
                model%geometry%topg,               &        ! m
@@ -775,14 +775,14 @@ contains
                model%lateral_melt,                &        ! lateral melt object; includes melt_thck (m)
                model%ocean_data,                  &        ! ocean data object, for lateral forcing
                itest, jtest, rtest,               &
-               model%numerics%dt,                 &        ! s
-               model%numerics%time*scyr,          &        ! s
-               model%numerics%dew,                &        ! m
-               model%numerics%dns,                &        ! m
+               model%time%dt,                     &        ! s
+               model%time%time*scyr,              &        ! s
+               model%grid%dew,                    &        ! m
+               model%grid%dns,                    &        ! m
                model%grid%x1,                     &        ! m
                model%grid%y1,                     &        ! m
-               model%numerics%sigma,              &
-               model%numerics%thklim,             &        ! m
+               model%grid%sigma,                  &
+               model%numerics%thcklim,            &        ! m
                model%velocity%uvel_2d,            &        ! m/s
                model%velocity%vvel_2d,            &        ! m/s
                model%geometry%thck_old,           &        ! m
@@ -826,7 +826,7 @@ contains
             nx,                     ny,                         &
             parallel,                                           &
             model%geometry%thck,    model%geometry%topg,        &
-            model%climate%eus,      model%numerics%thklim,      &
+            model%climate%eus,      model%numerics%thcklim,     &
             ice_mask,                                           &
             floating_mask = floating_mask,                      &
             ocean_mask = ocean_mask,                            &
@@ -880,7 +880,7 @@ contains
             nx,                     ny,                            &
             parallel,                                              &
             model%geometry%thck,    model%geometry%topg,           &
-            model%climate%eus,      model%numerics%thklim,         &
+            model%climate%eus,      model%numerics%thcklim,        &
             ice_mask,               floating_mask = floating_mask, &
             land_mask = land_mask,  ocean_mask = ocean_mask)
 
@@ -930,13 +930,13 @@ contains
             nx,             ny,            &
             parallel,                      &
             itest,  jtest,  rtest,         &
-            model%numerics%dt,             &     ! s
+            model%time%dt,                 &     ! s
             model%calving%taumax_cliff,    &     ! Pa
             model%calving%cliff_timescale, &     ! s
             model%geometry%thck,           &     ! m
             model%geometry%topg,           &     ! m
             model%climate%eus,             &     ! m
-            model%numerics%thklim,         &     ! m
+            model%numerics%thcklim,        &     ! m
             model%calving%calving_thck)          ! m
 
     endif
@@ -3596,10 +3596,10 @@ contains
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     parallel = model%parallel
@@ -3630,7 +3630,7 @@ contains
             nx,                     ny,                         &
             parallel,                                           &
             model%geometry%thck,    model%geometry%topg,        &
-            model%climate%eus,      model%numerics%thklim,      &
+            model%climate%eus,      model%numerics%thcklim,     &
             ice_mask,                                           &
             floating_mask = floating_mask,                      &
             ocean_mask = ocean_mask,                            &
@@ -3738,7 +3738,7 @@ contains
           do j = 1, ny
              do i = 1, nx
                 if (floating_mask(i,j) == 1 .and. model%calving%calving_mask(i,j) == 1) then
-                   dthck = model%numerics%dt  &
+                   dthck = model%time%dt  &
                         * max(model%geometry%thck(i,j), model%calving%minthck) / model%calving%timescale
                    if (model%geometry%thck(i,j) > dthck) then
                       model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + dthck
@@ -3754,7 +3754,7 @@ contains
           if (verbose_calving .and. this_rank==rtest) then
              write(iulog,*) ' '
              write(iulog,*) 'Relaxed calving, timescale (yr) =', model%calving%timescale/scyr
-             write(iulog,*) 'dt (yr) =', model%numerics%dt/scyr
+             write(iulog,*) 'dt (yr) =', model%time%dt/scyr
              write(iulog,*) 'calving_thck_threshold (m) =', model%calving%minthck
           endif
 
@@ -3858,8 +3858,8 @@ contains
                ocean_mask,    land_mask,             &
                model%calving%calving_front_mask,     &
                model%calving%dthck_dx_cf,            &
-               model%numerics%dew,                   &
-               model%numerics%dns,                   &
+               model%grid%dew,                       &
+               model%grid%dns,                       &
                model%calving%thck_effective,         &
                model%calving%thck_effective_min,     &
                partial_cf_mask,                      &

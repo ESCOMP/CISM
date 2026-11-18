@@ -78,7 +78,7 @@ module glissade_therm
 
 !****************************************************    
 
-  subroutine glissade_init_therm (temp_init,  is_restart,        &
+  subroutine glissade_init_therm (temp_init,  restart,           &
                                   ewn,        nsn,        upn,   &
                                   itest,      jtest,      rtest, &
                                   sigma,      stagsigma,         &
@@ -99,7 +99,7 @@ module glissade_therm
 
     integer, intent(in) :: &
          temp_init,       &! method for initializing the temperature
-         is_restart        ! = 1 if restarting, else = 0
+         restart           ! restart option (NO_RESTART, STANDARD_RESTART or HYBRID_RESTART)
 
     integer, intent(in) :: &
          ewn, nsn, upn,      & ! grid dimensions
@@ -157,7 +157,7 @@ module glissade_therm
     ! advective_diffusive may be optimal for reducing spinup time in the interior of large ice sheets.
     ! file requires that temperature is present in the input file.
 
-    if (is_restart == STANDARD_RESTART .or. is_restart == HYBRID_RESTART) then
+    if (restart == STANDARD_RESTART .or. restart == HYBRID_RESTART) then
 
        ! Temperature has already been initialized from a restart file.
        ! (Temperature is always a restart variable.)

@@ -1731,13 +1731,13 @@ load:         1
 dimensions:    time
 units:         years
 long_name:     advective CFL maximum time step
-data:          data%numerics%adv_cfl_dt
+data:          data%time%adv_cfl_dt
 
 [diff_cfl_dt]
 dimensions:    time
 units:         years
 long_name:     diffusive CFL maximum time step
-data:          data%numerics%diff_cfl_dt
+data:          data%time%diff_cfl_dt
 
 [rgi_glacier_id]
 dimensions:    time, y1, x1

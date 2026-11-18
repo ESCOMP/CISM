@@ -90,17 +90,17 @@ contains
 
     nx = model%grid%ewn
     ny = model%grid%nsn
-    dx = model%numerics%dew
-    dy = model%numerics%dns
-    dt = model%numerics%dt
+    dx = model%grid%dew
+    dy = model%grid%dns
+    dt = model%time%dt
 
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     parallel = model%parallel

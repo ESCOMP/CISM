@@ -116,9 +116,6 @@ module glissade_types
        option_choice(STANDARD_RESTART, 'standard', 'standard restart'), &
        option_choice(HYBRID_RESTART,   'hybrid',   'hybrid restart (model time is reset)') ]
 
-  ! [options] restart_extend_velo: a logical in the config file
-  integer, parameter :: RESTART_EXTEND_VELO_FALSE = 0
-  integer, parameter :: RESTART_EXTEND_VELO_TRUE = 1
 
   ! [numerics] compute_blocks
   integer, parameter :: COMPUTE_BLOCKS_ALL = 0          ! compute on all blocks in the global domain
@@ -748,6 +745,31 @@ module glissade_types
     integer :: nx_block = 0      ! user-specified block sizes
     integer :: ny_block = 0      ! one task per block; optionally, tasks not assigned to inactive blocks
 
+    real(dp) :: dew = 20.d3      !> grid cell size in east-west direction (m)
+    real(dp) :: dns = 20.d3      !> grid cell size in north-south direction (m)
+
+    !TODO - Change default to true? Would then specify as false for idealized runs
+    logical :: read_lat_lon = .false.
+    !> if true, then read lat and lon fields from the input file and write to restarts
+
+    ! Vertical coordinate ---------------------------------------------------
+
+    integer :: sigma_method = SIGMA_METHOD_GLIDE
+    !> \begin{description}
+    !> \item[glide] compute standard Glimmer sigma coordinates
+    !> \item[file] sigma coordinates are given in external file
+    !> \item[config] sigma coordinates are given in configuration file
+    !> \item[uniform] evenly spaced levels
+    !> \item[pattyn] compute Pattyn sigma coordinates
+    !> \end{description}
+
+    character(len=fname_length) :: sigma_file = ''           !> file with sigma levels (sigma_method = file)
+
+    real(dp),dimension(:),pointer :: sigma => null() !> Sigma values for vertical spacing of
+                                                     !> model levels
+    real(dp),dimension(:),pointer :: stagsigma => null()     !> Staggered values of sigma (layer midpts)
+    real(dp),dimension(:),pointer :: stagwbndsigma => null() !> Staggered values of sigma (layer midpts) with boundaries
+
   end type glissade_grid_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -760,7 +782,7 @@ module glissade_types
     ! standard options
     !-----------------------------------------------------------------------
 
-    integer :: whichdycore = DYCORE_GLISSADE
+    integer :: dycore = DYCORE_GLISSADE
 
     !> Dycore (must be glissade):
     !> \begin{description} 
@@ -1013,49 +1035,10 @@ module glissade_types
     !> if true, then flwa increases as damage increases
     !> This can be a strong positive feedback on damage
 
-    logical :: adjust_input_thickness = .false.
-    !> if true, then adjust thck to maintain usrf, instead of deriving usrf from topg and thck
-
-    logical :: smooth_input_usrf = .false.
-    !> if true, then apply Laplacian smoothing to usrf at initialization
-
-    !TODO - Change default to true? Would then specify as false for idealized runs
-    logical :: read_lat_lon = .false.
-    !> if true, then read lat and lon fields from the input file and write to restarts
-
-    integer :: dt_input_option = DT_INPUT_OPTION_DT
-    !> \begin{description}
-    !> \item[dt] Input dt in years
-    !> \item[nsteps_per_year] Input dt in steps per year
-    !> \end{description}
-
-    integer :: dm_dt_diag = DM_DT_DIAG_KG_PER_S
-    !> \begin{description}
-    !> \item[kg_per_s] Write dmass/dt diagnostic in units of kg/s
-    !> \item[gt_per_yr] Write dmass/dt diagnostic in units of Gt/yr
-    !> \end{description}
-
-    integer :: diag_minthck = DIAG_ICE_THRESHOLD_THCKLIM
-    !> \begin{description}
-    !> \item[zero] Include cells with H > 0 in global diagnostics
-    !> \item[thcklim] Include cells with H > thklim in global diagnostics
-    !> \end{description}
-
-    integer :: which_sigma = SIGMA_METHOD_GLIDE
-
-    !> \begin{description}
-    !> \item[glide] compute standard Glimmer sigma coordinates
-    !> \item[file] sigma coordinates are given in external file
-    !> \item[config] sigma coordinates are given in configuration file
-    !> \item[uniform] evenly spaced levels
-    !> \item[pattyn] compute Pattyn sigma coordinates
-    !> \end{description}
-
     logical :: forcewrite_final = .false.
     !> if true, then force a write to output and restart files when the model finishes
 
-    !WHL TODO - Change 'is_restart' to 'restart' during the config reorg
-    integer :: is_restart = NO_RESTART
+    integer :: restart = NO_RESTART
     !> if the run is a restart of a previous run
     !> \begin{description}
     !> \item[none] normal start-up (take init fields from .nc input file OR if absent, use default options)
@@ -1063,24 +1046,14 @@ module glissade_types
     !> \item[hybrid] hybrid restart; use restart from previous run as the input file, and reset the time
     !> \end{description}
 
-    integer :: restart_extend_velo = RESTART_EXTEND_VELO_FALSE
-    !> if velocity fields should be written on the extended staggered mesh
-    !> \begin{description}
-    !> \item[.false.] write uvel and vvel to restart file on standard staggered mesh
-    !> \item[.true.] write uvel_extend and vvel_extend to restart file on extended staggered mesh
-    !>          (required if restart velocities are nonzero on global boundaries)
-    !> \end{description}
+    logical :: restart_extend_velo = .false.
+    !> if true, write uvel_extend and vvel_extend to the restart file on the extended staggered mesh
+    !> (required if restart velocities are nonzero on global boundaries);
+    !> if false, write uvel and vvel on the standard staggered mesh
 
     !-----------------------------------------------------------------------
     ! Higher-order options associated with the glissade dycore
     !-----------------------------------------------------------------------
-
-    integer :: compute_blocks = COMPUTE_BLOCKS_ALL
-    !> \begin{description}
-    !> \item[all] Compute on all blocks in the global domain; one task per block
-    !> \item[active_only] Compute on active blocks only; one task per active block, no task for some or all inactive blocks
-    !> \item[inquire] Inquire how many active blocks there are, in prep for resubmitting with active_only
-    !> \end{description}
 
     integer :: which_ho_efvs = EFVS_METHOD_NONLINEAR
 
@@ -1384,10 +1357,6 @@ module glissade_types
 
     real(dp) :: linear_tolerance = 1.0d-08
     !> error tolerance for linear solver
-
-    logical :: reproducible_sums = .false.
-    !> if true, then compute reproducible global sums
-    !> (independent of the number of tasks)
 
   end type glissade_options_type
 
@@ -2171,7 +2140,7 @@ module glissade_types
      !> if true, then thin and redistribute advanced ice in the accumulation zone
 
      ! parameters
-     ! Note: glacier%minthck is currently set at initialization based on model%numerics%thklim.
+     ! Note: glacier%minthck is currently set at initialization based on model%numerics%thcklim.
      !       glacier%diagnostic_minthck is used only for diagnostic area and volume sums;
      !        it does not enter the inversion or dynamics.
      !       Other glacier parameters are declared at the top of module glissade_glacier.
@@ -2184,7 +2153,7 @@ module glissade_types
 
      real(dp) :: &
           minthck                             !> min ice thickness (m) to be counted as part of a glacier;
-                                              !> currently set based on model%numerics%thklim
+                                              !> currently set based on model%numerics%thcklim
 
      real(dp) :: &
           tmlt = -1.d0                        !> spatially uniform temperature threshold for melting (deg C)
@@ -2573,32 +2542,37 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  type glissade_numerics_type
+  type glissade_time_type
 
-    !> Parameters relating to the model numerics
+    !> [time] keys and the time-stepping state
     real(dp) :: tstart =     0.d0 !> starting time
                                   !> Note: For restarts, tstart is set to the time the restart begins
     real(dp) :: tend   =  1000.d0 !> end time
     real(dp) :: time   =     0.d0 !> main loop counter in years
-    real(dp) :: tinc   =     1.d0 !> time step of main loop in years 
-    real(dp) :: thklim =   100.d0 !> min thickness for computing ice dynamics (m) 
-    real(dp) :: thklim_temp = 1.d0    !> min thickness for computing vertical temperature (m) (higher-order only)
-    real(dp) :: thck_gradient_ramp = 0.d0 !> thickness scale over which gradients increase from zero to full value (HO only)
-    real(dp) :: dew    =    20.d3     !> grid cell size in east-west direction
-    real(dp) :: dns    =    20.d3     !> grid cell size in north-south direction
-    real(dp) :: dt     =     0.d0     !> ice dynamics timestep
-    integer  :: nsteps_per_year = 0   !> number of time steps per year (for dt_option = STEPS_PER_YEAR)
-    real(dp) :: periodic_offset_ew = 0.d0 !> optional periodic_offsets for ismip-hom and similar tests;
-    real(dp) :: periodic_offset_ns = 0.d0 !> may be needed to ensure continuous ice geometry at edges of the global domain
+    real(dp) :: tinc   =     1.d0 !> time step of main loop in years (key dt)
+    real(dp) :: dt     =     0.d0     !> ice dynamics timestep (s)
+    integer  :: nsteps_per_year = 0   !> number of time steps per year (for dt_input_option = nsteps_per_year)
     integer  :: tstep_count = 0   !> number of time steps since the start of the simulation
-    
-    ! Vertical coordinate ---------------------------------------------------
-                                                               
-    real(dp),dimension(:),pointer :: sigma => null() !> Sigma values for vertical spacing of 
-                                                     !> model levels
-    real(dp),dimension(:),pointer :: stagsigma => null()     !> Staggered values of sigma (layer midpts)
-    real(dp),dimension(:),pointer :: stagwbndsigma => null() !> Staggered values of sigma (layer midpts) with boundaries
 
+    integer :: dt_input_option = DT_INPUT_OPTION_DT
+    !> \begin{description}
+    !> \item[dt] Input dt in years
+    !> \item[nsteps_per_year] Input dt in steps per year
+    !> \end{description}
+
+    ! CFL diagnostics and adaptive subcycling
+    real(dp) :: adv_cfl_dt = 0.0d0  ! maximum allowable dt (yrs) based on advective CFL (calculated by model for each time step)
+    real(dp) :: diff_cfl_dt = 0.0d0 ! maximum allowable dt (yrs) based on diffusive CFL (calculated by model for each time step)
+    real(dp) :: adaptive_cfl_threshold = 0.0d0  ! adaptively subcycle the advection when advective CFL exceeds this value
+                                                ! (zero value means no adaptive subcycling)
+
+  end type glissade_time_type
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  type glissade_diagnostics_type
+
+    !> [diagnostics] keys and the local diagnostic point
     real(dp) :: dt_diag = 0.d0     ! diagnostic interval (write diagnostic output every dt_diag years)
                                    ! dt_diag = 0 => never write diagnostic output
     integer  :: ndiag = 0          ! diagnostic interval (write diagnostic output every ndiag timesteps)
@@ -2609,11 +2583,54 @@ module glissade_types
     integer  :: jdiag_local = 1
     integer  :: rdiag_local = 0    ! task number for diagnostic point
 
-    ! CFL diagnostics and adaptive subcycling
-    real(dp) :: adv_cfl_dt = 0.0d0  ! maximum allowable dt (yrs) based on advective CFL (calculated by model for each time step)
-    real(dp) :: diff_cfl_dt = 0.0d0 ! maximum allowable dt (yrs) based on diffusive CFL (calculated by model for each time step)
-    real(dp) :: adaptive_cfl_threshold = 0.0d0  ! adaptively subcycle the advection when advective CFL exceeds this value
-                                                ! (zero value means no adaptive subcycling)
+    integer :: dm_dt_diag = DM_DT_DIAG_KG_PER_S
+    !> \begin{description}
+    !> \item[kg_per_s] Write dmass/dt diagnostic in units of kg/s
+    !> \item[gt_per_yr] Write dmass/dt diagnostic in units of Gt/yr
+    !> \end{description}
+
+    integer :: diag_ice_threshold = DIAG_ICE_THRESHOLD_THCKLIM
+    !> \begin{description}
+    !> \item[zero] Include cells with H > 0 in global diagnostics
+    !> \item[thcklim] Include cells with H > thcklim in global diagnostics
+    !> \end{description}
+
+  end type glissade_diagnostics_type
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  type glissade_initialization_type
+
+    !> [initialization] keys
+    logical :: adjust_input_thickness = .false.
+    !> if true, then adjust thck to maintain usrf, instead of deriving usrf from topg and thck
+
+    logical :: smooth_input_usrf = .false.
+    !> if true, then apply Laplacian smoothing to usrf at initialization
+
+  end type glissade_initialization_type
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  type glissade_numerics_type
+
+    !> [numerics] keys
+    real(dp) :: thcklim =   100.d0 !> min thickness for computing ice dynamics (m) 
+    real(dp) :: thcklim_temp = 1.d0    !> min thickness for computing vertical temperature (m) (higher-order only)
+    real(dp) :: thck_gradient_ramp = 0.d0 !> thickness scale over which gradients increase from zero to full value (HO only)
+    real(dp) :: periodic_offset_ew = 0.d0 !> optional periodic_offsets for ismip-hom and similar tests;
+    real(dp) :: periodic_offset_ns = 0.d0 !> may be needed to ensure continuous ice geometry at edges of the global domain
+
+    integer :: compute_blocks = COMPUTE_BLOCKS_ALL
+    !> \begin{description}
+    !> \item[all] Compute on all blocks in the global domain; one task per block
+    !> \item[active_only] Compute on active blocks only; one task per active block, no task for some or all inactive blocks
+    !> \item[inquire] Inquire how many active blocks there are, in prep for resubmitting with active_only
+    !> \end{description}
+
+    logical :: reproducible_sums = .false.
+    !> if true, then compute reproducible global sums
+    !> (independent of the number of tasks)
 
   end type glissade_numerics_type
 
@@ -2666,6 +2683,9 @@ module glissade_types
     type(glissade_glaciers_type)  :: glaciers
     type(glissade_inversion_type):: inversion
     type(glimmer_funits) :: funits
+    type(glissade_time_type)     :: time
+    type(glissade_diagnostics_type) :: diagnostics
+    type(glissade_initialization_type) :: initialization
     type(glissade_numerics_type) :: numerics
     type(glissade_paramets_type) :: paramets
     type(glimmap_proj)   :: projection
@@ -2714,16 +2734,16 @@ contains
     ! vertical sigma coordinates
     ! If we already have sigma, don't reallocate
 
-    if (associated(model%numerics%sigma)) then
-       if (size(model%numerics%sigma) /= upn) then
+    if (associated(model%grid%sigma)) then
+       if (size(model%grid%sigma) /= upn) then
           call write_log('Wrong number of sigma levels given',GM_FATAL)
        end if
     else
-       allocate(model%numerics%sigma(upn))
+       allocate(model%grid%sigma(upn))
     endif
 
-    allocate(model%numerics%stagsigma(upn-1))
-    allocate(model%numerics%stagwbndsigma(0:upn))  !MJH added (0:upn) as separate variable
+    allocate(model%grid%stagsigma(upn-1))
+    allocate(model%grid%stagwbndsigma(0:upn))  !MJH added (0:upn) as separate variable
 
     ! latitude and longitude
     call coordsystem_allocate(model%grid%ice_grid, model%grid%lat)
@@ -3175,12 +3195,12 @@ contains
 
     ! vertical sigma coordinates
 
-    if (associated(model%numerics%sigma)) &
-        deallocate(model%numerics%sigma)
-    if (associated(model%numerics%stagsigma)) &
-        deallocate(model%numerics%stagsigma)
-    if (associated(model%numerics%stagwbndsigma)) &
-        deallocate(model%numerics%stagwbndsigma)
+    if (associated(model%grid%sigma)) &
+        deallocate(model%grid%sigma)
+    if (associated(model%grid%stagsigma)) &
+        deallocate(model%grid%stagsigma)
+    if (associated(model%grid%stagwbndsigma)) &
+        deallocate(model%grid%stagwbndsigma)
 
     ! temperature arrays
 
@@ -3752,7 +3772,7 @@ contains
     real(dp) :: get_dew
     type(glissade_global_type) :: model
 
-    get_dew = model%numerics%dew
+    get_dew = model%grid%dew
   end function get_dew
 
   function get_dns(model)
@@ -3761,7 +3781,7 @@ contains
     real(dp) :: get_dns
     type(glissade_global_type) :: model
 
-    get_dns = model%numerics%dns
+    get_dns = model%grid%dns
   end function get_dns
 
   function get_tstart(model)
@@ -3770,7 +3790,7 @@ contains
     real(dp) :: get_tstart
     type(glissade_global_type) :: model
     
-    get_tstart = model%numerics%tstart
+    get_tstart = model%time%tstart
   end function get_tstart
 
   function get_tend(model)
@@ -3779,7 +3799,7 @@ contains
     real(dp) :: get_tend
     type(glissade_global_type) :: model
     
-    get_tend = model%numerics%tend
+    get_tend = model%time%tend
   end function get_tend
 
   function get_tinc(model)
@@ -3788,7 +3808,7 @@ contains
     real(dp) :: get_tinc
     type(glissade_global_type) :: model
     
-    get_tinc = model%numerics%tinc
+    get_tinc = model%time%tinc
   end function get_tinc
 
   function get_ewn(model)
@@ -3834,7 +3854,7 @@ contains
     type(glissade_global_type) :: model
     real(dp) :: time
 
-    model%numerics%time = time
+    model%time%time = time
 
   end subroutine set_time
 

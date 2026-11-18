@@ -142,11 +142,11 @@ contains
     global_nsn = parallel%global_nsn
     ewn = model%grid%ewn
     nsn = model%grid%nsn
-    dew = model%numerics%dew
-    dns = model%numerics%dns
-    rtest = model%numerics%rdiag_local
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
+    dew = model%grid%dew
+    dns = model%grid%dns
+    rtest = model%diagnostics%rdiag_local
+    itest = model%diagnostics%idiag_local
+    jtest = model%diagnostics%jdiag_local
 
     if (verbose_glacier) then
        if (this_rank == rtest) write(iulog,*) 'In glissade_glacier_init'
@@ -164,10 +164,10 @@ contains
           model%grid%y0 = model%grid%y0 * glacier%length_scale_factor
           model%grid%x1 = model%grid%x1 * glacier%length_scale_factor
           model%grid%y1 = model%grid%y1 * glacier%length_scale_factor
-          model%numerics%dew = model%numerics%dew * glacier%length_scale_factor
-          model%numerics%dns = model%numerics%dns * glacier%length_scale_factor
-          dew = model%numerics%dew
-          dns = model%numerics%dns
+          model%grid%dew = model%grid%dew * glacier%length_scale_factor
+          model%grid%dns = model%grid%dns * glacier%length_scale_factor
+          dew = model%grid%dew
+          dns = model%grid%dns
        endif
 
        ! Rescale the grid cell areas (diagnostic only; not used for dynamic calculations).
@@ -192,7 +192,7 @@ contains
 
     endif   ! scale_area
 
-    if (model%options%is_restart == NO_RESTART) then
+    if (model%options%restart == NO_RESTART) then
 
        ! not a restart; initialize everything from the input file
 
@@ -402,7 +402,7 @@ contains
        ! Set each glaciated cell to at least the minimum dynamically active thickness
        ! Adjust the upper surface accordingly
        where (glacier%cism_glacier_id > 0)
-          model%geometry%thck = max(model%geometry%thck, model%numerics%thklim)
+          model%geometry%thck = max(model%geometry%thck, model%numerics%thcklim)
           model%geometry%usrf = &
                max(model%geometry%usrf, model%geometry%topg + model%geometry%thck)
        endwhere
@@ -654,7 +654,7 @@ contains
     ! Thus, any ice that is not part of a glacier is dynamically inactive,
     !  but could receive a glacier ID and become active with thickening.
 
-    glacier%minthck = model%numerics%thklim - eps08
+    glacier%minthck = model%numerics%thcklim - eps08
 
     ! Set the index of the diagnostic glacier, using the CISM glacier ID for the diagnostic point
     if (this_rank == rtest) then
@@ -856,11 +856,11 @@ contains
 
     ewn = model%grid%ewn
     nsn = model%grid%nsn
-    dew = model%numerics%dew                  ! convert to m
-    dns = model%numerics%dns                  ! convert to m
-    rtest = model%numerics%rdiag_local
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
+    dew = model%grid%dew                  ! convert to m
+    dns = model%grid%dns                  ! convert to m
+    rtest = model%diagnostics%rdiag_local
+    itest = model%diagnostics%idiag_local
+    jtest = model%diagnostics%jdiag_local
 
     nglacier = glacier%nglacier
     ngdiag = glacier%ngdiag
@@ -868,7 +868,7 @@ contains
 
     ! some unit conversions
     !       Skip these conversion and use SI units (s instead of yr) in the code.
-    dt = model%numerics%dt /scyr                    ! s to yr
+    dt = model%time%dt /scyr                    ! s to yr
     dthck_dt = model%geometry%dthck_dt * scyr       ! m/s to m/yr
 
     ! Accumulate the 2D fields used for mu_star and alpha_snow inversion: snow and Tpos.
@@ -2693,7 +2693,7 @@ contains
     ! - If a cell has H <= glacier_minthck and cism_glacier_id > 0, we set cism_glacier_id = 0.
     !   It is no longer considered to be glaciated.
     !   Here, glacier_minthck is a threshold for counting ice as part of a glacier.
-    !   By default, glacier_minthck = model%numerics%thklim, typically 1 m.
+    !   By default, glacier_minthck = model%numerics%thcklim, typically 1 m.
     !   (Actually, glacier_minthck is slightly less than thklim, to make sure these cells
     !   are not dynamically active.)
     ! - When a cell has H > glacier_minthck and cism_glacier_id = 0, we give it a nonzero ID:

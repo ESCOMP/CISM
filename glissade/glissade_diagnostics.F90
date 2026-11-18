@@ -83,11 +83,11 @@
     ! NOTE: The ratio dt_diag/tinc is rounded to the nearest integer.
     !-----------------------------------------------------------------
 
-    if (model%numerics%dt_diag > 0.0d0) then   ! dt_diag was specified in the config file; use it to compute ndiag
+    if (model%diagnostics%dt_diag > 0.0d0) then   ! dt_diag was specified in the config file; use it to compute ndiag
 
        ! Note: tinc and dt_diag have units of years, whereas dt has model timeunits
-       model%numerics%ndiag = nint(model%numerics%dt_diag / model%numerics%tinc)
-       model%numerics%ndiag = max(model%numerics%ndiag, 1)  ! cannot write more often than once per timestep
+       model%diagnostics%ndiag = nint(model%diagnostics%dt_diag / model%time%tinc)
+       model%diagnostics%ndiag = max(model%diagnostics%ndiag, 1)  ! cannot write more often than once per timestep
 
     endif
 
@@ -95,38 +95,38 @@
     ! Find the local rank and indices of the global diagnostic point
     !-----------------------------------------------------------------
 
-    call parallel_localindex(model%numerics%idiag,       model%numerics%jdiag,       &
-                             model%numerics%idiag_local, model%numerics%jdiag_local, &
-                             model%numerics%rdiag_local, model%parallel)
+    call parallel_localindex(model%diagnostics%idiag,       model%diagnostics%jdiag,       &
+                             model%diagnostics%idiag_local, model%diagnostics%jdiag_local, &
+                             model%diagnostics%rdiag_local, model%parallel)
 
     if (main_task) then
        write(iulog,'(a26,2i6)') ' Global idiag, jdiag:     ',   &
-                             model%numerics%idiag, model%numerics%jdiag
+                             model%diagnostics%idiag, model%diagnostics%jdiag
        write(iulog,'(a26,3i6)') ' Local idiag, jdiag, task:',   &
-                             model%numerics%idiag_local,  &
-                             model%numerics%jdiag_local,  &
-                             model%numerics%rdiag_local
+                             model%diagnostics%idiag_local,  &
+                             model%diagnostics%jdiag_local,  &
+                             model%diagnostics%rdiag_local
     endif
 
     if (main_task) then
 
        write(message,'(a25,2i6)') 'Global idiag, jdiag:     ',   &
-                                   model%numerics%idiag, model%numerics%jdiag
+                                   model%diagnostics%idiag, model%diagnostics%jdiag
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        write(message,'(a25,3i6)') 'Local idiag, jdiag, task:',   &
-                                   model%numerics%idiag_local,  &
-                                   model%numerics%jdiag_local,  &
-                                   model%numerics%rdiag_local
+                                   model%diagnostics%idiag_local,  &
+                                   model%diagnostics%jdiag_local,  &
+                                   model%diagnostics%rdiag_local
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     endif  ! main_task
 
     ! Broadcast from main task to all processors
     !TODO - Uncomment and make sure this does not cause problems
-!    call broadcast(model%numerics%idiag_local)
-!    call broadcast(model%numerics%jdiag_local)
-!    call broadcast(model%numerics%rdiag_local)
+!    call broadcast(model%diagnostics%idiag_local)
+!    call broadcast(model%diagnostics%jdiag_local)
+!    call broadcast(model%diagnostics%rdiag_local)
 
   end subroutine glissade_init_diag
 
@@ -153,14 +153,14 @@
        write(iulog,*) '	'
        write(iulog,*) 'In glissade_write_diagnostics'
        write(iulog,*) 'time =', time
-       write(iulog,*) 'dt_diag =', model%numerics%dt_diag
-       write(iulog,*) 'ndiag =', model%numerics%ndiag
+       write(iulog,*) 'dt_diag =', model%diagnostics%dt_diag
+       write(iulog,*) 'ndiag =', model%diagnostics%ndiag
        write(iulog,*) 'tstep_count =', tstep_count
     endif
 
-    if (model%numerics%ndiag > 0) then
+    if (model%diagnostics%ndiag > 0) then
 
-       if (mod(tstep_count, model%numerics%ndiag) == 0)  then    ! time to write
+       if (mod(tstep_count, model%diagnostics%ndiag) == 0)  then    ! time to write
           call glissade_write_diag(model, time)
        endif
 
@@ -344,14 +344,14 @@
     velo_ew_ubound = ewn-uhalo
 
     ! Set the minimum ice thickness for including cells in diagnostics
-    if (model%options%diag_minthck == DIAG_ICE_THRESHOLD_ZERO) then
+    if (model%diagnostics%diag_ice_threshold == DIAG_ICE_THRESHOLD_ZERO) then
        minthck = eps  ! slightly > 0
-    elseif (model%options%diag_minthck == DIAG_ICE_THRESHOLD_THCKLIM) then
-       ! Note: If the user specifies model%numerics%thklim = 1.0 m in the config file,
+    elseif (model%diagnostics%diag_ice_threshold == DIAG_ICE_THRESHOLD_THCKLIM) then
+       ! Note: If the user specifies model%numerics%thcklim = 1.0 m in the config file,
        !       then thklim is reset at initialization to a number slightly less than 1.0.
        !       This protects the diagnostics below against rounding errors for cells
        !       with thck very close to minthck.
-       minthck = model%numerics%thklim
+       minthck = model%numerics%thcklim
     endif
 
     !-----------------------------------------------------------------
@@ -450,7 +450,7 @@
              do k = 1, upn-1   ! (upn-1) layers
                 local_energy(k,i,j) = &
                      model%geometry%thck(i,j) * model%temperature%temp(k,i,j) * cell_area(i,j)   &
-                     * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
+                     * (model%grid%sigma(k+1) - model%grid%sigma(k))
              enddo
           endif
        enddo
@@ -621,8 +621,8 @@
     ! total grounding line mass balance flux (< 0 by definition)
     ! Note: At this point, gl_flux_east and gl_flux_north are already dimensionalized in kg/m/s,
     !       so tot_gl_flux will have units of kg/s
-    tot_gl_flux = parallel_global_sum(abs(model%mass_flux%gl_flux_east)  * model%numerics%dns  &
-                                    + abs(model%mass_flux%gl_flux_north) * model%numerics%dew, &
+    tot_gl_flux = parallel_global_sum(abs(model%mass_flux%gl_flux_east)  * model%grid%dns  &
+                                    + abs(model%mass_flux%gl_flux_north) * model%grid%dew, &
                                     parallel)
     tot_gl_flux = (-1.0d0)*tot_gl_flux   ! negative by definition
 
@@ -675,7 +675,7 @@
                                    tot_volume*1.0d-9         ! convert to km^3
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    if (model%options%dm_dt_diag == DM_DT_DIAG_KG_PER_S) then
+    if (model%diagnostics%dm_dt_diag == DM_DT_DIAG_KG_PER_S) then
 
        write(message,'(a25,e24.16)') 'Total ice mass (kg)      ',   &
                                       tot_mass                  ! kg
@@ -689,7 +689,7 @@
                                       tot_energy                ! J
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_PER_YR) then
+    elseif (model%diagnostics%dm_dt_diag == DM_DT_DIAG_GT_PER_YR) then
 
        write(message,'(a25,e24.16)') 'Total ice mass (Gt)      ',   &
                                       tot_mass * 1.0d-12        ! Gt
@@ -714,7 +714,7 @@
        call write_log(trim(message), type = GM_DIAGNOSTIC)
     endif
 
-    if (model%options%dm_dt_diag == DM_DT_DIAG_KG_PER_S) then
+    if (model%diagnostics%dm_dt_diag == DM_DT_DIAG_KG_PER_S) then
 
        write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
        call write_log(trim(message), type = GM_DIAGNOSTIC)
@@ -763,7 +763,7 @@
        write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_PER_YR) then
+    elseif (model%diagnostics%dm_dt_diag == DM_DT_DIAG_GT_PER_YR) then
 
        factor = scyr / 1.0d12
 
@@ -1110,14 +1110,14 @@
 
     ! Set local diagnostic values, and communicate them to main_task
        
-    if (model%numerics%idiag_local >= 1 .and. model%numerics%idiag_local <= ewn  &
-                                        .and.                                    &
-        model%numerics%jdiag_local >= 1 .and. model%numerics%jdiag_local <= nsn) then
+    if (model%diagnostics%idiag_local >= 1 .and. model%diagnostics%idiag_local <= ewn  &
+                                           .and.                                       &
+        model%diagnostics%jdiag_local >= 1 .and. model%diagnostics%jdiag_local <= nsn) then
 
-       if (this_rank == model%numerics%rdiag_local) then
+       if (this_rank == model%diagnostics%rdiag_local) then
 
-          i = model%numerics%idiag_local
-          j = model%numerics%jdiag_local
+          i = model%diagnostics%idiag_local
+          j = model%diagnostics%jdiag_local
           usrf_diag = model%geometry%usrf(i,j)
           thck_diag = model%geometry%thck(i,j)
           topg_diag = model%geometry%topg(i,j)
@@ -1171,13 +1171,13 @@
 
        call write_log(' ')
        write(message,'(a39,2i6)')  &
-            'Grid point diagnostics: (i,j) =', model%numerics%idiag, &
-                                               model%numerics%jdiag
+            'Grid point diagnostics: (i,j) =', model%diagnostics%idiag, &
+                                               model%diagnostics%jdiag
        call write_log(trim(message), type = GM_DIAGNOSTIC)
        write(message,'(a39,3i6)')  &
-            'Local (i,j,rank) =             ', model%numerics%idiag_local, &
-                                               model%numerics%jdiag_local, &
-                                               model%numerics%rdiag_local
+            'Local (i,j,rank) =             ', model%diagnostics%idiag_local, &
+                                               model%diagnostics%jdiag_local, &
+                                               model%diagnostics%rdiag_local
        call write_log(trim(message), type = GM_DIAGNOSTIC)
        call write_log(' ')
  
@@ -1218,7 +1218,7 @@
        ! temperatures are at layer midpoints; speeds are at layer interfaces
 
        ! upper surface 
-       write (message,'(f6.3,2f24.16)') model%numerics%sigma(1), spd_diag(1), artm_diag
+       write (message,'(f6.3,2f24.16)') model%grid%sigma(1), spd_diag(1), artm_diag
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        ! internal
@@ -1226,23 +1226,23 @@
 
           ! speed at top of layer
           if (k > 1) then
-             write (message,'(f6.3,f24.16)') model%numerics%sigma(k), spd_diag(k)
+             write (message,'(f6.3,f24.16)') model%grid%sigma(k), spd_diag(k)
              call write_log(trim(message), type = GM_DIAGNOSTIC)
           endif
 
           ! temp (and optionally age) at layer midpoint
           if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
-             write (message,'(f6.3,24x,f24.16,f18.6)') model%numerics%stagsigma(k), temp_diag(k), age_diag(k)
+             write (message,'(f6.3,24x,f24.16,f18.6)') model%grid%stagsigma(k), temp_diag(k), age_diag(k)
              call write_log(trim(message), type = GM_DIAGNOSTIC)
           else
-             write (message,'(f6.3,24x,f24.16)') model%numerics%stagsigma(k), temp_diag(k)
+             write (message,'(f6.3,24x,f24.16)') model%grid%stagsigma(k), temp_diag(k)
              call write_log(trim(message), type = GM_DIAGNOSTIC)
           endif
 
        enddo
 
        ! lower surface
-       write (message,'(f6.3,2f24.16)') model%numerics%sigma(upn), spd_diag(upn), temp_diag(upn)
+       write (message,'(f6.3,2f24.16)') model%grid%sigma(upn), spd_diag(upn), temp_diag(upn)
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     endif     ! idiag_local and jdiag_local in bounds
@@ -1480,7 +1480,7 @@
 
     if (model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask) then
        where (model%calving%calving_front_mask == 1)
-          model%calving%calving_thck = model%calving%calving_thck + model%basal_melt%bmlt_applied * model%numerics%dt
+          model%calving%calving_thck = model%calving%calving_thck + model%basal_melt%bmlt_applied * model%time%dt
           model%basal_melt%bmlt_applied = 0.0d0
        endwhere
     endif
@@ -1489,14 +1489,14 @@
     ! positive for mass gain, negative for mass loss
     model%mass_flux%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_applied(:,:)
     model%mass_flux%basal_mbal_flux(:,:) = rhoi * (-model%basal_melt%bmlt_applied(:,:))
-    model%mass_flux%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)) / model%numerics%dt
-    model%mass_flux%latmelt_flux(:,:) = rhoi * (-model%lateral_melt%latmelt_thck(:,:)) / model%numerics%dt
-    model%mass_flux%removal_flux(:,:) = rhoi * (-model%geometry%removal_thck(:,:)) / model%numerics%dt
+    model%mass_flux%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)) / model%time%dt
+    model%mass_flux%latmelt_flux(:,:) = rhoi * (-model%lateral_melt%latmelt_thck(:,:)) / model%time%dt
+    model%mass_flux%removal_flux(:,:) = rhoi * (-model%geometry%removal_thck(:,:)) / model%time%dt
 
     ! rates of calving, lateral melt and ice removal (m/yr ice; positive for ice loss)
-    model%calving%calving_rate(:,:) = model%calving%calving_thck(:,:) / (model%numerics%dt/scyr)
-    model%lateral_melt%latmelt_rate(:,:) = model%lateral_melt%latmelt_thck(:,:) / (model%numerics%dt/scyr)
-    model%geometry%removal_rate(:,:) = model%geometry%removal_thck(:,:) / (model%numerics%dt/scyr)
+    model%calving%calving_rate(:,:) = model%calving%calving_thck(:,:) / (model%time%dt/scyr)
+    model%lateral_melt%latmelt_rate(:,:) = model%lateral_melt%latmelt_thck(:,:) / (model%time%dt/scyr)
+    model%geometry%removal_rate(:,:) = model%geometry%removal_thck(:,:) / (model%time%dt/scyr)
 
   end subroutine glissade_mass_balance_diagnostics
 
@@ -1914,18 +1914,18 @@
     nx = model%grid%ewn
     ny = model%grid%nsn
 
-    dx = model%numerics%dew
-    dy = model%numerics%dns
+    dx = model%grid%dew
+    dy = model%grid%dns
 
     parallel = model%parallel
 
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     ! Compute the ice speed at cell centers, averaged from neighboring vertices.

@@ -334,8 +334,8 @@ subroutine cism_init_glissade(model)
   ! fill dimension variables on output files
   call glissade_nc_fillall(model)
 
-  time = model%numerics%tstart
-  model%numerics%time = time    ! MJH added 1/10/13 - the initial diagnostic glissade solve won't know 
+  time = model%time%tstart
+  model%time%time = time    ! MJH added 1/10/13 - the initial diagnostic glissade solve won't know 
                                 !                     the correct time on a restart unless we set it here.
 
   ! Set EISMINT forcing for initial time
@@ -360,7 +360,7 @@ subroutine cism_init_glissade(model)
 
   call t_startf('initial_diag_var_solve')
 
-  if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
+  if (model%time%tstart < (model%time%tend - model%time%tinc)) then
      ! disable further profiling in normal usage
      call t_adj_detailf(+10)
   endif
@@ -368,7 +368,7 @@ subroutine cism_init_glissade(model)
   ! solve the remaining diagnostic variables for the initial state
   call glissade_diagnostic_variable_solve(model)  ! velocity, usrf, etc.
 
-  if (model%numerics%tstart < (model%numerics%tend - model%numerics%tinc)) then
+  if (model%time%tstart < (model%time%tend - model%time%tinc)) then
      ! restore profiling to normal settings
      call t_adj_detailf(-10)
   endif
@@ -381,14 +381,14 @@ subroutine cism_init_glissade(model)
 
   call t_startf('initial_write_diagnostics')
   call glissade_write_diagnostics(model,        time,       &
-                                  tstep_count = model%numerics%tstep_count)
+                                  tstep_count = model%time%tstep_count)
   call t_stopf('initial_write_diagnostics')
 
   ! --- Output the initial state -------------
   ! Note: For a standard restart, the initial state is not output, because this state
   !       should already have been written to the output file when the previous run ended.
 
-  if (model%options%is_restart == NO_RESTART .or. model%options%is_restart == HYBRID_RESTART) then
+  if (model%options%restart == NO_RESTART .or. model%options%restart == HYBRID_RESTART) then
      call t_startf('initial_io_writeall')
      call glissade_io_writeall(model, model, time=time)
      call t_stopf('initial_io_writeall')
@@ -412,14 +412,14 @@ subroutine cism_run_glissade(model)
   real(kind=dp) :: time                   ! model time in years
   real(kind=dp) :: time_eps               ! tolerance within which times are equal 
 
-  time = model%numerics%tstart
-  time_eps = model%numerics%tinc/1000.0d0
+  time = model%time%tstart
+  time_eps = model%time%tinc/1000.0d0
 
   ! ------------- Begin time step loop -----------------
  
   ! check if we're doing any evolution
-  if (time < model%numerics%tend) then
-    do while(time + time_eps < model%numerics%tend)
+  if (time < model%time%tend) then
+    do while(time + time_eps < model%time%tend)
 
       !!! SFP moved block of code for applying time dependent forcing read in from netCDF here,
       !!! as opposed to at the end of the time step (commented it out in its original location for now)
@@ -435,22 +435,22 @@ subroutine cism_run_glissade(model)
       call t_stopf('read_forcing')
 
       ! Increment time step
-      time = time + model%numerics%tinc
-      model%numerics%time = time  ! TODO This is redundant with what is happening in glissade, but this is needed for forcing to work properly.
+      time = time + model%time%tinc
+      model%time%time = time  ! TODO This is redundant with what is happening in glissade, but this is needed for forcing to work properly.
 
       call t_startf('tstep')
       call glissade_tstep(model,time)
       call t_stopf('tstep')
 
-      ! write ice sheet diagnostics to log file at desired interval (model%numerics%dt_diag)
+      ! write ice sheet diagnostics to log file at desired interval (model%diagnostics%dt_diag)
 
       call t_startf('write_diagnostics')
       call glissade_write_diagnostics(model,        time,       &
-                                      tstep_count = model%numerics%tstep_count)
+                                      tstep_count = model%time%tstep_count)
       call t_stopf('write_diagnostics')
 
       ! update time from dycore advance
-      model%numerics%time = time
+      model%time%time = time
 
       ! --- Set forcing ---
       ! Setting forcing at the end of the time step maintains consistency
@@ -472,7 +472,7 @@ subroutine cism_run_glissade(model)
       call t_startf('io_writeall')
       call glissade_io_writeall(model,model)
       call t_stopf('io_writeall')
-    end do   ! time < model%numerics%tend
+    end do   ! time < model%time%tend
   endif    
   
 end subroutine cism_run_glissade
@@ -513,9 +513,9 @@ subroutine set_eismint_forcing_glissade(model, time)
   type(glissade_global_type) :: model     ! model instance
   real(dp), intent(in) :: time            ! model time in years
 
-  call eismint_massbalance(eismint_climate, time, model%numerics%dew, model%parallel, &
+  call eismint_massbalance(eismint_climate, time, model%grid%dew, model%parallel, &
                            model%climate%acab)
-  call eismint_surftemp(eismint_climate, time, model%numerics%dew, model%parallel, &
+  call eismint_surftemp(eismint_climate, time, model%grid%dew, model%parallel, &
                         model%geometry%thck, model%climate%artm)
 
 end subroutine set_eismint_forcing_glissade

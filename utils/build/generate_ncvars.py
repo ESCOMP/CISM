@@ -39,8 +39,8 @@ module = {}
 DYCORE_PATHS = {
     'glide':    {'time_type': 'numerics', 'grid_type': 'general',
                  'restart_option': 'is_restart', 'dycore_option': 'whichdycore'},
-    'glissade': {'time_type': 'numerics', 'grid_type': 'grid',
-                 'restart_option': 'is_restart', 'dycore_option': 'whichdycore'},
+    'glissade': {'time_type': 'time', 'grid_type': 'grid',
+                 'restart_option': 'restart', 'dycore_option': 'dycore'},
 }
 
 AVERAGE_SUFFIX = 'tavg'

@@ -154,8 +154,8 @@ contains
     ! Set up coordinate systems, and change the parallel values of ewn and nsn.
     ! With no_ice BCs, scalars adjacent to the global boundary (including halos) are set to zero.
 
-    if (model%options%compute_blocks == COMPUTE_BLOCKS_ACTIVE_ONLY .or.   &
-        model%options%compute_blocks == COMPUTE_BLOCKS_INQUIRE) then
+    if (model%numerics%compute_blocks == COMPUTE_BLOCKS_ACTIVE_ONLY .or.   &
+        model%numerics%compute_blocks == COMPUTE_BLOCKS_INQUIRE) then
 
        ! Allocate memory for a global array, ice_domain_mask, on main_task.
 
@@ -178,10 +178,10 @@ contains
        call glimmer_nc_get_var(infile, 'ice_domain_mask', &
                                model%grid%ice_domain_mask)
 
-       if (model%options%compute_blocks == COMPUTE_BLOCKS_INQUIRE) then
+       if (model%numerics%compute_blocks == COMPUTE_BLOCKS_INQUIRE) then
 
           ! The subroutine will report how many tasks are needed to compute on all active blocks, and then abort.
-          ! The user can then resubmit (on an optimal number of processors) with model%options%compute_blocks = ACTIVE_BLOCKS.
+          ! The user can then resubmit (on an optimal number of processors) with model%numerics%compute_blocks = ACTIVE_BLOCKS.
 
           call distributed_grid_active_blocks(&
                model%grid%ewn,         model%grid%nsn,         &
@@ -206,7 +206,7 @@ contains
                model%grid%nx_block,    model%grid%ny_block,    &
                model%grid%ice_domain_mask,                     &
                model%parallel,                                 &
-               reprosum_in = model%options%reproducible_sums)
+               reprosum_in = model%numerics%reproducible_sums)
 
        endif   ! compute_blocks
 
@@ -218,7 +218,7 @@ contains
        call distributed_grid(&
             model%grid%ewn,      model%grid%nsn,            &
             model%parallel,                                 &
-            reprosum_in = model%options%reproducible_sums,  &
+            reprosum_in = model%numerics%reproducible_sums, &
             global_bc_in = 'outflow')
 
     elseif (model%grid%global_bc == GLOBAL_BC_NO_ICE) then
@@ -226,7 +226,7 @@ contains
        call distributed_grid(&
             model%grid%ewn,      model%grid%nsn,            &
             model%parallel,                                 &
-            reprosum_in = model%options%reproducible_sums,  &
+            reprosum_in = model%numerics%reproducible_sums, &
             global_bc_in = 'no_ice')
 
     elseif (model%grid%global_bc == GLOBAL_BC_NO_PENETRATION) then
@@ -238,7 +238,7 @@ contains
        call distributed_grid(&
             model%grid%ewn,      model%grid%nsn,            &
             model%parallel,                                 &
-            reprosum_in = model%options%reproducible_sums,  &
+            reprosum_in = model%numerics%reproducible_sums, &
             global_bc_in = 'no_penetration')
 
     else  ! global_bc = GLOBAL_BC_PERIODIC
@@ -246,7 +246,7 @@ contains
        call distributed_grid(&
             model%grid%ewn,      model%grid%nsn,            &
             model%parallel,                                 &
-            reprosum_in = model%options%reproducible_sums,  &
+            reprosum_in = model%numerics%reproducible_sums, &
             global_bc_in = 'periodic')
 
     endif
@@ -269,13 +269,13 @@ contains
     ! Now that model%parallel has been set, copy to 'parallel' to save typing below
     parallel = model%parallel
 
-    model%grid%ice_grid = coordsystem_new(0.d0,               0.d0,               &
-                                          model%numerics%dew, model%numerics%dns, &
-                                          model%grid%ewn,     model%grid%nsn)
+    model%grid%ice_grid = coordsystem_new(0.d0,           0.d0,           &
+                                          model%grid%dew, model%grid%dns, &
+                                          model%grid%ewn, model%grid%nsn)
 
-    model%grid%velo_grid = coordsystem_new(model%numerics%dew/2.d0, model%numerics%dns/2.d0, &
-                                           model%numerics%dew,      model%numerics%dns,      &
-                                           model%grid%ewn-1,        model%grid%nsn-1)
+    model%grid%velo_grid = coordsystem_new(model%grid%dew/2.d0, model%grid%dns/2.d0, &
+                                           model%grid%dew,      model%grid%dns,      &
+                                           model%grid%ewn-1,    model%grid%nsn-1)
 
     ! If the length of any dimension is unknown, then get the length now, before allocating arrays.
     ! Currently, the length of most dimensions is set in the config file.
@@ -283,7 +283,7 @@ contains
     ! On restart, we can get the length from the restart file.
 
     if (model%options%enable_glaciers .and. &
-         model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) then
+         model%options%restart == STANDARD_RESTART .or. model%options%restart == HYBRID_RESTART) then
        infile => model%funits%in_first   ! assume glacierid is a dimension in the restart file
        call glimmer_nc_get_dimlength(infile, 'glacierid', model%glaciers%nglacier)
     endif
@@ -314,14 +314,14 @@ contains
     ! initialize the time step counter
     ! For restart, tstep_count will be overwritten from the restart file.
     ! Alternatively, we could initialize tstep_count as follows:
-    !    model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
+    !    model%time%tstep_count = nint(model%time%time/model%time%tinc)
     ! But reading from a restart file should prevent roundoff issues.
-    model%numerics%tstep_count = 0
+    model%time%tstep_count = 0
 
     ! open all input files
     call openall_in(model%funits, model%projection, &
                     model%parallel%global_ewn, model%parallel%global_nsn, &
-                    model%numerics%dew, model%numerics%dns, model%grid%upn)
+                    model%grid%dew, model%grid%dns, model%grid%upn)
 
     ! read first time slice
     call glissade_io_readall(model,model)
@@ -330,9 +330,9 @@ contains
     call glissade_init_diag(model)
 
     ! Set coordinates of diagnostic point
-    rtest = model%numerics%rdiag_local
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
+    rtest = model%diagnostics%rdiag_local
+    itest = model%diagnostics%idiag_local
+    jtest = model%diagnostics%jdiag_local
 
     ! Make sure the grid coordinates (x1,y1) and (x0,y0) have been read in.
     ! Also check for their global counterparts: (x1_global,y1_global) and (x0_global,y0_global).
@@ -345,13 +345,13 @@ contains
     if (parallel_is_zero(model%grid%x1)) then
        call write_log('model%grid%x1 = 0.0 everywhere', GM_FATAL)
     else  ! extrapolate x1 to halo cells
-       call parallel_halo_extrapolate(model%grid%x1, model%numerics%dew)
+       call parallel_halo_extrapolate(model%grid%x1, model%grid%dew)
     endif
 
     if (parallel_is_zero(model%grid%y1)) then
        call write_log('model%grid%y1 = 0.0 everywhere', GM_FATAL)
     else  ! extrapolate y1 to halo cells
-       call parallel_halo_extrapolate(model%grid%y1, model%numerics%dns)
+       call parallel_halo_extrapolate(model%grid%y1, model%grid%dns)
     endif
 
     if (parallel_is_zero(model%grid%x1_global)) then
@@ -370,7 +370,7 @@ contains
        enddo
     else
        ! extrapolate x0 to halo cells
-       call parallel_halo_extrapolate(model%grid%x0, model%numerics%dew)
+       call parallel_halo_extrapolate(model%grid%x0, model%grid%dew)
     endif
 
     if (parallel_is_zero(model%grid%y0)) then
@@ -380,7 +380,7 @@ contains
        enddo
     else
        ! extrapolate y0 to halo cells
-       call parallel_halo_extrapolate(model%grid%y0, model%numerics%dns)
+       call parallel_halo_extrapolate(model%grid%y0, model%grid%dns)
     endif
 
     if (parallel_is_zero(model%grid%x0_global)) then
@@ -398,7 +398,7 @@ contains
     endif
 
     ! Check that lat and lon fields were read in
-    if (model%options%read_lat_lon) then
+    if (model%grid%read_lat_lon) then
        if (parallel_is_zero(model%grid%lat)) then
           call write_log('Failed to read latitude (lat) field from input file', GM_FATAL)
        endif
@@ -470,17 +470,17 @@ contains
     allocate(land_mask(model%grid%ewn, model%grid%nsn))
     allocate(ocean_mask(model%grid%ewn, model%grid%nsn))
 
-    ! If model%numerics%thklim > 0, then decrease it slightly. The reasoning is as follows:
+    ! If model%numerics%thcklim > 0, then decrease it slightly. The reasoning is as follows:
     ! The requirement for ice_mask = 1 is thck > thklim. We want '>' rather than '>=' in case thklim = 0.
     ! But suppose thklim = 1.0 m, and many cells in the input file have thck = 1.0 m.
     ! We would like these cells to have ice_mask = 1. This will be the case if we reduce thklim slightly.
 
-    model%numerics%thklim = max(model%numerics%thklim - eps11, 0.0d0)
+    model%numerics%thcklim = max(model%numerics%thcklim - eps11, 0.0d0)
 
     ! Compute grid cell areas
     ! Note: cell_area is used for diagnostics only. It is set to dew*dns by default but can be corrected below.
     !       For the purposes of CISM dynamics, all grid cells are rectangles of dimension dew*dns.
-    model%geometry%cell_area(:,:) = model%numerics%dew*model%numerics%dns
+    model%geometry%cell_area(:,:) = model%grid%dew*model%grid%dns
 
     ! Optionally, compute area scale factors for stereographic map projection.
     ! This should be done after reading the input file, in case the input file contains mapping info.
@@ -499,8 +499,8 @@ contains
        call glimmap_stere_area_factor(model%projection%stere,  &
                                       model%grid%ewn,          &
                                       model%grid%nsn,          &
-                                      model%numerics%dew,      &
-                                      model%numerics%dns,      &
+                                      model%grid%dew,          &
+                                      model%grid%dns,          &
                                       parallel)
 
        ! Given the stereographic area correction factors, correct the diagnostic grid cell areas.
@@ -520,7 +520,7 @@ contains
     !  (usrf - thck > topg), but the ice is above flotation thickness.
     ! In these grid cells, we set thck = usrf - topg, preserving the input usrf and removing the lakes.
 
-    if (model%options%adjust_input_thickness .and. model%options%is_restart == NO_RESTART) then
+    if (model%initialization%adjust_input_thickness .and. model%options%restart == NO_RESTART) then
 
        if (verbose_glissade) then
           call point_diag(model%geometry%usrf, 'Before thck_adjustment, usrf (m)', itest, jtest, rtest, 7, 7)
@@ -546,7 +546,7 @@ contains
     ! This subroutine does not change the topg, but returns thck consistent with the new usrf.
     ! If the initial usrf is rough, then multiple smoothing passes may be needed to stabilize the flow.
 
-    if (model%options%smooth_input_usrf .and. model%options%is_restart == NO_RESTART) then
+    if (model%initialization%smooth_input_usrf .and. model%options%restart == NO_RESTART) then
        call glissade_smooth_usrf(model, nsmooth = 5)
     endif   ! smooth_input_usrf
 
@@ -661,8 +661,8 @@ contains
        ! Note: Glaciers are usually run with a no-ice BC to allow removal of inactive regions.
        !       This means that any grid cells adjacent to the global boundary are not handled correctly.
        !       The preceding halo update for 'thck' removes ice from these grid cells.
-       ! Note: If glacier%length_scale_factor /= 1, This subroutine modifies the values of model%numerics%dew,
-       !       model%numerics%dns, model%geometry%cell_area, and the grid coordinates (x0,y0) and (x1,y1).
+       ! Note: If glacier%length_scale_factor /= 1, This subroutine modifies the values of model%grid%dew,
+       !       model%grid%dns, model%geometry%cell_area, and the grid coordinates (x0,y0) and (x1,y1).
        !       This is done if the true grid cell dimensions differ from the nominal dimensions on a projected grid.
        !       See comments near the top of glissade_glacier_init.
 
@@ -671,8 +671,8 @@ contains
     endif
 
     ! open all output files
-    call openall_out(model%funits, model%options%is_restart, model%projection, &
-                     model%numerics%tstart, model%numerics%tstep_count)
+    call openall_out(model%funits, model%options%restart, model%projection, &
+                     model%time%tstart, model%time%tstep_count)
 
     ! create glissade I/O variables
     call glissade_io_createall(model, model)
@@ -686,18 +686,18 @@ contains
     call glissade_mass_balance_init(model)
 
     ! Initialize the temperature profile in each column
-    call glissade_init_therm(model%options%temp_init,    model%options%is_restart,  &
-                             model%grid%ewn,             model%grid%nsn,            &
-                             model%grid%upn,                                        &
-                             model%numerics%idiag_local, model%numerics%jdiag_local,&
-                             model%numerics%rdiag_local,                            &
-                             model%numerics%sigma,       model%numerics%stagsigma,  &
-                             model%geometry%thck,                                   & ! m
-                             model%climate%artm_corrected,                          & ! deg C
-                             model%climate%acab,                                    & ! m/s
-                             model%temperature%bheatflx,                            & ! W/m^2, positive down
-                             model%temperature%pmp_offset,                          & ! deg C
-                             model%temperature%temp,                                & ! deg C
+    call glissade_init_therm(model%options%temp_init,       model%options%restart,         &
+                             model%grid%ewn,                model%grid%nsn,                &
+                             model%grid%upn,                                               &
+                             model%diagnostics%idiag_local, model%diagnostics%jdiag_local, &
+                             model%diagnostics%rdiag_local,                                &
+                             model%grid%sigma,              model%grid%stagsigma,          &
+                             model%geometry%thck,                                          & ! m
+                             model%climate%artm_corrected,                                 & ! deg C
+                             model%climate%acab,                                           & ! m/s
+                             model%temperature%bheatflx,                                   & ! W/m^2, positive down
+                             model%temperature%pmp_offset,                                 & ! deg C
+                             model%temperature%temp,                                       & ! deg C
                              model%temperature%tempunstag)                                 ! deg C
 
     ! Velocity solver initialization
@@ -824,7 +824,7 @@ contains
     endif
      
     if (test_transport) then
-       where (model%geometry%thck > model%numerics%thklim)
+       where (model%geometry%thck > model%numerics%thcklim)
           model%geometry%thck = thk_init
        elsewhere
           model%geometry%thck = 0.d0
@@ -840,12 +840,12 @@ contains
     !        deep topography that are alternately ice-covered and ice-free.
 
     call glissade_marine_connection_mask(&
-         model%grid%ewn,             model%grid%nsn,             &
-         parallel,                                               &
-         model%numerics%idiag_local, model%numerics%jdiag_local, &
-         model%numerics%rdiag_local,                             &
-         model%geometry%thck,        model%geometry%topg,        &
-         model%climate%eus,          0.0d0,                      &  ! thklim = 0
+         model%grid%ewn,                model%grid%nsn,                &
+         parallel,                                                     &
+         model%diagnostics%idiag_local, model%diagnostics%jdiag_local, &
+         model%diagnostics%rdiag_local,                                &
+         model%geometry%thck,           model%geometry%topg,           &
+         model%climate%eus,             0.0d0,                         &  ! thklim = 0
          model%geometry%marine_connection_mask)
 
     ! TODO: Move calving-related initialization to a separate subroutine.
@@ -857,7 +857,7 @@ contains
 
     if (l_evolve_ice .and. &
          model%options%calving_init == CALVE_AT_STARTUP_TRUE .and. &
-         model%options%is_restart == NO_RESTART) then
+         model%options%restart == NO_RESTART) then
 
        call glissade_calving_solve(model, .true.)   ! init_calving = .true.
 
@@ -997,7 +997,7 @@ contains
 
     if ( (model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask .or. &
           model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION) &
-       .and. model%options%is_restart == NO_RESTART ) then
+       .and. model%options%restart == NO_RESTART ) then
 
        if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
 
@@ -1010,10 +1010,10 @@ contains
           ! On restart, calving_mask is read from the restart file.
 
           call glissade_calving_mask_init(&
-               model%numerics%dew,                model%numerics%dns,                &
+               model%grid%dew,                    model%grid%dns,                    &
                itest,   jtest,    rtest,          parallel,                          &
                model%geometry%thck,               model%geometry%topg,               &  ! m
-               model%climate%eus,                 model%numerics%thklim,             &  ! m
+               model%climate%eus,                 model%numerics%thcklim,            &  ! m
                model%velocity%usfc_obs*scyr,      model%velocity%vsfc_obs*scyr,      &  ! m/yr
                model%calving%calving_front_x,     model%calving%calving_front_y,     &
                model%calving%calving_mask)
@@ -1029,10 +1029,10 @@ contains
 
           call glissade_subgrid_calving_mask_init(&
                model%grid%x1,                     model%grid%y1,                     &  ! m
-               model%numerics%dew,                model%numerics%dns,                &
+               model%grid%dew,                    model%grid%dns,                    &
                itest,   jtest,    rtest,          parallel,                          &
                model%geometry%thck,               model%geometry%topg,               &  ! m
-               model%climate%eus,                 model%numerics%thklim,             &  ! m
+               model%climate%eus,                 model%numerics%thcklim,            &  ! m
                model%velocity%usfc_obs*scyr,      model%velocity%vsfc_obs*scyr,      &  ! m/yr
                model%calving%calving_front_x,     model%calving%calving_front_y,     &
                model%calving%calving_front_radius,                                   &  ! m
@@ -1064,7 +1064,7 @@ contains
     ! If model%options%remove_ice_caps = T, then this subroutine removes them.
 
     !WHL - Move this to right after calving? This is answer-changing, since we would compute thck_old with ice caps removed
-    if (model%options%is_restart == NO_RESTART ) then
+    if (model%options%restart == NO_RESTART ) then
        call glissade_handle_ice_caps(model)
     endif
 
@@ -1129,15 +1129,15 @@ contains
     ! ========================
 
     ! Set debug diagnostics
-    rtest = model%numerics%rdiag_local
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
+    rtest = model%diagnostics%rdiag_local
+    itest = model%diagnostics%idiag_local
+    jtest = model%diagnostics%jdiag_local
 
     ! Update internal clock
-    model%numerics%time = time  
-    model%numerics%tstep_count = model%numerics%tstep_count + 1
+    model%time%time = time  
+    model%time%tstep_count = model%time%tstep_count + 1
     if (main_task .and. verbose_glissade) then
-       write(iulog,*) 'glissade_tstep, tstep_count =', model%numerics%tstep_count
+       write(iulog,*) 'glissade_tstep, tstep_count =', model%time%tstep_count
     endif
 
     ! ------------------------------------------------------------------------
@@ -1150,7 +1150,7 @@ contains
        do j = 1, model%grid%nsn
           do i = 1, model%grid%ewn
              if (model%geometry%thck(i,j) > 0.0d0) then
-                model%geometry%ice_age(:,i,j) = model%geometry%ice_age(:,i,j) + model%numerics%dt
+                model%geometry%ice_age(:,i,j) = model%geometry%ice_age(:,i,j) + model%time%dt
              else
                 model%geometry%ice_age(:,i,j) = 0.0d0
              endif
@@ -1194,7 +1194,7 @@ contains
     ! ------------------------------------------------------------------------
 
     call glissade_thermal_solve(model,  &
-                                model%numerics%dt)
+                                model%time%dt)
 
     ! ------------------------------------------------------------------------ 
     ! Compute the basal melt rate beneath floating ice.
@@ -1320,10 +1320,10 @@ contains
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     parallel = model%parallel
@@ -1342,12 +1342,12 @@ contains
          model%options%temp_init,                                      &
          dt,                                                           & ! s
          model%parallel,                                               &
-         model%grid%ewn,             model%grid%nsn,                   &
+         model%grid%ewn,                model%grid%nsn,                &
          model%grid%upn,                                               &
-         model%numerics%idiag_local, model%numerics%jdiag_local,       &
-         model%numerics%rdiag_local,                                   &
-         model%numerics%sigma,       model%numerics%stagsigma,         &
-         model%numerics%thklim_temp,                                   & ! m
+         model%diagnostics%idiag_local, model%diagnostics%jdiag_local, &
+         model%diagnostics%rdiag_local,                                &
+         model%grid%sigma,              model%grid%stagsigma,          &
+         model%numerics%thcklim_temp,                                  & ! m
          model%geometry%thck,                                          & ! m
          model%geometry%topg,                                          & ! m
          model%geometry%lsrf,                                          & ! m
@@ -1399,7 +1399,7 @@ contains
             model%grid%ewn,       model%grid%nsn,         &
             model%parallel,                               &
             model%geometry%thck,  model%geometry%topg,    &
-            model%climate%eus,    model%numerics%thklim,  &
+            model%climate%eus,    model%numerics%thcklim, &
             ice_mask,                                     &
             floating_mask = floating_mask,                &
             ocean_mask = ocean_mask)
@@ -1428,7 +1428,7 @@ contains
        if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE .and. &
            model%climate%overwrite_acab_value < 0.0d0) then
           where (model%climate%overwrite_acab_mask == 1 .and. &
-                 model%geometry%thck < model%numerics%thklim)
+                 model%geometry%thck < model%numerics%thcklim)
              bwat_mask = 0
           endwhere
        endif
@@ -1451,13 +1451,13 @@ contains
 
        call glissade_bwat_flux_routing(&
             model%grid%ewn,          model%grid%nsn,                 &
-            model%numerics%dew,      model%numerics%dns,             &  ! m
+            model%grid%dew,          model%grid%dns,                 &  ! m
             model%parallel,                                          &
             itest, jtest, rtest,                                     &
             model%basal_hydro%ho_flux_routing_scheme,                &
             model%geometry%thck,                                     &  ! m
             model%geometry%topg,                                     &  ! m
-            model%numerics%thklim_temp,                              &  ! m
+            model%numerics%thcklim_temp,                             &  ! m
             bwat_mask,                                               &
             floating_mask,                                           &
             model%basal_hydro%bmlt_hydro,                            &  ! m/s
@@ -1469,7 +1469,7 @@ contains
             model%temperature%bhydroflx,                             &  ! W/m2
             model%basal_hydro%head,                                  &  ! m
             model%basal_hydro%grad_head,                             &  ! m/m
-            model%options%reproducible_sums)
+            model%numerics%reproducible_sums)
 
        ! halo updates (not sure if all are needed)
        call parallel_halo(model%basal_hydro%bwatflx, parallel)
@@ -1483,7 +1483,7 @@ contains
                               model%basal_hydro,                &
                               dt,                               &  ! s
                               model%geometry%thck,              &  ! m
-                              model%numerics%thklim_temp,       &  ! m
+                              model%numerics%thcklim_temp,      &  ! m
                               model%basal_melt%bmlt_ground,     &  ! m/s
                               model%basal_hydro%bwat)              ! m
 
@@ -1493,8 +1493,8 @@ contains
     do up = 2, model%grid%upn-1
       model%temperature%tempunstag(up,:,:) = model%temperature%temp(up-1,:,:) +  &
            (model%temperature%temp(up,:,:) - model%temperature%temp(up-1,:,:)) * &
-           (model%numerics%sigma(up) - model%numerics%stagsigma(up-1)) /         &
-           (model%numerics%stagsigma(up) - model%numerics%stagsigma(up-1))
+           (model%grid%sigma(up) - model%grid%stagsigma(up-1)) /                 &
+           (model%grid%stagsigma(up) - model%grid%stagsigma(up-1))
     end do
     ! boundary conditions are identical on both grids, but temp starts at index 0
     model%temperature%tempunstag(1,:,:) = model%temperature%temp(0,:,:)
@@ -1547,7 +1547,7 @@ contains
 
     real(dp) :: advective_cfl       ! advective CFL number
                                     ! If advective_cfl > 1, the model is unstable without subcycling
-    real(dp) :: dt_transport        ! time step (s) for transport; = model%numerics%dt by default
+    real(dp) :: dt_transport        ! time step (s) for transport; = model%time%dt by default
 
     integer :: nsubcyc              ! number of times to subcycle advection
 
@@ -1570,10 +1570,10 @@ contains
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     ewn = model%grid%ewn
@@ -1627,7 +1627,7 @@ contains
 
        if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
           ! Pass the default value
-          this_thklim = model%numerics%thklim
+          this_thklim = model%numerics%thcklim
        else
           ! Pass thklim = eps11 so thin cells near the margin can be identified as partial CF
           this_thklim = eps11
@@ -1660,8 +1660,8 @@ contains
             ocean_mask,             land_mask,        &
             model%calving%calving_front_mask,         &
             model%calving%dthck_dx_cf,                &
-            model%numerics%dew,                       &
-            model%numerics%dns,                       &
+            model%grid%dew,                           &
+            model%grid%dns,                           &
             model%calving%thck_effective,             &
             model%calving%thck_effective_min,         &
             partial_cf_mask,                          &
@@ -1736,7 +1736,7 @@ contains
           ! Note: glissade_temp2enth expects SI units
           do j = 1, nsn
              do i = 1, ewn
-                call glissade_temp2enth (model%numerics%stagsigma(1:upn-1),                                           &
+                call glissade_temp2enth (model%grid%stagsigma(1:upn-1),                                               &
                                          model%temperature%temp(0:upn,i,j), model%temperature%waterfrac(1:upn-1,i,j), &
                                          model%geometry%thck(i,j),          model%temperature%enthalpy(0:upn,i,j))
              enddo
@@ -1775,52 +1775,52 @@ contains
        !TODO - Remove the dt_transport option and simply rely on adaptive subcycling as needed?
 
        call glissade_check_cfl(ewn,                nsn,                upn-1,                    &
-                               model%numerics%dew, model%numerics%dns, model%numerics%sigma,             &
+                               model%grid%dew,     model%grid%dns,     model%grid%sigma,         &
                                parallel,                                                                       &
                                model%geometry%stagthck,                                                        &
                                model%geomderv%dusrfdew,           model%geomderv%dusrfdns,                     &
                                model%velocity%uvel * scyr,        model%velocity%vvel * scyr,                  & ! m/yr
-                               model%numerics%dt / scyr,                                                       & ! yr
-                               model%numerics%adaptive_cfl_threshold,                                          &
-                               model%numerics%adv_cfl_dt,         model%numerics%diff_cfl_dt)
+                               model%time%dt / scyr,                                                           & ! yr
+                               model%time%adaptive_cfl_threshold,                                              &
+                               model%time%adv_cfl_dt,         model%time%diff_cfl_dt)
 
        ! Set the transport timestep.
-       ! The timestep is model%numerics%dt by default, but optionally can be reduced for subcycling
+       ! The timestep is model%time%dt by default, but optionally can be reduced for subcycling
 
        !WHL - debug
 !      if (main_task) then
 !         write(iulog,*) 'Checked advective CFL threshold'
-!         write(iulog,*) 'model dt (yr) =', model%numerics%dt/scyr
-!         write(iulog,*) 'adv_cfl_dt    =', model%numerics%adv_cfl_dt
+!         write(iulog,*) 'model dt (yr) =', model%time%dt/scyr
+!         write(iulog,*) 'adv_cfl_dt    =', model%time%adv_cfl_dt
 !      endif
 
-       advective_cfl = (model%numerics%dt/scyr) / model%numerics%adv_cfl_dt
+       advective_cfl = (model%time%dt/scyr) / model%time%adv_cfl_dt
 
-       if (model%numerics%adaptive_cfl_threshold > 0.0d0) then
+       if (model%time%adaptive_cfl_threshold > 0.0d0) then
 
           ! subcycle the transport when advective_cfl exceeds the threshold
 
-          if (advective_cfl > model%numerics%adaptive_cfl_threshold) then
+          if (advective_cfl > model%time%adaptive_cfl_threshold) then
 
              ! compute the number of subcycles
              ! If advective_cfl > advective_cfl_threshold, then nsubcyc >= 2
              ! The larger the ratio, the larger the value of nsubcyc
-             nsubcyc = ceiling(advective_cfl / model%numerics%adaptive_cfl_threshold)
+             nsubcyc = ceiling(advective_cfl / model%time%adaptive_cfl_threshold)
 
              if (main_task) then
                 write(iulog,*) 'WARNING: adv_cfl_dt exceeds threshold; CFL =', advective_cfl
-                write(iulog,*) 'Ratio =', advective_cfl / model%numerics%adaptive_cfl_threshold
+                write(iulog,*) 'Ratio =', advective_cfl / model%time%adaptive_cfl_threshold
                 write(iulog,*) 'nsubcyc =', nsubcyc
              endif
 
           else
              nsubcyc = 1
           endif
-          dt_transport = model%numerics%dt / real(nsubcyc,dp)
+          dt_transport = model%time%dt / real(nsubcyc,dp)
 
        else  ! no adaptive subcycling
 
-          advective_cfl = (model%numerics%dt/scyr) / model%numerics%adv_cfl_dt
+          advective_cfl = (model%time%dt/scyr) / model%time%adv_cfl_dt
 
           ! If advective_cfl exceeds 1.0, then abort cleanly.  Otherwise, set dt_transport and proceed.
           ! Note: Usually, it would be enough to write a fatal abort message.
@@ -1832,7 +1832,7 @@ contains
              stop
           else
              nsubcyc = 1
-             dt_transport = model%numerics%dt
+             dt_transport = model%time%dt
           endif
 
        endif
@@ -1855,9 +1855,9 @@ contains
           !       for vertical remapping. They are intent(in).
 
           call glissade_transport_driver(dt_transport,                                         &  ! s
-                                         model%numerics%dew,         model%numerics%dns,       &
+                                         model%grid%dew,             model%grid%dns,           &
                                          ewn,          nsn,         upn-1,                     &
-                                         model%numerics%sigma,                                 &
+                                         model%grid%sigma,                                     &
                                          parallel,                                             &
                                          itest,        jtest,       rtest,                     &
                                          model%velocity%uvel(:,:,:),                           &  ! m/s
@@ -1915,7 +1915,7 @@ contains
           ! Note: glissade_enth2temp expects SI units
           do j = 1, nsn
              do i = 1, ewn
-                call glissade_enth2temp(model%numerics%stagsigma(1:upn-1),                                        &
+                call glissade_enth2temp(model%grid%stagsigma(1:upn-1),                                            &
                                         model%geometry%thck(i,j),          model%temperature%enthalpy(0:upn,i,j), &
                                         model%temperature%temp(0:upn,i,j), model%temperature%waterfrac(1:upn-1,i,j))
              enddo
@@ -2027,10 +2027,10 @@ contains
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     parallel = model%parallel
@@ -2083,7 +2083,7 @@ contains
                           model%geometry%thck, model%geometry%stagthck)
 
     call glissade_gradient(ewn,                     nsn,       &
-                           model%numerics%dew,      model%numerics%dns,      &
+                           model%grid%dew,          model%grid%dns,          &
                            itest, jtest, rtest,                              &
                            model%geometry%usrf,                              &
                            model%geomderv%dusrfdew, model%geomderv%dusrfdns)
@@ -2093,7 +2093,7 @@ contains
     ! ------------------------------------------------------------------------
 
     if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
-       this_thklim = model%numerics%thklim
+       this_thklim = model%numerics%thcklim
     else
        this_thklim = eps11
     endif
@@ -2123,8 +2123,8 @@ contains
          ocean_mask,          land_mask,        &
          model%calving%calving_front_mask,      &
          model%calving%dthck_dx_cf,             &
-         model%numerics%dew,                    &
-         model%numerics%dns,                    &
+         model%grid%dew,                        &
+         model%grid%dns,                        &
          model%calving%thck_effective,          &
          model%calving%thck_effective_min,      &
          partial_cf_mask,                       &
@@ -2179,12 +2179,12 @@ contains
     ! This tendency is used for coulomb_c and powerlaw_c inversion.
     !TODO - Move to the inversion module?
 
-    if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
-         .and. (model%numerics%time == model%numerics%tstart) ) then
+    if ( (model%options%restart == STANDARD_RESTART .or. model%options%restart == HYBRID_RESTART) &
+         .and. (model%time%time == model%time%tstart) ) then
        ! first call after a restart
     else
        model%geometry%dthck_dt(:,:) = (model%geometry%thck(:,:) - model%geometry%thck_old(:,:)) &
-                                     / model%numerics%dt
+                                     / model%time%dt
     endif
 
     !TODO - Move up to glissade_tstep? Just remember not to invert on the first step after a restart.
@@ -2193,8 +2193,8 @@ contains
     !TODO - Move the inversion to the end of glissade_tstep? Doesn't need to be done during initialization.
     ! But do not invert on the first timestep after a restart.
 
-    if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
-         .and. (model%numerics%time == model%numerics%tstart) ) then
+    if ( (model%options%restart == STANDARD_RESTART .or. model%options%restart == HYBRID_RESTART) &
+         .and. (model%time%time == model%time%tstart) ) then
             ! first call after a restart; skip the inversion
     else
        call glissade_inversion_solve(model)
@@ -2209,7 +2209,7 @@ contains
 
     if (model%options%enable_glaciers) then
 
-       if (model%numerics%time == model%numerics%tstart) then
+       if (model%time%time == model%time%tstart) then
            ! first call at start-up or after a restart; do nothing
        else
           call glissade_glacier_update(model, model%glaciers)
@@ -2258,7 +2258,7 @@ contains
 
     call glissade_flow_factor(model%options%whichflwa,                       &
                               model%options%whichtemp,                       &
-                              model%numerics%stagsigma,                      &
+                              model%grid%stagsigma,                          &
                               model%geometry%thck,                           &  ! m
                               model%temperature%temp(1:upn-1,:,:),           &
                               model%temperature%flwa,                        &  ! Pa^{-n} s^{-1}
@@ -2283,7 +2283,7 @@ contains
     ! Note: Some operations must be done in this subroutine when restarting; others are skipped.
     ! ------------------------------------------------------------------------
 
-    if (model%numerics%time == model%numerics%tstart) then
+    if (model%time%time == model%time%tstart) then
 
        ! Compute the pressure melting point temperature, which is needed
        ! by certain basal sliding laws.
@@ -2302,7 +2302,7 @@ contains
        !        exact restart requires that the restart velocity field lies on an extended staggered mesh with
        !        an extra row and column of velocity points along the north and east boundary of the domain.
        !       In that case, uvel_extend and vvel_extend should be written to the restart file by setting
-       !        restart_extend_velo = 1 in the config file. They will then be read as input fields and at this
+       !        restart_extend_velo = .true. in the config file. They will then be read as input fields and at this
        !        point need to be copied into uvel and vvel.
        !       (It would have been cleaner to give uvel and vvel the same dimensions as the scalar mesh,
        !        but that design decision was made many years ago and would take a lot of work to change.)
@@ -2363,10 +2363,10 @@ contains
     ! ------------------------------------------------------------------------ 
 
     ! Do not solve velocity for initial time on a restart because that breaks an exact restart.
-    ! Note: model%numerics%tstart is the time of restart, not necessarily the value of tstart in the config file.
+    ! Note: model%time%tstart is the time of restart, not necessarily the value of tstart in the config file.
 
-    if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
-         .and. (model%numerics%time == model%numerics%tstart) ) then
+    if ( (model%options%restart == STANDARD_RESTART .or. model%options%restart == HYBRID_RESTART) &
+         .and. (model%time%time == model%time%tstart) ) then
   
        ! Do not solve for velocity, because this would break exact restart
 
@@ -2395,8 +2395,8 @@ contains
             parallel,                            &
             itest, jtest,  rtest,                &
             ewn,   nsn,    upn,                  &
-            model%numerics%dew,                  &   ! m
-            model%numerics%dns,                  &   ! m
+            model%grid%dew,                      &   ! m
+            model%grid%dns,                      &   ! m
             model%basal_physics,                 &
             model%basal_hydro,                   &
             ice_mask,      floating_mask,        &
@@ -2407,11 +2407,11 @@ contains
             model%velocity%uvel,                 &   ! m/s
             model%velocity%vvel,                 &   ! m/s
             model%temperature%bpmp(:,:) - model%temperature%temp(upn,:,:), & ! degC
-            model%numerics%dt/scyr)                  ! yr
+            model%time%dt/scyr)                  ! yr
 
        ! TODO: call ocean_p subroutine here, then merge the two calculations
 
-       if ( (model%numerics%time == model%numerics%tstart) .and. &
+       if ( (model%time%time == model%time%tstart) .and. &
          ( (maxval(abs(model%velocity%uvel)) /= 0.0d0) .or. & 
            (maxval(abs(model%velocity%vvel)) /= 0.0d0) ) ) then
           ! If velocity was input and this is NOT a restart, then use the input field as the first guess at the initial time.
@@ -2424,7 +2424,7 @@ contains
 
        if (main_task) then
           write(iulog,*) ' '
-          write(iulog,*) 'Compute ice velocities, time =', model%numerics%time
+          write(iulog,*) 'Compute ice velocities, time =', model%time%time
        endif
 
        !! extrapolate value of mintauf into halos to enforce periodic lateral bcs (only if field covers entire domain)
@@ -2449,7 +2449,7 @@ contains
           ! Compute dissipation based on the shallow-ice approximation
 
           call glissade_interior_dissipation_sia(ewn,  nsn,    upn,              &
-                                                 model%numerics%stagsigma(:),    &
+                                                 model%grid%stagsigma(:),        &
                                                  ice_mask,                       &
                                                  model%geometry%stagthck,        & ! m
                                                  model%temperature%flwa,         & ! Pa^{-n} s^{-1}
@@ -2466,7 +2466,7 @@ contains
           
        endif    ! which_ho_disp
           
-    endif     ! is_restart
+    endif     ! restart
 
     if (this_rank==rtest .and. verbose_glissade) then
        k = 1
@@ -2492,6 +2492,7 @@ contains
     call glissade_wvelintg(model%velocity%uvel,               &
                            model%velocity%vvel,               &
                            model%geomderv,                    &
+                           model%grid,                        &
                            model%numerics,                    &
                            model%geometry%thck * 0.0d0,       &  ! Just need a 2d array of all 0's for wgrd
                            model%geometry%thck,               &
@@ -2511,30 +2512,30 @@ contains
 
     k = 1    ! top surface velocity associated with top half of layer 1
     model%velocity%uvel_mean(:,:) = model%velocity%uvel_mean(:,:) &
-                                  + model%numerics%stagsigma(k) * model%velocity%uvel(k,:,:)
+                                  + model%grid%stagsigma(k) * model%velocity%uvel(k,:,:)
     model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
-                                  + model%numerics%stagsigma(k) * model%velocity%vvel(k,:,:)
+                                  + model%grid%stagsigma(k) * model%velocity%vvel(k,:,:)
 
     do k = 2, upn-1
        model%velocity%uvel_mean(:,:) = model%velocity%uvel_mean(:,:) &
-                                     + (model%numerics%stagsigma(k) - model%numerics%stagsigma(k-1)) * model%velocity%uvel(k,:,:)
+                                     + (model%grid%stagsigma(k) - model%grid%stagsigma(k-1)) * model%velocity%uvel(k,:,:)
        model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
-                                     + (model%numerics%stagsigma(k) - model%numerics%stagsigma(k-1)) * model%velocity%vvel(k,:,:)
+                                     + (model%grid%stagsigma(k) - model%grid%stagsigma(k-1)) * model%velocity%vvel(k,:,:)
     enddo
 
     k = upn  ! basal velocity associated with bottom half of layer (upn-1)
     model%velocity%uvel_mean(:,:) = model%velocity%uvel_mean(:,:) &
-                                  + (1.0d0 - model%numerics%stagsigma(k-1)) * model%velocity%uvel(k,:,:)
+                                  + (1.0d0 - model%grid%stagsigma(k-1)) * model%velocity%uvel(k,:,:)
     model%velocity%vvel_mean(:,:) = model%velocity%vvel_mean(:,:) &
-                                  + (1.0d0 - model%numerics%stagsigma(k-1)) * model%velocity%vvel(k,:,:)
+                                  + (1.0d0 - model%grid%stagsigma(k-1)) * model%velocity%vvel(k,:,:)
     model%velocity%velnorm_mean(:,:) = sqrt(model%velocity%uvel_mean(:,:)**2 + model%velocity%vvel_mean(:,:)**2)
 
     ! Compute the vertically integrated strain-rate tensor (1/s) and stress tensor (Pa) and their eigenvalues.
     ! These are used for some calving schemes.
     !TODO - Insert whichcalving logic
 
-    if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
-         .and. (model%numerics%time == model%numerics%tstart) ) then
+    if ( (model%options%restart == STANDARD_RESTART .or. model%options%restart == HYBRID_RESTART) &
+         .and. (model%time%time == model%time%tstart) ) then
 
        ! do nothing, since the eigenvalues are read from the restart file
 
@@ -2547,7 +2548,7 @@ contains
 
        call glissade_stress_tensor_eigenvalues(&
             ewn,      nsn,     upn,    &
-            model%numerics%sigma,      &
+            model%grid%sigma,          &
             model%stress%tau,          &
             model%calving%tau_eigen1,  &
             model%calving%tau_eigen2)
@@ -2559,7 +2560,7 @@ contains
 
        call glissade_strain_rate_tensor_eigenvalues(&
             ewn,      nsn,     upn,     &
-            model%numerics%sigma,       &
+            model%grid%sigma,           &
             model%velocity%strain_rate, &
             model%calving%eps_eigen1,   &
             model%calving%eps_eigen2,   &
@@ -2588,7 +2589,7 @@ contains
        do i = 1, ewn
           do k = 1, upn-1
              model%stress%efvs_vertavg(i,j) = model%stress%efvs_vertavg(i,j)  &
-                                            + model%stress%efvs(k,i,j) * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
+                                            + model%stress%efvs(k,i,j) * (model%grid%sigma(k+1) - model%grid%sigma(k))
           enddo
        enddo
     enddo
@@ -2690,8 +2691,8 @@ contains
     !       gl_flux is cell-based and is found by summing magnitudes of edge fluxes.
 
     call glissade_grounding_line_flux(ewn,                  nsn,                 &
-                                      model%numerics%dew,   model%numerics%dns,  &
-                                      model%numerics%sigma,                      &
+                                      model%grid%dew,       model%grid%dns,      &
+                                      model%grid%sigma,                          &
                                       model%geometry%thck,                       &
                                       model%velocity%uvel,  model%velocity%vvel, &
                                       ice_mask,             floating_mask,       &

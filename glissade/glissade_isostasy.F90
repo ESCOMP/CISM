@@ -117,7 +117,7 @@ contains
 
        if (model%isostasy%lithosphere == LITHOSPHERE_METHOD_ELASTIC) then
           ! initialize the elastic lithosphere
-          call glissade_init_elastic(model%isostasy%rbel, model%numerics%dew)
+          call glissade_init_elastic(model%isostasy%rbel, model%grid%dew)
        end if
 
        !-----------------------------------------------------------------
@@ -125,11 +125,11 @@ contains
        ! The load is updated every nlith timesteps.
        ! An integer is used instead of a real number to decide when to update, in order to avoid roundoff issues.
        ! NOTE: The ratio isostasy%period/tinc is rounded to the nearest integer.
-       !       Use numerics%tinc because it has units of years (like isostasy%period), whereas numerics%dt has model timeunits.
+       !       Use time%tinc because it has units of years (like isostasy%period), whereas time%dt has model timeunits.
        !-----------------------------------------------------------------
 
        if (model%isostasy%load_update_interval > 0.0d0) then
-          model%isostasy%nlith = nint(model%isostasy%load_update_interval / model%numerics%tinc)
+          model%isostasy%nlith = nint(model%isostasy%load_update_interval / model%time%tinc)
        else
           model%isostasy%nlith = 0  ! never update
        endif
@@ -165,7 +165,7 @@ contains
        ! supplied topography is in equilibrium with the load;
        ! compute relx based on topg and load
 
-       if (model%options%is_restart == STANDARD_RESTART) then
+       if (model%options%restart == STANDARD_RESTART) then
            ! relx should have been read from the restart file
            if (parallel_is_zero(model%isostasy%relx)) then
               call write_log ('Failed to read relx on restart with input_topg_method = relx_from_load', &
@@ -237,9 +237,9 @@ contains
 
     !WHL - debug - for isostasy hack
 !    integer :: itest, jtest, rtest
-!    itest = model%numerics%idiag_local
-!    jtest = model%numerics%jdiag_local
-!    rtest = model%numerics%rdiag_local
+!    itest = model%diagnostics%idiag_local
+!    jtest = model%diagnostics%jdiag_local
+!    rtest = model%diagnostics%rdiag_local
     
     parallel = model%parallel
 
@@ -250,7 +250,7 @@ contains
     if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
 
        if (model%isostasy%nlith > 0) then
-          if (mod(model%numerics%tstep_count, model%isostasy%nlith) == 0) then
+          if (mod(model%time%tstep_count, model%isostasy%nlith) == 0) then
 
              ! isostasy hack:
 !             if (this_rank == rtest) write(iulog,*) 'Isostasy hack: Reduce thck by 20 m'
@@ -298,12 +298,12 @@ contains
        ! update the marine connection mask, which depends on topg
 
        call glissade_marine_connection_mask(&
-            model%grid%ewn,             model%grid%nsn,             &
-            parallel,                                               &
-            model%numerics%idiag_local, model%numerics%jdiag_local, &
-            model%numerics%rdiag_local,                             &
-            model%geometry%thck,        model%geometry%topg,        &
-            model%climate%eus,          0.0d0,                      &  ! thklim = 0
+            model%grid%ewn,                model%grid%nsn,                &
+            parallel,                                                     &
+            model%diagnostics%idiag_local, model%diagnostics%jdiag_local, &
+            model%diagnostics%rdiag_local,                                &
+            model%geometry%thck,           model%geometry%topg,           &
+            model%climate%eus,             0.0d0,                         &  ! thklim = 0
             model%geometry%marine_connection_mask)
 
     end if
@@ -432,9 +432,9 @@ contains
 
     integer :: itest, jtest, rtest
 
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
-    rtest = model%numerics%rdiag_local
+    itest = model%diagnostics%idiag_local
+    jtest = model%diagnostics%jdiag_local
+    rtest = model%diagnostics%rdiag_local
 
     if (model%isostasy%lithosphere == LITHOSPHERE_METHOD_LOCAL) then
 
@@ -445,7 +445,7 @@ contains
        if (verbose_isostasy) then
           if (main_task) then
              write(iulog,*) 'Update lithospheric load: time, tstep_count, nlith =', &
-                  model%numerics%time, model%numerics%tstep_count, model%isostasy%nlith
+                  model%time%time, model%time%tstep_count, model%isostasy%nlith
           endif
        endif
        
@@ -482,14 +482,14 @@ contains
     real(dp) :: ft1, ft2
     integer :: itest, jtest, rtest
 
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
-    rtest = model%numerics%rdiag_local
+    itest = model%diagnostics%idiag_local
+    jtest = model%diagnostics%jdiag_local
+    rtest = model%diagnostics%rdiag_local
 
     if (verbose_isostasy) then
        if (this_rank == rtest) then
           write(iulog,*) ' '
-          write(iulog,*) 'relaxing_mantle, time (yr) =', model%numerics%time
+          write(iulog,*) 'relaxing_mantle, time (yr) =', model%time%time
        endif
        call point_diag(model%isostasy%relx, 'relx', itest, jtest, rtest, 7, 7)
        call point_diag(model%isostasy%relx - model%isostasy%load, 'relx - load', itest, jtest, rtest, 7, 7)
@@ -498,7 +498,7 @@ contains
 
     if (model%isostasy%asthenosphere == ASTHENOSPHERE_METHOD_RELAXING) then
 
-       ft1 = exp(-model%numerics%dt/model%isostasy%tau_relax_const)
+       ft1 = exp(-model%time%dt/model%isostasy%tau_relax_const)
        ft2 = 1.d0 - ft1
        do j = 1, model%grid%nsn
           do i = 1, model%grid%ewn
@@ -516,9 +516,9 @@ contains
        do j = 1, model%grid%nsn
           do i = 1, model%grid%ewn
              if (model%isostasy%tau_relax(i,j) > 0.0d0) then
-                ft1 = exp(-model%numerics%dt/model%isostasy%tau_relax(i,j))
+                ft1 = exp(-model%time%dt/model%isostasy%tau_relax(i,j))
              else
-                ft1 = exp(-model%numerics%dt/model%isostasy%tau_relax_const)
+                ft1 = exp(-model%time%dt/model%isostasy%tau_relax_const)
              endif
              ft2 = 1.d0 - ft1
              model%geometry%topg(i,j) = ft2 * (model%isostasy%relx(i,j) - model%isostasy%load(i,j)) &

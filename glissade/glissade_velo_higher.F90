@@ -1058,10 +1058,10 @@
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     if (verbose .and. this_rank==rtest) then
@@ -1077,8 +1077,8 @@
 !    ny = model%grid%nsn
 !    nz = model%grid%upn
 
-     dx = model%numerics%dew
-     dy = model%numerics%dns
+     dx = model%grid%dew
+     dy = model%grid%dns
 
      parallel = model%parallel
      staggered_ilo = parallel%staggered_ilo
@@ -1101,9 +1101,9 @@
         thck  => model%calving%thck_effective(:,:)
      endif
      topg     => model%geometry%topg(:,:)
-     sigma    => model%numerics%sigma(:)
-     stagsigma=> model%numerics%stagsigma(:)
-     stagwbndsigma=> model%numerics%stagwbndsigma(:)
+     sigma    => model%grid%sigma(:)
+     stagsigma=> model%grid%stagsigma(:)
+     stagwbndsigma=> model%grid%stagwbndsigma(:)
      f_ground => model%geometry%f_ground(:,:)
      f_ground_cell => model%geometry%f_ground_cell(:,:)
      f_flotation => model%geometry%f_flotation(:,:)
@@ -1140,8 +1140,8 @@
      umask_no_penetration => model%velocity%umask_no_penetration(:,:)
      vmask_no_penetration => model%velocity%vmask_no_penetration(:,:)
 
-     dt = model%numerics%dt
-     thklim = model%numerics%thklim
+     dt = model%time%dt
+     thklim = model%numerics%thcklim
      thck_gradient_ramp  = model%numerics%thck_gradient_ramp
      max_slope = model%paramets%max_slope
      eus = model%climate%eus
