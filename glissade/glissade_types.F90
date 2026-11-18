@@ -40,324 +40,672 @@ module glissade_types
   use cism_profile, only: profile_type
   use glimmer_coordinates, only: coordsystem_type
   use glimmer_map_types, only: glimmap_proj
-  use glimmer_sparse_type, only: &
-       HO_SPARSE_PCG_INCH, HO_SPARSE_BICG, HO_SPARSE_GMRES, &
-       HO_SPARSE_PCG_STANDARD, HO_SPARSE_PCG_CHRONGEAR
   use cism_parallel, only: parallel_type
+  use glimmer_config, only: option_choice
 
   implicit none
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   ! Constants that describe the options available
-  ! We use these integer parameters elsewhere in the code to avoid hardwiring of option numbers
+  ! We use these integer parameters elsewhere in the code to avoid hardwiring of option numbers.
+  !
+  ! Options are given by name in the config file. For each such option, a parameter array of
+  ! type option_choice (glimmer_config) lists the integer value, the name and the description of
+  ! each allowed value. GetOption reads the option by name, and log_option writes the name and
+  ! the description to the log. The constants are named <KEY>_<NAME>.
 
-  ! basic options
-
+  ! [grid] global_bc
   integer, parameter :: GLOBAL_BC_PERIODIC = 0  ! doubly periodic
   integer, parameter :: GLOBAL_BC_OUTFLOW = 1   ! free outflow; scalars in global halo set to zero
   integer, parameter :: GLOBAL_BC_NO_PENETRATION = 2   ! no penetration; outflow set to zero at global boundaries
-                                                       ! NOTE: The no-penetration option is supported for Glissade only
   integer, parameter :: GLOBAL_BC_NO_ICE = 3    ! no ice at global boundary; scalars set to zero adjacent to boundary
+  type(option_choice), dimension(4), parameter :: global_bc_choices = [ &
+       option_choice(GLOBAL_BC_PERIODIC,       'periodic',       'periodic boundaries'), &
+       option_choice(GLOBAL_BC_OUTFLOW,        'outflow',        'outflow at boundaries'), &
+       option_choice(GLOBAL_BC_NO_PENETRATION, 'no_penetration', 'no penetration at boundaries'), &
+       option_choice(GLOBAL_BC_NO_ICE,         'no_ice',         'no ice at boundaries') ]
 
+  ! [grid] sigma_method
+  integer, parameter :: SIGMA_METHOD_GLIDE = 0
+  integer, parameter :: SIGMA_METHOD_FILE = 1
+  integer, parameter :: SIGMA_METHOD_CONFIG = 2
+  integer, parameter :: SIGMA_METHOD_UNIFORM = 3
+  integer, parameter :: SIGMA_METHOD_PATTYN = 4
+  type(option_choice), dimension(5), parameter :: sigma_method_choices = [ &
+       option_choice(SIGMA_METHOD_GLIDE,   'glide',   'standard Glide sigma levels'), &
+       option_choice(SIGMA_METHOD_FILE,    'file',    'sigma levels from sigma_file'), &
+       option_choice(SIGMA_METHOD_CONFIG,  'config',  'sigma levels from [sigma]'), &
+       option_choice(SIGMA_METHOD_UNIFORM, 'uniform', 'evenly spaced sigma levels'), &
+       option_choice(SIGMA_METHOD_PATTYN,  'pattyn',  'Pattyn sigma levels') ]
+
+  ! [time] dt_input_option
+  integer, parameter :: DT_INPUT_OPTION_DT = 0
+  integer, parameter :: DT_INPUT_OPTION_NSTEPS_PER_YEAR = 1
+  type(option_choice), dimension(2), parameter :: dt_input_option_choices = [ &
+       option_choice(DT_INPUT_OPTION_DT,              'dt',              'time step set by dt (yr)'), &
+       option_choice(DT_INPUT_OPTION_NSTEPS_PER_YEAR, 'nsteps_per_year', 'time step set by nsteps_per_year') ]
+
+  ! [diagnostics] dm_dt_diag
+  integer, parameter :: DM_DT_DIAG_KG_PER_S = 0
+  integer, parameter :: DM_DT_DIAG_GT_PER_YR = 1
+  type(option_choice), dimension(2), parameter :: dm_dt_diag_choices = [ &
+       option_choice(DM_DT_DIAG_KG_PER_S,  'kg_per_s',  'write dmass/dt diagnostic in units of kg/s'), &
+       option_choice(DM_DT_DIAG_GT_PER_YR, 'gt_per_yr', 'write dmass/dt diagnostic in units of Gt/yr') ]
+
+  ! [diagnostics] diag_ice_threshold
+  integer, parameter :: DIAG_ICE_THRESHOLD_ZERO = 0
+  integer, parameter :: DIAG_ICE_THRESHOLD_THCKLIM = 1
+  type(option_choice), dimension(2), parameter :: diag_ice_threshold_choices = [ &
+       option_choice(DIAG_ICE_THRESHOLD_ZERO,    'zero',    'include cells with H > 0 in global diagnostics'), &
+       option_choice(DIAG_ICE_THRESHOLD_THCKLIM, 'thcklim', 'include cells with H > thcklim in global diagnostics') ]
+
+  ! [options] dycore
+  ! Read by GetDycore (glimmer_config), which also accepts the integers; the choices are used for the log.
   ! Note: DYCORE_GLIDE is not a Glissade option, but it is used in ncdf_template.F90.in,
   !       from which both glide_io and glissade_io are generated.
   integer, parameter :: DYCORE_GLIDE = 0        ! old shallow-ice dycore from Glimmer
-  !WHL TODO - Set DYCORE_GLISSADE = 1 during the config reorg
   integer, parameter :: DYCORE_GLISSADE = 2     ! finite-element solver
+  type(option_choice), dimension(1), parameter :: dycore_choices = [ &
+       option_choice(DYCORE_GLISSADE, 'glissade', '') ]
 
-  !WHL TODO - Renumber the Glissade options as part of the config reorg
-  integer, parameter :: EVOL_INC_REMAP = 3      ! glissade only
-  integer, parameter :: EVOL_UPWIND = 4         ! glissade only
-  integer, parameter :: EVOL_NO_THICKNESS = 5   ! glissade only
+  ! [options] restart
+  ! The constants NO_RESTART, STANDARD_RESTART and HYBRID_RESTART (glimmer_ncdf) are shared with Glide.
+  type(option_choice), dimension(3), parameter :: restart_choices = [ &
+       option_choice(NO_RESTART,       'none',     'not a restart'), &
+       option_choice(STANDARD_RESTART, 'standard', 'standard restart'), &
+       option_choice(HYBRID_RESTART,   'hybrid',   'hybrid restart (model time is reset)') ]
 
-  ! Option 3 is not scientifically supported
-  integer, parameter :: TEMP_SURFACE_AIR_TEMP = 0
-  integer, parameter :: TEMP_PROGNOSTIC = 1
-  integer, parameter :: TEMP_STEADY = 2
-  integer, parameter :: TEMP_ENTHALPY = 3
+  ! [options] restart_extend_velo: a logical in the config file
+  integer, parameter :: RESTART_EXTEND_VELO_FALSE = 0
+  integer, parameter :: RESTART_EXTEND_VELO_TRUE = 1
 
-  integer, parameter :: TEMP_INIT_ZERO = 0
-  integer, parameter :: TEMP_INIT_ARTM = 1
-  integer, parameter :: TEMP_INIT_LINEAR = 2
-  integer, parameter :: TEMP_INIT_ADVECTIVE_DIFFUSIVE = 3
-  integer, parameter :: TEMP_INIT_EXTERNAL = 4
+  ! [numerics] compute_blocks
+  integer, parameter :: COMPUTE_BLOCKS_ALL = 0          ! compute on all blocks in the global domain
+  integer, parameter :: COMPUTE_BLOCKS_ACTIVE_ONLY = 1  ! compute on active blocks only (where ice is potentially present)
+  integer, parameter :: COMPUTE_BLOCKS_INQUIRE = 2      ! inquire how many active blocks there are for a given ice domain mask and block size
+  type(option_choice), dimension(3), parameter :: compute_blocks_choices = [ &
+       option_choice(COMPUTE_BLOCKS_ALL,         'all',         'compute on all blocks'), &
+       option_choice(COMPUTE_BLOCKS_ACTIVE_ONLY, 'active_only', 'compute on active blocks only'), &
+       option_choice(COMPUTE_BLOCKS_INQUIRE,     'inquire',     'inquire the number of active blocks') ]
 
-  integer, parameter :: FLWA_CONST_FLWA = 0
-  integer, parameter :: FLWA_PATERSON_BUDD_CONST_TEMP = 1
-  integer, parameter :: FLWA_PATERSON_BUDD = 2
+  ! [velocity] stokes_approx
+  integer, parameter :: STOKES_APPROX_LOCAL_SIA = 0
+  integer, parameter :: STOKES_APPROX_SIA = 1
+  integer, parameter :: STOKES_APPROX_SSA = 2
+  integer, parameter :: STOKES_APPROX_BLATTER_PATTYN = 3
+  integer, parameter :: STOKES_APPROX_L1L2 = 4
+  integer, parameter :: STOKES_APPROX_DIVA = 5
+  integer, parameter :: STOKES_APPROX_HYBRID = 6
+  type(option_choice), dimension(7), parameter :: stokes_approx_choices = [ &
+       option_choice(STOKES_APPROX_LOCAL_SIA,      'local_sia',      'SIA only (glissade_velo_sia)'), &
+       option_choice(STOKES_APPROX_SIA,            'sia',            'SIA only (glissade_velo_higher)'), &
+       option_choice(STOKES_APPROX_SSA,            'ssa',            'SSA only (glissade_velo_higher)'), &
+       option_choice(STOKES_APPROX_BLATTER_PATTYN, 'blatter_pattyn', 'Blatter-Pattyn HO (glissade_velo_higher)'), &
+       option_choice(STOKES_APPROX_L1L2,           'l1l2',           'depth-integrated L1L2 (glissade_velo_higher)'), &
+       option_choice(STOKES_APPROX_DIVA,           'diva',           'depth-integrated viscosity (glissade_velo_higher)'), &
+       option_choice(STOKES_APPROX_HYBRID,         'hybrid',         'hybrid SIA/SSA') ]
 
-  integer, parameter :: BTRC_ZERO = 0
-  integer, parameter :: BTRC_CONSTANT = 1
-  integer, parameter :: BTRC_CONSTANT_BWAT = 2
-  integer, parameter :: BTRC_CONSTANT_BPMP = 3
+  ! [velocity] efvs_method
+  integer, parameter :: EFVS_METHOD_CONSTANT = 0
+  integer, parameter :: EFVS_METHOD_FLOW_FACTOR = 1
+  integer, parameter :: EFVS_METHOD_NONLINEAR = 2
+  type(option_choice), dimension(3), parameter :: efvs_method_choices = [ &
+       option_choice(EFVS_METHOD_CONSTANT,    'constant',    'constant value'), &
+       option_choice(EFVS_METHOD_FLOW_FACTOR, 'flow_factor', 'multiple of flow factor'), &
+       option_choice(EFVS_METHOD_NONLINEAR,   'nonlinear',   'nonlinear, from effective strain rate') ]
 
-  integer, parameter :: BMLT_FLOAT_NONE = 0
-  integer, parameter :: BMLT_FLOAT_MISMIP = 1
-  integer, parameter :: BMLT_FLOAT_CONSTANT = 2
-  integer, parameter :: BMLT_FLOAT_DEPTH = 3
-  integer, parameter :: BMLT_FLOAT_EXTERNAL = 4
-  integer, parameter :: BMLT_FLOAT_THERMAL_FORCING = 6
+  ! [velocity] surface_gradient_method
+  integer, parameter :: SURFACE_GRADIENT_METHOD_CENTERED = 0
+  integer, parameter :: SURFACE_GRADIENT_METHOD_UPSTREAM1 = 1
+  integer, parameter :: SURFACE_GRADIENT_METHOD_UPSTREAM2 = 2
+  type(option_choice), dimension(3), parameter :: surface_gradient_method_choices = [ &
+       option_choice(SURFACE_GRADIENT_METHOD_CENTERED,  'centered',  'centered gradient'), &
+       option_choice(SURFACE_GRADIENT_METHOD_UPSTREAM1, 'upstream1', 'first-order upstream gradient'), &
+       option_choice(SURFACE_GRADIENT_METHOD_UPSTREAM2, 'upstream2', 'second-order upstream gradient') ]
 
-  !TODO - Deprecate the quadratic option?
-  integer, parameter :: BMLT_FLOAT_TF_QUADRATIC = 0
-  integer, parameter :: BMLT_FLOAT_TF_ISMIP6_LOCAL = 1
-  integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL = 2
-  integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE = 3
+  ! [velocity] surface_gradient_margin_method
+  integer, parameter :: SURFACE_GRADIENT_MARGIN_METHOD_LAND = 0
+  integer, parameter :: SURFACE_GRADIENT_MARGIN_METHOD_HYBRID = 1
+  integer, parameter :: SURFACE_GRADIENT_MARGIN_METHOD_MARINE = 2
+  type(option_choice), dimension(3), parameter :: surface_gradient_margin_method_choices = [ &
+       option_choice(SURFACE_GRADIENT_MARGIN_METHOD_LAND,   'land',   'compute edge gradient when either cell has ice'), &
+       option_choice(SURFACE_GRADIENT_MARGIN_METHOD_HYBRID, 'hybrid', 'compute edge gradient when ice lies above ice-free land'), &
+       option_choice(SURFACE_GRADIENT_MARGIN_METHOD_MARINE, 'marine', 'compute edge gradient when both cells have ice') ]
 
-  integer, parameter :: OCEAN_DATA_INTERNAL = 0
-  integer, parameter :: OCEAN_DATA_EXTERNAL = 1
-  integer, parameter :: OCEAN_DATA_GLAD = 2
+  ! [velocity_solver] nonlinear_method
+  integer, parameter :: NONLINEAR_METHOD_PICARD = 0
+  integer, parameter :: NONLINEAR_METHOD_ACCELERATED_PICARD = 1
+  type(option_choice), dimension(2), parameter :: nonlinear_method_choices = [ &
+       option_choice(NONLINEAR_METHOD_PICARD,             'picard',             'standard Picard iteration'), &
+       option_choice(NONLINEAR_METHOD_ACCELERATED_PICARD, 'accelerated_picard', 'Picard iteration with acceleration') ]
 
-  integer, parameter :: OCEAN_DATA_EXTRAPOLATE_FALSE = 0
-  integer, parameter :: OCEAN_DATA_EXTRAPOLATE_TRUE = 1
+  ! [velocity_solver] nonlinear_residual
+  integer, parameter :: NONLINEAR_RESIDUAL_MAX = 0
+  integer, parameter :: NONLINEAR_RESIDUAL_MAX_NO_UBAS = 1
+  integer, parameter :: NONLINEAR_RESIDUAL_MEAN = 2
+  integer, parameter :: NONLINEAR_RESIDUAL_L2NORM = 3
+  integer, parameter :: NONLINEAR_RESIDUAL_RELATIVE_L2NORM = 4
+  type(option_choice), dimension(5), parameter :: nonlinear_residual_choices = [ &
+       option_choice(NONLINEAR_RESIDUAL_MAX,             'max',             'max value'), &
+       option_choice(NONLINEAR_RESIDUAL_MAX_NO_UBAS,     'max_no_ubas',     'max value ignoring ubas'), &
+       option_choice(NONLINEAR_RESIDUAL_MEAN,            'mean',            'mean value'), &
+       option_choice(NONLINEAR_RESIDUAL_L2NORM,          'l2norm',          'L2 norm of Ax-b = resid'), &
+       option_choice(NONLINEAR_RESIDUAL_RELATIVE_L2NORM, 'relative_l2norm', 'relative L2 norm, |Ax-b|/|b|') ]
 
-  integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
-  integer, parameter :: BASAL_MBAL_CONTINUITY = 1
+  ! [velocity_solver] linear_solver
+  ! The SLAP solvers (one task only) are in libglimmer-solve; glissade_velo_higher_slap maps the
+  ! LINEAR_SOLVER_SLAP_* choices to that library's methods (SLAP_*).
+  integer, parameter :: LINEAR_SOLVER_SLAP_PCG = 0
+  integer, parameter :: LINEAR_SOLVER_SLAP_BICG = 1
+  integer, parameter :: LINEAR_SOLVER_SLAP_GMRES = 2
+  integer, parameter :: LINEAR_SOLVER_PCG = 3
+  integer, parameter :: LINEAR_SOLVER_PCG_CHRONGEAR = 4
+  type(option_choice), dimension(5), parameter :: linear_solver_choices = [ &
+       option_choice(LINEAR_SOLVER_SLAP_PCG,      'slap_pcg',      'SLAP PCG with incomplete Cholesky preconditioner'), &
+       option_choice(LINEAR_SOLVER_SLAP_BICG,     'slap_bicg',     'SLAP BiCG with LU preconditioner'), &
+       option_choice(LINEAR_SOLVER_SLAP_GMRES,    'slap_gmres',    'SLAP GMRES with LU preconditioner'), &
+       option_choice(LINEAR_SOLVER_PCG,           'pcg',           'native PCG solver, standard'), &
+       option_choice(LINEAR_SOLVER_PCG_CHRONGEAR, 'pcg_chrongear', 'native PCG solver, Chronopoulos-Gear') ]
 
-  integer, parameter :: SMB_INPUT_MYR_ICE = 0     ! use 'acab' for input
-  integer, parameter :: SMB_INPUT_MMYR_WE = 1     ! use 'smb' for input
+  ! [velocity_solver] preconditioner
+  integer, parameter :: PRECONDITIONER_NONE = 0
+  integer, parameter :: PRECONDITIONER_DIAGONAL = 1
+  integer, parameter :: PRECONDITIONER_SIA  = 2
+  integer, parameter :: PRECONDITIONER_TRIDIAG_LOCAL  = 3
+  integer, parameter :: PRECONDITIONER_TRIDIAG_GLOBAL = 4
+  type(option_choice), dimension(5), parameter :: preconditioner_choices = [ &
+       option_choice(PRECONDITIONER_NONE,           'none',           'no preconditioner (native PCG)'), &
+       option_choice(PRECONDITIONER_DIAGONAL,       'diagonal',       'diagonal preconditioner (native PCG)'), &
+       option_choice(PRECONDITIONER_SIA,            'sia',            'SIA preconditioner (native PCG)'), &
+       option_choice(PRECONDITIONER_TRIDIAG_LOCAL,  'tridiag_local',  'local tridiagonal preconditioner (native PCG)'), &
+       option_choice(PRECONDITIONER_TRIDIAG_GLOBAL, 'tridiag_global', 'global tridiagonal preconditioner (native PCG)') ]
 
+  ! [velocity_solver] assemble_beta, assemble_taud, assemble_bfric, assemble_lateral
+  integer, parameter :: ASSEMBLE_BETA_STANDARD = 0
+  integer, parameter :: ASSEMBLE_BETA_LOCAL = 1
+  type(option_choice), dimension(2), parameter :: assemble_beta_choices = [ &
+       option_choice(ASSEMBLE_BETA_STANDARD, 'standard', 'standard finite-element assembly'), &
+       option_choice(ASSEMBLE_BETA_LOCAL,    'local',    'use local beta at each vertex') ]
+
+  integer, parameter :: ASSEMBLE_TAUD_STANDARD = 0
+  integer, parameter :: ASSEMBLE_TAUD_LOCAL = 1
+  type(option_choice), dimension(2), parameter :: assemble_taud_choices = [ &
+       option_choice(ASSEMBLE_TAUD_STANDARD, 'standard', 'standard finite-element assembly'), &
+       option_choice(ASSEMBLE_TAUD_LOCAL,    'local',    'use local driving stress at each vertex') ]
+
+  integer, parameter :: ASSEMBLE_BFRIC_STANDARD = 0
+  integer, parameter :: ASSEMBLE_BFRIC_LOCAL = 1
+  type(option_choice), dimension(2), parameter :: assemble_bfric_choices = [ &
+       option_choice(ASSEMBLE_BFRIC_STANDARD, 'standard', 'standard finite-element assembly'), &
+       option_choice(ASSEMBLE_BFRIC_LOCAL,    'local',    'use local basal friction at each vertex') ]
+
+  integer, parameter :: ASSEMBLE_LATERAL_STANDARD = 0
+  integer, parameter :: ASSEMBLE_LATERAL_LOCAL = 1
+  type(option_choice), dimension(2), parameter :: assemble_lateral_choices = [ &
+       option_choice(ASSEMBLE_LATERAL_STANDARD, 'standard', 'standard finite-element assembly'), &
+       option_choice(ASSEMBLE_LATERAL_LOCAL,    'local',    'use local thck and usrf on each cell face') ]
+
+  ! [advection] advection_method (values 0-2 were Glide-only)
+  integer, parameter :: ADVECTION_METHOD_REMAP = 3
+  integer, parameter :: ADVECTION_METHOD_UPWIND = 4
+  integer, parameter :: ADVECTION_METHOD_FIXED_THICKNESS = 5
+  type(option_choice), dimension(3), parameter :: advection_method_choices = [ &
+       option_choice(ADVECTION_METHOD_REMAP,           'remap',           'incremental remapping'), &
+       option_choice(ADVECTION_METHOD_UPWIND,          'upwind',          'first-order upwind'), &
+       option_choice(ADVECTION_METHOD_FIXED_THICKNESS, 'fixed_thickness', 'thickness fixed at initial value') ]
+
+  ! [advection] vertical_remap_order
+  integer, parameter :: VERTICAL_REMAP_ORDER_FIRST = 0
+  integer, parameter :: VERTICAL_REMAP_ORDER_SECOND = 1
+  type(option_choice), dimension(2), parameter :: vertical_remap_order_choices = [ &
+       option_choice(VERTICAL_REMAP_ORDER_FIRST,  'first',  'first-order accurate'), &
+       option_choice(VERTICAL_REMAP_ORDER_SECOND, 'second', 'second-order accurate') ]
+
+  ! [advection] compute_ice_age: a logical in the config file
+  integer, parameter :: COMPUTE_ICE_AGE_FALSE = 0
+  integer, parameter :: COMPUTE_ICE_AGE_TRUE = 1
+
+  ! [temperature] temperature_method (enthalpy is not scientifically supported)
+  integer, parameter :: TEMPERATURE_METHOD_ISOTHERMAL_ARTM = 0
+  integer, parameter :: TEMPERATURE_METHOD_PROGNOSTIC = 1
+  integer, parameter :: TEMPERATURE_METHOD_FIXED = 2
+  integer, parameter :: TEMPERATURE_METHOD_ENTHALPY = 3
+  type(option_choice), dimension(4), parameter :: temperature_method_choices = [ &
+       option_choice(TEMPERATURE_METHOD_ISOTHERMAL_ARTM, 'isothermal_artm', 'isothermal, set to surface air temperature'), &
+       option_choice(TEMPERATURE_METHOD_PROGNOSTIC,      'prognostic',      'prognostic temperature'), &
+       option_choice(TEMPERATURE_METHOD_FIXED,           'fixed',           'constant in time'), &
+       option_choice(TEMPERATURE_METHOD_ENTHALPY,        'enthalpy',        'prognostic enthalpy') ]
+
+  ! [temperature] temperature_init
+  integer, parameter :: TEMPERATURE_INIT_ZERO_CELSIUS = 0
+  integer, parameter :: TEMPERATURE_INIT_ARTM = 1
+  integer, parameter :: TEMPERATURE_INIT_LINEAR = 2
+  integer, parameter :: TEMPERATURE_INIT_ADVECTIVE_DIFFUSIVE = 3
+  integer, parameter :: TEMPERATURE_INIT_FILE = 4
+  type(option_choice), dimension(5), parameter :: temperature_init_choices = [ &
+       option_choice(TEMPERATURE_INIT_ZERO_CELSIUS,        'zero_celsius',        'set to 0 C'), &
+       option_choice(TEMPERATURE_INIT_ARTM,                'artm',                'set to surface air temperature'), &
+       option_choice(TEMPERATURE_INIT_LINEAR,              'linear',              'linear vertical profile'), &
+       option_choice(TEMPERATURE_INIT_ADVECTIVE_DIFFUSIVE, 'advective_diffusive', 'advective-diffusive balance'), &
+       option_choice(TEMPERATURE_INIT_FILE,                'file',                'temperature from an external file') ]
+
+  ! [temperature] dissipation_method
+  integer, parameter :: DISSIPATION_METHOD_NONE = 0
+  integer, parameter :: DISSIPATION_METHOD_SIA = 1
+  integer, parameter :: DISSIPATION_METHOD_FIRST_ORDER = 2
+  type(option_choice), dimension(3), parameter :: dissipation_method_choices = [ &
+       option_choice(DISSIPATION_METHOD_NONE,        'none',        'no dissipation'), &
+       option_choice(DISSIPATION_METHOD_SIA,         'sia',         '0-order SIA'), &
+       option_choice(DISSIPATION_METHOD_FIRST_ORDER, 'first_order', 'first-order model (Blatter-Pattyn)') ]
+
+  ! [flow_law] flow_law
+  integer, parameter :: FLOW_LAW_CONSTANT = 0
+  integer, parameter :: FLOW_LAW_PATERSON_BUDD_MINUS5C = 1
+  integer, parameter :: FLOW_LAW_PATERSON_BUDD = 2
+  type(option_choice), dimension(3), parameter :: flow_law_choices = [ &
+       option_choice(FLOW_LAW_CONSTANT,              'constant',              'constant flow factor flwa_const'), &
+       option_choice(FLOW_LAW_PATERSON_BUDD_MINUS5C, 'paterson_budd_minus5c', 'Paterson and Budd (T = -5 C)'), &
+       option_choice(FLOW_LAW_PATERSON_BUDD,         'paterson_budd',         'Paterson and Budd') ]
+
+  ! [basal_physics] sliding_law
+  integer, parameter :: SLIDING_LAW_BETA_CONSTANT = 0
+  integer, parameter :: SLIDING_LAW_BETA_BPMP = 1
+  integer, parameter :: SLIDING_LAW_PSEUDO_PLASTIC = 2
+  integer, parameter :: SLIDING_LAW_PSEUDO_PLASTIC_OLD = 3
+  integer, parameter :: SLIDING_LAW_NO_SLIP = 4
+  integer, parameter :: SLIDING_LAW_BETA_FILE = 5
+  integer, parameter :: SLIDING_LAW_NO_SLIP_DIRICHLET = 6
+  integer, parameter :: SLIDING_LAW_ZOET_IVERSON = 7
+  integer, parameter :: SLIDING_LAW_ISMIP_HOM_C = 8
+  integer, parameter :: SLIDING_LAW_POWERLAW = 9
+  integer, parameter :: SLIDING_LAW_COULOMB = 10
+  integer, parameter :: SLIDING_LAW_SCHOOF = 11
+  integer, parameter :: SLIDING_LAW_TSAI = 12
+  integer, parameter :: SLIDING_LAW_POWERLAW_EFFECPRESS = 13
+  integer, parameter :: SLIDING_LAW_YIELD_PICARD = 14
+  type(option_choice), dimension(15), parameter :: sliding_law_choices = [ &
+       option_choice(SLIDING_LAW_BETA_CONSTANT,       'beta_constant',       'constant beta'), &
+       option_choice(SLIDING_LAW_BETA_BPMP,           'beta_bpmp',           'beta depends on basal temperature (melting or frozen)'), &
+       option_choice(SLIDING_LAW_PSEUDO_PLASTIC,      'pseudo_plastic',      'pseudo-plastic sliding law, new C_c options'), &
+       option_choice(SLIDING_LAW_PSEUDO_PLASTIC_OLD,  'pseudo_plastic_old',  'pseudo-plastic sliding law, old tan(phi) options'), &
+       option_choice(SLIDING_LAW_NO_SLIP,             'no_slip',             'no slip (using large beta)'), &
+       option_choice(SLIDING_LAW_BETA_FILE,           'beta_file',           'beta from external file'), &
+       option_choice(SLIDING_LAW_NO_SLIP_DIRICHLET,   'no_slip_dirichlet',   'no slip (Dirichlet implementation)'), &
+       option_choice(SLIDING_LAW_ZOET_IVERSON,        'zoet_iverson',        'Zoet-Iverson sliding law'), &
+       option_choice(SLIDING_LAW_ISMIP_HOM_C,         'ismip_hom_c',         'beta as in ISMIP-HOM test C'), &
+       option_choice(SLIDING_LAW_POWERLAW,            'powerlaw',            'power law'), &
+       option_choice(SLIDING_LAW_COULOMB,             'coulomb',             'Coulomb friction law with effective pressure'), &
+       option_choice(SLIDING_LAW_SCHOOF,              'schoof',              'Schoof friction law'), &
+       option_choice(SLIDING_LAW_TSAI,                'tsai',                'min of Coulomb stress and power-law stress (Tsai)'), &
+       option_choice(SLIDING_LAW_POWERLAW_EFFECPRESS, 'powerlaw_effecpress', 'power law using effective pressure'), &
+       option_choice(SLIDING_LAW_YIELD_PICARD,        'yield_picard',        'till yield stress (Picard)') ]
+
+  ! [basal_physics] btrc_method (local SIA solver only)
+  integer, parameter :: BTRC_METHOD_NONE = 0
+  integer, parameter :: BTRC_METHOD_CONSTANT = 1
+  integer, parameter :: BTRC_METHOD_CONSTANT_BWAT = 2
+  integer, parameter :: BTRC_METHOD_CONSTANT_BPMP = 3
+  type(option_choice), dimension(4), parameter :: btrc_method_choices = [ &
+       option_choice(BTRC_METHOD_NONE,          'none',          'no basal sliding'), &
+       option_choice(BTRC_METHOD_CONSTANT,      'constant',      'constant basal traction'), &
+       option_choice(BTRC_METHOD_CONSTANT_BWAT, 'constant_bwat', 'constant where bwat > 0'), &
+       option_choice(BTRC_METHOD_CONSTANT_BPMP, 'constant_bpmp', 'constant where T = Tpmp') ]
+
+  ! [basal_physics] beta_limit_method
+  integer, parameter :: BETA_LIMIT_METHOD_ABSOLUTE = 0
+  integer, parameter :: BETA_LIMIT_METHOD_FGROUND_SCALED = 1
+  type(option_choice), dimension(2), parameter :: beta_limit_method_choices = [ &
+       option_choice(BETA_LIMIT_METHOD_ABSOLUTE,       'absolute',       'absolute beta limit based on beta_grounded_min'), &
+       option_choice(BETA_LIMIT_METHOD_FGROUND_SCALED, 'fground_scaled', 'beta is limited, then scaled by f_ground_cell') ]
+
+  ! [basal_physics] powerlaw_c_method
+  integer, parameter :: POWERLAW_C_METHOD_CONSTANT = 0
+  integer, parameter :: POWERLAW_C_METHOD_INVERSION = 1
+  integer, parameter :: POWERLAW_C_METHOD_FILE = 2
+  integer, parameter :: POWERLAW_C_METHOD_INVERSION_BASIN = 3
+  integer, parameter :: POWERLAW_C_METHOD_FROM_COULOMB_C = 4
+  type(option_choice), dimension(5), parameter :: powerlaw_c_method_choices = [ &
+       option_choice(POWERLAW_C_METHOD_CONSTANT,        'constant',        'spatially uniform friction parameter Cp'), &
+       option_choice(POWERLAW_C_METHOD_INVERSION,       'inversion',       'invert for 2D friction parameter Cp'), &
+       option_choice(POWERLAW_C_METHOD_FILE,            'file',            'read friction parameter Cp from file'), &
+       option_choice(POWERLAW_C_METHOD_INVERSION_BASIN, 'inversion_basin', 'invert for basin-scale friction parameter Cp'), &
+       option_choice(POWERLAW_C_METHOD_FROM_COULOMB_C,  'from_coulomb_c',  'friction parameter Cp is a function of Cc') ]
+
+  ! [basal_physics] coulomb_c_method
+  integer, parameter :: COULOMB_C_METHOD_CONSTANT = 0
+  integer, parameter :: COULOMB_C_METHOD_INVERSION = 1
+  integer, parameter :: COULOMB_C_METHOD_FILE = 2
+  integer, parameter :: COULOMB_C_METHOD_INVERSION_BASIN = 3
+  type(option_choice), dimension(4), parameter :: coulomb_c_method_choices = [ &
+       option_choice(COULOMB_C_METHOD_CONSTANT,        'constant',        'spatially uniform friction parameter Cc'), &
+       option_choice(COULOMB_C_METHOD_INVERSION,       'inversion',       'invert for 2D friction parameter Cc'), &
+       option_choice(COULOMB_C_METHOD_FILE,            'file',            'read friction parameter Cc from file'), &
+       option_choice(COULOMB_C_METHOD_INVERSION_BASIN, 'inversion_basin', 'invert for basin-scale friction parameter Cc') ]
+
+  ! [basal_physics] effecpress_method
+  integer, parameter :: EFFECPRESS_METHOD_OVERBURDEN = 0
+  integer, parameter :: EFFECPRESS_METHOD_BPMP = 1
+  integer, parameter :: EFFECPRESS_METHOD_BWAT = 2
+  integer, parameter :: EFFECPRESS_METHOD_CAVITY_SHEET = 3
+  integer, parameter :: EFFECPRESS_METHOD_BWAT_BVP = 4
+  type(option_choice), dimension(5), parameter :: effecpress_method_choices = [ &
+       option_choice(EFFECPRESS_METHOD_OVERBURDEN,   'overburden',   'full overburden pressure'), &
+       option_choice(EFFECPRESS_METHOD_BPMP,         'bpmp',         'reduced effecpress near pressure melting point'), &
+       option_choice(EFFECPRESS_METHOD_BWAT,         'bwat',         'macroporous sheet; effecpress depends on bwat'), &
+       option_choice(EFFECPRESS_METHOD_CAVITY_SHEET, 'cavity_sheet', 'cavity-sheet; effecpress depends on opening, closing'), &
+       option_choice(EFFECPRESS_METHOD_BWAT_BVP,     'bwat_bvp',     'reduced effecpress where bwat > 0 (B/vP)') ]
+
+  ! [basal_hydro] bwat_method
+  integer, parameter :: BWAT_METHOD_NONE = 0
+  integer, parameter :: BWAT_METHOD_CONSTANT = 1
+  integer, parameter :: BWAT_METHOD_LOCAL_TILL = 2
+  integer, parameter :: BWAT_METHOD_FLUX_ROUTING = 3
+  type(option_choice), dimension(4), parameter :: bwat_method_choices = [ &
+       option_choice(BWAT_METHOD_NONE,         'none',         'zero basal water depth'), &
+       option_choice(BWAT_METHOD_CONSTANT,     'constant',     'constant basal water depth'), &
+       option_choice(BWAT_METHOD_LOCAL_TILL,   'local_till',   'basal water depth computed from local till model'), &
+       option_choice(BWAT_METHOD_FLUX_ROUTING, 'flux_routing', 'steady-state flux routing') ]
+
+  ! [basal_hydro] flux_routing_method
+  integer, parameter :: FLUX_ROUTING_METHOD_D8 = 0
+  integer, parameter :: FLUX_ROUTING_METHOD_DINF = 1
+  integer, parameter :: FLUX_ROUTING_METHOD_FD8 = 2
+  type(option_choice), dimension(3), parameter :: flux_routing_method_choices = [ &
+       option_choice(FLUX_ROUTING_METHOD_D8,   'd8',   'D8; route flux to lowest-elevation neighbor'), &
+       option_choice(FLUX_ROUTING_METHOD_DINF, 'dinf', 'Dinf; route flux to two lower-elevation neighbors'), &
+       option_choice(FLUX_ROUTING_METHOD_FD8,  'fd8',  'FD8; route flux to all lower-elevation neighbors') ]
+
+  ! [basal_hydro] cavity_open_slide (only with flux routing and the cavity-sheet model)
+  integer, parameter :: CAVITY_OPEN_SLIDE_NONE = 0
+  integer, parameter :: CAVITY_OPEN_SLIDE_FIXED_UB = 1
+  integer, parameter :: CAVITY_OPEN_SLIDE_DYNAMIC_UB = 2
+  type(option_choice), dimension(3), parameter :: cavity_open_slide_choices = [ &
+       option_choice(CAVITY_OPEN_SLIDE_NONE,       'none',       'no opening by sliding'), &
+       option_choice(CAVITY_OPEN_SLIDE_FIXED_UB,   'fixed_ub',   'opening by sliding with fixed u_b'), &
+       option_choice(CAVITY_OPEN_SLIDE_DYNAMIC_UB, 'dynamic_ub', 'opening by sliding with dynamic u_b') ]
+
+  ! [basal_hydro] cavity_open_melt (only with flux routing and the cavity-sheet model)
+  integer, parameter :: CAVITY_OPEN_MELT_NONE = 0
+  integer, parameter :: CAVITY_OPEN_MELT_BMLT = 1
+  integer, parameter :: CAVITY_OPEN_MELT_DISSIPATION = 2
+  integer, parameter :: CAVITY_OPEN_MELT_BMLT_DISSIPATION = 3
+  type(option_choice), dimension(4), parameter :: cavity_open_melt_choices = [ &
+       option_choice(CAVITY_OPEN_MELT_NONE,             'none',             'no opening by melting'), &
+       option_choice(CAVITY_OPEN_MELT_BMLT,             'bmlt',             'opening by melting based on bmlt_ground'), &
+       option_choice(CAVITY_OPEN_MELT_DISSIPATION,      'dissipation',      'opening by melting based on cavity dissipation'), &
+       option_choice(CAVITY_OPEN_MELT_BMLT_DISSIPATION, 'bmlt_dissipation', 'opening based on bmlt_ground plus dissipation') ]
+
+  ! [grounding_line] grounding_line_param
+  integer, parameter :: GROUNDING_LINE_PARAM_NONE = 0
+  integer, parameter :: GROUNDING_LINE_PARAM_VERTICES = 1
+  integer, parameter :: GROUNDING_LINE_PARAM_DELUXE = 2
+  type(option_choice), dimension(3), parameter :: grounding_line_param_choices = [ &
+       option_choice(GROUNDING_LINE_PARAM_NONE,     'none',     'f_ground = 0 or 1; no GLP'), &
+       option_choice(GROUNDING_LINE_PARAM_VERTICES, 'vertices', 'GLP for basal friction with 0 <= f_ground <= 1 for vertices'), &
+       option_choice(GROUNDING_LINE_PARAM_DELUXE,   'deluxe',   'deluxe GLP, 0 <= f_ground <= 1 for both vertices and cells') ]
+
+  ! [grounding_line] fground_no_glp
+  integer, parameter :: FGROUND_NO_GLP_GROUNDED_NEIGHBOR = 0
+  integer, parameter :: FGROUND_NO_GLP_FLOTATION_FUNCTION = 1
+  type(option_choice), dimension(2), parameter :: fground_no_glp_choices = [ &
+       option_choice(FGROUND_NO_GLP_GROUNDED_NEIGHBOR,  'grounded_neighbor',  'f_ground = 1 at vertex if any neighbor cell is grounded'), &
+       option_choice(FGROUND_NO_GLP_FLOTATION_FUNCTION, 'flotation_function', 'f_ground = 0 or 1 at vertex based on staggered f_flotation') ]
+
+  ! [grounding_line] grounding_line_bmlt
+  integer, parameter :: GROUNDING_LINE_BMLT_NONE = 0
+  integer, parameter :: GROUNDING_LINE_BMLT_FLOATING_FRACTION = 1
+  integer, parameter :: GROUNDING_LINE_BMLT_ZERO_GROUNDED = 2
+  type(option_choice), dimension(3), parameter :: grounding_line_bmlt_choices = [ &
+       option_choice(GROUNDING_LINE_BMLT_NONE,              'none',              'no GLP for bmlt_float'), &
+       option_choice(GROUNDING_LINE_BMLT_FLOATING_FRACTION, 'floating_fraction', 'weigh bmlt_float by floating fraction of cell'), &
+       option_choice(GROUNDING_LINE_BMLT_ZERO_GROUNDED,     'zero_grounded',     'set bmlt_float = 0 in partly grounded cells') ]
+
+  ! [grounding_line] flotation_function
+  integer, parameter :: FLOTATION_FUNCTION_PATTYN = 0
+  integer, parameter :: FLOTATION_FUNCTION_INVERSE_PATTYN = 1
+  integer, parameter :: FLOTATION_FUNCTION_LINEAR = 2
+  type(option_choice), dimension(3), parameter :: flotation_function_choices = [ &
+       option_choice(FLOTATION_FUNCTION_PATTYN,         'pattyn',         'f_pattyn = (-rhoo*b)/(rhoi*H)'), &
+       option_choice(FLOTATION_FUNCTION_INVERSE_PATTYN, 'inverse_pattyn', '1/fpattyn = (rhoi*H)/(-rhoo*b)'), &
+       option_choice(FLOTATION_FUNCTION_LINEAR,         'linear',         'linear = -b - (rhoi/rhoo)*H') ]
+
+  ! [basal_melt] bmlt_float_method (value 5 was the old MISOMIP plume model)
+  integer, parameter :: BMLT_FLOAT_METHOD_NONE = 0
+  integer, parameter :: BMLT_FLOAT_METHOD_MISMIP = 1
+  integer, parameter :: BMLT_FLOAT_METHOD_CONSTANT = 2
+  integer, parameter :: BMLT_FLOAT_METHOD_DEPTH = 3
+  integer, parameter :: BMLT_FLOAT_METHOD_FILE = 4
+  integer, parameter :: BMLT_FLOAT_METHOD_THERMAL_FORCING = 5
+  type(option_choice), dimension(6), parameter :: bmlt_float_method_choices = [ &
+       option_choice(BMLT_FLOAT_METHOD_NONE,            'none',            'no melting of floating ice'), &
+       option_choice(BMLT_FLOAT_METHOD_MISMIP,          'mismip',          'MISMIP+ melt rate profile'), &
+       option_choice(BMLT_FLOAT_METHOD_CONSTANT,        'constant',        'constant melt rate'), &
+       option_choice(BMLT_FLOAT_METHOD_DEPTH,           'depth',           'depth-dependent melt rate'), &
+       option_choice(BMLT_FLOAT_METHOD_FILE,            'file',            'melt rate from external file'), &
+       option_choice(BMLT_FLOAT_METHOD_THERMAL_FORCING, 'thermal_forcing', 'melt rate from thermal forcing') ]
+
+  ! [basal_melt] bmlt_float_thermal_forcing_param
+  integer, parameter :: BMLT_FLOAT_TF_PARAM_QUADRATIC = 0
+  integer, parameter :: BMLT_FLOAT_TF_PARAM_ISMIP6_LOCAL = 1
+  integer, parameter :: BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL = 2
+  integer, parameter :: BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE = 3
+  type(option_choice), dimension(4), parameter :: bmlt_float_thermal_forcing_param_choices = [ &
+       option_choice(BMLT_FLOAT_TF_PARAM_QUADRATIC,             'quadratic',             'quadratic function of thermal forcing'), &
+       option_choice(BMLT_FLOAT_TF_PARAM_ISMIP6_LOCAL,          'ismip6_local',          'ISMIP6 local quadratic'), &
+       option_choice(BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL,       'ismip6_nonlocal',       'ISMIP6 nonlocal quadratic'), &
+       option_choice(BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE, 'ismip6_nonlocal_slope', 'ISMIP6 nonlocal quadratic, slope-dependent') ]
+
+  ! [basal_melt] deltaT_ocn_method
+  integer, parameter :: DELTAT_OCN_METHOD_NONE = 0
+  integer, parameter :: DELTAT_OCN_METHOD_INVERSION = 1
+  integer, parameter :: DELTAT_OCN_METHOD_FILE = 2
+  integer, parameter :: DELTAT_OCN_METHOD_INVERSION_BASIN = 3
+  integer, parameter :: DELTAT_OCN_METHOD_CALIBRATE_BASIN = 4
+  integer, parameter :: DELTAT_OCN_METHOD_DTHCK_DT = 5
+  type(option_choice), dimension(6), parameter :: deltaT_ocn_method_choices = [ &
+       option_choice(DELTAT_OCN_METHOD_NONE,            'none',            'deltaT_ocn = 0'), &
+       option_choice(DELTAT_OCN_METHOD_INVERSION,       'inversion',       'invert for 2D deltaT_ocn based on thck'), &
+       option_choice(DELTAT_OCN_METHOD_FILE,            'file',            'read deltaT_ocn from external file'), &
+       option_choice(DELTAT_OCN_METHOD_INVERSION_BASIN, 'inversion_basin', 'invert for basin-scale deltaT_ocn'), &
+       option_choice(DELTAT_OCN_METHOD_CALIBRATE_BASIN, 'calibrate_basin', 'calibrate deltaT_basin to match melt target'), &
+       option_choice(DELTAT_OCN_METHOD_DTHCK_DT,        'dthck_dt',        'set deltaT_ocn based on observed dthck_dt') ]
+
+  ! [ocean_data] ocean_data_domain
+  integer, parameter :: OCEAN_DATA_DOMAIN_INTERNAL = 0
+  integer, parameter :: OCEAN_DATA_DOMAIN_FILE = 1
+  integer, parameter :: OCEAN_DATA_DOMAIN_COUPLER = 2
+  type(option_choice), dimension(3), parameter :: ocean_data_domain_choices = [ &
+       option_choice(OCEAN_DATA_DOMAIN_INTERNAL, 'internal', 'ocean data computed internally by CISM'), &
+       option_choice(OCEAN_DATA_DOMAIN_FILE,     'file',     'ocean data read from external file'), &
+       option_choice(OCEAN_DATA_DOMAIN_COUPLER,  'coupler',  'ocean data from coupler via Glad') ]
+
+  ! [calving] calving_law (the old value 2 (a fixed fraction of floating ice) was removed)
+  integer, parameter :: CALVING_LAW_NONE = 0
+  integer, parameter :: CALVING_LAW_FLOAT_ZERO = 1
+  integer, parameter :: CALVING_LAW_RELX_THRESHOLD = 2
+  integer, parameter :: CALVING_LAW_TOPG_THRESHOLD = 3
+  integer, parameter :: CALVING_LAW_GRID_MASK = 4
+  integer, parameter :: CALVING_LAW_ADVANCE_RETREAT_RATE = 5
+  integer, parameter :: CALVING_LAW_THCK_THRESHOLD = 6
+  integer, parameter :: CALVING_LAW_STRESS = 7
+  integer, parameter :: CALVING_LAW_STRESS_STOCHASTIC = 8
+  integer, parameter :: CALVING_LAW_DAMAGE = 9
+  integer, parameter :: CALVING_LAW_EIGENCALVING = 10
+  type(option_choice), dimension(11), parameter :: calving_law_choices = [ &
+       option_choice(CALVING_LAW_NONE,                 'none',                 'no calving law'), &
+       option_choice(CALVING_LAW_FLOAT_ZERO,           'float_zero',           'remove all floating ice'), &
+       option_choice(CALVING_LAW_RELX_THRESHOLD,       'relx_threshold',       'relaxed bedrock threshold'), &
+       option_choice(CALVING_LAW_TOPG_THRESHOLD,       'topg_threshold',       'present bedrock threshold'), &
+       option_choice(CALVING_LAW_GRID_MASK,            'grid_mask',            'calving based on grid location'), &
+       option_choice(CALVING_LAW_ADVANCE_RETREAT_RATE, 'advance_retreat_rate', 'prescribe CF advance/retreat rate'), &
+       option_choice(CALVING_LAW_THCK_THRESHOLD,       'thck_threshold',       'ice thickness threshold'), &
+       option_choice(CALVING_LAW_STRESS,               'stress',               'deterministic stress-based calving'), &
+       option_choice(CALVING_LAW_STRESS_STOCHASTIC,    'stress_stochastic',    'stochastic stress-based calving'), &
+       option_choice(CALVING_LAW_DAMAGE,               'damage',               'damage-based calving scheme'), &
+       option_choice(CALVING_LAW_EIGENCALVING,         'eigencalving',         'strain-rate (eigencalving)') ]
+
+  ! [calving] calving_domain
+  integer, parameter :: CALVING_DOMAIN_OCEAN_EDGE = 0
+  integer, parameter :: CALVING_DOMAIN_EVERYWHERE = 1
+  type(option_choice), dimension(2), parameter :: calving_domain_choices = [ &
+       option_choice(CALVING_DOMAIN_OCEAN_EDGE, 'ocean_edge', 'calving only at the ocean edge'), &
+       option_choice(CALVING_DOMAIN_EVERYWHERE, 'everywhere', 'calving in all cells where criterion is met') ]
+
+  ! [calving] calvingmip_domain
+  integer, parameter :: CALVINGMIP_DOMAIN_NONE = 0
+  integer, parameter :: CALVINGMIP_DOMAIN_CIRCULAR = 1
+  integer, parameter :: CALVINGMIP_DOMAIN_THULE = 2
+  type(option_choice), dimension(3), parameter :: calvingmip_domain_choices = [ &
+       option_choice(CALVINGMIP_DOMAIN_NONE,     'none',     'not a calvingMIP domain'), &
+       option_choice(CALVINGMIP_DOMAIN_CIRCULAR, 'circular', 'calvingMIP circular domain'), &
+       option_choice(CALVINGMIP_DOMAIN_THULE,    'thule',    'calvingMIP Thule domain') ]
+
+  ! [lateral_melt] lateral_melt_method
+  integer, parameter :: LATERAL_MELT_METHOD_NONE = 0
+  integer, parameter :: LATERAL_MELT_METHOD_CONSTANT = 1
+  integer, parameter :: LATERAL_MELT_METHOD_ISMIP = 2
+  type(option_choice), dimension(3), parameter :: lateral_melt_method_choices = [ &
+       option_choice(LATERAL_MELT_METHOD_NONE,     'none',     'no lateral melt at marine margin'), &
+       option_choice(LATERAL_MELT_METHOD_CONSTANT, 'constant', 'constant lateral melt rate'), &
+       option_choice(LATERAL_MELT_METHOD_ISMIP,    'ismip',    'ISMIP lateral melt from TF and discharge') ]
+
+  ! [removal] force_retreat
+  integer, parameter :: FORCE_RETREAT_NONE = 0
+  integer, parameter :: FORCE_RETREAT_ALL_ICE = 1
+  integer, parameter :: FORCE_RETREAT_FLOATING_ICE = 2
+  type(option_choice), dimension(3), parameter :: force_retreat_choices = [ &
+       option_choice(FORCE_RETREAT_NONE,         'none',         'no forced retreat'), &
+       option_choice(FORCE_RETREAT_ALL_ICE,      'all_ice',      'force retreat of all ice with retreat mask'), &
+       option_choice(FORCE_RETREAT_FLOATING_ICE, 'floating_ice', 'force retreat of floating ice with retreat mask') ]
+
+  ! [basal_melt] basal_mbal_in_continuity: a logical in the config file
+  integer, parameter :: BASAL_MBAL_IN_CONTINUITY_FALSE = 0
+  integer, parameter :: BASAL_MBAL_IN_CONTINUITY_TRUE = 1
+
+  ! [ocean_data] extrapolate_ocean_data: a logical in the config file
+  integer, parameter :: EXTRAPOLATE_OCEAN_DATA_FALSE = 0
+  integer, parameter :: EXTRAPOLATE_OCEAN_DATA_TRUE = 1
+
+  ! [calving] calve_at_startup: a logical in the config file
+  integer, parameter :: CALVE_AT_STARTUP_FALSE = 0
+  integer, parameter :: CALVE_AT_STARTUP_TRUE = 1
+
+  ! [calving] subgrid_calving_front: a logical in the config file
+  integer, parameter :: SUBGRID_CALVING_FRONT_FALSE = 0
+  integer, parameter :: SUBGRID_CALVING_FRONT_TRUE = 1
+
+  ! [climate] smb_input_units
+  integer, parameter :: SMB_INPUT_UNITS_M_ICE_PER_YR = 0
+  integer, parameter :: SMB_INPUT_UNITS_MM_WE_PER_YR = 1
+  type(option_choice), dimension(2), parameter :: smb_input_units_choices = [ &
+       option_choice(SMB_INPUT_UNITS_M_ICE_PER_YR, 'm_ice_per_yr', 'SMB input in units of m/yr ice (acab)'), &
+       option_choice(SMB_INPUT_UNITS_MM_WE_PER_YR, 'mm_we_per_yr', 'SMB input in units of mm/yr w.e. (smb)') ]
+
+  ! [climate] smb_input_function
   integer, parameter :: SMB_INPUT_FUNCTION_XY = 0
   integer, parameter :: SMB_INPUT_FUNCTION_XY_GRADZ = 1
   integer, parameter :: SMB_INPUT_FUNCTION_XYZ = 2
   integer, parameter :: SMB_INPUT_FUNCTION_PDD = 3
+  type(option_choice), dimension(4), parameter :: smb_input_function_choices = [ &
+       option_choice(SMB_INPUT_FUNCTION_XY,       'xy',       'SMB input as function of (x,y)'), &
+       option_choice(SMB_INPUT_FUNCTION_XY_GRADZ, 'xy_gradz', 'SMB and d(SMB)/dz input as function of (x,y)'), &
+       option_choice(SMB_INPUT_FUNCTION_XYZ,      'xyz',      'SMB input as function of (x,y,z)'), &
+       option_choice(SMB_INPUT_FUNCTION_PDD,      'pdd',      'SMB computed with positive-degree scheme') ]
 
+  ! [climate] artm_input_function
   integer, parameter :: ARTM_INPUT_FUNCTION_XY = 0
   integer, parameter :: ARTM_INPUT_FUNCTION_XY_GRADZ = 1
   integer, parameter :: ARTM_INPUT_FUNCTION_XYZ = 2
   integer, parameter :: ARTM_INPUT_FUNCTION_XY_LAPSE = 3
- 
+  type(option_choice), dimension(4), parameter :: artm_input_function_choices = [ &
+       option_choice(ARTM_INPUT_FUNCTION_XY,       'xy',       'artm input as function of (x,y)'), &
+       option_choice(ARTM_INPUT_FUNCTION_XY_GRADZ, 'xy_gradz', 'artm and d(artm)/dz input as function of (x,y)'), &
+       option_choice(ARTM_INPUT_FUNCTION_XYZ,      'xyz',      'artm input as function of (x,y,z)'), &
+       option_choice(ARTM_INPUT_FUNCTION_XY_LAPSE, 'xy_lapse', 'artm input as function of (x,y) with lapse rate') ]
+
+  ! [climate] overwrite_acab
+  ! (OVERWRITE_ACAB_INPUT_MASK, not OVERWRITE_ACAB_MASK: Fortran names are case-insensitive, and
+  !  overwrite_acab_mask is a field)
   integer, parameter :: OVERWRITE_ACAB_NONE = 0
-  integer, parameter :: OVERWRITE_ACAB_ZERO_ACAB = 1
-  integer, parameter :: OVERWRITE_ACAB_THCKMIN = 2
+  integer, parameter :: OVERWRITE_ACAB_ACAB_ZERO = 1
+  integer, parameter :: OVERWRITE_ACAB_THCK_MIN = 2
   integer, parameter :: OVERWRITE_ACAB_INPUT_MASK = 3
+  type(option_choice), dimension(4), parameter :: overwrite_acab_choices = [ &
+       option_choice(OVERWRITE_ACAB_NONE,      'none',      'do not overwrite acab anywhere'), &
+       option_choice(OVERWRITE_ACAB_ACAB_ZERO, 'acab_zero', 'overwrite acab where input acab = 0'), &
+       option_choice(OVERWRITE_ACAB_THCK_MIN,  'thck_min',  'overwrite acab where input thck <= overwrite_acab_thck_min'), &
+       option_choice(OVERWRITE_ACAB_INPUT_MASK,      'mask',      'overwrite acab based on input mask') ]
 
-  integer, parameter :: GTHF_UNIFORM = 0
-  integer, parameter :: GTHF_PRESCRIBED_2D = 1
+  ! [geothermal] geothermal_method
+  integer, parameter :: GEOTHERMAL_METHOD_UNIFORM = 0
+  integer, parameter :: GEOTHERMAL_METHOD_FILE = 1
+  type(option_choice), dimension(2), parameter :: geothermal_method_choices = [ &
+       option_choice(GEOTHERMAL_METHOD_UNIFORM, 'uniform', 'uniform geothermal flux'), &
+       option_choice(GEOTHERMAL_METHOD_FILE,    'file',    'read flux from file, if present') ]
 
-  integer, parameter :: RELAXED_TOPO_DEFAULT = 0  ! topo and relx are separate input fields
-  integer, parameter :: RELAXED_TOPO_INPUT = 1    ! set relx to input topg
-  integer, parameter :: RELAXED_TOPO_COMPUTE = 2  ! Input topo in isostatic equilibrium; compute relaxed topo
+  ! [isostasy] lithosphere_method
+  integer, parameter :: LITHOSPHERE_METHOD_LOCAL = 0
+  integer, parameter :: LITHOSPHERE_METHOD_ELASTIC = 1
+  type(option_choice), dimension(2), parameter :: lithosphere_method_choices = [ &
+       option_choice(LITHOSPHERE_METHOD_LOCAL,   'local',   'local lithosphere'), &
+       option_choice(LITHOSPHERE_METHOD_ELASTIC, 'elastic', 'elastic lithosphere') ]
 
-  integer, parameter :: ISOSTASY_NONE = 0
-  integer, parameter :: ISOSTASY_COMPUTE = 1
+  ! [isostasy] asthenosphere_method
+  integer, parameter :: ASTHENOSPHERE_METHOD_FLUID = 0
+  integer, parameter :: ASTHENOSPHERE_METHOD_RELAXING = 1
+  integer, parameter :: ASTHENOSPHERE_METHOD_RELAXING_LATVAR = 2
+  type(option_choice), dimension(3), parameter :: asthenosphere_method_choices = [ &
+       option_choice(ASTHENOSPHERE_METHOD_FLUID,           'fluid',           'fluid asthenosphere'), &
+       option_choice(ASTHENOSPHERE_METHOD_RELAXING,        'relaxing',        'relaxing with constant timescale'), &
+       option_choice(ASTHENOSPHERE_METHOD_RELAXING_LATVAR, 'relaxing_latvar', 'relaxing with latitude-varying timescale') ]
 
-  integer, parameter :: LITHOSPHERE_LOCAL = 0
-  integer, parameter :: LITHOSPHERE_ELASTIC = 1
+  ! [isostasy] input_topg_method
+  integer, parameter :: INPUT_TOPG_METHOD_SEPARATE_RELX = 0
+  integer, parameter :: INPUT_TOPG_METHOD_RELX_FROM_TOPG = 1
+  integer, parameter :: INPUT_TOPG_METHOD_RELX_FROM_LOAD = 2
+  type(option_choice), dimension(3), parameter :: input_topg_method_choices = [ &
+       option_choice(INPUT_TOPG_METHOD_SEPARATE_RELX,  'separate_relx',  'read both topg and relx from input file'), &
+       option_choice(INPUT_TOPG_METHOD_RELX_FROM_TOPG, 'relx_from_topg', 'set relx to input topg'), &
+       option_choice(INPUT_TOPG_METHOD_RELX_FROM_LOAD, 'relx_from_load', 'compute relx = input topg + load') ]
 
-  integer, parameter :: ASTHENOSPHERE_FLUID = 0
-  integer, parameter :: ASTHENOSPHERE_RELAXING_CONST = 1
-  integer, parameter :: ASTHENOSPHERE_RELAXING_LATVAR = 2
+  ! [glaciers] mu_star_method
+  integer, parameter :: MU_STAR_METHOD_CONSTANT = 0
+  integer, parameter :: MU_STAR_METHOD_INVERSION = 1
+  integer, parameter :: MU_STAR_METHOD_FILE = 2
+  type(option_choice), dimension(3), parameter :: mu_star_method_choices = [ &
+       option_choice(MU_STAR_METHOD_CONSTANT,  'constant',  'spatially uniform glacier parameter mu_star'), &
+       option_choice(MU_STAR_METHOD_INVERSION, 'inversion', 'glacier-specific mu_star found by inversion'), &
+       option_choice(MU_STAR_METHOD_FILE,      'file',      'glacier-specific mu_star read from file') ]
 
-  integer, parameter :: CALVING_NONE = 0
-  integer, parameter :: CALVING_FLOAT_ZERO = 1
-  ! calving_law = 2 (remove a fraction of the floating ice) was removed;
-  !  use CALVING_FLOAT_ZERO with calving_timescale instead
-  integer, parameter :: CALVING_RELX_THRESHOLD = 3
-  integer, parameter :: CALVING_TOPG_THRESHOLD = 4
-  integer, parameter :: CALVING_GRID_MASK = 5
-  integer, parameter :: CF_ADVANCE_RETREAT_RATE = 6
-  integer, parameter :: CALVING_THCK_THRESHOLD = 7
-  integer, parameter :: CALVING_STRESS = 8
-  integer, parameter :: CALVING_STRESS_STOCHASTIC = 9
-  integer, parameter :: CALVING_DAMAGE = 10
-  integer, parameter :: EIGEN_CALVING = 11
+  ! [glaciers] alpha_snow_method
+  integer, parameter :: ALPHA_SNOW_METHOD_CONSTANT = 0
+  integer, parameter :: ALPHA_SNOW_METHOD_INVERSION = 1
+  integer, parameter :: ALPHA_SNOW_METHOD_FILE = 2
+  type(option_choice), dimension(3), parameter :: alpha_snow_method_choices = [ &
+       option_choice(ALPHA_SNOW_METHOD_CONSTANT,  'constant',  'spatially uniform glacier parameter alpha_snow'), &
+       option_choice(ALPHA_SNOW_METHOD_INVERSION, 'inversion', 'glacier-specific alpha_snow found by inversion'), &
+       option_choice(ALPHA_SNOW_METHOD_FILE,      'file',      'glacier-specific alpha_snow read from file') ]
 
-  integer, parameter :: CALVING_INIT_OFF = 0
-  integer, parameter :: CALVING_INIT_ON = 1
+  ! [glaciers] glacier_powerlaw_c_method
+  integer, parameter :: GLACIER_POWERLAW_C_METHOD_CONSTANT = 0
+  integer, parameter :: GLACIER_POWERLAW_C_METHOD_INVERSION = 1
+  integer, parameter :: GLACIER_POWERLAW_C_METHOD_FILE = 2
+  type(option_choice), dimension(3), parameter :: glacier_powerlaw_c_method_choices = [ &
+       option_choice(GLACIER_POWERLAW_C_METHOD_CONSTANT,  'constant',  'spatially uniform glacier parameter Cp'), &
+       option_choice(GLACIER_POWERLAW_C_METHOD_INVERSION, 'inversion', 'Cp for glaciers found by inversion'), &
+       option_choice(GLACIER_POWERLAW_C_METHOD_FILE,      'file',      'Cp for glaciers read from file') ]
 
-  integer, parameter :: CALVING_DOMAIN_OCEAN_EDGE = 0
-  integer, parameter :: CALVING_DOMAIN_EVERYWHERE = 1
+  ! [glaciers] snow_method
+  integer, parameter :: SNOW_METHOD_SNOW = 0
+  integer, parameter :: SNOW_METHOD_PRECIP_ARTM = 1
+  type(option_choice), dimension(2), parameter :: snow_method_choices = [ &
+       option_choice(SNOW_METHOD_SNOW,        'snow',        'read in snowfall rate directly'), &
+       option_choice(SNOW_METHOD_PRECIP_ARTM, 'precip_artm', 'compute snowfall rate from precip and artm') ]
 
-  integer, parameter :: HO_CALVING_FRONT_NO_SUBGRID = 0
-  integer, parameter :: HO_CALVING_FRONT_SUBGRID = 1
-
-  integer, parameter :: HO_CALVINGMIP_DOMAIN_NONE = 0
-  integer, parameter :: HO_CALVINGMIP_DOMAIN_CIRCULAR = 1
-  integer, parameter :: HO_CALVINGMIP_DOMAIN_THULE = 2
-
-  integer, parameter :: LATERAL_MELT_NONE = 0
-  integer, parameter :: LATERAL_MELT_CONSTANT = 1
-  integer, parameter :: LATERAL_MELT_ISMIP = 2
-
-  integer, parameter :: FORCE_RETREAT_NONE = 0
-  integer, parameter :: FORCE_RETREAT_ALL_ICE = 1
-  integer, parameter :: FORCE_RETREAT_FLOATING_ICE = 2
-
-  integer, parameter :: DT_IN_YEARS = 0
-  integer, parameter :: DT_STEPS_PER_YEAR = 1
-
-  integer, parameter :: DM_DT_DIAG_KG_S = 0
-  integer, parameter :: DM_DT_DIAG_GT_Y = 1
-
-  integer, parameter :: DIAG_MINTHCK_ZERO = 0
-  integer, parameter :: DIAG_MINTHCK_THKLIM = 1
-
-  integer, parameter :: SIGMA_COMPUTE_GLIDE = 0
-  integer, parameter :: SIGMA_EXTERNAL = 1
-  integer, parameter :: SIGMA_CONFIG = 2
-  integer, parameter :: SIGMA_COMPUTE_EVEN = 3
-  integer, parameter :: SIGMA_COMPUTE_PATTYN = 4
-
-  integer, parameter :: RESTART_EXTEND_VELO_FALSE = 0
-  integer, parameter :: RESTART_EXTEND_VELO_TRUE = 1
-  
-  ! higher-order options
-
-  integer, parameter :: ACTIVE_BLOCKS_ALL = 0     ! compute on all blocks in the global domain
-  integer, parameter :: ACTIVE_BLOCKS_ONLY = 1    ! compute on active blocks only (where ice is potentially present)
-  integer, parameter :: ACTIVE_BLOCKS_INQUIRE = 2 ! inquire how many active blocks there are for a given ice domain mask and block size
-
-  integer, parameter :: HO_EFVS_CONSTANT = 0
-  integer, parameter :: HO_EFVS_FLOWFACT = 1
-  integer, parameter :: HO_EFVS_NONLINEAR = 2
-
-  integer, parameter :: HO_DISP_NONE = -1
-  integer, parameter :: HO_DISP_SIA = 0
-  integer, parameter :: HO_DISP_FIRSTORDER = 1
-
-  !WHL TODO - Deprecate some little-used options during the config reorg
-  !           This would include HO_BABC_PSEUDO_PLASTIC_OLD
-  integer, parameter :: HO_BABC_BETA_CONSTANT = 0
-  integer, parameter :: HO_BABC_BETA_BPMP = 1
-  integer, parameter :: HO_BABC_PSEUDO_PLASTIC = 2
-  integer, parameter :: HO_BABC_PSEUDO_PLASTIC_OLD = 3
-  integer, parameter :: HO_BABC_BETA_LARGE = 4
-  integer, parameter :: HO_BABC_BETA_EXTERNAL = 5
-  integer, parameter :: HO_BABC_NO_SLIP = 6
-  integer, parameter :: HO_BABC_ZOET_IVERSON = 7
-  integer, parameter :: HO_BABC_ISHOMC = 8
-  integer, parameter :: HO_BABC_POWERLAW = 9
-  integer, parameter :: HO_BABC_COULOMB_FRICTION = 10
-  integer, parameter :: HO_BABC_SCHOOF = 11
-  integer, parameter :: HO_BABC_TSAI = 12
-  integer, parameter :: HO_BABC_POWERLAW_EFFECPRESS = 13
-  integer, parameter :: HO_BABC_YIELD_PICARD = 14
-
-  integer, parameter :: HO_BETA_LIMIT_ABSOLUTE = 0
-  integer, parameter :: HO_BETA_LIMIT_FLOATING_FRAC = 1
-
-  integer, parameter :: HO_POWERLAW_C_CONSTANT = 0
-  integer, parameter :: HO_POWERLAW_C_INVERSION = 1
-  integer, parameter :: HO_POWERLAW_C_EXTERNAL = 2
-  integer, parameter :: HO_POWERLAW_C_INVERSION_BASIN = 3
-  integer, parameter :: HO_POWERLAW_C_FUNCTION_COULOMB_C = 4
-
-  integer, parameter :: HO_COULOMB_C_CONSTANT = 0
-  integer, parameter :: HO_COULOMB_C_INVERSION = 1
-  integer, parameter :: HO_COULOMB_C_EXTERNAL = 2
-  integer, parameter :: HO_COULOMB_C_INVERSION_BASIN = 3
-
-  integer, parameter :: HO_DELTAT_OCN_NONE = 0
-  integer, parameter :: HO_DELTAT_OCN_INVERSION = 1
-  integer, parameter :: HO_DELTAT_OCN_EXTERNAL = 2
-  integer, parameter :: HO_DELTAT_OCN_INVERSION_BASIN = 3
-  integer, parameter :: HO_DELTAT_OCN_CALIBRATE_BASIN = 4
-  integer, parameter :: HO_DELTAT_OCN_DTHCK_DT = 5
-
-  integer, parameter :: HO_BWAT_NONE = 0
-  integer, parameter :: HO_BWAT_CONSTANT = 1
-  integer, parameter :: HO_BWAT_LOCAL_TILL = 2
-  integer, parameter :: HO_BWAT_FLUX_ROUTING = 3
-
-  integer, parameter :: HO_FLUX_ROUTING_D8 = 0
-  integer, parameter :: HO_FLUX_ROUTING_DINF = 1
-  integer, parameter :: HO_FLUX_ROUTING_FD8 = 2
-
-  integer, parameter :: CAVITY_OPEN_SLIDE_NONE = 0
-  integer, parameter :: CAVITY_OPEN_SLIDE_FIXED_UB = 1
-  integer, parameter :: CAVITY_OPEN_SLIDE_DYNAMIC_UB = 2
-
-  integer, parameter :: CAVITY_OPEN_MELT_NONE = 0
-  integer, parameter :: CAVITY_OPEN_MELT_BMLT = 1
-  integer, parameter :: CAVITY_OPEN_MELT_DISSIP = 2
-  integer, parameter :: CAVITY_OPEN_MELT_BMLT_DISSIP = 3
-
-  integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
-  integer, parameter :: HO_EFFECPRESS_BPMP = 1
-  integer, parameter :: HO_EFFECPRESS_BWAT = 2
-  integer, parameter :: HO_EFFECPRESS_CAVITY_SHEET = 3
-  integer, parameter :: HO_EFFECPRESS_BWAT_BVP = 4
-
-  integer, parameter :: HO_NONLIN_PICARD = 0
-  integer, parameter :: HO_NONLIN_PICARD_ACCEL = 1
-
-  integer, parameter :: HO_RESID_MAXU = 0
-  integer, parameter :: HO_RESID_MAXU_NO_UBAS = 1
-  integer, parameter :: HO_RESID_MEANU = 2
-  integer, parameter :: HO_RESID_L2NORM = 3
-  integer, parameter :: HO_RESID_L2NORM_RELATIVE = 4
-
-  integer, parameter :: HO_APPROX_LOCAL_SIA = -1
-  integer, parameter :: HO_APPROX_SIA = 0
-  integer, parameter :: HO_APPROX_SSA = 1
-  integer, parameter :: HO_APPROX_BP = 2
-  integer, parameter :: HO_APPROX_L1L2 = 3
-  integer, parameter :: HO_APPROX_DIVA = 4
-  integer, parameter :: HO_APPROX_HYBRID = 5
-
-  integer, parameter :: HO_PRECOND_NONE = 0
-  integer, parameter :: HO_PRECOND_DIAG = 1
-  integer, parameter :: HO_PRECOND_SIA  = 2
-  integer, parameter :: HO_PRECOND_TRIDIAG_LOCAL  = 3
-  integer, parameter :: HO_PRECOND_TRIDIAG_GLOBAL = 4
-
-  integer, parameter :: HO_GRADIENT_CENTERED = 0
-  integer, parameter :: HO_GRADIENT_UPSTREAM1 = 1
-  integer, parameter :: HO_GRADIENT_UPSTREAM2 = 2
-
-  integer, parameter :: HO_GRADIENT_MARGIN_LAND = 0
-  integer, parameter :: HO_GRADIENT_MARGIN_HYBRID = 1
-  integer, parameter :: HO_GRADIENT_MARGIN_MARINE = 2
-
-  integer, parameter :: HO_VERTICAL_REMAP_FIRST_ORDER = 0
-  integer, parameter :: HO_VERTICAL_REMAP_SECOND_ORDER = 1
-
-  integer, parameter :: HO_ASSEMBLE_BETA_STANDARD = 0
-  integer, parameter :: HO_ASSEMBLE_BETA_LOCAL = 1
-
-  integer, parameter :: HO_ASSEMBLE_TAUD_STANDARD = 0
-  integer, parameter :: HO_ASSEMBLE_TAUD_LOCAL = 1
-
-  integer, parameter :: HO_ASSEMBLE_BFRIC_STANDARD = 0
-  integer, parameter :: HO_ASSEMBLE_BFRIC_LOCAL = 1
-
-  integer, parameter :: HO_ASSEMBLE_LATERAL_STANDARD = 0
-  integer, parameter :: HO_ASSEMBLE_LATERAL_LOCAL = 1
-
-  integer, parameter :: HO_GROUND_NO_GLP = 0
-  integer, parameter :: HO_GROUND_GLP_BASAL_FRICTION = 1
-  integer, parameter :: HO_GROUND_GLP_DELUXE = 2
-
-  integer, parameter :: HO_FGROUND_NO_GLP_GROUNDED_NEIGHBOR = 0
-  integer, parameter :: HO_FGROUND_NO_GLP_FLOTATION_FUNCTION = 1
-
-  integer, parameter :: HO_GROUND_BMLT_NO_GLP = 0
-  integer, parameter :: HO_GROUND_BMLT_FLOATING_FRAC = 1
-  integer, parameter :: HO_GROUND_BMLT_ZERO_GROUNDED = 2
-
-  integer, parameter :: HO_FLOTATION_FUNCTION_PATTYN = 0
-  integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
-  integer, parameter :: HO_FLOTATION_FUNCTION_LINEAR = 2
-
-  integer, parameter :: HO_ICE_AGE_NONE = 0
-  integer, parameter :: HO_ICE_AGE_COMPUTE = 1 
-
-  integer, parameter :: GLACIER_MU_STAR_CONSTANT = 0
-  integer, parameter :: GLACIER_MU_STAR_INVERSION = 1
-  integer, parameter :: GLACIER_MU_STAR_EXTERNAL = 2
-
-  integer, parameter :: GLACIER_ALPHA_SNOW_CONSTANT = 0
-  integer, parameter :: GLACIER_ALPHA_SNOW_INVERSION = 1
-  integer, parameter :: GLACIER_ALPHA_SNOW_EXTERNAL = 2
-
-  integer, parameter :: GLACIER_POWERLAW_C_CONSTANT = 0
-  integer, parameter :: GLACIER_POWERLAW_C_INVERSION = 1
-  integer, parameter :: GLACIER_POWERLAW_C_EXTERNAL = 2
-
-  integer, parameter :: GLACIER_SNOW_CALC_SNOW = 0
-  integer, parameter :: GLACIER_SNOW_CALC_PRECIP_ARTM = 1
+  ! [isostasy] compute_isostasy: a logical in the config file
+  integer, parameter :: COMPUTE_ISOSTASY_FALSE = 0
+  integer, parameter :: COMPUTE_ISOSTASY_TRUE = 1
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -389,7 +737,7 @@ module glissade_types
     real(dp), dimension(:,:),pointer :: lat => null()
     real(dp), dimension(:,:),pointer :: lon => null()
 
-    integer :: global_bc = 0     ! 0 for periodic, 1 for outflow, 2 for no_penetration, 3 for no_ice
+    integer :: global_bc = GLOBAL_BC_PERIODIC
 
     ! added to handle the active-blocks option
     integer, dimension(:,:), pointer :: ice_domain_mask => null()  ! = 1 for cells that are potentially active
@@ -412,144 +760,142 @@ module glissade_types
     ! standard options
     !-----------------------------------------------------------------------
 
-    integer :: whichdycore = 2
+    integer :: whichdycore = DYCORE_GLISSADE
 
-    !WHL TODO - Change Glissade to option 1 during the config reorg
-    !> Dycore (must be 2 for Glissade):
+    !> Dycore (must be glissade):
     !> \begin{description} 
-    !> \item[2] Glissade dycore (1st-order, FEM, serial (SLAP) or parallel (F90 native PCG solver) )
+    !> \item[glissade] Glissade dycore (1st-order, FEM, serial (SLAP) or parallel (F90 native PCG solver) )
     !> \end{description}
 
-    integer :: whichevol = 3
+    integer :: whichevol = ADVECTION_METHOD_REMAP
 
-    !WHL TODO - Renumber the remaining options during the config reorg
     !> Thickness evolution method:
     !> \begin{description}
-    !> \item[3] Incremental remapping
-    !> \item[4] 1st-order upwind scheme
-    !> \item[5] Temperature evolves but thickness does not
+    !> \item[remap] Incremental remapping
+    !> \item[upwind] 1st-order upwind scheme
+    !> \item[fixed_thickness] Temperature evolves but thickness does not
     !> \end{description}
 
-    integer :: whichtemp = 1
+    integer :: whichtemp = TEMPERATURE_METHOD_PROGNOSTIC
 
     !> Method of ice temperature calculation:
     !> \begin{description} 
-    !> \item[0] Set column to surface air temperature
-    !> \item[1] Prognostic temperature solution 
-    !> \item[2] Do NOTHING - hold temperatures steady at initial value  
-    !> \item[3] Prognostic enthalpy solution
+    !> \item[isothermal_artm] Set column to surface air temperature
+    !> \item[prognostic] Prognostic temperature solution 
+    !> \item[fixed] Do NOTHING - hold temperatures steady at initial value  
+    !> \item[enthalpy] Prognostic enthalpy solution
     !> \end{description}
 
-    integer :: temp_init = 1
+    integer :: temp_init = TEMPERATURE_INIT_ARTM
 
     ! Temperature initialization:
     !> \begin{description} 
-    !> \item[0] Initialize temperature to 0 C
-    !> \item[1] Initialize temperature to surface air temperature
-    !> \item[2] Initialize temperature with a linear profile in each column
-    !> \item[3] Initialize temperature with an advective-diffusive balance in each column
-    !> \item[4] Initialize temperature from external file
+    !> \item[zero_celsius] Initialize temperature to 0 C
+    !> \item[artm] Initialize temperature to surface air temperature
+    !> \item[linear] Initialize temperature with a linear profile in each column
+    !> \item[advective_diffusive] Initialize temperature with an advective-diffusive balance in each column
+    !> \item[file] Initialize temperature from external file
     !> \end{description}
 
     !> Method for calculating flow factor $A$:
 
-    integer :: whichflwa = 2
+    integer :: whichflwa = FLOW_LAW_PATERSON_BUDD
 
     !> \begin{description} 
-    !> \item[0] Set equal to $1\times 10^{-16} \mathrm{Pa}^{-n} \mathrm{yr}^{-1}$
-    !> \item[1] \emph{Paterson and Budd} relationship, 
+    !> \item[constant] Set equal to $1\times 10^{-16} \mathrm{Pa}^{-n} \mathrm{yr}^{-1}$
+    !> \item[paterson_budd_minus5c] \emph{Paterson and Budd} relationship, 
     !> with temperature set to $-5^{\circ}\mathrm{C}$ 
-    !> \item[2] \emph{Paterson and Budd} relationship
+    !> \item[paterson_budd] \emph{Paterson and Budd} relationship
     !> \end{description}
 
-    integer :: whichbtrc = 0
+    integer :: whichbtrc = BTRC_METHOD_NONE
 
     !> Basal slip coefficient (used for glide and for glissade local SIA; not glissade HO):
     !> \begin{description}
-    !> \item[0] Set equal to zero everywhere
-    !> \item[1] Set to (non--zero) constant
-    !> \item[2] Set to (non--zero) constant where basal water is present, otherwise to zero
-    !> \item[3] Set to (non--zero) constant where bed temperature is at pressure melting point, otherwise to zero
+    !> \item[none] Set equal to zero everywhere
+    !> \item[constant] Set to (non--zero) constant
+    !> \item[constant_bwat] Set to (non--zero) constant where basal water is present, otherwise to zero
+    !> \item[constant_bpmp] Set to (non--zero) constant where bed temperature is at pressure melting point, otherwise to zero
     !> \item[4] linear function of basal melt rate
     !> \item[5] \texttt{tanh} function of basal water depth 
     !> \end{description}
 
-    integer :: whichbmlt_float = 0
+    integer :: whichbmlt_float = BMLT_FLOAT_METHOD_NONE
 
     !> basal melt rate for floating ice:
     !> \begin{description}
-    !> \item[0] Basal melt rate = 0 for floating ice
-    !> \item[1] Depth-dependent basal melt rate for floating ice as specified for MISMIP+
-    !> \item[2] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
-    !> \item[3] Depth-dependent basal melt rate for floating ice
-    !> \item[4] External basal melt rate field (from input file or coupler)
-    !> \item[6] Basal melt rate for floating ice derived from ocean thermal forcing
+    !> \item[none] Basal melt rate = 0 for floating ice
+    !> \item[mismip] Depth-dependent basal melt rate for floating ice as specified for MISMIP+
+    !> \item[constant] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
+    !> \item[depth] Depth-dependent basal melt rate for floating ice
+    !> \item[file] External basal melt rate field (from input file or coupler)
+    !> \item[thermal_forcing] Basal melt rate for floating ice derived from ocean thermal forcing
     !> \end{description}
 
-    integer :: bmlt_float_thermal_forcing_param = BMLT_FLOAT_TF_ISMIP6_NONLOCAL   ! default was BMLT_FLOAT_TF_QUADRATIC until the config reorganization
+    integer :: bmlt_float_thermal_forcing_param = BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL
 
     !> \begin{description}
-    !> \item[0] Quadratic parameterization to compute basal melting from thermal forcing
-    !> \item[1] ISMIP6 local quadratic parameterization to compute basal melting from thermal forcing
-    !> \item[2] ISMIP6 nonlocal quadratic parameterization to compute basal melting from thermal forcing
-    !> \item[3] ISMIP6 nonlocal quadratic parameterization with slope dependence
+    !> \item[quadratic] Quadratic parameterization to compute basal melting from thermal forcing
+    !> \item[ismip6_local] ISMIP6 local quadratic parameterization to compute basal melting from thermal forcing
+    !> \item[ismip6_nonlocal] ISMIP6 nonlocal quadratic parameterization to compute basal melting from thermal forcing
+    !> \item[ismip6_nonlocal_slope] ISMIP6 nonlocal quadratic parameterization with slope dependence
     !> \end{description}
 
     logical :: bmlt_float_init = .false.
     !> if true, then compute bmlt_float at initialization (so it can be written to initial output files)
 
-    integer :: ocean_data_domain = 1
+    integer :: ocean_data_domain = OCEAN_DATA_DOMAIN_FILE
 
     !> \begin{description}
-    !> \item[0] ocean data computed internally by CISM
-    !> \item[1] ocean data read from external file
-    !> \item[2] ocean data received from coupler via Glad
+    !> \item[internal] ocean data computed internally by CISM
+    !> \item[file] ocean data read from external file
+    !> \item[coupler] ocean data received from coupler via Glad
     !> \end{description}
 
-    integer :: ocean_data_extrapolate = 0
+    integer :: ocean_data_extrapolate = EXTRAPOLATE_OCEAN_DATA_FALSE
     !> \begin{description}
-    !> \item[0] CISM will not extrapolate ocean data into cavities
-    !> \item[1] CISM will extrapolate off-shelf ocean data into shelf cavities
+    !> \item[.false.] CISM will not extrapolate ocean data into cavities
+    !> \item[.true.] CISM will extrapolate off-shelf ocean data into shelf cavities
     !> \end{description}
 
     logical :: enable_bmlt_anomaly = .false.
     !> if true, then apply a prescribed anomaly to bmlt_float
 
-    integer :: basal_mbal = 1
+    integer :: basal_mbal = BASAL_MBAL_IN_CONTINUITY_TRUE
 
     !> basal mass balance:
     !> \begin{description}
-    !> \item[0] Basal mass balance not included in continuity equation
-    !> \item[1] Basal mass balance included in continuity equation
+    !> \item[.false.] Basal mass balance not included in continuity equation
+    !> \item[.true.] Basal mass balance included in continuity equation
     !> \end{description}
 
     !WHL TODO - During the config reorg, Change name to smb_input_units
-    integer :: smb_input = 0
+    integer :: smb_input = SMB_INPUT_UNITS_M_ICE_PER_YR
 
     !> units for SMB input:
     !> \begin{description}
-    !> \item[0] SMB input in units of m/yr ice (same as acab)
-    !> \item[1] SMB input in units of mm/yr water equivalent
+    !> \item[m_ice_per_yr] SMB input in units of m/yr ice (same as acab)
+    !> \item[mm_we_per_yr] SMB input in units of mm/yr water equivalent
     !> \end{description}
     
-    integer :: smb_input_function = 0
+    integer :: smb_input_function = SMB_INPUT_FUNCTION_XY
 
     !> functional form of SMB input:
     !> \begin{description}
-    !> \item[0] SMB(x,y); input as a function of horizontal location only
-    !> \item[1] SMB(x,y) + dSMB/dz(x,y) * dz; input SMB and its vertical gradient
-    !> \item[2] SMB(x,y,z); input SMB at multiple elevations
-    !> \item[3] SMB computed with a positive-degree scheme
+    !> \item[xy] SMB(x,y); input as a function of horizontal location only
+    !> \item[xy_gradz] SMB(x,y) + dSMB/dz(x,y) * dz; input SMB and its vertical gradient
+    !> \item[xyz] SMB(x,y,z); input SMB at multiple elevations
+    !> \item[pdd] SMB computed with a positive-degree scheme
     !> \end{description}
 
-    integer :: artm_input_function = 0
+    integer :: artm_input_function = ARTM_INPUT_FUNCTION_XY
 
     !> functional form of surface temperature (artm) input:
     !> \begin{description}
-    !> \item[0] artm(x,y); input as a function of horizontal location only
-    !> \item[1] artm(x,y) + dartm/dz(x,y) * dz; input artm and its vertical gradient
-    !> \item[2] artm(x,y,z); input artm at multiple elevations
-    !> \item[3] artm(x,y) + tlapse * dz; input artm and uniform lapse rate
+    !> \item[xy] artm(x,y); input as a function of horizontal location only
+    !> \item[xy_gradz] artm(x,y) + dartm/dz(x,y) * dz; input artm and its vertical gradient
+    !> \item[xyz] artm(x,y,z); input artm at multiple elevations
+    !> \item[xy_lapse] artm(x,y) + tlapse * dz; input artm and uniform lapse rate
     !> \end{description}
 
     logical :: enable_smb_anomaly = .false.
@@ -564,91 +910,91 @@ module glissade_types
     logical :: enable_precip_anomaly = .false.
     !> if true, then apply a prescribed anomaly to precip
 
-    integer :: overwrite_acab = 0
+    integer :: overwrite_acab = OVERWRITE_ACAB_NONE
     !> overwrite acab (m/yr ice) in selected regions:
     !> \begin{description}
-    !> \item[0] Do not overwrite acab anywhere
-    !> \item[1] Overwrite acab where input acab = 0
-    !> \item[2] Overwrite acab where input thickness <= threshold value
-    !> \item[3] Overwrite acab where input mask = 1
+    !> \item[none] Do not overwrite acab anywhere
+    !> \item[acab_zero] Overwrite acab where input acab = 0
+    !> \item[thck_min] Overwrite acab where input thickness <= threshold value
+    !> \item[mask] Overwrite acab where input mask = 1
     !> \end{description}
 
     logical :: enable_acab_dthck_dt_correction = .false.
     !> if true, then add (-dthck_dt_obs) to acab for floating ice
 
-    integer :: gthf = 0
+    integer :: gthf = GEOTHERMAL_METHOD_UNIFORM
 
     !> geothermal heat flux:
     !> \begin{description}
-    !> \item[0] prescribed uniform geothermal heat flux
-    !> \item[1] read 2D geothermal flux field from input file (if present)
+    !> \item[uniform] prescribed uniform geothermal heat flux
+    !> \item[file] read 2D geothermal flux field from input file (if present)
     !> \end{description}
 
-    integer :: isostasy = 0
+    integer :: isostasy = COMPUTE_ISOSTASY_FALSE
 
     !> isostasy:
     !> \begin{description}
-    !> \item[0] no isostatic adjustment
-    !> \item[1] compute isostatic adjustment using lithosphere/asthenosphere model
+    !> \item[.false.] no isostatic adjustment
+    !> \item[.true.] compute isostatic adjustment using lithosphere/asthenosphere model
     !> \end{description}
 
-    integer :: whichcalving = 1
+    integer :: whichcalving = CALVING_LAW_FLOAT_ZERO
 
     !> Calving: 
     !> \begin{description} 
-    !> \item[0] No calving 
-    !> \item[1] Set thickness to zero if floating
+    !> \item[none] No calving 
+    !> \item[float_zero] Set thickness to zero if floating
     !> \item[2] Lose a fraction of floating ice at marine margin
-    !> \item[3] Set thickness to zero if relaxed bedrock is more than a
+    !> \item[relx_threshold] Set thickness to zero if relaxed bedrock is more than a
     !>          certain water depth (variable "marine_limit" in glissade_types)  
-    !> \item[4] Set thickness to zero if present bedrock topography lies below
+    !> \item[topg_threshold] Set thickness to zero if present bedrock topography lies below
     !>          a certain water depth (variable "marine_limit" in glissade_types)  
-    !> \item[5] Calve based on grid location using a prescribed mask
+    !> \item[grid_mask] Calve based on grid location using a prescribed mask
     !>          (field 'calving_mask' or 'subgrid_calving_mask')
-    !> \item[6] Prescribe the rate of calving front advance or retreat
-    !> \item[7] Calve ice whose thickness is below a given threshold
-    !> \item[8] Deterministic calving based on eigenvalues of the horizontal stress tensor
-    !> \item[9] Stochastic calving based on eigenvalues of the horizontal stress tensor
-    !> \item[10] Calving based on stochastic internal damage
-    !> \item[11] Eigencalving following Levermann et al. (2012)
+    !> \item[advance_retreat_rate] Prescribe the rate of calving front advance or retreat
+    !> \item[thck_threshold] Calve ice whose thickness is below a given threshold
+    !> \item[stress] Deterministic calving based on eigenvalues of the horizontal stress tensor
+    !> \item[stress_stochastic] Stochastic calving based on eigenvalues of the horizontal stress tensor
+    !> \item[damage] Calving based on stochastic internal damage
+    !> \item[eigencalving] Eigencalving following Levermann et al. (2012)
     !> \end{description}
 
-    integer :: calving_init = 0
+    integer :: calving_init = CALVE_AT_STARTUP_FALSE
     !> \begin{description}
-    !> \item[0] Do not calve at initialization
-    !> \item[1] Calve at initialization
+    !> \item[.false.] Do not calve at initialization
+    !> \item[.true.] Calve at initialization
     !> \end{description}
 
-    integer :: calving_domain = 1
+    integer :: calving_domain = CALVING_DOMAIN_EVERYWHERE
     !> \begin{description}
-    !> \item[0] Calve only at ocean edge
-    !> \item[1] Calve wherever the calving criterion is met
+    !> \item[ocean_edge] Calve only at ocean edge
+    !> \item[everywhere] Calve wherever the calving criterion is met
     !> \end{description}
 
     logical :: apply_calving_mask = .false.
     !> if true, then apply a calving mask to prevent calving-front advance
 
-    integer :: which_ho_calving_front = 0
+    integer :: which_ho_calving_front = SUBGRID_CALVING_FRONT_FALSE
     !> Flag that indicates whether to use a subgrid calving front parameterization
     !> \begin{description}
-    !> \item[0] no subgrid calving front parameterization
-    !> \item[1] subgrid parameterization with partial cells (floating only) at the CF
+    !> \item[.false.] no subgrid calving front parameterization
+    !> \item[.true.] subgrid parameterization with partial cells (floating only) at the CF
     !> \end{description}
 
-    integer :: which_ho_calvingmip_domain = 0
+    integer :: which_ho_calvingmip_domain = CALVINGMIP_DOMAIN_NONE
     !> Flag that indicates the desired domain for CalvingMIP experiments
     !> \begin{description}
-    !> \item[0] none
-    !> \item[1] circular (radially symmetric)
-    !> \item[1] Thule (complex topography)
+    !> \item[none] none
+    !> \item[circular] circular (radially symmetric)
+    !> \item[circular] Thule (complex topography)
     !> \end{description}
 
-    integer :: which_lateral_melt = 0
+    integer :: which_lateral_melt = LATERAL_MELT_METHOD_NONE
     !> Lateral melt:
     !> \begin{description}
-    !> \item[0] No lateral melt
-    !> \item[1] Constant lateral melt rate
-    !> \item[2] ISMIP lateral melt rate based on thermal forcing and subglacial discharge
+    !> \item[none] No lateral melt
+    !> \item[constant] Constant lateral melt rate
+    !> \item[ismip] ISMIP lateral melt rate based on thermal forcing and subglacial discharge
 
     logical :: remove_icebergs = .true.
     !> if true, then identify and remove icebergs after calving
@@ -677,51 +1023,51 @@ module glissade_types
     logical :: read_lat_lon = .false.
     !> if true, then read lat and lon fields from the input file and write to restarts
 
-    integer :: dt_input_option = 0
+    integer :: dt_input_option = DT_INPUT_OPTION_DT
     !> \begin{description}
-    !> \item[0] Input dt in years
-    !> \item[1] Input dt in steps per year
+    !> \item[dt] Input dt in years
+    !> \item[nsteps_per_year] Input dt in steps per year
     !> \end{description}
 
-    integer :: dm_dt_diag = 0
+    integer :: dm_dt_diag = DM_DT_DIAG_KG_PER_S
     !> \begin{description}
-    !> \item[0] Write dmass/dt diagnostic in units of kg/s
-    !> \item[1] Write dmass/dt diagnostic in units of Gt/yr
+    !> \item[kg_per_s] Write dmass/dt diagnostic in units of kg/s
+    !> \item[gt_per_yr] Write dmass/dt diagnostic in units of Gt/yr
     !> \end{description}
 
-    integer :: diag_minthck = 1
+    integer :: diag_minthck = DIAG_ICE_THRESHOLD_THCKLIM
     !> \begin{description}
-    !> \item[0] Include cells with H > 0 in global diagnostics
-    !> \item[1] Include cells with H > thklim in global diagnostics
+    !> \item[zero] Include cells with H > 0 in global diagnostics
+    !> \item[thcklim] Include cells with H > thklim in global diagnostics
     !> \end{description}
 
-    integer :: which_sigma = 0
+    integer :: which_sigma = SIGMA_METHOD_GLIDE
 
     !> \begin{description}
-    !> \item[0] compute standard Glimmer sigma coordinates
-    !> \item[1] sigma coordinates are given in external file
-    !> \item[2] sigma coordinates are given in configuration file
-    !> \item[3] evenly spaced levels
-    !> \item[4] compute Pattyn sigma coordinates
+    !> \item[glide] compute standard Glimmer sigma coordinates
+    !> \item[file] sigma coordinates are given in external file
+    !> \item[config] sigma coordinates are given in configuration file
+    !> \item[uniform] evenly spaced levels
+    !> \item[pattyn] compute Pattyn sigma coordinates
     !> \end{description}
 
     logical :: forcewrite_final = .false.
     !> if true, then force a write to output and restart files when the model finishes
 
     !WHL TODO - Change 'is_restart' to 'restart' during the config reorg
-    integer :: is_restart = 0
+    integer :: is_restart = NO_RESTART
     !> if the run is a restart of a previous run
     !> \begin{description}
-    !> \item[0] normal start-up (take init fields from .nc input file OR if absent, use default options)
-    !> \item[1] restart model from previous run (do not calc. temp, rate factor, or vel)
-    !> \item[2] hybrid restart; use restart from previous run as the input file, and reset the time
+    !> \item[none] normal start-up (take init fields from .nc input file OR if absent, use default options)
+    !> \item[standard] restart model from previous run (do not calc. temp, rate factor, or vel)
+    !> \item[hybrid] hybrid restart; use restart from previous run as the input file, and reset the time
     !> \end{description}
 
-    integer :: restart_extend_velo = 0
+    integer :: restart_extend_velo = RESTART_EXTEND_VELO_FALSE
     !> if velocity fields should be written on the extended staggered mesh
     !> \begin{description}
-    !> \item[0] write uvel and vvel to restart file on standard staggered mesh
-    !> \item[1] write uvel_extend and vvel_extend to restart file on extended staggered mesh
+    !> \item[.false.] write uvel and vvel to restart file on standard staggered mesh
+    !> \item[.true.] write uvel_extend and vvel_extend to restart file on extended staggered mesh
     !>          (required if restart velocities are nonzero on global boundaries)
     !> \end{description}
 
@@ -729,52 +1075,52 @@ module glissade_types
     ! Higher-order options associated with the glissade dycore
     !-----------------------------------------------------------------------
 
-    integer :: compute_blocks = 0
+    integer :: compute_blocks = COMPUTE_BLOCKS_ALL
     !> \begin{description}
-    !> \item[0] Compute on all blocks in the global domain; one task per block
-    !> \item[1] Compute on active blocks only; one task per active block, no task for some or all inactive blocks
-    !> \item[2] Inquire how many active blocks there are, in prep for resubmitting with option 1
+    !> \item[all] Compute on all blocks in the global domain; one task per block
+    !> \item[active_only] Compute on active blocks only; one task per active block, no task for some or all inactive blocks
+    !> \item[inquire] Inquire how many active blocks there are, in prep for resubmitting with active_only
     !> \end{description}
 
-    integer :: which_ho_efvs = 2
+    integer :: which_ho_efvs = EFVS_METHOD_NONLINEAR
 
     !> Flag that indicates how effective viscosity is computed
     !> \begin{description}
-    !> \item[0] constant value
-    !> \item[1] multiple of flow factor
-    !> \item[2] compute from effective strain rate
+    !> \item[constant] constant value
+    !> \item[flow_factor] multiple of flow factor
+    !> \item[nonlinear] compute from effective strain rate
     !> \end{description}
 
-    integer :: which_ho_disp = 1
+    integer :: which_ho_disp = DISSIPATION_METHOD_FIRST_ORDER
 
     !> Flag that indicates method for computing the dissipation during the temperature calc.
     !> \begin{description}
-    !> \item[-1] for no dissipation
-    !> \item[0] for 0-order SIA approx
-    !> \item[1] for first-order dissipation (Blatter-Pattyn)
+    !> \item[none] for no dissipation
+    !> \item[sia] for 0-order SIA approx
+    !> \item[first_order] for first-order dissipation (Blatter-Pattyn)
     !> \end{description}
 
+    integer :: which_ho_babc = SLIDING_LAW_NO_SLIP
 
-    integer :: which_ho_babc = 4
 
     !WHL TODO - Option 3 to be removed during the config reorg
     !> Flag that describes basal boundary condition for HO dyn core: 
     !> \begin{description}
-    !> \item[0] spatially uniform value of ho_beta_const
-    !> \item[1] large value for frozen bed, lower value for bed at pressure melting point
-    !> \item[2] pseudo-plastic basal sliding law; new version with coulomb_c options
-    !> \item[3] pseudo-plastic basal sliding law; old version with tan(phi)
-    !> \item[4] very large value for beta to enforce no slip everywhere 
-    !> \item[5] beta field passed in from .nc input file as part of standard i/o
-    !> \item[6] no slip everywhere (using Dirichlet BC rather than large beta)
-    !> \item[7] Zoet-Iverson law combining Coulomb and powerlaw behavior
-    !> \item[8] beta field as prescribed for ISMIP-HOM test C (serial only)
-    !> \item[9] power law
-    !> \item[10] Coulomb friction law using effective pressure, with flwa from lowest ice layer
-    !> \item[11] Schoof law that blends powerlaw and Coulomb behavior
-    !> \item[12] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
-    !> \item[13] power law using effective pressure
-    !> \item[14] treat beta value as a till yield stress (in Pa) using Picard iteration
+    !> \item[beta_constant] spatially uniform value of ho_beta_const
+    !> \item[beta_bpmp] large value for frozen bed, lower value for bed at pressure melting point
+    !> \item[pseudo_plastic] pseudo-plastic basal sliding law; new version with coulomb_c options
+    !> \item[pseudo_plastic_old] pseudo-plastic basal sliding law; old version with tan(phi)
+    !> \item[no_slip] very large value for beta to enforce no slip everywhere 
+    !> \item[beta_file] beta field passed in from .nc input file as part of standard i/o
+    !> \item[no_slip_dirichlet] no slip everywhere (using Dirichlet BC rather than large beta)
+    !> \item[zoet_iverson] Zoet-Iverson law combining Coulomb and powerlaw behavior
+    !> \item[ismip_hom_c] beta field as prescribed for ISMIP-HOM test C (serial only)
+    !> \item[powerlaw] power law
+    !> \item[coulomb] Coulomb friction law using effective pressure, with a constant basal flow factor (flwa_basal_const)
+    !> \item[schoof] Schoof law that blends powerlaw and Coulomb behavior
+    !> \item[tsai] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
+    !> \item[powerlaw_effecpress] power law using effective pressure
+    !> \item[yield_picard] treat beta value as a till yield stress (in Pa) using Picard iteration
     !> \end{description}
 
     !WHL TODO - Remove this option during the config reorg?
@@ -782,137 +1128,137 @@ module glissade_types
     logical :: use_c_space_factor = .false.
     !> Flag that indicates whether to multiply beta by a 2D scalar field
 
-    integer :: which_ho_beta_limit = 0
+    integer :: which_ho_beta_limit = BETA_LIMIT_METHOD_ABSOLUTE
     !> Flag for setting minimum beta beneath grounded ice
     !> \begin{description}
-    !> \item[0] absolute limit given by beta_grounded_min
-    !> \item[1] limited using beta_grounded_min, then multiplied by f_ground
+    !> \item[absolute] absolute limit given by beta_grounded_min
+    !> \item[fground_scaled] limited using beta_grounded_min, then multiplied by f_ground
     !> \end{description}
 
-    integer :: which_ho_powerlaw_c = 0
+    integer :: which_ho_powerlaw_c = POWERLAW_C_METHOD_CONSTANT
     !> Flag for basal powerlaw_c options
     !> \begin{description}
-    !> \item[0] powerlaw_c = spatially uniform constant
-    !> \item[1] invert for 2D powerlaw_c
-    !> \item[2] read 2D powerlaw_c from external file
-    !> \item[3] invert for basin-scale powerlaw_c
-    !> \item[4] relate to coulomb_c: Cp = gamma*Cc^p
+    !> \item[constant] powerlaw_c = spatially uniform constant
+    !> \item[inversion] invert for 2D powerlaw_c
+    !> \item[file] read 2D powerlaw_c from external file
+    !> \item[inversion_basin] invert for basin-scale powerlaw_c
+    !> \item[from_coulomb_c] relate to coulomb_c: Cp = gamma*Cc^p
     !> \end{description}
 
-    integer :: which_ho_coulomb_c = 0
+    integer :: which_ho_coulomb_c = COULOMB_C_METHOD_CONSTANT
     !> Flag for basal coulomb_c options
     !> \begin{description}
-    !> \item[0] coulomb_c = spatially uniform constant
-    !> \item[1] invert for 2D coulomb_c
-    !> \item[2] read 2D coulomb_c from external file
-    !> \item[3] invert for basin-scale coulomb_c
+    !> \item[constant] coulomb_c = spatially uniform constant
+    !> \item[inversion] invert for 2D coulomb_c
+    !> \item[file] read 2D coulomb_c from external file
+    !> \item[inversion_basin] invert for basin-scale coulomb_c
     !> \end{description}
 
     logical :: elevation_based_coulomb_c = .false.
     !> Flag that indicates whether coulomb_c depends on elevation
 
-    integer :: which_ho_deltaT_ocn = 0
+    integer :: which_ho_deltaT_ocn = DELTAT_OCN_METHOD_NONE
     !> Flag for ocean temperature corrections
     !> \begin{description}
-    !> \item[0] deltaT_ocn = 0
-    !> \item[1] invert for 2D deltaT_ocn to match thickness target
-    !> \item[2] read deltaT_ocn from external file
-    !> \item[3] invert for basin-scale deltaT_ocn
-    !> \item[4] calibrate deltaT_ocean to match a basin-scale melt target
-    !> \item[5] set deltaT_ocn to match a local dH/dt target
+    !> \item[none] deltaT_ocn = 0
+    !> \item[inversion] invert for 2D deltaT_ocn to match thickness target
+    !> \item[file] read deltaT_ocn from external file
+    !> \item[inversion_basin] invert for basin-scale deltaT_ocn
+    !> \item[calibrate_basin] calibrate deltaT_ocean to match a basin-scale melt target
+    !> \item[dthck_dt] set deltaT_ocn to match a local dH/dt target
     !> \end{description}
 
-    integer :: which_ho_bwat = 0
+    integer :: which_ho_bwat = BWAT_METHOD_NONE
     !> Basal water depth:
     !> \begin{description}
-    !> \item[0] Set to zero everywhere
-    !> \item[1] Set to constant everywhere, to force T = Tpmp
-    !> \item[2] Local basal till model with constant drainage
-    !> \item[3] Steady-state water routing with flux calculation
+    !> \item[none] Set to zero everywhere
+    !> \item[constant] Set to constant everywhere, to force T = Tpmp
+    !> \item[local_till] Local basal till model with constant drainage
+    !> \item[flux_routing] Steady-state water routing with flux calculation
     !> \end{description}
 
-    integer :: which_ho_effecpress = 0
+    integer :: which_ho_effecpress = EFFECPRESS_METHOD_OVERBURDEN
     !> Flag that describes effective pressure calculation for HO dyn core: 
     !> \begin{description}
-    !> \item[0] N = overburden pressure, rhoi*grav*thck
-    !> \item[1] N is proportional to height above flotation
-    !> \item[2] N is reduced based on basal water thickness from active hydrology
-    !> \item[3] N depends on cavity opening and closing
-    !> \item[4] N is reduced based on basal water thickness, following Bueler/van Pelt
+    !> \item[overburden] N = overburden pressure, rhoi*grav*thck
+    !> \item[bpmp] N is proportional to height above flotation
+    !> \item[bwat] N is reduced based on basal water thickness from active hydrology
+    !> \item[cavity_sheet] N depends on cavity opening and closing
+    !> \item[bwat_bvp] N is reduced based on basal water thickness, following Bueler/van Pelt
     !> \item[5] N is reduced where the bed is at or near the pressure melting point
     !> \end{description}
 
-    integer :: which_ho_nonlinear = 0
+    integer :: which_ho_nonlinear = NONLINEAR_METHOD_PICARD
     !> Flag that indicates method for solving the nonlinear iteration when solving 
     !> the first-order momentum balance
     !> \begin{description}
-    !> \item[0] do standard Picard iteration
-    !> \item[1] do Picard iteration with acceleration
+    !> \item[picard] do standard Picard iteration
+    !> \item[accelerated_picard] do Picard iteration with acceleration
     !> \end{description}
 
-    integer :: which_ho_resid = 3
+    integer :: which_ho_resid = NONLINEAR_RESIDUAL_L2NORM
     !> Flag that indicates method for computing residual in PP dyn core: 
     !> \begin{description}
-    !> \item[0] maxval 
-    !> \item[1] maxval ignoring basal velocity 
-    !> \item[2] mean value
-    !> \item[3] L2 norm of system residual, Ax-b=resid
-    !> \item[4] L2 norm of system residual relative to rhs, |Ax-b|/|b|
+    !> \item[max] maxval 
+    !> \item[max_no_ubas] maxval ignoring basal velocity 
+    !> \item[mean] mean value
+    !> \item[l2norm] L2 norm of system residual, Ax-b=resid
+    !> \item[relative_l2norm] L2 norm of system residual relative to rhs, |Ax-b|/|b|
     !> \end{description}
 
-    integer :: which_ho_sparse = HO_SPARSE_PCG_CHRONGEAR
+    integer :: which_ho_sparse = LINEAR_SOLVER_PCG_CHRONGEAR
     !> Flag that indicates method for solving the sparse linear system
     !> that arises from the higher-order solver
     !> \begin{description}
-    !> \item[-1] SLAP (serial): Preconditioned conjugate gradient, incomplete Cholesky preconditioner
-    !> \item[0]  SLAP (serial): Biconjugate gradient, incomplete LU preconditioner
-    !> \item[1]  SLAP (serial): GMRES, incomplete LU preconditioner
-    !> \item[2] Native PCG, parallel-enabled, standard solver
-    !> \item[3] Native PCG, parallel-enabled, Chronopoulos-Gear solver (default)
+    !> \item[slap_pcg] SLAP (serial): Preconditioned conjugate gradient, incomplete Cholesky preconditioner
+    !> \item[slap_bicg]  SLAP (serial): Biconjugate gradient, incomplete LU preconditioner
+    !> \item[slap_gmres]  SLAP (serial): GMRES, incomplete LU preconditioner
+    !> \item[pcg] Native PCG, parallel-enabled, standard solver
+    !> \item[pcg_chrongear] Native PCG, parallel-enabled, Chronopoulos-Gear solver (default)
     !> \end{description}
 
-    integer :: which_ho_approx = HO_APPROX_DIVA
+    integer :: which_ho_approx = STOKES_APPROX_DIVA
     !> Flag that indicates which Stokes approximation to use with the glissade dycore.
     !> Not valid for other dycores 
-    !> The default is DIVA (4); it was Blatter-Pattyn (2) until the config reorganization.
+    !> The default is diva; it was blatter_pattyn until the config reorganization.
     !> Note: There are two SIA options:
-    !>       Option -1 uses module glissade_velo_sia to compute local SIA velocities, similar to Glide
-    !>       Option 0 uses module glissade_velo_higher to compute SIA velocities via an iterative solve
+    !>       local_sia uses module glissade_velo_sia to compute local SIA velocities, similar to Glide
+    !>       sia uses module glissade_velo_higher to compute SIA velocities via an iterative solve
     !> \begin{description}
-    !> \item[-1] Shallow-ice approximation, Glide-type calculation; uses glissade_velo_sia
-    !> \item[0]  Shallow-ice approximation, vertical-shear stresses only; uses glissade_velo_higher
-    !> \item[1]  Shallow-shelf approximation, horizontal-plane stresses only; uses glissade_velo_higher
-    !> \item[2]  Blatter-Pattyn approximation with both vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
-    !> \item[3]  Vertically integrated 'L1L2' approximation with vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
-    !> \item[4]  Depth-integrated viscosity approximation (DIVA) based on Goldberg (2011); uses glissade_velo_higher
-    !> \item[5]  Hybrid solver combining an SSA basal solve with a local vertical SIA solve
+    !> \item[local_sia] Shallow-ice approximation, Glide-type calculation; uses glissade_velo_sia
+    !> \item[sia]  Shallow-ice approximation, vertical-shear stresses only; uses glissade_velo_higher
+    !> \item[ssa]  Shallow-shelf approximation, horizontal-plane stresses only; uses glissade_velo_higher
+    !> \item[blatter_pattyn]  Blatter-Pattyn approximation with both vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
+    !> \item[l1l2]  Vertically integrated 'L1L2' approximation with vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
+    !> \item[diva]  Depth-integrated viscosity approximation (DIVA) based on Goldberg (2011); uses glissade_velo_higher
+    !> \item[hybrid]  Hybrid solver combining an SSA basal solve with a local vertical SIA solve
     !> \end{description}
 
     logical :: diva_slope_correction = .true.
     !> Flag that indicates whether the DIVA solver includes a correction for steep slopes
 
-    integer :: which_ho_precond = HO_PRECOND_DIAG   ! default was HO_PRECOND_SIA until the config reorganization
+    integer :: which_ho_precond = PRECONDITIONER_DIAGONAL   ! default was PRECONDITIONER_SIA until the config reorganization
     !> Flag that indicates which Stokes preconditioner to use in the glissade dycore.
     !> Not valid for other dycores 
     !> \begin{description}
-    !> \item[0] No preconditioner
-    !> \item[1] Diagonal preconditioner
-    !> \item[2] Physics-based shallow-ice preconditioner
-    !> \item[3] Local tridiagonal preconditioner (one solve per task)
-    !> \item[4] Global tridiagonal preconditioner (global solve)
+    !> \item[none] No preconditioner
+    !> \item[diagonal] Diagonal preconditioner
+    !> \item[sia] Physics-based shallow-ice preconditioner
+    !> \item[tridiag_local] Local tridiagonal preconditioner (one solve per task)
+    !> \item[tridiag_global] Global tridiagonal preconditioner (global solve)
     !> \end{description}
 
-    integer :: which_ho_gradient = 0    
+    integer :: which_ho_gradient = SURFACE_GRADIENT_METHOD_CENTERED    
     !> Flag that indicates which gradient operator to use in the glissade dycore.
     !> Not valid for other dycores
     !> NOTE: Upstream may be better for ice evolution because it damps checkerboard noise.
     !> \begin{description}
-    !> \item[0] Centered gradient
-    !> \item[1] First-order accurate upstream gradient
-    !> \item[2] Second-order accurate upstream gradient
+    !> \item[centered] Centered gradient
+    !> \item[upstream1] First-order accurate upstream gradient
+    !> \item[upstream2] Second-order accurate upstream gradient
     !> \end{description}
 
-    integer :: which_ho_gradient_margin = 1
+    integer :: which_ho_gradient_margin = SURFACE_GRADIENT_MARGIN_METHOD_HYBRID
     !> Flag that indicates how to compute the gradient at the ice margin in the glissade dycore.
     !> Note: Gradients are always computed at edges with ice on both sides.
     !>       The methods differ in whether gradients are computed when an ice-covered cell
@@ -921,84 +1267,84 @@ module glissade_types
     !         when a lateral spreading force is computed for marine ice cliffs.
     !         This lateral force ensures spreading where the gradient is zero.
     !> \begin{description}
-    !> \item[0] Compute edge gradient when either cell is ice-covered
-    !> \item[1] Compute edge gradient for ice-covered cell above ice-free land (not ocean)
-    !> \item[2] Compute edge gradient only when both cells have ice
+    !> \item[land] Compute edge gradient when either cell is ice-covered
+    !> \item[hybrid] Compute edge gradient for ice-covered cell above ice-free land (not ocean)
+    !> \item[marine] Compute edge gradient only when both cells have ice
     !> \end{description}
 
     !TODO: Change the default to 2nd order vertical remapping
     ! WHL: Keeping 1st order vertical remapping for now, pending more testing
-    integer :: which_ho_vertical_remap = 0
+    integer :: which_ho_vertical_remap = VERTICAL_REMAP_ORDER_FIRST
     !> Flag that indicates the order of accuracy for vertical remapping
     !> \begin{description}
-    !> \item[0] first-order accurate in the vertical direction
-    !> \item[1] second-order accurate in the vertical direction
+    !> \item[first] first-order accurate in the vertical direction
+    !> \item[second] second-order accurate in the vertical direction
     !> \end{description}
 
-    integer :: which_ho_assemble_taud = 1
+    integer :: which_ho_assemble_taud = ASSEMBLE_TAUD_LOCAL
 
     !> Flag that describes how driving-stress terms are assembled in the glissade finite-element calculation
     !> \begin{description}
-    !> \item[0] standard finite-element calculation (which effectively smooths the driving stress)
-    !> \item[1] apply local value of driving stress at each vertex
+    !> \item[standard] standard finite-element calculation (which effectively smooths the driving stress)
+    !> \item[local] apply local value of driving stress at each vertex
     !> \end{description}
 
-    integer :: which_ho_assemble_beta = 1
+    integer :: which_ho_assemble_beta = ASSEMBLE_BETA_LOCAL
 
     !> Flag that describes how beta terms are assembled in the glissade finite-element calculation
     !> \begin{description}
-    !> \item[0] standard finite-element calculation (which effectively smooths beta at discontinuities)
-    !> \item[1] apply local value of beta at each vertex
+    !> \item[standard] standard finite-element calculation (which effectively smooths beta at discontinuities)
+    !> \item[local] apply local value of beta at each vertex
     !> \end{description}
 
-    integer :: which_ho_assemble_bfric = 1
+    integer :: which_ho_assemble_bfric = ASSEMBLE_BFRIC_LOCAL
 
     !> Flag that describes how the basal friction heat flux is assembled in the glissade finite-element calculation
     !> \begin{description}
-    !> \item[0] standard finite-element calculation summing over quadrature points
-    !> \item[1] apply local value of beta*(u^2 + v^2) at each vertex
+    !> \item[standard] standard finite-element calculation summing over quadrature points
+    !> \item[local] apply local value of beta*(u^2 + v^2) at each vertex
     !> \end{description}
 
-    integer :: which_ho_assemble_lateral = HO_ASSEMBLE_LATERAL_LOCAL   ! default was STANDARD until the config reorganization
+    integer :: which_ho_assemble_lateral = ASSEMBLE_LATERAL_LOCAL   ! default was STANDARD until the config reorganization
 
     !> Flag that describes how lateral stress terms are assembled in the glissade finite-element calculation
     !> \begin{description}
-    !> \item[0] standard finite-element calculation of thck and usrf at quadrature points
-    !> \item[1] apply local cell-center value of thck and usrf on each face
+    !> \item[standard] standard finite-element calculation of thck and usrf at quadrature points
+    !> \item[local] apply local cell-center value of thck and usrf on each face
     !> \end{description}
 
-    integer :: which_ho_ground = 0
+    integer :: which_ho_ground = GROUNDING_LINE_PARAM_NONE
     !> Flag that indicates how to compute the grounded fraction of each gridcell in the glissade dycore.
     !> Not valid for other dycores
     !> \begin{description}
-    !> \item[0] f_ground = 0 in floating cells (based on flotation condition), else f_ground = 1
-    !> \item[1] basal friction GLP with 0 <= f_ground <= 1 at vertices
-    !> \item[2] "deluxe" GLP with f_ground at both cells and vertices; includes basal fraction and basal melting
+    !> \item[none] f_ground = 0 in floating cells (based on flotation condition), else f_ground = 1
+    !> \item[vertices] basal friction GLP with 0 <= f_ground <= 1 at vertices
+    !> \item[deluxe] "deluxe" GLP with f_ground at both cells and vertices; includes basal fraction and basal melting
     !> \end{description}
 
-    integer :: which_ho_fground_no_glp = 0
+    integer :: which_ho_fground_no_glp = FGROUND_NO_GLP_GROUNDED_NEIGHBOR
     !> Flag that indicates how to identify grounded and floating vertices when running without a GLP
     !> \begin{description}
-    !> \item[0] f_ground = 1 if any neighbor cell is grounded or land, else f_ground = 0
-    !> \item[1] f_ground = 0 or 1 based on staggered flotation function
+    !> \item[grounded_neighbor] f_ground = 1 if any neighbor cell is grounded or land, else f_ground = 0
+    !> \item[flotation_function] f_ground = 0 or 1 based on staggered flotation function
     !> \end{description}
 
-    integer :: which_ho_ground_bmlt = 0
+    integer :: which_ho_ground_bmlt = GROUNDING_LINE_BMLT_NONE
     !> Flag that indicates how to compute bmlt_float in partly grounded cells
     !> \begin{description}
-    !> \item[0] Apply bmlt_float in all floating cells, based on floating_mask
-    !> \item[1] Weigh bmlt by floating fraction of cell if 0 < f_ground < 1
-    !> \item[2] Set bmlt_float = 0 in partly grounded cells (f_ground > 0)
+    !> \item[none] Apply bmlt_float in all floating cells, based on floating_mask
+    !> \item[floating_fraction] Weigh bmlt by floating fraction of cell if 0 < f_ground < 1
+    !> \item[zero_grounded] Set bmlt_float = 0 in partly grounded cells (f_ground > 0)
     !> \end{description}
 
-    integer :: which_ho_flotation_function = 2
+    integer :: which_ho_flotation_function = FLOTATION_FUNCTION_LINEAR
     !WHL TODO - Remove option 3 during the config reorg
     !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore
     !> Not valid for other dycores
     !> \begin{description}
-    !> \item[0] f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
-    !> \item[1] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
-    !> \item[2] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
+    !> \item[pattyn] f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
+    !> \item[inverse_pattyn] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
+    !> \item[linear] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
     !>          (without extrapolation to ice-free ocean, as in an older version)
     !> \item[3] Like (2), but with a correction for topg
     !> \end{description}
@@ -1009,17 +1355,17 @@ module glissade_types
     logical :: remove_ice_caps = .false.
     !> Flag that indicates whether ice caps are removed and added to the calving flux
 
-    integer :: force_retreat = 0
+    integer :: force_retreat = FORCE_RETREAT_NONE
     !> Flag that indicates whether retreat is forced using ice_fraction_retreat_mask
     !> item[0] do not force retreat
     !> item[1] force retreat of all ice identified by a retreat mask
     !> item[2] force retreat of floating or weakly grounded ice identified by a retreat mask
 
-    integer :: which_ho_ice_age = 1
+    integer :: which_ho_ice_age = COMPUTE_ICE_AGE_TRUE
     !> Flag that indicates whether to compute a 3d ice age tracer
     !> \begin{description}
-    !> \item[0] ice age computation off
-    !> \item[1] ice age computation on
+    !> \item[.false.] ice age computation off
+    !> \item[.true.] ice age computation on
     !> \end{description}
 
     logical :: enable_glaciers = .false.
@@ -1454,8 +1800,8 @@ module glissade_types
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving during one time step (m)
      real(dp),dimension(:,:),  pointer :: calving_rate => null()   !> rate of ice loss due to calving (m/yr ice)
      real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
-     integer, dimension(:,:),  pointer :: calving_mask => null()         !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
-     real(dp),dimension(:,:),  pointer :: subgrid_calving_mask => null() !> calve floating ice where the mask < 1.0 (whichcalving = CALVING_GRID_MASK);
+     integer, dimension(:,:),  pointer :: calving_mask => null()         !> calve floating ice where the mask = 1 (whichcalving = CALVING_LAW_GRID_MASK)
+     real(dp),dimension(:,:),  pointer :: subgrid_calving_mask => null() !> calve floating ice where the mask < 1.0 (whichcalving = CALVING_LAW_GRID_MASK);
                                                                          !> real instead of integer for use with subgrid calving parameterization
      integer, dimension(:,:),  pointer :: calving_front_mask => null()   !> = 1 for cells on the calving front, else = 0
      integer, dimension(:,:),  pointer :: beyond_cf_mask => null() !> = 1 for cells beyond the CF when using the subgrid CF scheme;
@@ -1466,15 +1812,15 @@ module glissade_types
      real(dp),dimension(:,:),  pointer :: tau_eigen2 => null()     !> second eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: eps_eigen1 => null()     !> first eigenvalue of 2D horizontal strain rate tensor (s^-1)
      real(dp),dimension(:,:),  pointer :: eps_eigen2 => null()     !> second eigenvalue of 2D horizontal strain rate tensor (s^-1)
-     real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
+     real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_LAW_DAMAGE)
   
      real(dp) :: marine_limit =  -200.d0         !> value of topg/relx at which floating ice calves (m)
-                                                 !> (whichcalving = CALVING_RELX_THRESHOLD, CALVING_TOPG_THRESHOLD)
+                                                 !> (whichcalving = CALVING_LAW_RELX_THRESHOLD, CALVING_LAW_TOPG_THRESHOLD)
      real(dp) :: timescale = 0.0d0               !> timescale (yr) for calving (Glissade only); calving_thck = thck*min(dt/calving_timescale,1)
                                                  !> if calving_timescale = 0, then the full column calves at once
      real(dp) :: minthck = 0.d0                  !> minimum thickness (m) of floating ice at marine edge before it calves;
                                                  !> if used, must be set to a nonzero value in the config file
-                                                 !> (whichcalving = CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_DAMAGE)
+                                                 !> (whichcalving = CALVING_LAW_THCK_THRESHOLD, EIGENCALVING, CALVING_LAW_DAMAGE)
      real(dp) :: dthck_dx_cf = 0.0d0             !> assumed max value of |dH/dx| at the calving front for full (not partial) cells (m/m)
      real(dp) :: thck_effective_min = 50.0d0     !> minimum value of thck_effective (m) for calving-front cells
      real(dp) :: eigenconstant = 0.0d0           !> constant that multiplies the eigen-based strain rate to determine the calving rate (m)
@@ -1483,7 +1829,7 @@ module glissade_types
      real(dp) :: stress_threshold = 6.0e4        !> stress threshold for CF retreat with stress-based calving (Pa)
      real(dp) :: lateral_rate_min = 0.0d0        !> minimum lateral retreat rate at CF (m/yr)
      real(dp) :: effec_stress_min = 0.0d0        !> minimum effective stress for calving at CF (Pa)
-     real(dp) :: length_scale = 4000.d0          !> length scale (m) for calving events (CALVING_STRESS_STOCHASTIC)
+     real(dp) :: length_scale = 4000.d0          !> length scale (m) for calving events (CALVING_LAW_STRESS_STOCHASTIC)
      real(dp) :: damage_constant = 1.e5          !> damage scaling term with units of Pa * yr
 !     real(dp) :: damage_constant1 = 0.0d0        !> damage constant that multiplies tau_eigen1 (yr^-1)
 !     real(dp) :: damage_constant2 = 0.0d0        !> damage constant that multiplies tau_eigen2 (yr^-1)
@@ -1678,7 +2024,7 @@ module glissade_types
      real(dp) :: bmlt_cavity_h0 = 0.0d0             !> scale for reducing melting in sub-shelf cavities (m)
                                                     !> similar to bmlt_float_h0, which is used specifically for MISMIP+
 
-     ! MISMIP+ parameters for Ice1 experiments (BMLT_FLOAT_MISMIP)
+     ! MISMIP+ parameters for Ice1 experiments (BMLT_FLOAT_METHOD_MISMIP)
      ! Note: Parameters with units yr^{-1} are scaled to s^{-1} when used in the code
      real(dp) :: bmlt_float_omega = 0.2d0           !> time scale for basal melting (yr-1)
                                                     !> default value = 0.2 yr^{-1} for MISMIP+ Ice1r
@@ -1687,12 +2033,12 @@ module glissade_types
      real(dp) :: bmlt_float_z0 = -100.d0            !> scale for ice draft, relative to sea level (m)
                                                     !> default value = -100 m for MISMIP+ Ice1r
 
-     ! MISMIP+ parameters for Ice2 experiments (BMLT_FLOAT_CONSTANT)
+     ! MISMIP+ parameters for Ice2 experiments (BMLT_FLOAT_METHOD_CONSTANT)
      real(dp) :: bmlt_float_const = 0.d0            !> constant melt rate (m/yr)
                                                     !> set to 100 m/yr for MISMIP+ Ice2r
      real(dp) :: bmlt_float_xlim = 0.d0             !> melting is allowed only for abs(x1) > bmlt_float_xlim
                                                     !> set to 480 km for MISMIP+ Ice2r
-     ! parameters for BMLT_FLOAT_DEPTH
+     ! parameters for BMLT_FLOAT_METHOD_DEPTH
      ! The sub-shelf melt rate is piecewise linear, generally with greater melting at depth.
      ! The maximum melting and freezing rates are set independently.
      ! The melting/freezing rates fall linearly from the max values to zero over ranges defined by
@@ -1790,32 +2136,32 @@ module glissade_types
 
      ! inversion options
 
-     integer :: set_mu_star = 0
+     integer :: set_mu_star = MU_STAR_METHOD_CONSTANT
      !> \begin{description}
-     !> \item[0] apply spatially uniform mu_star
-     !> \item[1] invert for glacier-specific mu_star
-     !> \item[2] read glacier-specific mu_star from external file
+     !> \item[constant] apply spatially uniform mu_star
+     !> \item[inversion] invert for glacier-specific mu_star
+     !> \item[file] read glacier-specific mu_star from external file
      !> \end{description}
 
-     integer :: set_alpha_snow = 0
+     integer :: set_alpha_snow = ALPHA_SNOW_METHOD_CONSTANT
      !> \begin{description}
-     !> \item[0] apply spatially uniform alpha_snow
-     !> \item[1] invert for glacier-specific alpha_snow
-     !> \item[2] read glacier-specific alpha_snow from external file
+     !> \item[constant] apply spatially uniform alpha_snow
+     !> \item[inversion] invert for glacier-specific alpha_snow
+     !> \item[file] read glacier-specific alpha_snow from external file
      !> \end{description}
 
-     integer :: set_powerlaw_c = 0
+     integer :: set_powerlaw_c = GLACIER_POWERLAW_C_METHOD_CONSTANT
      !> \begin{description}
-     !> \item[0] apply spatially uniform powerlaw_c
-     !> \item[1] invert for 2D powerlaw_c
-     !> \item[2] read 2D powerlaw_c from external file
+     !> \item[constant] apply spatially uniform powerlaw_c
+     !> \item[inversion] invert for 2D powerlaw_c
+     !> \item[file] read 2D powerlaw_c from external file
      !> \end{description}
 
      ! other options
-     integer :: snow_calc = 1
+     integer :: snow_calc = SNOW_METHOD_PRECIP_ARTM
      !> \begin{description}
-     !> \item[0] read the snowfall rate directly
-     !> \item[1] compute the snowfall rate from precip and downscaled artm
+     !> \item[snow] read the snowfall rate directly
+     !> \item[precip_artm] compute the snowfall rate from precip and downscaled artm
      !> \end{description}
 
      logical :: scale_area = .false.
@@ -1965,29 +2311,29 @@ module glissade_types
 
      ! hydrology options
 
-     integer :: ho_flux_routing_scheme = 0
+     integer :: ho_flux_routing_scheme = FLUX_ROUTING_METHOD_D8
      !> Flux routing scheme for basal water:
      !> \begin{description}
-     !> \item[0] D8; send flux to lowest-elevation neighbor
-     !> \item[1] Dinf; divide flux between two lower-elevation neighbors
-     !> \item[2] FD8; divide flux among all lower-elevation neighbors
+     !> \item[d8] D8; send flux to lowest-elevation neighbor
+     !> \item[dinf] Dinf; divide flux between two lower-elevation neighbors
+     !> \item[fd8] FD8; divide flux among all lower-elevation neighbors
      !> \end{description}
 
-     integer :: cavity_open_slide = 0
+     integer :: cavity_open_slide = CAVITY_OPEN_SLIDE_NONE
      !> Treatment of opening by sliding in cavity-sheet equations
      !> \begin{description}
-     !> \item[0] no opening by sliding
-     !> \item[1] opening by sliding with fixed u_b
-     !> \item[2] opening by sliding with dynamic u_b
+     !> \item[none] no opening by sliding
+     !> \item[fixed_ub] opening by sliding with fixed u_b
+     !> \item[dynamic_ub] opening by sliding with dynamic u_b
      !> \end{description}
 
-     integer :: cavity_open_melt = 0
+     integer :: cavity_open_melt = CAVITY_OPEN_MELT_NONE
      !> Treatment of opening by melting in cavity-sheet equations
      !> \begin{description}
-     !> \item[0] no opening by melting
-     !> \item[1] opening by melting based on bmlt_ground
-     !> \item[2] opening by melting based on dissipation in cavities
-     !> \item[3] opening by melting based on bmlt_ground plus dissipation
+     !> \item[none] no opening by melting
+     !> \item[bmlt] opening by melting based on bmlt_ground
+     !> \item[dissipation] opening by melting based on dissipation in cavities
+     !> \item[bmlt_dissipation] opening by melting based on bmlt_ground plus dissipation
      !> \end{description}
 
      !TODO - Add options for closing by creep?
@@ -2005,11 +2351,11 @@ module glissade_types
      real(dp),dimension(:,:),  pointer :: grad_head => null()   !> Gradient of hydraulic head (m/m)
 
      ! parameters for constant basal water
-     ! Note: This parameter applies to the case HO_BWAT_CONSTANT.
+     ! Note: This parameter applies to the case BWAT_METHOD_CONSTANT.
      real(dp) :: const_bwat = 10.d0              !> constant basal water depth (m)
 
      ! parameters for local till model
-     ! These parameters apply to the case HO_BWAT_LOCAL_TILL.
+     ! These parameters apply to the case BWAT_METHOD_LOCAL_TILL.
      ! The default values are from Aschwanden et al. (2016) and Bueler and van Pelt (2015).
      real(dp) :: bwat_till_max = 2.0d0           !> maximum water depth in till (m)
      real(dp) :: c_drainage = 1.0d-3             !> uniform drainage rate (m/yr)
@@ -2069,10 +2415,9 @@ module glissade_types
                                                                 !> Note: Defined on velocity grid, whereas temp and bpmp are on ice grid
 
      !WHL TODO - Remove c_space_factor during the config reorg?
-     !           Currently used for which_ho_babc = HO_BABC_COULOMB_FRICTION, *SCHOOF AND *TSAI
+     !           Currently used for which_ho_babc = SLIDING_LAW_COULOMB, *SCHOOF AND *TSAI
      real(dp), dimension(:,:), pointer :: c_space_factor => null()      !> spatial factor for basal shear stress (no dimension)
      real(dp), dimension(:,:), pointer :: c_space_factor_stag => null() !> spatial factor for basal shear stress on staggered grid
-
 
      ! parameters for the Zoet-Iverson sliding law
      ! tau_b = N * tan(phi) * [u_b / (u_b + u_t)]^(1/m), Eq. 3 in ZI(2020)
@@ -2091,7 +2436,7 @@ module glissade_types
      real(dp) :: pseudo_plastic_u0 = 100.d0      !> threshold velocity for pseudo-plastic law (m/yr)
 
      ! The following 4 parameters give a linear increase in phi between elevations bedmin and bedmax
-     ! Note: These four parameters are used with option HO_BABC_PSEUDO_PLASTIC_OLD
+     ! Note: These four parameters are used with option SLIDING_LAW_PSEUDO_PLASTIC_OLD
      !       This option will be deprecated but was used for many CESM runs and is kept for backward compatibility
      real(dp) :: pseudo_plastic_phimin =    5.d0 !> min(phi) in pseudo-plastic law, for topg <= bedmin (degrees, 0 < phi < 90)
      real(dp) :: pseudo_plastic_phimax =   40.d0 !> max(phi) in pseudo-plastic law, for topg >= bedmax (degrees, 0 < phi < 90)
@@ -2108,7 +2453,7 @@ module glissade_types
           powerlaw_c => null(), &                !> powerlaw_c on staggered grid, Pa (m/yr)^(-1/m)
           coulomb_c => null()                    !> coulomb_c on staggered grid, unitless in range [0,1]
 
-     ! parameters for Weertman-type power law, taub_b = C * u_b^(1/m); used for HO_BABC_SCHOOF AND *_TSAI
+     ! parameters for Weertman-type power law, taub_b = C * u_b^(1/m); used for SLIDING_LAW_SCHOOF AND *_TSAI
      ! The default values are from Asay-Davis et al. (2016).
      ! The value of powerlaw_c suggested by Tsai et al. (2015) is 7.624d6 Pa m^(-1/3) s^(1/3).
      ! This value can be converted to CISM units by dividing by scyr^(1/3), to obtain 2.413d4 Pa m^(-1/3) yr^(1/3).
@@ -2131,7 +2476,7 @@ module glissade_types
      ! parameters for Schoof basal friction law
      ! Typically, schoof_n (from Eq. 2 in Schoof 2005) has the same value as powerlaw_m, but this is not required.
      ! The parameters gamma and p are not in Schoof (2005) but can be used to relate Cc and Cp during inversion,
-     !  with either the Schoof law or the Tsai law, if which_ho_powerlaw_c = HO_POWERLAW_C_FUNCTION_COULOMB_C.
+     !  with either the Schoof law or the Tsai law, if which_ho_powerlaw_c = POWERLAW_C_METHOD_FROM_COULOMB_C.
      !  The default values here are consistent with Cc_max = 1.0, Cp_max = 1.e5, Cc_const = 1.0, Cp_const ~ 2.e4
      real(dp) :: schoof_n = 3.0d0                !> exponent in the Schoof basal friction law;
                                                  !> modulates the transition between powerlaw and coulomb behavior
@@ -2146,7 +2491,7 @@ module glissade_types
 
      ! parameters for older form of Coulomb friction sliding law (default values from Pimentel et al. 2010)
      ! Pimentel et al. have coulomb_c = 0.84*m_max, where m_max = coulomb_bump_max_slope
-     !TODO - Remove these constants? They are used for babc option HO_BABC_COULOMB_FRICTION,
+     !TODO - Remove these constants? They are used for babc option SLIDING_LAW_COULOMB,
      !       which is functionally equivalent to the Schoof law.
      real(dp) :: coulomb_bump_wavelength = 2.0d0 !> bedrock wavelength at subgrid scale precision (m)
      real(dp) :: flwa_basal_const = 1.0d-16      !> flow factor at the bed for sliding_law = 10 (Pa^{-n} yr^{-1});
@@ -2188,28 +2533,28 @@ module glissade_types
   type glissade_isostasy_type
      !> contains isostasy configuration
 
-     integer :: lithosphere = 1
+     integer :: lithosphere = LITHOSPHERE_METHOD_ELASTIC
      !> method for calculating equilibrium bedrock depression
      !> \begin{description}
-     !> \item[0] local lithosphere, equilibrium bedrock depression is found using Archimedes' principle
-     !> \item[1] elastic lithosphere, flexural rigidity is taken into account
+     !> \item[local] local lithosphere, equilibrium bedrock depression is found using Archimedes' principle
+     !> \item[elastic] elastic lithosphere, flexural rigidity is taken into account
      !> \end{description}
 
-     integer :: asthenosphere = 1
+     integer :: asthenosphere = ASTHENOSPHERE_METHOD_RELAXING
      !> method for approximating the mantle
      !> \begin{description}
-     !> \item[0] fluid mantle, isostatic adjustment happens instantaneously
-     !> \item[1] relaxing mantle, exp adjust toward (relx - load), constant timescale
-     !> \item[2] relaxing mantle, exp adjust toward (relx - load), laterally varying timescale
+     !> \item[fluid] fluid mantle, isostatic adjustment happens instantaneously
+     !> \item[relaxing] relaxing mantle, exp adjust toward (relx - load), constant timescale
+     !> \item[relaxing_latvar] relaxing mantle, exp adjust toward (relx - load), laterally varying timescale
      !> \end{description}
 
-    integer :: which_relaxed = 0
+    integer :: which_relaxed = INPUT_TOPG_METHOD_SEPARATE_RELX
 
     !> relaxed topography:
     !> \begin{description}
-    !> \item[0] get current topo (topg) and relaxed topo (relx) from separate input fields
-    !> \item[1] first time slice of input topo is relaxed
-    !> \item[2] first time slice of input topo is in isostatic equilibrium
+    !> \item[separate_relx] get current topo (topg) and relaxed topo (relx) from separate input fields
+    !> \item[relx_from_topg] first time slice of input topo is relaxed
+    !> \item[relx_from_load] first time slice of input topo is in isostatic equilibrium
     !> \end{description}
 
      real(dp) :: tau_relax_const = 3000.d0    ! characteristic time constant of relaxing mantle (yr)
@@ -2254,8 +2599,6 @@ module glissade_types
     real(dp),dimension(:),pointer :: stagsigma => null()     !> Staggered values of sigma (layer midpts)
     real(dp),dimension(:),pointer :: stagwbndsigma => null() !> Staggered values of sigma (layer midpts) with boundaries
     real(dp), dimension(:,:), pointer :: dups => null()      !> vertical grid quantities related to sigma and stagsigma
-
-
 
     real(dp) :: dt_diag = 0.d0     ! diagnostic interval (write diagnostic output every dt_diag years)
                                    ! dt_diag = 0 => never write diagnostic output
@@ -2426,7 +2769,7 @@ contains
 
     call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwat)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwatflx)
-    if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+    if (model%options%which_ho_bwat == BWAT_METHOD_FLUX_ROUTING) then
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bmlt_hydro)
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwat_diag)
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%head)
@@ -2642,15 +2985,15 @@ contains
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
 
-    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN .or. &
-        model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
+    if (model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN .or. &
+        model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN) then
        if (model%ocean_data%nbasin < 1) then
           call write_log ('Must set nbasin >= 1 for basin-scale inversion of C_c or C_p', GM_FATAL)
        endif
        call coordsystem_allocate(model%general%ice_grid, model%inversion%grounded_thck_target)
     endif
 
-    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
+    if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
        if (model%ocean_data%nbasin < 1) then
           call write_log ('Must set nbasin >= 1 for basin-scale deltaT_ocn inversion', GM_FATAL)
        endif
@@ -2738,7 +3081,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+    if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
        call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
     else
        call coordsystem_allocate(model%general%ice_grid, model%calving%subgrid_calving_mask)
@@ -2751,13 +3094,13 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen2)
     call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen1)
     call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen2)
-    if (model%options%whichcalving == CALVING_DAMAGE) then
+    if (model%options%whichcalving == CALVING_LAW_DAMAGE) then
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
     else
        ! allocate with size 1, since they need to be allocated to be passed to calving subroutine
        allocate(model%calving%damage(1,1,1))
     endif
-    if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
+    if (model%options%which_ho_calvingmip_domain /= CALVINGMIP_DOMAIN_NONE) then
        model%calving%naxis = 8
        allocate(model%calving%axis(model%calving%naxis))
        do n = 1, model%calving%naxis
@@ -2777,7 +3120,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%latmelt_thck)
     call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%latmelt_rate)
     call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%latmelt_rate_tavg)
-    if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
+    if (model%options%which_lateral_melt /= LATERAL_MELT_METHOD_NONE) then
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%runoff_applied)
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%thermal_forcing_applied)
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_front_mask)
@@ -2787,7 +3130,7 @@ contains
 
     ! Note: relx needs to be allocated always
     call coordsystem_allocate(model%general%ice_grid, model%isostasy%relx)
-    if (model%options%isostasy == ISOSTASY_COMPUTE) then
+    if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load)
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load_factors)
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%tau_relax)
@@ -3245,7 +3588,6 @@ contains
          deallocate(model%scalars%bmlt_float_basin)
     if (associated(model%scalars%bmlt_float_target_basin)) &
          deallocate(model%scalars%bmlt_float_target_basin)
-
 
     if (associated(model%geometry%ice_age)) &
         deallocate(model%geometry%ice_age)

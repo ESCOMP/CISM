@@ -39,6 +39,8 @@ module glissade_log_config
   !   - One line per key: the key name exactly as in the config file, ' = ', the value, and an
   !     optional comment after '#' (the description of an option value, the units of a parameter,
   !     or a note, e.g. when the code has changed a setting).
+  !   - Options given by name are written by name, with the description of the value as the
+  !     comment (log_option with a choices array; see option_choice in glimmer_config).
   !   - Integers are written without padding. Logicals are written as .true. or .false.
   !   - Reals are written by real_to_string (see below): at most 12 significant digits, without
   !     trailing zeros; fixed notation for 1.e-6 <= |x| < 1.e6, scientific notation otherwise.
@@ -47,6 +49,7 @@ module glissade_log_config
 
   use glimmer_global, only: dp
   use glimmer_log, only: write_log
+  use glimmer_config, only: option_choice, option_name, option_description
 
   implicit none
   private
@@ -56,6 +59,10 @@ module glissade_log_config
   interface log_param
      module procedure log_param_real, log_param_int
   end interface log_param
+
+  interface log_option
+     module procedure log_option_choice, log_option_int
+  end interface log_option
 
   integer, parameter :: indent_key = 4       ! spaces before a key
   integer, parameter :: key_width = 30       ! keys are padded to this width (longer keys are not)
@@ -93,7 +100,44 @@ contains
 
 !--------------------------------------------------------------------------------
 
-  subroutine log_option(key, value, description)
+  subroutine log_option_choice(key, value, choices, note)
+
+    ! Write an option given by name: the name of its value, with the description as the comment.
+    ! An optional note is added to the comment. A value that is not one of the choices (which
+    ! the config reader does not allow) is written as an integer.
+
+    character(len=*), intent(in) :: key
+    integer, intent(in) :: value
+    type(option_choice), dimension(:), intent(in) :: choices
+    character(len=*), intent(in), optional :: note
+
+    character(len=32) :: name
+    character(len=256) :: comment
+
+    name = option_name(choices, value)
+    if (len_trim(name) == 0) then
+       call write_key_value(key, int_to_string(value), 'not a valid value')
+       return
+    endif
+    comment = option_description(choices, value)
+    if (present(note)) then
+       if (len_trim(comment) > 0) then
+          comment = trim(comment) // '; ' // note
+       else
+          comment = note
+       endif
+    endif
+    if (len_trim(comment) > 0) then
+       call write_key_value(key, trim(name), trim(comment))
+    else
+       call write_key_value(key, trim(name))
+    endif
+
+  end subroutine log_option_choice
+
+!--------------------------------------------------------------------------------
+
+  subroutine log_option_int(key, value, description)
 
     ! Write an integer option and, optionally, the description of its value
 
@@ -103,7 +147,7 @@ contains
 
     call write_key_value(key, int_to_string(value), description)
 
-  end subroutine log_option
+  end subroutine log_option_int
 
 !--------------------------------------------------------------------------------
 

@@ -77,7 +77,8 @@ parser.add_argument('-v', '--vlevel', dest='vertlevels',    type=int,    default
 parser.add_argument('-a', '--approx', dest='approximation', type=str, default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
 parser.add_argument('-b', '--basal',  dest='basalFriction', type=str, default='Schoof', help="basal friction law (Schoof, Tsai, powerlaw)")
 parser.add_argument('-y', '--year',   dest='yearsSpinup',   type=int,    default= 20000,   help="length of spinup run (yr)")
-parser.add_argument('-g', '--gbc',    dest='global_bc',     type=int, default=0, help="global boundary condition")
+parser.add_argument('-g', '--gbc',    dest='global_bc',     default='periodic',
+                    help="global boundary condition: periodic, outflow, no_penetration or no_ice (or 0-3)")
 
 options = parser.parse_args()
 
@@ -172,7 +173,11 @@ config.set('grid', 'nsn', str(ny))
 config.set('grid', 'upn', str(nz))
 config.set('grid', 'dew', str(dx))
 config.set('grid', 'dns', str(dy))
-config.set('grid', 'global_bc', str(options.global_bc))
+global_bc_names = ['periodic', 'outflow', 'no_penetration', 'no_ice']
+global_bc = options.global_bc
+if global_bc.isdigit():
+    global_bc = global_bc_names[int(global_bc)]
+config.set('grid', 'global_bc', global_bc)
 
 # Set the diagnostic cell
 # By default, this cell lies midway along the y-axis, near the right edge of the domain.
@@ -187,37 +192,37 @@ print('jdiag:',jdiag)
 
 # Set Stokes approximation in config file.
 if options.approximation == 'SSA':
-    which_ho_approx = 1 
+    which_ho_approx = 'ssa'
     print( 'Using SSA velocity solver')
 elif options.approximation == 'DIVA':
-    which_ho_approx = 4
+    which_ho_approx = 'diva'
     print( 'Using DIVA velocity solver')
 elif options.approximation == 'BP':
-    which_ho_approx = 2
+    which_ho_approx = 'blatter_pattyn'
     print( 'Using Blatter-Pattyn velocity solver')
 else:
-    which_ho_approx = 4
+    which_ho_approx = 'diva'
     print( 'Defaulting to DIVA velocity solver')
 
-config.set('velocity', 'stokes_approx', str(which_ho_approx))
+config.set('velocity', 'stokes_approx', which_ho_approx)
 
 # Config settings related to basal friction law.
 # Note: Each of these friction laws is associate with certain basal parameters.
 #       The desired parameters should be set in the config template.
 if options.basalFriction == 'Schoof':
-    which_ho_babc = 11
+    which_ho_babc = 'schoof'
     print( 'Using Schoof basal friction law')
 elif options.basalFriction == 'Tsai':
-    which_ho_babc = 12
+    which_ho_babc = 'tsai'
     print( 'Using Tsai basal friction law')
 elif options.basalFriction == 'powerlaw':
-    which_ho_babc = 9
+    which_ho_babc = 'powerlaw'
     print( 'Using basal friction power law')
 else:
-    which_ho_babc = 11   # Schoof is default
+    which_ho_babc = 'schoof'   # Schoof is default
     print( 'Defaulting to Schoof basal friction law')
 
-config.set('basal_physics', 'sliding_law', str(which_ho_babc))
+config.set('basal_physics', 'sliding_law', which_ho_babc)
 
 yearsSpinup = float(options.yearsSpinup)
 config.set('time', 'tend', str(yearsSpinup))
@@ -325,9 +330,9 @@ kinbcmask[:,:,0]  = 1   # mask out left-most column
 # For outflow BC, also zero out accumulation in motionless cells,
 #    to prevent these cells from thickening indefinitely.
 
-if options.global_bc == 0:     # periodic
+if global_bc == 'periodic':
     kinbcmask[:,:,-1] = 1      # mask out right-most column
-elif options.global_bc == 1:   # outflow
+elif global_bc == 'outflow':
     # Zero out the velocity at vertices one cell away from the global boundary.
     B0 = -150.                     # same as the value in computeBed
     j = 0                          # bottom row of vertices
@@ -392,7 +397,7 @@ for expt in experiments:
         outputfreq  = 10.0
         restartfreq = 100.0
     elif expt == 'Ice1r':
-        config.set('basal_melt', 'bmlt_float_method', '1')
+        config.set('basal_melt', 'bmlt_float_method', 'mismip')
         tstart      = 0.0
         tend        = 100.0
         inputdir    = '../Spinup/'
@@ -417,7 +422,7 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
     elif expt == 'Ice1rr':
-        config.set('basal_melt', 'bmlt_float_method', '1')
+        config.set('basal_melt', 'bmlt_float_method', 'mismip')
         tstart      = 100.0
         tend        = 200.0
         inputdir    = '../Ice1r/'
@@ -426,7 +431,7 @@ for expt in experiments:
         outputfreq  = 10.0
         restartfreq = 100.0
     elif expt == 'Ice1rrx':
-        config.set('basal_melt', 'bmlt_float_method', '1')
+        config.set('basal_melt', 'bmlt_float_method', 'mismip')
         tstart      = 200.0
         tend        = 1000.0
         inputdir    = '../Ice1rr/'
@@ -435,7 +440,7 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
     elif expt == 'Ice2r':
-        config.set('basal_melt', 'bmlt_float_method', '2')
+        config.set('basal_melt', 'bmlt_float_method', 'constant')
         tstart      = 0.0
         tend        = 100.0
         inputdir    = '../Spinup/'
@@ -460,7 +465,7 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
     elif expt == 'Ice2rr':
-        config.set('basal_melt', 'bmlt_float_method', '2')
+        config.set('basal_melt', 'bmlt_float_method', 'constant')
         tstart      = 100.0
         tend        = 200.0
         inputdir    = '../Ice2r/'
@@ -469,7 +474,7 @@ for expt in experiments:
         outputfreq  = 10.0
         restartfreq = 100.0
     elif expt == 'Ice2rrx':
-        config.set('basal_melt', 'bmlt_float_method', '2')
+        config.set('basal_melt', 'bmlt_float_method', 'constant')
         tstart      = 200.0
         tend        = 1000.0
         inputdir    = '../Ice2rr/'
@@ -478,15 +483,15 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
 
-    # The Spinup run is initialized to the surface air temperature (temperature_init = 1).
+    # The Spinup run is initialized to the surface air temperature (temperature_init = artm).
     # For all other experiments, the initial temperature is read from the input/restart file.
     if expt != 'Spinup':
-       config.set('temperature', 'temperature_init', '4')
+       config.set('temperature', 'temperature_init', 'file')
 
-    # The Spinup run is an initialization run (restart = 0).
+    # The Spinup run is an initialization run (restart = none).
     # The other experiments use hybrid restart.
     if expt != 'Spinup':
-       config.set('options', 'restart', '2')
+       config.set('options', 'restart', 'hybrid')
 
     # Set the time step in the master config file.
     # Set the diagnostic interval to the same value (not necessary, but helpful for debugging).

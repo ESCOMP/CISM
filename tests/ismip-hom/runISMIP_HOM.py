@@ -237,18 +237,18 @@ def main():
 #            if experiment in ('c' 'd'):
             if experiment in ('d'):
                 # This test has beta passed in from the input file, so change option accordingly.
-                config_parser.set('basal_physics', 'sliding_law', '5')
+                config_parser.set('basal_physics', 'sliding_law', 'beta_file')
 
             # If doing experiment C, it is more accurate to use which_ho_babc = 8 than pass in beta.
             # If beta is read in on the global ice grid, there will be interpolation errors when it is
             #  averaged to the velocity grid. Constructing beta on the velocity grid at runtime avoids these errors.
             if experiment in ('c'):
-                config_parser.set('basal_physics', 'sliding_law', '8')
+                config_parser.set('basal_physics', 'sliding_law', 'ismip_hom_c')
 
             # For test case F we need to make a few additional adjustments to the config
             if experiment in ('f'):
                 # Set to efvs to be the constant value of 2336041.42829 hardcoded for this option - this corresponds to the value needed for this test case
-                config_parser.set('velocity', 'efvs_method', '0')
+                config_parser.set('velocity', 'efvs_method', 'constant')
                 # 2.4 yr is the longest dt ok for diffusive CFL, when using dx=dy=2500.0
                 config_parser.set('time', 'dt', '2.2')  
                 # Need to run to steady-state...  

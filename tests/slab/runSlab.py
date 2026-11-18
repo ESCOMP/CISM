@@ -275,7 +275,7 @@ def main():
         mu_n = mu_n_pwrn**(1.0/gn)
 
     # Given mu_n, compute the temperature-independent flow factor A = 1 / [2^((1+n)/2) * mu_n^n].
-    # This is how CISM incorporates a prescribed mu_n (with flow_law = 0, i.e. constant flwa).
+    # This is how CISM incorporates a prescribed mu_n (with flow_law = constant, i.e. constant flwa).
     # Note: The complicated exponent of 2 in the denominator results from CISM and the Dukowicz papers
     #       having different conventions for the squared effective strain rate, eps_sq.
     #       In CISM:        mu = 1/2 * A^(-1/n) * eps_sq_cism^((1-n)/(2n))
@@ -337,23 +337,23 @@ def main():
     config_parser.set('flow_law', 'flwa_const', str(flwa))
 
     if (args.approx == 'SIALOC'):
-        approx = -1             # Glissade local SIA; uses basal_tract_const = 1/beta
-        config_parser.set('basal_physics', 'btrc_method', str(1))
+        approx = 'local_sia'            # Glissade local SIA; uses basal_tract_const = 1/beta
+        config_parser.set('basal_physics', 'btrc_method', 'constant')
         config_parser.set('basal_physics', 'btrc_const', str(1./beta))
     elif (args.approx == 'SIA'):
-        approx = 0              # Glissade matrix-based SIA
+        approx = 'sia'             # Glissade matrix-based SIA
     elif (args.approx == 'SSA'):
-        approx = 1
+        approx = 'ssa'
     elif (args.approx == 'BP'):
-        approx = 2
+        approx = 'blatter_pattyn'
     elif (args.approx == 'L1L2'):
-        approx = 3
+        approx = 'l1l2'
     elif (args.approx == 'DIVA'):
-        approx = 4
+        approx = 'diva'
     elif (args.approx == 'HYBRID'):
-        approx = 5
+        approx = 'hybrid'
 
-    config_parser.set('velocity', 'stokes_approx', str(approx))
+    config_parser.set('velocity', 'stokes_approx', approx)
 
     config_parser.set('CF input', 'name', file_name)
     config_parser.set('CF output', 'name', out_name)

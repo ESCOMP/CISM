@@ -12,8 +12,8 @@ dt = 1.
 adaptive_cfl_threshold = 0.5
 
 [options]
-dycore = 2              # 0 = glide, 1 = glam, 2=glissade
-restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
+dycore = glissade
+restart_extend_velo = .true.
 # restart = 0
 
 [numerics]
@@ -25,36 +25,36 @@ rhoo = 1000.0           # MISMIP ocean density
 grav = 9.80             # MISMIP gravitational acceleration
 
 [velocity]
-stokes_approx = 1             # 1 = SSA, 2 = Blatter-Pattyn, 3 = L1L2, 4 = DIVA
-efvs_method = 2               # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
-surface_gradient_margin_method = 2    # 2 = marine BC
-surface_gradient_method = 0            # 0 = centered, 1 = upstream
+stokes_approx = ssa
+efvs_method = nonlinear
+surface_gradient_margin_method = marine
+surface_gradient_method = centered
 
 [velocity_solver]
-nonlinear_method = 0          # 0 = Picard, 1 = accelerated Picard
-nonlinear_residual = 4               # 3 = absolute, 4 = relative
+nonlinear_method = picard
+nonlinear_residual = relative_l2norm
 nonlinear_maxiters = 50
-linear_solver = 3             # 1 = SLAP GMRES, 3 = Fortran PCG
-preconditioner = 1            # 1 = diagonal precond, 2 = shallow ice preconditioner
-assemble_beta = 1       # 0 = standard FE, 1 = local
-assemble_taud = 1       # 0 = standard FE, 1 = local
-assemble_lateral = 0        # 0 = standard (the default before the config reorganization)
+linear_solver = pcg_chrongear
+preconditioner = diagonal
+assemble_beta = local
+assemble_taud = local
+assemble_lateral = standard
 
 [advection]
-advection_method = 3           # 3 = remapping, 4 = first order upwind
+advection_method = remap
 
 [temperature]
-temperature_method = 0         # 1 = prognostic, 3 = enthalpy
+temperature_method = isothermal_artm
 
 [flow_law]
-flow_law = 0            # 0 = constant, 2 = Paterson-Budd
+flow_law = constant
 flow_factor_ground = 1.
 flow_factor_float = 1.
 flwa_const = 1.0e-17
 
 [basal_physics]
-sliding_law = 9              # 4 = no-slip at bed, 10 = Coulomb friction law, 11 = Coulomb w/const basal flwa
-effecpress_method = 0         # 0 = overburden; the ocean connection is set by p_ocean_penetration
+sliding_law = powerlaw
+effecpress_method = overburden
 powerlaw_m = 3
 powerlaw_c_const = 2.4131e4
 coulomb_c_const = 0.1778
@@ -63,14 +63,14 @@ coulomb_bump_wavelength = 2.0
 p_ocean_penetration = 0      ; p values for coulomb friction law
 
 [grounding_line]
-grounding_line_param = 1              # 0 = no GLP, 1 = GLP
-flotation_function = 0  # 0 = fpattyn, 1 = 1/fpattyn, 2 = ocean cavity thickness
+grounding_line_param = vertices
+flotation_function = pattyn
 
 [basal_melt]
-bmlt_float_method = 0          # 0 = no melting of floating ice
+bmlt_float_method = none
 
 [calving]
-calving_law = 4       # 4 = topographic threshold, 5 = calving mask
+calving_law = topg_threshold
 marine_limit = -1250           ; depth past which ice is lost
 
 [CF default]

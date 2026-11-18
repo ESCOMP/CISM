@@ -129,7 +129,7 @@ contains
             ! read the restart file
             call glad_read_restart_gcm(instance%model, gcm_restart_file)
             instance%gcm_restart_file = gcm_restart_file
-            instance%model%options%is_restart = 1
+            instance%model%options%is_restart = STANDARD_RESTART
  
          else
 

@@ -107,16 +107,16 @@
 
          model%geometry%ntracers = 0
 
-         if (model%options%whichtemp == TEMP_PROGNOSTIC .or.  &
-             model%options%whichtemp == TEMP_ENTHALPY) then
+         if (model%options%whichtemp == TEMPERATURE_METHOD_PROGNOSTIC .or.  &
+             model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
-         if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+         if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
-         if (model%options%whichcalving == CALVING_DAMAGE) then
+         if (model%options%whichcalving == CALVING_LAW_DAMAGE) then
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
@@ -149,7 +149,7 @@
          ! TODO: Set tracers_usrf to min(artm, 0.0) instead of temp(0) for the case that a cell
          !       is currently ice-free with temp(0) = 0?
 
-         if (model%options%whichtemp == TEMP_PROGNOSTIC) then
+         if (model%options%whichtemp == TEMPERATURE_METHOD_PROGNOSTIC) then
 
             nt = nt + 1
             do k = 1, nlyr
@@ -158,7 +158,7 @@
             model%geometry%tracers_usrf(:,:,nt) = model%temper%temp(0,:,:)
             model%geometry%tracers_lsrf(:,:,nt) = model%temper%temp(nlyr+1,:,:)
 
-         elseif (model%options%whichtemp == TEMP_ENTHALPY) then
+         elseif (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
 
             nt = nt + 1
             do k = 1, nlyr
@@ -170,7 +170,7 @@
          endif
 
          ! damage parameter for prognostic calving scheme
-         if (model%options%whichcalving == CALVING_DAMAGE) then
+         if (model%options%whichcalving == CALVING_LAW_DAMAGE) then
 
             nt = nt + 1
             do k = 1, nlyr
@@ -189,7 +189,7 @@
          endif
          
          ! ice age parameter
-         if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+         if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
 
             nt = nt + 1
             do k = 1, nlyr
@@ -239,12 +239,12 @@
 
       ! start with temperature or enthapy, depending on model%options%whichtemp
 
-      if (model%options%whichtemp == TEMP_PROGNOSTIC) then
+      if (model%options%whichtemp == TEMPERATURE_METHOD_PROGNOSTIC) then
          nt = nt+1
          do k = 1, nlyr
             model%temper%temp(k,:,:) = model%geometry%tracers(:,:,nt,k)
          enddo
-      elseif (model%options%whichtemp == TEMP_ENTHALPY) then
+      elseif (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
          nt = nt+1
          do k = 1, nlyr
             model%temper%enthalpy(k,:,:) = model%geometry%tracers(:,:,nt,k)
@@ -252,7 +252,7 @@
       endif
 
       ! damage parameter for prognostic calving scheme
-      if (model%options%whichcalving == CALVING_DAMAGE) then
+      if (model%options%whichcalving == CALVING_LAW_DAMAGE) then
          nt = nt + 1
          do k = 1, nlyr
             model%calving%damage(k,:,:) = model%geometry%tracers(:,:,nt,k) 
@@ -260,7 +260,7 @@
       endif
 
       ! ice age parameter
-      if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+      if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
          nt = nt + 1
          do k = 1, nlyr
             model%geometry%ice_age(k,:,:) = model%geometry%tracers(:,:,nt,k)
@@ -341,7 +341,7 @@
 
       integer, intent(in) ::  &
          vert_remap_accuracy    ! order of accuracy for vertical remapping
-                                ! HO_VERTICAL_REMAP_FIRST_ORDER or HO_VERTICAL_REMAP_SECOMD_ORDER
+                                ! VERTICAL_REMAP_ORDER_FIRST or HO_VERTICAL_REMAP_SECOMD_ORDER
 
       logical, intent(in), optional ::  &
          upwind_transport_in    ! if true, do first-order upwind transport
@@ -1119,7 +1119,7 @@
     !
     ! Author: William Lipscomb, LANL
 
-    use glissade_types, only: HO_VERTICAL_REMAP_SECOND_ORDER
+    use glissade_types, only: VERTICAL_REMAP_ORDER_SECOND
 
     implicit none
  
@@ -1152,7 +1152,7 @@
 
     integer, intent(in) ::  &
          vert_remap_accuracy    ! order of accuracy for vertical remapping
-                                ! HO_VERTICAL_REMAP_FIRST_ORDER or HO_VERTICAL_REMAP_SECOMD_ORDER
+                                ! VERTICAL_REMAP_ORDER_FIRST or HO_VERTICAL_REMAP_SECOMD_ORDER
 
     ! local variables
  
@@ -1287,7 +1287,7 @@
              ! For first-order remapping:  Set the gradients to zero.
              !-----------------------------------------------------------------
 
-             if (vert_remap_accuracy == HO_VERTICAL_REMAP_SECOND_ORDER) then
+             if (vert_remap_accuracy == VERTICAL_REMAP_ORDER_SECOND) then
              
                 do k = 1, nlyr
                    

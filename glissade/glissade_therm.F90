@@ -162,24 +162,24 @@ module glissade_therm
                                     
 
     !==== Initialize ice temperature.============
-    ! Following possibilities:
-    ! (0) Set ice temperature to 0 C everywhere in column (TEMP_INIT_ZERO).
-    ! (1) Set ice temperature to surface air temperature everywhere in column (TEMP_INIT_ARTM).
-    ! (2) Set up a linear temperature profile, with T = artm at the surface and T <= Tpmp
-    !     at the bed (TEMP_INIT_LINEAR).
+    ! Following possibilities (temperature_init):
+    ! zero_celsius: Set ice temperature to 0 C everywhere in column (TEMPERATURE_INIT_ZERO_CELSIUS).
+    ! artm: Set ice temperature to surface air temperature everywhere in column (TEMPERATURE_INIT_ARTM).
+    ! linear: Set up a linear temperature profile, with T = artm at the surface and T <= Tpmp
+    !     at the bed (TEMPERATURE_INIT_LINEAR).
     !     A parameter (pmpt_offset) controls how far below Tpmp the initial bed temp is set.
-    ! (3) Set up a temperature profile based on advective-diffusive balance, with T = artm
-    !     at the surface and dT/dz = -F_geo/k at the bed (TEMP_INIT_ADVECTIVE_DIFFUSIVE).
-    !     The temperature at each level is capped at the value computed by method (2).
-    ! (4) Read ice temperature from external file (TEMP_INIT_EXTERNAL).
-    !   (4a) If variable tempstag is present: Set ice temperature to tempstag from input file.
-    !   (4b) If variable tempunstag is present (and tempstag is not): interpolate tempunstag
+    ! advective_diffusive: Set up a temperature profile based on advective-diffusive balance, with
+    !     T = artm at the surface and dT/dz = -F_geo/k at the bed (TEMPERATURE_INIT_ADVECTIVE_DIFFUSIVE).
+    !     The temperature at each level is capped at the value computed by the linear method.
+    ! file: Read ice temperature from external file (TEMPERATURE_INIT_FILE).
+    !   (a) If variable tempstag is present: Set ice temperature to tempstag from input file.
+    !   (b) If variable tempunstag is present (and tempstag is not): interpolate tempunstag
     !        to the staggered ice temperature needed by the Glissade dycore.
     !
-    ! The default is (1).
-    ! Methods (0-3) overwrite any temperature given in input files.
-    ! Method (3) may be optimal for reducing spinup time in the interior of large ice sheets.
-    ! Option (4) requires that temperature is present in the input file.
+    ! The default is artm.
+    ! All methods except file overwrite any temperature given in input files.
+    ! advective_diffusive may be optimal for reducing spinup time in the interior of large ice sheets.
+    ! file requires that temperature is present in the input file.
 
     if (is_restart == STANDARD_RESTART .or. is_restart == HYBRID_RESTART) then
 
@@ -188,7 +188,7 @@ module glissade_therm
 
        call write_log('Initializing ice temperature from the restart file')
 
-    elseif (temp_init == TEMP_INIT_EXTERNAL) then
+    elseif (temp_init == TEMPERATURE_INIT_FILE) then
 
        ! Temperature from external file
 
@@ -243,29 +243,29 @@ module glissade_therm
 
        else
           ! fatal error, neither tempstag nor tempunstag are present in the input files
-          call write_log('Error, temperature_init = 4 requires temperature variable tempstag or ' &
+          call write_log('Error, temperature_init = file requires temperature variable tempstag or ' &
              // 'tempunstag specified in the restart or input files. ', GM_FATAL)
        endif
 
 
     else   ! not reading temperature from restart or input file
-           ! initialize it here based on temp_init = (0-3)
+           ! initialize it here based on temp_init (all methods except file)
 
        ! initialize T = 0 C everywhere
        temp(:,:,:) = 0.0d0
                    
        ! set temperature in each column based on the value of temp_init
                                  
-       if (temp_init == TEMP_INIT_ZERO) then
+       if (temp_init == TEMPERATURE_INIT_ZERO_CELSIUS) then
           call write_log('Initializing ice temperature to 0 deg C')
-       elseif (temp_init == TEMP_INIT_ARTM) then   ! initialize ice column temperature to min(artm, 0 C)
+       elseif (temp_init == TEMPERATURE_INIT_ARTM) then   ! initialize ice column temperature to min(artm, 0 C)
           call write_log('Initializing ice temperature to the surface air temperature')
-       elseif (temp_init == TEMP_INIT_LINEAR) then ! initialize ice column temperature with a linear profile:
+       elseif (temp_init == TEMPERATURE_INIT_LINEAR) then ! initialize ice column temperature with a linear profile:
                                                    ! T = artm at the surface, and T <= Tpmp at the bed
           call write_log('Initializing ice temperature to a linear profile in each column')
           write(message,*) 'Offset from pressure melting point temperature =', pmp_offset
           call write_log(message)
-       elseif (temp_init == TEMP_INIT_ADVECTIVE_DIFFUSIVE) then  ! initialize ice column temperature based on advective-diffusive balance
+       elseif (temp_init == TEMPERATURE_INIT_ADVECTIVE_DIFFUSIVE) then  ! initialize ice column temperature based on advective-diffusive balance
                                                                  ! T = artm at the surface, and dT/dz = -F_geo/k at the bed
           call write_log('Initializing ice temperature based on advective-diffusive balance in each column')
           write(message,*) 'Offset from pressure melting point temperature =', pmp_offset
@@ -319,13 +319,13 @@ module glissade_therm
 
     ! Initialize temperatures in a column based on the value of temp_init.
     ! Four possibilities:
-    ! (1) Set ice temperature in column to 0 C (TEMP_INIT_ZERO).
-    ! (2) Set ice temperature in column to surface air temperature (TEMP_INIT_ARTM).
+    ! (1) Set ice temperature in column to 0 C (TEMPERATURE_INIT_ZERO_CELSIUS).
+    ! (2) Set ice temperature in column to surface air temperature (TEMPERATURE_INIT_ARTM).
     ! (3) Set up a linear temperature profile, with T = artm at the surface and T <= Tpmp
-    !     at the bed (TEMP_INIT_LINEAR). 
+    !     at the bed (TEMPERATURE_INIT_LINEAR). 
     !     A config parameter (pmp_offset) controls how far below Tpmp the initial bed temp is set.
     ! (4) Set up a temperature profile based on advective-diffusive balance, with T = artm
-    !     at the surface and dT/dz = -F_geo/k at the bed (TEMP_INIT_ADVECTIVE_DIFFUSIVE).
+    !     at the surface and dT/dz = -F_geo/k at the bed (TEMPERATURE_INIT_ADVECTIVE_DIFFUSIVE).
     !     The temperature at each level is capped at the value computed by method (3).
     !
     ! In/out arguments
@@ -366,15 +366,15 @@ module glissade_therm
 
     ! Set the temperature in the column
 
-    if (temp_init == TEMP_INIT_ZERO) then        ! set T = 0 C
+    if (temp_init == TEMPERATURE_INIT_ZERO_CELSIUS) then        ! set T = 0 C
        
        temp(:) = 0.0d0
 
-    elseif (temp_init == TEMP_INIT_ARTM) then    ! initialize ice-covered areas to the min of artm and 0 C
+    elseif (temp_init == TEMPERATURE_INIT_ARTM) then    ! initialize ice-covered areas to the min of artm and 0 C
 
        temp(:) = min(0.0d0, artm)
        
-    elseif (temp_init == TEMP_INIT_LINEAR) then  ! Tsfc = artm, Tbed = Tpmp - pmp_offset, linear profile in between
+    elseif (temp_init == TEMPERATURE_INIT_LINEAR) then  ! Tsfc = artm, Tbed = Tpmp - pmp_offset, linear profile in between
 
        if (thck > 0.0d0) then
 
@@ -396,7 +396,7 @@ module glissade_therm
 
        endif  ! thck > 0
 
-    elseif (temp_init == TEMP_INIT_ADVECTIVE_DIFFUSIVE) then
+    elseif (temp_init == TEMPERATURE_INIT_ADVECTIVE_DIFFUSIVE) then
 
        ! Where acab > 0, assume a balance between advection and diffusion in the column:
        !
@@ -433,7 +433,7 @@ module glissade_therm
 
        if (thck > 0.0d0) then
 
-          ! Initialize the column to a linear profile as for TEMP_INIT_LINEAR
+          ! Initialize the column to a linear profile as for TEMPERATURE_INIT_LINEAR
           temp(0) = min(0.0d0, artm)
 
           call glissade_pressure_melting_point(thck, pmptemp_bed)
@@ -693,7 +693,7 @@ module glissade_therm
 
     ! Handle the simple whichtemp options that do not require a temperature solve.
 
-    if (whichtemp == TEMP_SURFACE_AIR_TEMP) then
+    if (whichtemp == TEMPERATURE_METHOD_ISOTHERMAL_ARTM) then
 
        do ns = 1, nsn
           do ew = 1, ewn
@@ -701,7 +701,7 @@ module glissade_therm
           end do
        end do
 
-    elseif (whichtemp == TEMP_STEADY) then
+    elseif (whichtemp == TEMPERATURE_METHOD_FIXED) then
 
        ! do nothing
 
@@ -725,9 +725,9 @@ module glissade_therm
     !  For partly grounded cells, we assume the current basal temperature is a weighted average
     !  of the grounded and floating temperatures.
     ! Also compute a mask of cells with grounded ice.
-    !  For which_ho_ground = HO_GROUND_GLP_DELUXE, this includes cells where the ice is partly grounded.
+    !  For which_ho_ground = GROUNDING_LINE_PARAM_DELUXE, this includes cells where the ice is partly grounded.
 
-    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then  ! use f_ground_cell to set grounded_mask, btemp_ground, btemp_float
+    if (which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then  ! use f_ground_cell to set grounded_mask, btemp_ground, btemp_float
 
        do ns = 1, nsn
           do ew = 1, ewn
@@ -795,7 +795,7 @@ module glissade_therm
 
     ! Handle the whichtemp options that require a temperature (or enthalpy) solve.
 
-    if (whichtemp == TEMP_PROGNOSTIC .or. whichtemp == TEMP_ENTHALPY) then
+    if (whichtemp == TEMPERATURE_METHOD_PROGNOSTIC .or. whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
 
        ! No horizontal or vertical advection; vertical diffusion and strain heating only.
        ! Temperatures are vertically staggered relative to velocities.  
@@ -827,7 +827,7 @@ module glissade_therm
 
              temp(0,ew,ns) = min(0.d0, artm(ew,ns))
 
-             if (whichtemp == TEMP_ENTHALPY) then
+             if (whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
 
                 ! TODO: Rework the bottom BC of the enthalpy calculation for floating ice.
                 !       The enthalpy solve has not been tested for which_ho_ground = 2.
@@ -953,7 +953,7 @@ module glissade_therm
                 enddo
                 efinal = efinal * thck(ew,ns)
 
-             else   ! whichtemp = TEMP_PROGNOSTIC
+             else   ! whichtemp = TEMPERATURE_METHOD_PROGNOSTIC
 
                 if (verbose_column) then
                    write(iulog,*) ' '
@@ -974,7 +974,7 @@ module glissade_therm
                    write(iulog,*) ' '
                    write(iulog,*) 'bpmp =', bpmp(ew,ns)
                    write(iulog,*) 'bpmp - btemp_ground =', bpmp(ew,ns) - btemp_ground(ew,ns)
-                   if (which_ho_ground == HO_GROUND_GLP_DELUXE) then
+                   if (which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then
                       write(iulog,*) ' '
                       write(iulog,*) 'f_ground_cell, btemp_ground, btemp_float =', &
                            f_ground_cell(ew,ns), btemp_ground(ew,ns), btemp_float(ew,ns)
@@ -1041,7 +1041,7 @@ module glissade_therm
                 ! For lcondflx, there are two different values in cells that are partly grounded and partly floating.
                 ! See comments above on which_ho_ground.
 
-                if (which_ho_ground == HO_GROUND_GLP_DELUXE) then
+                if (which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then
 
                    ! cells can be partly grounded and partly floating; two distinct basal temperatures
                    ! Note: We are inside a loop over cells with ice_mask = 1.
@@ -1107,7 +1107,7 @@ module glissade_therm
                 enddo
                 efinal = efinal * rhoi*shci * thck(ew,ns)
                 
-             endif   ! whichtemp (TEMP_PROGNOSTIC or TEMP_ENTHALPY)
+             endif   ! whichtemp (TEMPERATURE_METHOD_PROGNOSTIC or TEMPERATURE_METHOD_ENTHALPY)
 
              ! Compute total dissipation rate in column (W/m^2)
 
@@ -1218,7 +1218,7 @@ module glissade_therm
     ! Reset the basal temperature, temp(upn), in case btemp_ground has changed.
     ! Weigh bmlt_ground by f_ground_cell in partly grounded cells.
 
-    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then
+    if (which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then
 
        do ns = 1, nsn
           do ew = 1, ewn
@@ -1414,7 +1414,7 @@ module glissade_therm
     !       That is, net heat flux at lower boundary must equal zero.
     !      If T(upn) >= Tpmp, then set T(upn) = Tpmp
 
-    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then   ! use f_ground_cell to compute matrix elements
+    if (which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then   ! use f_ground_cell to compute matrix elements
 
        ! The basal temperature satisfies one BC beneath floating ice and a different BC beneath grounded ice.
        ! The matrix elements computed here are valid for ice that is partly grounded and partly floating
@@ -1846,7 +1846,7 @@ module glissade_therm
     ! Input/output arguments
     !-----------------------------------------------------------------
 
-    integer, intent(in) :: whichtemp                  ! temperature method (TEMP_PROGNOSTIC or TEMP_ENTHALPY)
+    integer, intent(in) :: whichtemp                  ! temperature method (TEMPERATURE_METHOD_PROGNOSTIC or TEMPERATURE_METHOD_ENTHALPY)
 
     real(dp), intent(in) :: dttem                     ! time step (s)
 
@@ -1914,7 +1914,7 @@ module glissade_therm
     ! Compute the basal melt rate for grounded ice
     ! Note: If the temperature/enthalpy is not prognosed, then there is no basal melting for grounded ice.
 
-    if (whichtemp == TEMP_ENTHALPY) then
+    if (whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
 
        do ns = 1, nsn
           do ew = 1, ewn
@@ -1929,7 +1929,7 @@ module glissade_therm
           enddo   ! ew
        enddo   ! ns
 
-    elseif (whichtemp == TEMP_PROGNOSTIC) then
+    elseif (whichtemp == TEMPERATURE_METHOD_PROGNOSTIC) then
 
        do ns = 1, nsn
           do ew = 1, ewn
@@ -1945,7 +1945,7 @@ module glissade_therm
 
     ! Cap basal temperature at pressure melting point
     !TODO - Is this the correct logic for the enthalpy scheme?
-    !TODO - Should btemp_ground be set to bpmp for whichtemp = TEMP_SURFACE_AIR_TEMP?
+    !TODO - Should btemp_ground be set to bpmp for whichtemp = TEMPERATURE_METHOD_ISOTHERMAL_ARTM?
     !       Or should we leave it at the surface air temperature?
 
     do ns = 1, nsn
@@ -2029,7 +2029,7 @@ module glissade_therm
     ! Input/output arguments
     !-----------------------------------------------------------------
 
-    integer, intent(in) :: whichtemp                  ! temperature method (TEMP_PROGNOSTIC or TEMP_ENTHALPY)
+    integer, intent(in) :: whichtemp                  ! temperature method (TEMPERATURE_METHOD_PROGNOSTIC or TEMPERATURE_METHOD_ENTHALPY)
 
     real(dp), intent(in) :: dt                        ! time step (s)
 
@@ -2073,7 +2073,7 @@ module glissade_therm
     !        internal melting for all ice (both grounded and floating) is computed here.
     ! Note: If the temperature/enthalpy is not prognosed, then there is no internal melting.
 
-    if (whichtemp == TEMP_ENTHALPY) then
+    if (whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
 
        ! Compute internal melting associated with waterfrac > max_waterfrac.
 
@@ -2101,7 +2101,7 @@ module glissade_therm
           enddo   ! ew
        enddo   ! ns
 
-    elseif (whichtemp == TEMP_PROGNOSTIC) then
+    elseif (whichtemp == TEMPERATURE_METHOD_PROGNOSTIC) then
 
        ! Compute internal melting associated with T > Tpmp
 
@@ -2372,8 +2372,8 @@ module glissade_therm
     ! Note: Glissade computes efvs and tau%scalar using the strain rate terms appropriate for the approximation.
     ! E.g, the SIA quantities are computed based on (du_dz, dv_dz) only, and the SSA quantities
     !  are computed based on (du_dx, du_dy, dv_dx, dv_dy) only.
-    ! So this computation should give the appropriate heating for whichapprox = HO_APPROX_SIA,
-    !  HO_APPROX_SSA, HO_APPROX_L1L2 or HO_APPROX_BP.
+    ! So this computation should give the appropriate heating for whichapprox = STOKES_APPROX_SIA,
+    !  STOKES_APPROX_SSA, STOKES_APPROX_L1L2 or STOKES_APPROX_BLATTER_PATTYN.
     !
     if (size(dissip,1) /= upn-1) then  ! staggered vertical grid
        call write_log('Error, glissade 1st order dissipation: dissip has the wrong vertical dimension',GM_FATAL)
@@ -2510,7 +2510,7 @@ module glissade_therm
     ! Set the flow enhancement factor, using one parameter for grounded ice, another parameter
     !  for floating ice, and optionally a weighted average for partly floating cells.
 
-    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then  ! using a GLP for f_ground_cell
+    if (which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then  ! using a GLP for f_ground_cell
 
        ! set flow_enhancement factor based on f_ground_cell, giving a weighted mean in partly floating cells
        flow_enhancement_factor(:,:) = flow_enhancement_factor_ground * f_ground_cell(:,:) &
@@ -2547,7 +2547,7 @@ module glissade_therm
 
     select case(whichflwa)
 
-    case(FLWA_PATERSON_BUDD)
+    case(FLOW_LAW_PATERSON_BUDD)
 
       ! This is the Paterson and Budd relationship
 
@@ -2573,7 +2573,7 @@ module glissade_therm
                ! BDM added correction for a liquid water fraction
                ! Using Greve and Blatter (2009) formulation for Glen's A flow rate factor:
                !    A = A(theta_PMP) * (1 + 181.25 * waterfrac)
-               if (whichtemp == TEMP_ENTHALPY .and. present(waterfrac)) then
+               if (whichtemp == TEMPERATURE_METHOD_ENTHALPY .and. present(waterfrac)) then
                   if (waterfrac(up,ew,ns) > 0.0d0) then
                      flwa(up,ew,ns) = flwa(up,ew,ns) * (1.d0 + flwa_waterfrac_enhance_factor * waterfrac(up,ew,ns))
                   endif
@@ -2584,7 +2584,7 @@ module glissade_therm
          end do     ! ew
       end do        ! ns
 
-    case(FLWA_PATERSON_BUDD_CONST_TEMP)
+    case(FLOW_LAW_PATERSON_BUDD_MINUS5C)
 
       ! This is the Paterson and Budd relationship, but with the temperature held to a constant parameter.
 
@@ -2602,7 +2602,7 @@ module glissade_therm
          end do
       end do
 
-    case(FLWA_CONST_FLWA)
+    case(FLOW_LAW_CONSTANT)
 
        ! do nothing (flwa is set above, with units Pa^{-n} s^{-1})
 

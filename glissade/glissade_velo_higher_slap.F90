@@ -42,13 +42,15 @@
     use glimmer_paramets, only: iulog
     use glimmer_sparse_type
     use glimmer_sparse, only: sparse_easy_solve
+    use glissade_types, only: LINEAR_SOLVER_SLAP_PCG, LINEAR_SOLVER_SLAP_BICG, LINEAR_SOLVER_SLAP_GMRES
 
     implicit none
 
     private
     public :: slap_preprocess_3d,  slap_preprocess_2d,   &
               slap_postprocess_3d, slap_postprocess_2d,  &
-              slap_compute_residual_vector, slap_solve_test_matrix
+              slap_compute_residual_vector, slap_solve_test_matrix, &
+              is_slap_solver, slap_method
 
   contains
 
@@ -734,7 +736,7 @@
     ! Solve the linear matrix problem
 
     call sparse_easy_solve(matrix, rhs,    answer,  &
-                           err,    niters, whichsparse)
+                           err,    niters, slap_method(whichsparse))
 
     if (verbose_test) then
        write(iulog,*) ' '
@@ -746,6 +748,44 @@
     stop
 
   end subroutine slap_solve_test_matrix
+
+!****************************************************************************
+
+  logical function is_slap_solver(whichsparse)
+
+    ! True if the linear_solver option is one of the SLAP solvers (one task only)
+
+    integer, intent(in) :: whichsparse   ! linear_solver option (LINEAR_SOLVER_*)
+
+    is_slap_solver = (whichsparse == LINEAR_SOLVER_SLAP_PCG  .or.  &
+                      whichsparse == LINEAR_SOLVER_SLAP_BICG .or.  &
+                      whichsparse == LINEAR_SOLVER_SLAP_GMRES)
+
+  end function is_slap_solver
+
+!****************************************************************************
+
+  integer function slap_method(whichsparse)
+
+    ! The SLAP library method (SLAP_*, glimmer_sparse_type) for a linear_solver option
+
+    use glimmer_log, only: write_log, GM_FATAL
+
+    integer, intent(in) :: whichsparse   ! linear_solver option (LINEAR_SOLVER_SLAP_*)
+
+    select case (whichsparse)
+    case (LINEAR_SOLVER_SLAP_PCG)
+       slap_method = SLAP_PCG_INCH
+    case (LINEAR_SOLVER_SLAP_BICG)
+       slap_method = SLAP_BICG
+    case (LINEAR_SOLVER_SLAP_GMRES)
+       slap_method = SLAP_GMRES
+    case default
+       slap_method = SLAP_BICG
+       call write_log('slap_method: linear_solver is not a SLAP solver', GM_FATAL)
+    end select
+
+  end function slap_method
 
 !****************************************************************************
 

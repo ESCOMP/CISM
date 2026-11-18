@@ -71,7 +71,8 @@
     use glissade_velo_higher_slap, only:   &
          slap_preprocess_3d,   slap_preprocess_2d,   &
          slap_postprocess_3d,  slap_postprocess_2d,  &
-         slap_compute_residual_vector, slap_solve_test_matrix
+         slap_compute_residual_vector, slap_solve_test_matrix, &
+         is_slap_solver, slap_method
 
     use glissade_velo_higher_pcg, only:   &
          pcg_solver_standard_3d,   pcg_solver_standard_2d,  &
@@ -87,7 +88,7 @@
     private
     public :: glissade_velo_higher_init, glissade_velo_higher_solve
 
-    ! velocity and length scales used for whichefvs = HO_EFVS_FLOWFACT
+    ! velocity and length scales used for whichefvs = EFVS_METHOD_FLOW_FACTOR
     real(dp), parameter :: velo_scale = 500.0d0 / scyr    ! m yr^{-1} converted to S.I. units
     real(dp), parameter :: len_scale = 200.0d3          ! m
 
@@ -660,11 +661,11 @@
     ! Solve the ice sheet flow equations for the horizontal velocity (uvel, vvel)
     !  at each node of each grid cell where ice is present.
     ! The standard solver is based on the Blatter-Pattyn first-order approximation
-    !  of Stokes flow (which_ho_approx = HO_APPROX_BP).
-    ! There are also options to solve the shallow-ice equations (HO_APPROX_SIA),
-    !  shallow-shelf equations (HO_APPROX_SIA), or L1L2 equations (HO_APPROX_L1L2).
+    !  of Stokes flow (which_ho_approx = STOKES_APPROX_BLATTER_PATTYN).
+    ! There are also options to solve the shallow-ice equations (STOKES_APPROX_SIA),
+    !  shallow-shelf equations (STOKES_APPROX_SIA), or L1L2 equations (STOKES_APPROX_L1L2).
     ! Note: The SIA solver does a full matrix solution and is much slower than
-    !       the local SIA solver (HO_APPROX_LOCAL_SIA) in glissade_velo_sia.F90.
+    !       the local SIA solver (STOKES_APPROX_LOCAL_SIA) in glissade_velo_sia.F90.
     !----------------------------------------------------------------
 
     use glissade_basal_traction, only: glissade_calcbeta
@@ -723,7 +724,7 @@
        thck_gradient_ramp,   &  ! thickness scale over which gradients are ramped up from zero to full value (m)
        max_slope,            &  ! maximum slope allowed for surface gradient computations (unitless)
        eus,                  &  ! eustatic sea level (m), = 0. by default
-       efvs_constant,        &  ! constant efvs value (Pa yr) for whichefvs = HO_EFVS_CONSTANT
+       efvs_constant,        &  ! constant efvs value (Pa yr) for whichefvs = EFVS_METHOD_CONSTANT
        effstrain_min,        &  ! minimum value of effective strain rate (yr^-1) for viscosity computation
        pmp_threshold            ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
 
@@ -1094,7 +1095,7 @@
      !      Instead of pointing to model%geometry%usrf, compute a local value of usrf
      !       that is consistent with the local value of thck.
 
-     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+     if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
         thck  => model%geometry%thck(:,:)
      else
         thck  => model%calving%thck_effective(:,:)
@@ -1195,25 +1196,25 @@
 
     vol0  = 1.0d9    ! volume scale (m^3)
 
-    if (whichapprox == HO_APPROX_SIA) then   ! SIA
+    if (whichapprox == STOKES_APPROX_SIA) then   ! SIA
        if (verbose_solver .and. main_task) write(iulog,*) 'Solving shallow-ice approximation'
-    elseif (whichapprox == HO_APPROX_SSA) then  ! SSA
+    elseif (whichapprox == STOKES_APPROX_SSA) then  ! SSA
        if (verbose_solver .and. main_task) write(iulog,*) 'Solving shallow-shelf approximation'
-    elseif (whichapprox == HO_APPROX_L1L2) then  ! L1L2
+    elseif (whichapprox == STOKES_APPROX_L1L2) then  ! L1L2
        if (verbose_solver .and. main_task) write(iulog,*) 'Solving depth-integrated L1L2 approximation'
-    elseif (whichapprox == HO_APPROX_DIVA) then  ! DIVA, based on Goldberg (2011)
+    elseif (whichapprox == STOKES_APPROX_DIVA) then  ! DIVA, based on Goldberg (2011)
        if (verbose_solver .and. main_task) write(iulog,*) 'Solving depth-integrated viscosity approximation'
     else   ! Blatter-Pattyn higher-order 
        if (verbose_solver .and. main_task) write(iulog,*) 'Solving Blatter-Pattyn higher-order approximation'
     endif
 
-    if (whichapprox==HO_APPROX_SSA .or. whichapprox==HO_APPROX_L1L2 .or. whichapprox==HO_APPROX_DIVA) then
+    if (whichapprox==STOKES_APPROX_SSA .or. whichapprox==STOKES_APPROX_L1L2 .or. whichapprox==STOKES_APPROX_DIVA) then
        solve_2d = .true.
     else   ! 3D solve
        solve_2d = .false.
     endif
 
-    if (whichnonlinear == HO_NONLIN_PICARD_ACCEL) then
+    if (whichnonlinear == NONLINEAR_METHOD_ACCELERATED_PICARD) then
        accel_picard = .true.
        if ((verbose_solver .or. verbose_picard) .and. main_task) write(iulog,*) 'Running with Picard acceleration'
     else
@@ -1273,7 +1274,7 @@
        allocate(omega_k_sav(nz,nx,ny))
     endif   ! accel_picard
 
-    if (whichapprox == HO_APPROX_DIVA) then
+    if (whichapprox == STOKES_APPROX_DIVA) then
 !!       call parallel_halo(efvs, parallel)   ! efvs halo update is in glissade_diagnostic_variable_solve
        allocate(beta_eff_x(nx-1,ny-1))
        allocate(beta_eff_y(nx-1,ny-1))
@@ -1295,7 +1296,7 @@
        enddo
     endif
 
-    if (whichapprox /= HO_APPROX_DIVA) then
+    if (whichapprox /= STOKES_APPROX_DIVA) then
        ! Set the 2D velocity to the velocity at the bed
        ! Note: For L1L2 and SSA, this is the 2D velocity solution from the previous solve.
        !       For DIVA, the velocity solution from the previous solve is typically the
@@ -1306,7 +1307,7 @@
     endif
 
     if (test_matrix) then
-       if (whichsparse <= HO_SPARSE_GMRES) then   ! this test works for SLAP solver only
+       if (is_slap_solver(whichsparse)) then   ! this test works for SLAP solver only
           call slap_solve_test_matrix(test_order, whichsparse)
        else
           write(iulog,*) 'Invalid value for whichsparse with test_matrix subroutine'
@@ -1363,7 +1364,7 @@
     vmask_dirichlet(:,:,:) = 0   
 
     ! Set the Dirichlet mask at the bed for no-slip BCs.
-    if (whichbabc == HO_BABC_NO_SLIP .and. whichapprox /= HO_APPROX_DIVA) then
+    if (whichbabc == SLIDING_LAW_NO_SLIP_DIRICHLET .and. whichapprox /= STOKES_APPROX_DIVA) then
        ! Impose zero sliding everywhere at the bed
        ! Note: For the DIVA case, this BC is handled by setting beta_eff = 1/omega
        !TODO - Allow application of no-slip BC at selected basal nodes instead of all nodes?
@@ -1479,9 +1480,9 @@
     ! (requires that usrf is up to date in halo cells)
     !
     ! Possible settings for whichgradient_margin:
-    !   HO_GRADIENT_MARGIN_LAND = 0
-    !   HO_GRADIENT_MARGIN_HYBRID = 1
-    !   HO_GRADIENT_MARGIN_MARINE = 2
+    !   SURFACE_GRADIENT_MARGIN_METHOD_LAND = 0
+    !   SURFACE_GRADIENT_MARGIN_METHOD_HYBRID = 1
+    !   SURFACE_GRADIENT_MARGIN_METHOD_MARINE = 2
     !
     ! gradient_margin = 0 computes gradients at all edges, even if one cell
     !  if ice-free.  This is what Glide does, but is not appropriate if we have ice-covered
@@ -1611,7 +1612,7 @@
     !        This value is saved in model%velocity%beta.
     !       The glissade solver uses a beta field weighted by f_ground.
     !        This field is stored in model%velocity%beta_internal and can change over time.
-    !       For a no-slip boundary condition (HO_BABC_NO_SLIP), beta_internal is not computed,
+    !       For a no-slip boundary condition (SLIDING_LAW_NO_SLIP_DIRICHLET), beta_internal is not computed,
     !        so beta_internal = 0 will be written to output.
     !------------------------------------------------------------------------------
 
@@ -1620,14 +1621,14 @@
     ! Note: There was a call here to calc_effective_pressure, moved to the glissade diagnostic solve.
 
     !------------------------------------------------------------------------------
-    ! For the HO_BABC_BETA_BPMP option, compute a mask of vertices where the bed is at
+    ! For the SLIDING_LAW_BETA_BPMP option, compute a mask of vertices where the bed is at
     ! the pressure melting point, resulting in lower traction.
     !------------------------------------------------------------------------------
 
     ! initialize to 0 everywhere
     model%basal_physics%bpmp_mask(:,:) = 0
   
-    if (whichbabc == HO_BABC_BETA_BPMP) then
+    if (whichbabc == SLIDING_LAW_BETA_BPMP) then
 
        ! interpolate bed temperature to vertices
        ! For stagger_margin_in = 1, only ice-covered cells are included in the interpolation
@@ -1647,7 +1648,7 @@
           model%basal_physics%bpmp_mask = 1
        endwhere
 
-    endif   ! HO_BABC_BETA_BPMP
+    endif   ! SLIDING_LAW_BETA_BPMP
 
     !------------------------------------------------------------------------------
     ! Compute the factor A^(-1/n) appearing in the expression for effective viscosity.
@@ -1687,7 +1688,7 @@
     !  answer (x), and residual vector (Ax-b).
     !------------------------------------------------------------------------------
 
-    if (whichsparse <= HO_SPARSE_GMRES) then  ! using SLAP solver
+    if (is_slap_solver(whichsparse)) then  ! using SLAP solver
 
        if (solve_2d) then
           matrix_order = 2*nVerticesSolve
@@ -1719,9 +1720,9 @@
 
     if (main_task .and. verbose_solver) then
        write(iulog,*) ' '
-       if (whichresid == HO_RESID_L2NORM) then  ! use L2 norm of residual
+       if (whichresid == NONLINEAR_RESIDUAL_L2NORM) then  ! use L2 norm of residual
           write(iulog,*) 'iter #     resid (L2 norm)       target resid'
-       elseif (whichresid == HO_RESID_L2NORM_RELATIVE) then  ! relative residual, |Ax-b|/|b|
+       elseif (whichresid == NONLINEAR_RESIDUAL_RELATIVE_L2NORM) then  ! relative residual, |Ax-b|/|b|
           write(iulog,*) 'iter #     resid, |Ax-b|/|b|     target resid'
        else                                     ! residual based on velocity
           write(iulog,*) 'iter #     velo resid            target resid'
@@ -1812,8 +1813,8 @@
        ! Note: The first of these quantities is the load vector on the rhs of the matrix.
        !       The second is the value that would go on the rhs by simply taking rho*g*H*ds/dx.
        !       These will not agree exactly because of the way H is handled in FE assembly,
-       !        but they should be close if which_ho_assemble_taud = HO_ASSEMBLE_TAUD_LOCAL.
-       !       If which_ho_assemble_taud = HO_ASSEMBLE_TAUD_STANDARD, they can differ substantially.
+       !        but they should be close if which_ho_assemble_taud = ASSEMBLE_TAUD_LOCAL.
+       !       If which_ho_assemble_taud = ASSEMBLE_TAUD_STANDARD, they can differ substantially.
        call point_diag(taudx, 'vert sum of grav load vector', itest, jtest, rtest, 7, 7, '(f10.0)')
        call point_diag(-rhoi*grav*stagthck(i,j)*dusrf_dx, 'rhoi*g*H*ds/dx', itest, jtest, rtest, 7, 7, '(f10.0)')
        call point_diag(uvel_2d, 'Starting uvel_2d (m/yr)', itest, jtest, rtest, 7, 7)
@@ -1826,15 +1827,15 @@
     ! The following is a kluge for computing lateral load at marine cliff edges.
     ! When stagthck and stagusrf are computed above, ice-free cells are included in the average.
     ! This is appropriate at land-terminating margins, but not for marine cliffs.
-    ! For whichassemble_lateral = HO_ASSEMBLE_LATERAL_LOCAL, stagusrf and stagthck are not used.
+    ! For whichassemble_lateral = ASSEMBLE_LATERAL_LOCAL, stagusrf and stagthck are not used.
     !  Instead, we use usrf and thck from the ice-filled cliff cell.
-    ! But for whichassemble_lateral = HO_ASSEMBLE_LATERAL_STANDARD, the load is proportional
+    ! But for whichassemble_lateral = ASSEMBLE_LATERAL_STANDARD, the load is proportional
     !  to stagthck and stagusrf and will be too low if the staggered averages
     !  incorporate ice-free ocean.  So we need to compute appropriate staggered averages
     !  without weighting ice-free cells.
-    ! At some point, we might want to deprecate HO_ASSEMBLE_LATERAL_STANDARD.
+    ! At some point, we might want to deprecate ASSEMBLE_LATERAL_STANDARD.
 
-    if (whichassemble_lateral == HO_ASSEMBLE_LATERAL_STANDARD) then
+    if (whichassemble_lateral == ASSEMBLE_LATERAL_STANDARD) then
 
        call glissade_stagger(nx,           ny,               &
                              thck,         stagthck_lateral, &
@@ -1923,7 +1924,7 @@
     stag_diva_slope_factor_x = 1.0d0
     stag_diva_slope_factor_y = 1.0d0
 
-    if (whichapprox==HO_APPROX_DIVA) then
+    if (whichapprox==STOKES_APPROX_DIVA) then
        if (diva_slope_correction) then
 
           ! Compute the slope angle at each cell center.
@@ -2033,7 +2034,7 @@
                 call staggered_parallel_halo(uvel_2d, parallel)
                 call staggered_parallel_halo(vvel_2d, parallel)
 
-                if (whichapprox == HO_APPROX_DIVA) then
+                if (whichapprox == STOKES_APPROX_DIVA) then
 
                    ! Update the basal traction and the 3D velocity, given the new 2D velocity.
                    ! Note: The updated quantities needed for Picard acceleration are ubas and vbas (for calcbeta)
@@ -2112,14 +2113,14 @@
           !     DIVA does not compute the basal velocity in the 2D matrix solve,
           !     but computes the full 3D velocity after each iteration so that
           !     uvel/vvel(nz,:,:) are available here.
-          ! (5) For which_ho_babc = HO_BABC_BETA_EXTERNAL, beta currently has
+          ! (5) For which_ho_babc = SLIDING_LAW_BETA_FILE, beta currently has
           !     dimensionless Glimmer units. Rather than incur roundoff errors by
           !     repeatedly multiplying and dividing by scaling constants, the conversion
           !     to Pa yr/m is done here in the argument list.
           ! (6) Subroutine calcbeta includes a halo update for beta_internal at the end.
           !-------------------------------------------------------------------
 
-          if (whichapprox == HO_APPROX_SSA .or. whichapprox == HO_APPROX_L1L2) then
+          if (whichapprox == STOKES_APPROX_SSA .or. whichapprox == STOKES_APPROX_L1L2) then
              ubas(:,:) = uvel_2d(:,:)
              vbas(:,:) = vvel_2d(:,:)
           else  ! 3D solve or DIVA
@@ -2295,7 +2296,7 @@
                 endif
              endif   ! write_binary_diagnostics
 
-             if (whichapprox == HO_APPROX_DIVA) then
+             if (whichapprox == STOKES_APPROX_DIVA) then
 
                 ! Halo update for omega
                 ! This is needed so that beta_eff, computed below, will be correct in halos
@@ -2357,7 +2358,7 @@
                 !      equations reduce to the simpler ones when slope_factor = 1.0 and theta_slope = 0.0.
                 if (diva_slope_correction) then  ! compute a larger beta_eff at each vertex based on the slope
 
-                   if (whichbabc == HO_BABC_NO_SLIP) then
+                   if (whichbabc == SLIDING_LAW_NO_SLIP_DIRICHLET) then
                       where(stag_omega > 0.0d0)
                          beta_eff_x = stag_diva_slope_factor_x / (stag_omega*cos(stag_theta_slope_x))
                          beta_eff_y = stag_diva_slope_factor_y / (stag_omega*cos(stag_theta_slope_y))
@@ -2371,7 +2372,7 @@
 
                 else   ! no slope correction
 
-                   if (whichbabc == HO_BABC_NO_SLIP) then
+                   if (whichbabc == SLIDING_LAW_NO_SLIP_DIRICHLET) then
                       where (stag_omega > 0.d0)
                          beta_eff_x = 1.d0 / stag_omega
                          beta_eff_y = 1.d0 / stag_omega
@@ -2675,7 +2676,7 @@
              ! Incorporate basal sliding boundary conditions, based on beta_internal
              !---------------------------------------------------------------------------
 
-             if (whichbabc /= HO_BABC_NO_SLIP) then
+             if (whichbabc /= SLIDING_LAW_NO_SLIP_DIRICHLET) then
 
                 call basal_sliding_bc_3d(&
                      nx,                  ny,              &
@@ -3011,13 +3012,13 @@
              call point_diag(vvel(1,:,:), 'Sfc vvel (m/yr)', itest, jtest, rtest, 7, 7)
           endif
 
-          if (whichbabc == HO_BABC_BETA_BPMP) then
+          if (whichbabc == SLIDING_LAW_BETA_BPMP) then
              call point_diag(stagbedtemp, 'staggered bed temp', itest, jtest, rtest, 7, 7, '(f10.5)')
              call point_diag(stagbedpmp, 'staggered bed pmp', itest, jtest, rtest, 7, 7, '(f10.5)')
              call point_diag(model%basal_physics%bpmp_mask, 'bpmp mask', itest, jtest, rtest, 7, 7)
-          endif  ! HO_BABC_BETA_BPMP
+          endif  ! SLIDING_LAW_BETA_BPMP
 
-          if (whichbabc == HO_BABC_YIELD_PICARD) then
+          if (whichbabc == SLIDING_LAW_YIELD_PICARD) then
              call point_diag(model%basal_physics%mintauf, 'mintauf', itest, jtest, rtest, 7, 7, '(e10.3)')
           endif
 
@@ -3035,8 +3036,8 @@
        ! Note: DIVA computes a nonzero 2D velocity with a no-slip BC.
        !---------------------------------------------------------------------------
 
-       if ((whichapprox==HO_APPROX_L1L2 .or. whichapprox==HO_APPROX_SSA) .and. &
-              whichbabc==HO_BABC_NO_SLIP) then
+       if ((whichapprox==STOKES_APPROX_L1L2 .or. whichapprox==STOKES_APPROX_SSA) .and. &
+              whichbabc==SLIDING_LAW_NO_SLIP_DIRICHLET) then
 
           ! zero out velocity and related fields
           uvel_2d(:,:) = 0.d0
@@ -3046,8 +3047,8 @@
           L2_norm = 0.d0   ! to force convergence on first step
           L2_norm_relative = 0.d0
 
-       elseif (whichsparse == HO_SPARSE_PCG_STANDARD .or.   &
-               whichsparse == HO_SPARSE_PCG_CHRONGEAR) then   ! native PCG solver
+       elseif (whichsparse == LINEAR_SOLVER_PCG .or.   &
+               whichsparse == LINEAR_SOLVER_PCG_CHRONGEAR) then   ! native PCG solver
                                                               ! works for both serial and parallel runs
 
           if (solve_2d) then
@@ -3060,7 +3061,7 @@
 
              call t_startf('glissade_pcg_slv_struct')
 
-             if (whichsparse == HO_SPARSE_PCG_CHRONGEAR) then   ! use Chronopoulos-Gear PCG algorithm
+             if (whichsparse == LINEAR_SOLVER_PCG_CHRONGEAR) then   ! use Chronopoulos-Gear PCG algorithm
                                                                 ! (better scaling for large problems)
                 call pcg_solver_chrongear_2d(nx,           ny,            &
                                              parallel,                    &
@@ -3102,7 +3103,7 @@
 
              call t_startf('glissade_pcg_slv_struct')
 
-             if (whichsparse == HO_SPARSE_PCG_CHRONGEAR) then   ! use Chronopoulos-Gear PCG algorithm
+             if (whichsparse == LINEAR_SOLVER_PCG_CHRONGEAR) then   ! use Chronopoulos-Gear PCG algorithm
                                                                 ! (better scaling for large problems)
 
                 call pcg_solver_chrongear_3d(nx,           ny,            &
@@ -3208,7 +3209,7 @@
 
           call t_startf('glissade_easy_slv')
           call sparse_easy_solve(matrix, rhs,    answer,  &
-                                 err,    niters, whichsparse)
+                                 err,    niters, slap_method(whichsparse))
           call t_stopf('glissade_easy_slv')
 
           !------------------------------------------------------------------------
@@ -3285,7 +3286,7 @@
           ! Given the new 2D velocity, compute the new basal traction and 3D velocity.
           !---------------------------------------------------------------------------
 
-          if (whichapprox == HO_APPROX_DIVA) then
+          if (whichapprox == STOKES_APPROX_DIVA) then
 
              call compute_3d_velocity_diva(&
                   nx,                 ny,                   &
@@ -3355,9 +3356,9 @@
        !---------------------------------------------------------------------------
 
        if (main_task .and. verbose_solver) then
-          if (whichresid == HO_RESID_L2NORM) then
+          if (whichresid == NONLINEAR_RESIDUAL_L2NORM) then
              write(iulog,'(i4,2g20.6)') counter, L2_norm, L2_target
-          elseif (whichresid == HO_RESID_L2NORM_RELATIVE) then
+          elseif (whichresid == NONLINEAR_RESIDUAL_RELATIVE_L2NORM) then
              write(iulog,'(i4,2g20.6)') counter, L2_norm_relative, L2_target_relative
           else
              write(iulog,'(i4,2g20.6)') counter, resid_velo, resid_target
@@ -3368,10 +3369,10 @@
        ! Update the outer loop stopping criterion
        !---------------------------------------------------------------------------
 
-       if (whichresid == HO_RESID_L2NORM) then
+       if (whichresid == NONLINEAR_RESIDUAL_L2NORM) then
           outer_it_criterion = L2_norm
           outer_it_target = L2_target           ! L2_target is currently set to 1.d-4 and held constant
-       elseif (whichresid == HO_RESID_L2NORM_RELATIVE) then
+       elseif (whichresid == NONLINEAR_RESIDUAL_RELATIVE_L2NORM) then
           outer_it_criterion = L2_norm_relative
           outer_it_target = L2_target_relative  ! L2_target_relative is currently set to 1.d-7 and held constant
        else
@@ -3405,7 +3406,7 @@
     ! Note: We store redundant 3D residual info rather than creating a separate 2D residual array.
     !------------------------------------------------------------------------------
 
-    if (whichapprox == HO_APPROX_SSA) then ! fill the 3D velocity and residual arrays with the 2D values
+    if (whichapprox == STOKES_APPROX_SSA) then ! fill the 3D velocity and residual arrays with the 2D values
 
        do k = 1, nz
           uvel(k,:,:) = uvel_2d(:,:)
@@ -3414,7 +3415,7 @@
           resid_v(k,:,:) = resid_v_2d(:,:)
        enddo
 
-    elseif (whichapprox == HO_APPROX_L1L2) then
+    elseif (whichapprox == STOKES_APPROX_L1L2) then
 
        if (verbose_L1L2 .and. main_task) write(iulog,*) 'Compute 3D velocity, L1L2'
 
@@ -3446,7 +3447,7 @@
        call staggered_parallel_halo(uvel, parallel)
        call staggered_parallel_halo(vvel, parallel)
 
-    elseif (whichapprox == HO_APPROX_DIVA) then
+    elseif (whichapprox == STOKES_APPROX_DIVA) then
 
        do k = 1, nz
           resid_u(k,:,:) = resid_u_2d(:,:)
@@ -3476,7 +3477,7 @@
 
     !WHL - debug
     !TODO - One diagnostic to write out column velocities for any approximation
-    if (verbose_bp .and. whichapprox == HO_APPROX_BP .and. this_rank==rtest) then
+    if (verbose_bp .and. whichapprox == STOKES_APPROX_BLATTER_PATTYN .and. this_rank==rtest) then
        write(iulog,*) ' '
        i = itest
        j = jtest
@@ -3558,7 +3559,7 @@
     !------------------------------------------------------------------------------
 
     call t_startf('glissade_vhs_cleanup')
-    if (whichsparse <= HO_SPARSE_GMRES) then  ! using SLAP solver
+    if (is_slap_solver(whichsparse)) then  ! using SLAP solver
        deallocate(matrix%row, matrix%col, matrix%val)
        deallocate(rhs, answer, resid_vec)
     endif
@@ -3590,7 +3591,7 @@
        endif
     endif
 
-    if (whichapprox == HO_APPROX_DIVA) then
+    if (whichapprox == STOKES_APPROX_DIVA) then
        deallocate(beta_eff_x)
        deallocate(beta_eff_y)
        deallocate(omega)
@@ -3956,7 +3957,7 @@
        write(iulog,*) 'In load_vector_gravity: itest, jtest, ktest, rtest =', itest, jtest, ktest, rtest
     endif
                 
-    if (whichassemble_taud == HO_ASSEMBLE_TAUD_LOCAL) then
+    if (whichassemble_taud == ASSEMBLE_TAUD_LOCAL) then
 
        ! Sum over active vertices
        do j = 1, ny-1
@@ -4458,7 +4459,7 @@
     x(3) = x(2)
     x(4) = x(1)
 
-    if (whichassemble_lateral == HO_ASSEMBLE_LATERAL_LOCAL) then  ! use thck and usrf of the cell that owns the marine edge
+    if (whichassemble_lateral == ASSEMBLE_LATERAL_LOCAL) then  ! use thck and usrf of the cell that owns the marine edge
 
        s(1:4) = usrf(iCell,jCell)
        h(1:4) = thck(iCell,jCell)
@@ -4525,7 +4526,7 @@
 
           ! Evaluate the ice thickness and surface elevation at this quadrature point
 
-          if (whichassemble_lateral == HO_ASSEMBLE_LATERAL_LOCAL) then  ! use thck and usrf of the cell that owns the marine edge
+          if (whichassemble_lateral == ASSEMBLE_LATERAL_LOCAL) then  ! use thck and usrf of the cell that owns the marine edge
 
              h_qp = thck(iCell,jCell)
              s_qp = usrf(iCell,jCell)
@@ -4802,7 +4803,7 @@
     Avv(:,:,:) = 0.d0
 
     ! Compute vertical average of flow factor (SSA only)
-    if (whichapprox == HO_APPROX_SSA) then
+    if (whichapprox == STOKES_APPROX_SSA) then
        call glissade_vertical_average(nx,       ny,      &
                                       nz,       sigma,   &
                                       flwafact, flwafact_2d)
@@ -4872,7 +4873,7 @@
 
              dphi_dz_2d(:) = 0.d0
 
-             if (whichapprox == HO_APPROX_L1L2) then
+             if (whichapprox == STOKES_APPROX_L1L2) then
 
                 ! Compute effective viscosity for each layer at this quadrature point
                 !TODO - sigma -> stagsigma for L1L2 viscosity?
@@ -4895,7 +4896,7 @@
                    efvs_qp_vertavg(p) = efvs_qp_vertavg(p) + efvs_qp(k,p) * (sigma(k+1) - sigma(k))
                 enddo
 
-             elseif (whichapprox == HO_APPROX_DIVA) then
+             elseif (whichapprox == STOKES_APPROX_DIVA) then
 
                 ! Copy efvs_qp from global array to local column array
                 efvs_qp(:,:) = efvs_qp_3d(:,:,i,j)
@@ -4970,7 +4971,7 @@
 
           enddo   ! nQuadPoints_2d
 
-          if (whichapprox == HO_APPROX_DIVA) then
+          if (whichapprox == STOKES_APPROX_DIVA) then
 
              ! Compute vertical integrals needed for the 2D solve and 3D velocity reconstruction
              call compute_integrals_diva(nz,             sigma,         &
@@ -5905,10 +5906,10 @@
                 !
                 ! Thus, for options 0 and 1, we can replace 2 * A * tau_e^(n-1) below with 1/efvs.
 
-                if (whichefvs == HO_EFVS_NONLINEAR) then
+                if (whichefvs == EFVS_METHOD_NONLINEAR) then
                    fact = 2.d0 * stagflwa(i,j) * tau_eff_sq**((n_glen-1.d0)/2.d0) &
                         * (sigma(k+1) - sigma(k))*stagthck(i,j)
-                else   ! HO_EFVS_CONSTANT, HO_EFVS_FLOWFACT
+                else   ! EFVS_METHOD_CONSTANT, EFVS_METHOD_FLOW_FACTOR
                    if (efvs(k,i,j) > 0.0d0) then
                       fact = (sigma(k+1) - sigma(k))*stagthck(i,j) / efvs(k,i,j)
                    else
@@ -6565,7 +6566,7 @@
     ! initialize
     bfricflx(:,:) = 0.d0
 
-    if (whichassemble_bfric == HO_ASSEMBLE_BFRIC_STANDARD) then
+    if (whichassemble_bfric == ASSEMBLE_BFRIC_STANDARD) then
 
        ! do finite-element calculation (can be inaccurate at sharp transitions in beta and velocity)
 
@@ -6640,7 +6641,7 @@
           enddo         ! i
        enddo            ! j
        
-    else   ! whichassemble_bfric = HO_ASSEMBLE_BFRIC_LOCAL; local calculation at active vertices
+    else   ! whichassemble_bfric = ASSEMBLE_BFRIC_LOCAL; local calculation at active vertices
 
        ! compute frictional heating at vertices
 
@@ -6833,14 +6834,14 @@
                    dv_dy = 0.d0
                    dv_dz = 0.d0
 
-                   if (whichapprox == HO_APPROX_SIA) then
+                   if (whichapprox == STOKES_APPROX_SIA) then
 
                       do n = 1, nNodesPerElement_3d
                          du_dz = du_dz + dphi_dz_3d(n)*u(n)
                          dv_dz = dv_dz + dphi_dz_3d(n)*v(n)
                       enddo
 
-                   elseif (whichapprox == HO_APPROX_SSA) then
+                   elseif (whichapprox == STOKES_APPROX_SSA) then
 
                       do n = 1, nNodesPerElement_3d
                          du_dx = du_dx + dphi_dx_3d(n)*u(n)
@@ -6862,7 +6863,7 @@
 
                    endif  ! whichapprox
 
-                   if (whichapprox == HO_APPROX_L1L2) then
+                   if (whichapprox == STOKES_APPROX_L1L2) then
 
                       ! efvs is computed in a complicated way for L1L2.
                       ! Instead of recomputing it here for each QP, simply assume that the value at each QP
@@ -7009,7 +7010,7 @@
 
     select case(whichefvs)
 
-    case(HO_EFVS_CONSTANT)
+    case(EFVS_METHOD_CONSTANT)
 
        ! Steve Price recommends 10^6 to 10^7 Pa yr
        ! ISMIP-HOM Test F requires 2336041.42829 Pa yr; this is the default value set in glissade_types.F90
@@ -7019,7 +7020,7 @@
           write(iulog,*) 'Set efvs = constant (Pa yr):', efvs
        endif
 
-    case(HO_EFVS_FLOWFACT)      ! set the effective viscosity to a multiple of the flow factor, 0.5*A^(-1/n)
+    case(EFVS_METHOD_FLOW_FACTOR)      ! set the effective viscosity to a multiple of the flow factor, 0.5*A^(-1/n)
                  
        ! Units: flwafact has units Pa yr^{1/n}
        !        effstrain has units yr^{-1}
@@ -7027,7 +7028,7 @@
        !                 = -2/3 for n=3
        ! Thus efvs has units Pa yr
  
-       !TODO - Test HO_EFVS_FLOWFACT option and make sure the units and scales are OK
+       !TODO - Test EFVS_METHOD_FLOW_FACTOR option and make sure the units and scales are OK
 
        effstrain = velo_scale/len_scale * scyr  ! typical strain rate, yr^{-1}
        efvs = flwafact * effstrain**p_effstr  
@@ -7036,7 +7037,7 @@
           write(iulog,*) 'flwafact, effstrain (yr-1), efvs (Pa yr)=', flwafact, effstrain, efvs
        endif
 
-    case(HO_EFVS_NONLINEAR)    ! compute effective viscosity based on effective strain rate
+    case(EFVS_METHOD_NONLINEAR)    ! compute effective viscosity based on effective strain rate
 
        ! initialize strain rates
        du_dx = 0.d0
@@ -7049,7 +7050,7 @@
        ! Compute effective strain rate (squared) at this quadrature point (PGB 2012, eq. 3 and 9)
        ! Units are yr^(-1)
 
-       if (whichapprox == HO_APPROX_SIA) then
+       if (whichapprox == STOKES_APPROX_SIA) then
 
           do n = 1, nNodesPerElement
              du_dz = du_dz + dphi_dz(n)*uvel(n)
@@ -7059,7 +7060,7 @@
           effstrainsq = effstrain_min**2          &
                       + 0.25d0 * (du_dz**2 + dv_dz**2)
 
-       elseif (whichapprox == HO_APPROX_SSA) then
+       elseif (whichapprox == STOKES_APPROX_SSA) then
 
           do n = 1, nNodesPerElement
 
@@ -7146,7 +7147,7 @@
 
     real(dp), intent(in) :: &
        efvs_constant      ! constant value of effective viscosity (Pa yr)
-                          ! (used for option HO_EFVS_CONSTANT)
+                          ! (used for option EFVS_METHOD_CONSTANT)
 
     real(dp), intent(in) :: &
        effstrain_min      ! minimum value of effective strain rate (yr^-1) for computing viscosity
@@ -7178,7 +7179,7 @@
        flwa,             &! temperature-based flow factor A at each layer of this cell column
                           ! units: Pa^{-n} yr^{-1}
        flwafact           ! temperature-based flow factor for this element, 0.5 * A^{-1/n}
-                          ! units: Pa yr^{1/n}  (used for option HO_EFVS_FLOWFACT)
+                          ! units: Pa yr^{1/n}  (used for option EFVS_METHOD_FLOW_FACTOR)
 
     real(dp), dimension(nz-1), intent(out) ::   &
        efvs               ! effective viscosity of each layer corresponding to this quadrature point (Pa yr)
@@ -7221,7 +7222,7 @@
 
     select case(whichefvs)
 
-    case(HO_EFVS_CONSTANT)
+    case(EFVS_METHOD_CONSTANT)
 
        ! Steve Price recommends 10^6 to 10^7 Pa yr
        ! ISMIP-HOM Test F requires 2336041.42829 Pa yr; this is the default value set in glissade_types.F90
@@ -7231,7 +7232,7 @@
           write(iulog,*) 'Set efvs = constant (Pa yr):', efvs
        endif
 
-    case(HO_EFVS_FLOWFACT)      ! set the effective viscosity to a multiple of the flow factor, 0.5*A^(-1/n)
+    case(EFVS_METHOD_FLOW_FACTOR)      ! set the effective viscosity to a multiple of the flow factor, 0.5*A^(-1/n)
                 
        ! Set the effective strain rate (s^{-1}) based on typical velocity and length scales
        !
@@ -7248,7 +7249,7 @@
           write(iulog,*) 'flwafact, effstrain (yr-1), efvs (Pa yr)=', flwafact, effstrain, efvs
        endif
 
-    case(HO_EFVS_NONLINEAR)    ! compute effective viscosity based on effective strain rate
+    case(EFVS_METHOD_NONLINEAR)    ! compute effective viscosity based on effective strain rate
 
        du_dx = 0.d0
        du_dy = 0.d0
@@ -7403,7 +7404,7 @@
 
     real(dp), intent(in) :: &
        efvs_constant      ! constant value of effective viscosity (Pa yr)
-                          ! (used for option HO_EFVS_CONSTANT)
+                          ! (used for option EFVS_METHOD_CONSTANT)
 
     real(dp), intent(in) :: &
        effstrain_min      ! minimum value of effective strain rate (yr^-1) for computing viscosity
@@ -7434,7 +7435,7 @@
        flwa,             &! temperature-based flow factor A at each layer of this cell column
                           ! units: Pa^{-n} yr^{-1}
        flwafact           ! temperature-based flow factor for this element, 0.5 * A^{-1/n}
-                          ! units: Pa yr^{1/n}  (used for option HO_EFVS_FLOWFACT)
+                          ! units: Pa yr^{1/n}  (used for option EFVS_METHOD_FLOW_FACTOR)
 
     !WHL - intent(out) if solving cubic, but (inout) if using old efvs in calculation
     real(dp), dimension(nz-1), intent(inout) ::   &
@@ -7476,7 +7477,7 @@
 
     select case(whichefvs)
 
-    case(HO_EFVS_CONSTANT)
+    case(EFVS_METHOD_CONSTANT)
 
        ! Steve Price recommends 10^6 to 10^7 Pa yr
        ! ISMIP-HOM Test F requires 2336041.42829 Pa yr; this is the default value set in glissade_types.F90
@@ -7486,7 +7487,7 @@
           write(iulog,*) 'Set efvs = constant (Pa yr):', efvs
        endif
 
-    case(HO_EFVS_FLOWFACT)      ! set the effective viscosity to a multiple of the flow factor, 0.5*A^(-1/n)
+    case(EFVS_METHOD_FLOW_FACTOR)      ! set the effective viscosity to a multiple of the flow factor, 0.5*A^(-1/n)
                 
        ! Set the effective strain rate (s^{-1}) based on typical velocity and length scales
        !
@@ -7503,7 +7504,7 @@
           write(iulog,*) 'flwafact, effstrain (yr-1), efvs (Pa yr)=', flwafact, effstrain, efvs
        endif
 
-    case(HO_EFVS_NONLINEAR)    ! compute effective viscosity based on effective strain rate
+    case(EFVS_METHOD_NONLINEAR)    ! compute effective viscosity based on effective strain rate
 
        du_dx = 0.d0
        du_dy = 0.d0
@@ -7716,7 +7717,7 @@
        write(iulog,*) 'Kuu dphi/dx increment(1,1) =', efvs_factor*4.d0*dphi_dx(1)*dphi_dx(1)
     endif
 
-    if (whichapprox == HO_APPROX_SIA) then
+    if (whichapprox == STOKES_APPROX_SIA) then
 
        do nc = 1, nNodesPerElement      ! columns of K
           do nr = 1, nNodesPerElement   ! rows of K
@@ -7727,7 +7728,7 @@
           enddo  ! row
        enddo     ! column
 
-    elseif (whichapprox == HO_APPROX_SSA) then
+    elseif (whichapprox == STOKES_APPROX_SSA) then
 
        do nc = 1, nNodesPerElement      ! columns of K
           do nr = 1, nNodesPerElement   ! rows of K
@@ -8016,7 +8017,7 @@
     real(dp), dimension(nNodesPerElement_2d, nNodesPerElement_2d) ::   &
        Kuu, Kvv       ! components of element matrix associated with basal sliding
 
-    if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
+    if (whichassemble_beta == ASSEMBLE_BETA_LOCAL) then
 
        m = indxA_2d(0,0)
        ! Sum over active vertices
@@ -8284,7 +8285,7 @@
        call point_diag(beta_eff_y, 'DIVA beta_eff_y', itest, jtest, rtest, 7, 7, '(f10.0)')
     endif
 
-    if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
+    if (whichassemble_beta == ASSEMBLE_BETA_LOCAL) then
 
        m = indxA_2d(0,0)
 
@@ -8564,7 +8565,7 @@
        call point_diag(beta, 'beta', itest, jtest, rtest, 7, 7, '(f10.0)')
     endif
 
-    if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
+    if (whichassemble_beta == ASSEMBLE_BETA_LOCAL) then
 
        if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
           m = indxA_3d(0,0,0)
@@ -9607,7 +9608,7 @@
        Avu_2d_sav = Avu_2d
        Avv_2d_sav = Avv_2d
        beta_internal_sav = beta_internal
-       if (whichapprox == HO_APPROX_DIVA) then
+       if (whichapprox == STOKES_APPROX_DIVA) then
           beta_eff_x_sav = beta_eff_x
           beta_eff_y_sav = beta_eff_y
           omega_k_sav = omega_k
@@ -9656,7 +9657,7 @@
        Avu_2d = Avu_2d_sav
        Avv_2d = Avv_2d_sav
        beta_internal = beta_internal_sav
-       if (whichapprox == HO_APPROX_DIVA) then
+       if (whichapprox == STOKES_APPROX_DIVA) then
           beta_eff_x = beta_eff_x_sav
           beta_eff_y = beta_eff_y_sav
           omega_k = omega_k_sav
@@ -9872,7 +9873,7 @@
 
     select case (whichresid)
 
-    case(HO_RESID_MAXU_NO_UBAS)   ! max speed difference, excluding the bed
+    case(NONLINEAR_RESIDUAL_MAX_NO_UBAS)   ! max speed difference, excluding the bed
 
        ! Loop over locally owned vertices
 
@@ -9894,7 +9895,7 @@
        ! take global max
        resid_velo = parallel_reduce_max(resid_velo)
 
-    case(HO_RESID_MEANU)   ! mean relative speed difference
+    case(NONLINEAR_RESIDUAL_MEAN)   ! mean relative speed difference
 
        count = 0
 
@@ -9919,7 +9920,7 @@
        call not_parallel(__FILE__, __LINE__)
 
    case default    ! max speed difference, including basal speeds
-                   ! (case HO_RESID_MAXU or HO_RESID_L2NORM)
+                   ! (case NONLINEAR_RESIDUAL_MAX or NONLINEAR_RESIDUAL_L2NORM)
 
        ! Loop over locally owned vertices
 
@@ -10000,7 +10001,7 @@
 
     select case (whichresid)
 
-    case(HO_RESID_MAXU_NO_UBAS)   ! max speed difference, excluding the bed
+    case(NONLINEAR_RESIDUAL_MAX_NO_UBAS)   ! max speed difference, excluding the bed
 
        ! Loop over locally owned vertices
 
@@ -10025,7 +10026,7 @@
        ! take global max
        resid_velo = parallel_reduce_max(resid_velo)
 
-    case(HO_RESID_MEANU)   ! mean relative speed difference
+    case(NONLINEAR_RESIDUAL_MEAN)   ! mean relative speed difference
 
        count = 0
 
@@ -10052,7 +10053,7 @@
        call not_parallel(__FILE__, __LINE__)
 
    case default    ! max speed difference, including basal speeds
-                   ! (case HO_RESID_MAXU or HO_RESID_L2NORM or HO_RESID_L2NORM_RELATIVE)
+                   ! (case NONLINEAR_RESIDUAL_MAX or NONLINEAR_RESIDUAL_L2NORM or NONLINEAR_RESIDUAL_RELATIVE_L2NORM)
 
        ! Loop over locally owned vertices
 

@@ -1075,24 +1075,20 @@ contains
              model%basal_hydro%bwat(i,j) = 0.0d0
 
              ! thermal variables
-             if (model%options%whichtemp == TEMP_INIT_ZERO) then
-                model%temper%temp(:,i,j) = 0.0d0
-             else
-                model%temper%temp(:,i,j) = min(model%climate%artm(i,j), 0.0d0)
-             endif
+             model%temper%temp(:,i,j) = min(model%climate%artm(i,j), 0.0d0)
 
-             if (model%options%whichtemp == TEMP_ENTHALPY) then
+             if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
                 model%temper%waterfrac(:,i,j) = 0.0d0
              endif
 
              ! other tracers
              ! Note: Tracers should be added here as they are added to the model
 
-             if (model%options%whichcalving == CALVING_DAMAGE) then
+             if (model%options%whichcalving == CALVING_LAW_DAMAGE) then
                 model%calving%damage(:,i,j) = 0.0d0
              endif
 
-             if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+             if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
                 model%geometry%ice_age(:,i,j) = 0.0d0
              endif
 

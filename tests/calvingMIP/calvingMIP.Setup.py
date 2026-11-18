@@ -250,19 +250,19 @@ print('jdiag:',jdiag)
 
 # Set the Stokes approximation
 if args.approximation == 'SSA':
-    which_ho_approx = 1
+    which_ho_approx = 'ssa'
     print( 'Using SSA velocity solver')
 elif args.approximation == 'DIVA':
-    which_ho_approx = 4
+    which_ho_approx = 'diva'
     print( 'Using DIVA velocity solver')
 elif args.approximation == 'BP':
-    which_ho_approx = 2
+    which_ho_approx = 'blatter_pattyn'
     print( 'Using Blatter-Pattyn velocity solver')
 else:
-    which_ho_approx = 4
+    which_ho_approx = 'diva'
     print( 'Defaulting to DIVA velocity solver')
 
-config.set('velocity', 'stokes_approx', str(which_ho_approx))
+config.set('velocity', 'stokes_approx', which_ho_approx)
 
 
 # Note: Only one option is supported for the basal sliding law:
@@ -440,7 +440,7 @@ for expt in experiments:
     #       The Spinup runs end at the year given by 'yearsSpinup'.
     #       The other experiments start from the end of the Spinup and finish at year 1000.
 
-    # TODO: Set up these experiments as hybrid restart (restart = 2), starting at year 0
+    # TODO: Set up these experiments as hybrid restart (restart = hybrid), starting at year 0
     #       by reading the last time slice from the Spinup restart file.
     #       First need to merge the damage/calving branch to main.
     
@@ -517,7 +517,7 @@ for expt in experiments:
         
     # Set other parameters specific to certain experiments
     if expt == 'SpinupCircular' or expt == 'SpinupThule':
-        config.set('temperature', 'temperature_init', '1')
+        config.set('temperature', 'temperature_init', 'artm')
         config.set('calving', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
         config.set('calving', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
         # Both spin-ups use a calving mask to prevent advance beyond the prescribed radius
@@ -533,15 +533,15 @@ for expt in experiments:
         config.set('calving', 'apply_calving_mask', 'True')
         config.set('calving', 'calving_front_radius', str(cf_radius))
     elif expt == 'Experiment5':
-        config.set('calving', 'calving_law', '7')
+        config.set('calving', 'calving_law', 'thck_threshold')
         calvingMinthck = 325.
         config.set('calving', 'calving_thck_threshold', str(calvingMinthck))
             
     # Set the calvingMIP domain (circular or Thule)
     if expt == 'SpinupCircular' or expt == 'Experiment1' or expt == 'Experiment2':
-        config.set('calving', 'calvingmip_domain', '1')
+        config.set('calving', 'calvingmip_domain', 'circular')
     elif expt == 'SpinupThule' or expt == 'Experiment3' or expt == 'Experiment4' or expt == 'Experiment5':
-        config.set('calving', 'calvingmip_domain', '2')
+        config.set('calving', 'calvingmip_domain', 'thule')
 
     # Set the start and end times
     config.set('time', 'tstart', str(tstart))
@@ -549,7 +549,7 @@ for expt in experiments:
 
     # Set the hybrid restart option for Experiments 1 to 5
     if expt != 'SpinupCircular' and expt != 'SpinupThule':
-        config.set('options', 'restart', '2')
+        config.set('options', 'restart', 'hybrid')
 
     # Change the default comment
     comment = 'CalvingMIP ' + expt
@@ -671,7 +671,7 @@ for expt in experiments:
         cf_advance_retreat_period = 0.
 
         config.set('time', 'tend',   str(tend))
-        config.set('options', 'restart', '1')
+        config.set('options', 'restart', 'standard')
         config.set('calving', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
         config.set('calving', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
 

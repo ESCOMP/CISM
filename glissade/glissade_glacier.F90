@@ -487,7 +487,7 @@ contains
        !       the input thickness, if the input thickness corresponds to the RGI date.
        ! On restart, powerlaw_c is read from the restart file;
        !  thck_target is not a restart field but is updated annually during the inversion.
-       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
           model%basal_physics%powerlaw_c(:,:) = model%basal_physics%powerlaw_c_const
           glacier%thck_target = model%geometry%thck
        endif
@@ -524,8 +524,8 @@ contains
           enddo
        enddo
 
-       if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
-           glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+       if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
+           glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
           ! Make sure a nonzero smb_obs field was read in
           if (parallel_is_zero(model%climate%smb_obs)) then
              call write_log ('Error, no nonzero values for smb_obs', GM_FATAL)
@@ -590,13 +590,13 @@ contains
           call write_log ('Error, no positive values for glacier powerlaw_c', GM_FATAL)
        endif
 
-       if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
+       if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION) then
           max_glcval = maxval(model%geometry%usrf_obs)
           max_glcval = parallel_reduce_max(max_glcval)
           if (max_glcval <= 0.0d0) then
              call write_log ('Error, no positive values for usrf_obs', GM_FATAL)
           endif
-          if (glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+          if (glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
              ! need nonzero smb_obs for inversion
              max_glcval = maxval(abs(glacier%smb_obs))
              max_glcval = parallel_reduce_max(max_glcval)
@@ -885,23 +885,23 @@ contains
        glacier%Tpos_annmean = 0.0d0
        glacier%smb_applied_annmean = 0.0d0
 
-       if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
-           glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+       if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
+           glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
           glacier%snow_recent_annmean = 0.0d0
           glacier%Tpos_recent_annmean = 0.0d0
           glacier%snow_rgi_annmean = 0.0d0
           glacier%Tpos_rgi_annmean = 0.0d0
        endif
 
-       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
           glacier%dthck_dt_annmean = 0.0d0
        endif
 
        ! If inverting for mu_star and alpha_snow, then compute some SMB-related quantities
        ! used in the inversion.
 
-       if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
-           glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+       if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
+           glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
 
           ! Compute the SMB anomaly for the RGI and recent climates relative to the baseline climate.
           ! This is done once a year; smb, smb_rgi, and smb_recent are updated at the end of the previous year.
@@ -954,9 +954,9 @@ contains
     !TODO - Not sure these are needed. Maybe can save halo updates for the annual-averaged snow and Tpos
 
     call parallel_halo(model%climate%artm_corrected, parallel)
-    if (glacier%snow_calc == GLACIER_SNOW_CALC_SNOW) then
+    if (glacier%snow_calc == SNOW_METHOD_SNOW) then
        call parallel_halo(model%climate%snow_corrected, parallel)
-    elseif (glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
+    elseif (glacier%snow_calc == SNOW_METHOD_PRECIP_ARTM) then
        call parallel_halo(model%climate%precip_corrected, parallel)
     endif
 
@@ -992,11 +992,11 @@ contains
 
     ! Compute the snowfall rate
 
-    if (glacier%snow_calc == GLACIER_SNOW_CALC_SNOW) then
+    if (glacier%snow_calc == SNOW_METHOD_SNOW) then
 
        ! do nothing; use the input snowfall rate directly
 
-    elseif (glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
+    elseif (glacier%snow_calc == SNOW_METHOD_PRECIP_ARTM) then
 
        ! compute snowfall based on precip and artm
 
@@ -1031,8 +1031,8 @@ contains
     !       enable_precip_anomaly = F. The anomalies are used here for inversion, but are not applied
     !       in the main glissade module.
 
-    if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
-        glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+    if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
+        glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
 
        artm_recent(:,:)   = artm(:,:)   + model%climate%artm_anomaly(:,:)
        snow_recent(:,:)   = snow(:,:)   + model%climate%snow_anomaly(:,:)
@@ -1065,12 +1065,12 @@ contains
 
        ! Compute the snowfall rate for the RGI and recent climate.
 
-       if (glacier%snow_calc == GLACIER_SNOW_CALC_SNOW) then
+       if (glacier%snow_calc == SNOW_METHOD_SNOW) then
 
           snow_rgi(:,:) = (1.d0 - rgi_date_frac) * snow(:,:)  &
                                +  rgi_date_frac  * snow_recent(:,:)
 
-       elseif (glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
+       elseif (glacier%snow_calc == SNOW_METHOD_PRECIP_ARTM) then
 
           call glacier_calc_snow(&
                ewn,       nsn,                   &
@@ -1112,15 +1112,15 @@ contains
     glacier%smb_applied_annmean = glacier%smb_applied_annmean  &
          + model%climate%acab_applied*scyr * 1000.d0*(rhoi/rhow) * dt
 
-    if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
-        glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+    if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
+        glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
        glacier%snow_rgi_annmean = glacier%snow_rgi_annmean + snow_rgi * dt
        glacier%Tpos_rgi_annmean = glacier%Tpos_rgi_annmean + Tpos_rgi * dt
        glacier%snow_recent_annmean = glacier%snow_recent_annmean + snow_recent * dt
        glacier%Tpos_recent_annmean = glacier%Tpos_recent_annmean + Tpos_recent * dt
     endif
 
-    if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+    if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
        glacier%dthck_dt_annmean = glacier%dthck_dt_annmean + dthck_dt * dt
     endif
 
@@ -1136,15 +1136,15 @@ contains
        glacier%Tpos_annmean = glacier%Tpos_annmean / time_since_last_avg
        glacier%smb_applied_annmean = glacier%smb_applied_annmean / time_since_last_avg
 
-    if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
-        glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+    if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
+        glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
           glacier%snow_rgi_annmean = glacier%snow_rgi_annmean / time_since_last_avg
           glacier%Tpos_rgi_annmean = glacier%Tpos_rgi_annmean / time_since_last_avg
           glacier%snow_recent_annmean = glacier%snow_recent_annmean / time_since_last_avg
           glacier%Tpos_recent_annmean = glacier%Tpos_recent_annmean / time_since_last_avg
        endif
 
-       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
           glacier%dthck_dt_annmean = glacier%dthck_dt_annmean / time_since_last_avg
        endif
 
@@ -1157,14 +1157,14 @@ contains
           write(iulog,*) '   snow (mm/yr)       =', glacier%snow_annmean(i,j)
           write(iulog,*) '   Tpos (deg C)       =', glacier%Tpos_annmean(i,j)
           write(iulog,*) '   smb_applied (mm/yr)=', glacier%smb_applied_annmean(i,j)
-          if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
-              glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+          if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
+              glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
              write(iulog,*) '   snow_rgi (mm/yr)   =', glacier%snow_rgi_annmean(i,j)
              write(iulog,*) '   Tpos_rgi (deg C)   =', glacier%Tpos_rgi_annmean(i,j)
              write(iulog,*) '   snow_rec (mm/yr)   =', glacier%snow_recent_annmean(i,j)
              write(iulog,*) '   Tpos_rec (deg C)   =', glacier%Tpos_recent_annmean(i,j)
           endif
-          if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+          if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
              write(iulog,*) '   dthck_dt (m/yr)    =', glacier%dthck_dt_annmean(i,j)
           endif
        endif
@@ -1258,9 +1258,9 @@ contains
        !     (b) SMB = smb_obs given the recent temperature and snow/precip.
        ! The code aborts at startup if set to invert for alpha_snow without inverting for mu_star.
 
-       if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
+       if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION) then
 
-          if (glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+          if (glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
 
              ! invert for both mu_star and alpha_snow, based on two SMB conditions
              ! (SMB = 0 in a balanced climate, SMB = smb_obs in an out-of-balance climate)
@@ -1351,7 +1351,7 @@ contains
           enddo
        endif   ! verbose_glacier
 
-       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
 
           ! Given the current and target ice thickness, invert for powerlaw_c.
           ! For this to work, the SMB should be close to zero over the initial glacier footprint,
@@ -1521,8 +1521,8 @@ contains
 
        ! If inverting, then repeat for the RGI and recent SMB
 
-       if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
-           glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+       if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
+           glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
 
           do j = 1, nsn
              do i = 1, ewn
@@ -1563,8 +1563,8 @@ contains
           call point_diag(glacier%Tpos_annmean, 'Tpos_annmean', itest, jtest, rtest, 7, 7)
           call point_diag(glacier%snow_annmean, 'snow_annmean', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%smb, 'climate%smb', itest, jtest, rtest, 7, 7)
-          if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
-              glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+          if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
+              glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
              call point_diag(glacier%smb_rgi, 'smb_rgi', itest, jtest, rtest, 7, 7)
              call point_diag(glacier%smb_recent, 'smb_recent', itest, jtest, rtest, 7, 7)
           endif   ! set_mu_star
@@ -1615,8 +1615,8 @@ contains
 
        ! If inverting for mu_star and alpha_snow, then repeat for the recent climate
 
-       if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
-           glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+       if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
+           glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
 
           call glacier_smb_min_max(&
                ewn,            nsn,           &
@@ -1701,7 +1701,7 @@ contains
 
        ! If inverting for thickness, compute the target area and volume
 
-       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
 
           call glacier_area_volume(&
                ewn,           nsn,               &

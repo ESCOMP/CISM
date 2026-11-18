@@ -201,7 +201,7 @@ contains
 
     ! axis dimension (used for CalvingMIP output)
 
-    if (model%calving%naxis > 1) then   ! which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE
+    if (model%calving%naxis > 1) then   ! which_ho_calvingmip_domain /= CALVINGMIP_DOMAIN_NONE
        status = parallel_inq_varid(NCO%id,'axis',varid)
        status= parallel_put_var(NCO%id,varid,model%calving%axis)
        call nc_errorhandle(__FILE__,__LINE__,status)

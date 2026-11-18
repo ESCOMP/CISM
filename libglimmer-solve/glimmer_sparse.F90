@@ -49,12 +49,8 @@ module glimmer_sparse
         type(slap_solver_workspace), pointer :: slap => null()
   end type
 
-    ! The first three options use the SLAP solver and work only on one processor.
-    integer, parameter :: SPARSE_SOLVER_PCG_INCH = HO_SPARSE_PCG_INCH          ! SLAP PCG with incomplete Cholesky preconditioner
-    integer, parameter :: SPARSE_SOLVER_BICG = HO_SPARSE_BICG                  ! SLAP biconjugate gradient
-    integer, parameter :: SPARSE_SOLVER_GMRES = HO_SPARSE_GMRES                ! SLAP GMRES
-    integer, parameter :: STANDALONE_PCG_STANDARD = HO_SPARSE_PCG_STANDARD     ! Native PCG, parallel-enabled, standard solver
-    integer, parameter :: STANDALONE_PCG_CHRONGEAR = HO_SPARSE_PCG_CHRONGEAR   ! Native PCG, parallel-enabled, Chronopoulos-Gear solver
+    ! Solver methods SLAP_PCG_INCH, SLAP_BICG, SLAP_GMRES: see glimmer_sparse_type.
+    ! The SLAP solvers work only on one processor.
 
 contains
 
@@ -74,22 +70,22 @@ contains
 
         !Solver specific options
 
-        if (method == SPARSE_SOLVER_BICG) then
+        if (method == SLAP_BICG) then
 !            call not_parallel(__FILE__,__LINE__)
             call slap_default_options(opt%slap, opt%base)
-            opt%base%method = SPARSE_SOLVER_BICG
+            opt%base%method = SLAP_BICG
 !            opt%slap%itol = 2   ! current default = 2 in slap_default_options
    
-        else if (method == SPARSE_SOLVER_GMRES) then
+        else if (method == SLAP_GMRES) then
 !           call not_parallel(__FILE__,__LINE__)
             call slap_default_options(opt%slap, opt%base)
-            opt%base%method = SPARSE_SOLVER_GMRES
+            opt%base%method = SLAP_GMRES
 !            opt%slap%itol = 2   ! current default = 2 in slap_default_options
              
-        else if (method == SPARSE_SOLVER_PCG_INCH) then
+        else if (method == SLAP_PCG_INCH) then
 !            call not_parallel(__FILE__, __LINE__)
             call slap_default_options(opt%slap, opt%base)
-            opt%base%method = SPARSE_SOLVER_PCG_INCH
+            opt%base%method = SLAP_PCG_INCH
             opt%slap%itol = 1
             !WHL - itol = 2 does not work for simple test problems 
 
@@ -122,9 +118,9 @@ contains
 
         !TODO - Anything needed for standalone_pcg_solver?
 
-        if (options%base%method == SPARSE_SOLVER_BICG .or. &
-            options%base%method == SPARSE_SOLVER_GMRES .or. &
-            options%base%method == SPARSE_SOLVER_PCG_INCH) then
+        if (options%base%method == SLAP_BICG .or. &
+            options%base%method == SLAP_GMRES .or. &
+            options%base%method == SLAP_PCG_INCH) then
 !           call not_parallel(__FILE__,__LINE__)
             allocate(workspace%slap)
             call slap_allocate_workspace(matrix, options%slap, workspace%slap, max_nonzeros)
@@ -148,9 +144,9 @@ contains
         type(sparse_solver_options) :: options
         type(sparse_solver_workspace) :: workspace
 
-        if (options%base%method == SPARSE_SOLVER_BICG .or. &
-            options%base%method == SPARSE_SOLVER_GMRES .or. &
-            options%base%method == SPARSE_SOLVER_PCG_INCH) then
+        if (options%base%method == SLAP_BICG .or. &
+            options%base%method == SLAP_GMRES .or. &
+            options%base%method == SLAP_PCG_INCH) then
 
             call slap_solver_preprocess(matrix, options%slap, workspace%slap)
 
@@ -207,9 +203,9 @@ contains
             verbose_var = verbose
         end if
 
-        if (options%base%method == SPARSE_SOLVER_BICG .or. &
-            options%base%method == SPARSE_SOLVER_GMRES .or. &
-            options%base%method == SPARSE_SOLVER_PCG_INCH) then
+        if (options%base%method == SLAP_BICG .or. &
+            options%base%method == SLAP_GMRES .or. &
+            options%base%method == SLAP_PCG_INCH) then
 
             sparse_solve = slap_solve(matrix, rhs, solution, &
                                       options%slap, workspace%slap, &
@@ -225,9 +221,9 @@ contains
         type(sparse_solver_options) :: options
         type(sparse_solver_workspace) :: workspace
 
-        if (options%base%method == SPARSE_SOLVER_BICG .or. &
-            options%base%method == SPARSE_SOLVER_GMRES .or. &
-            options%base%method == SPARSE_SOLVER_PCG_INCH) then
+        if (options%base%method == SLAP_BICG .or. &
+            options%base%method == SLAP_GMRES .or. &
+            options%base%method == SLAP_PCG_INCH) then
 
             call slap_solver_postprocess(matrix, options%slap, workspace%slap)
 
@@ -245,9 +241,9 @@ contains
         type(sparse_solver_options) :: options
         type(sparse_solver_workspace) :: workspace
         
-        if (options%base%method == SPARSE_SOLVER_BICG .or. &
-            options%base%method == SPARSE_SOLVER_GMRES .or. &
-            options%base%method == SPARSE_SOLVER_PCG_INCH) then
+        if (options%base%method == SLAP_BICG .or. &
+            options%base%method == SLAP_GMRES .or. &
+            options%base%method == SLAP_PCG_INCH) then
 
             call slap_destroy_workspace(matrix, options%slap, workspace%slap)
             deallocate(workspace%slap)
@@ -269,9 +265,9 @@ contains
         character(*), optional, intent(out) :: error_string
         character(256) :: tmp_error_string
         
-        if (options%base%method == SPARSE_SOLVER_BICG .or. &
-            options%base%method == SPARSE_SOLVER_GMRES .or. &
-            options%base%method == SPARSE_SOLVER_PCG_INCH) then
+        if (options%base%method == SLAP_BICG .or. &
+            options%base%method == SLAP_GMRES .or. &
+            options%base%method == SLAP_PCG_INCH) then
 
             call slap_interpret_error(error_code, tmp_error_string)
 
@@ -318,13 +314,13 @@ contains
         if (present(method_arg)) then
             method = method_arg
         else
-            method = SPARSE_SOLVER_BICG
+            method = SLAP_BICG
         endif
  
         if (verbose_slap) then
            write(iulog,*) ' '
            write(iulog,*) 'In sparse_easy_solve'
-           write(iulog,*) 'method (0=BiCG, 1=GMRES, -1=PCG_INCH) =', method
+           write(iulog,*) 'method =', method
            write(iulog,*) 'matrix%order =', matrix%order
            write(iulog,*) 'matrix%nonzeros =', matrix%nonzeros
            write(iulog,*) 'size(rhs) =', size(rhs)

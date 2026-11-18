@@ -3,7 +3,9 @@
 
 The config reorganization moves keys out of the long [options], [ho_options] and [parameters]
 sections into short sections by topic (e.g. [calving], [climate], [basal_physics]), and renames
-some keys (e.g. marine_margin -> calving_law).  Option values are not changed.
+some keys (e.g. marine_margin -> calving_law).  Options that are now given by name have their integer
+values replaced by the names (e.g. stokes_approx = 4 -> stokes_approx = diva), and options that are
+now logicals have 0/1 replaced by .false./.true. (OPTION_VALUES and LOGICAL_KEYS).
 
 Usage:
     convert_cism_config.py FILE [FILE ...]              write FILE.converted next to each FILE
@@ -12,8 +14,9 @@ Usage:
     convert_cism_config.py FILE [FILE ...] --check      report what would change; exit 1 if anything would
     convert_cism_config.py --self-test                  run the built-in tests
 
-A file with no [section] lines is treated as a CESM user_nl_cism file, in which only key names change
-(the CESM namelist has no sections).  Use --user-nl to force this.
+A file with no [section] lines is treated as a CESM user_nl_cism file, in which key names are changed
+(USER_NL_RENAMES; the CESM namelist has no sections) and option values are converted as in config
+files, with names quoted ('diva').  Use --user-nl to force this.
 
 How a config file is converted:
   - Each key listed in MOVES is moved to its new section, under its new name, with its value and
@@ -28,9 +31,14 @@ How a config file is converted:
     changed.
   - Keys listed in REMOVED (keys the model no longer reads) are deleted; the report names the replacement,
     if there is one, e.g. 'deleted [isostasy] lithosphere_period: removed; see load_update_interval'.
+  - Integer values of the options in OPTION_VALUES are replaced by their names, and 0/1 values of the
+    keys in LOGICAL_KEYS by .false./.true.  An inline comment is kept, unless it explains integer
+    values ('# 0 = off, 1 = on'), which no longer fit.
+    An integer that is not a valid value is left as it is and reported (the model will stop on it);
+    for a removed value (REMOVED_VALUES, e.g. calving_law = 2) the report names the replacement.
   - Other keys are left where they are; the model warns about keys it does not read.
   - Converting a file that is already converted changes nothing.
-  - Glide configs ([options] dycore = 0) are left unchanged: the Glide config format is frozen.
+  - Glide configs ([options] dycore = 0 or glide) are left unchanged: the Glide config format is frozen.
 
 Only the standard library is used.
 """
@@ -44,7 +52,7 @@ import sys
 MOVES = {
     # [calving]
     ('options', 'marine_margin'): ('calving', 'calving_law'),
-    ('options', 'calving_init'): ('calving', 'calving_init'),
+    ('options', 'calving_init'): ('calving', 'calve_at_startup'),
     ('options', 'calving_domain'): ('calving', 'calving_domain'),
     ('options', 'apply_calving_mask'): ('calving', 'apply_calving_mask'),
     ('options', 'remove_icebergs'): ('calving', 'remove_icebergs'),
@@ -155,7 +163,7 @@ MOVES = {
     ('options', 'bmlt_float_init'): ('basal_melt', 'bmlt_float_init'),
     ('ho_options', 'which_ho_deltaT_ocn'): ('basal_melt', 'deltaT_ocn_method'),
     ('options', 'enable_bmlt_anomaly'): ('basal_melt', 'enable_bmlt_anomaly'),
-    ('options', 'basal_mass_balance'): ('basal_melt', 'basal_mass_balance'),
+    ('options', 'basal_mass_balance'): ('basal_melt', 'basal_mbal_in_continuity'),
     ('parameters', 'bmlt_float_factor'): ('basal_melt', 'bmlt_float_factor'),
     ('parameters', 'bmlt_cavity_h0'): ('basal_melt', 'bmlt_cavity_h0'),
     ('parameters', 'bmlt_anomaly_tstart'): ('basal_melt', 'bmlt_anomaly_tstart'),
@@ -174,7 +182,7 @@ MOVES = {
     ('parameters', 'bmlt_float_depth_zmeltmin'): ('basal_melt', 'bmlt_float_depth_zmeltmin'),
     # [ocean_data]
     ('options', 'ocean_data_domain'): ('ocean_data', 'ocean_data_domain'),
-    ('options', 'ocean_data_extrapolate'): ('ocean_data', 'ocean_data_extrapolate'),
+    ('options', 'ocean_data_extrapolate'): ('ocean_data', 'extrapolate_ocean_data'),
     ('parameters', 'gamma0'): ('basal_melt', 'bmlt_float_gamma0'),
     ('parameters', 'thermal_forcing_basin_min'): ('ocean_data', 'thermal_forcing_basin_min'),
     ('parameters', 'thermal_forcing_basin_max'): ('ocean_data', 'thermal_forcing_basin_max'),
@@ -271,7 +279,7 @@ MOVES = {
     ('options', 'dm_dt_diag'): ('diagnostics', 'dm_dt_diag'),
     ('options', 'diag_minthck'): ('diagnostics', 'diag_ice_threshold'),
     # [isostasy], [lateral_melt], [glaciers]: section switches move in; keys renamed in place
-    ('options', 'isostasy'): ('isostasy', 'isostasy'),
+    ('options', 'isostasy'): ('isostasy', 'compute_isostasy'),
     ('isostasy', 'lithosphere'): ('isostasy', 'lithosphere_method'),
     ('isostasy', 'asthenosphere'): ('isostasy', 'asthenosphere_method'),
     ('isostasy', 'which_relaxed'): ('isostasy', 'input_topg_method'),
@@ -302,6 +310,11 @@ MOVES = {
     ('climate', 'smb_input'): ('climate', 'smb_input_units'),
     ('climate', 'overwrite_acab_minthck'): ('climate', 'overwrite_acab_thck_min'),
     ('glaciers', 'diagnostic_minthck'): ('glaciers', 'glacier_diag_thck_min'),
+    # R2b: options that became logicals, with new names
+    ('basal_melt', 'basal_mass_balance'): ('basal_melt', 'basal_mbal_in_continuity'),
+    ('ocean_data', 'ocean_data_extrapolate'): ('ocean_data', 'extrapolate_ocean_data'),
+    ('calving', 'calving_init'): ('calving', 'calve_at_startup'),
+    ('isostasy', 'isostasy'): ('isostasy', 'compute_isostasy'),
 }
 
 # (section, key) -> note: keys that Glissade no longer reads.  The converter deletes them and reports the
@@ -442,6 +455,11 @@ USER_NL_RENAMES = {
     'smb_input': 'smb_input_units',
     'overwrite_acab_minthck': 'overwrite_acab_thck_min',
     'diagnostic_minthck': 'glacier_diag_thck_min',
+    # R2b renames (options that became logicals)
+    'basal_mass_balance': 'basal_mbal_in_continuity',
+    'ocean_data_extrapolate': 'extrapolate_ocean_data',
+    'calving_init': 'calve_at_startup',
+    'isostasy': 'compute_isostasy',
 }
 
 # Match the CISM reader (glimmer_config.F90): a section header is a line starting with '[' in
@@ -493,8 +511,137 @@ def is_glide(sections):
                 m = KEY_RE.match(line)
                 if m and not COMMENT_RE.match(line) and m.group(2) == 'dycore':
                     value = re.split(r'[#;!]', m.group(3).lstrip(' \t=:'))[0].strip()
-                    return value == '0'
+                    return value == '0' or value.strip("'\"").lower() == 'glide'
     return False
+
+
+# Options given by name: (section, key) -> {integer value: name}.  Values are converted after the
+# keys have been moved and renamed, so (section, key) is the new location.  Keys are unique across
+# sections, so the same tables (by key) are used for user_nl_cism files.
+OPTION_VALUES = {
+    ('grid', 'global_bc'): {0: 'periodic', 1: 'outflow', 2: 'no_penetration', 3: 'no_ice'},
+    ('grid', 'sigma_method'): {0: 'glide', 1: 'file', 2: 'config', 3: 'uniform', 4: 'pattyn'},
+    ('time', 'dt_input_option'): {0: 'dt', 1: 'nsteps_per_year'},
+    ('diagnostics', 'dm_dt_diag'): {0: 'kg_per_s', 1: 'gt_per_yr'},
+    ('diagnostics', 'diag_ice_threshold'): {0: 'zero', 1: 'thcklim'},
+    ('options', 'dycore'): {2: 'glissade'},
+    ('options', 'restart'): {0: 'none', 1: 'standard', 2: 'hybrid'},
+    ('numerics', 'compute_blocks'): {0: 'all', 1: 'active_only', 2: 'inquire'},
+    ('velocity', 'stokes_approx'): {-1: 'local_sia', 0: 'sia', 1: 'ssa', 2: 'blatter_pattyn', 3: 'l1l2',
+                                    4: 'diva', 5: 'hybrid'},
+    ('velocity', 'efvs_method'): {0: 'constant', 1: 'flow_factor', 2: 'nonlinear'},
+    ('velocity', 'surface_gradient_method'): {0: 'centered', 1: 'upstream1', 2: 'upstream2'},
+    ('velocity', 'surface_gradient_margin_method'): {0: 'land', 1: 'hybrid', 2: 'marine'},
+    ('velocity_solver', 'nonlinear_method'): {0: 'picard', 1: 'accelerated_picard'},
+    ('velocity_solver', 'nonlinear_residual'): {0: 'max', 1: 'max_no_ubas', 2: 'mean', 3: 'l2norm',
+                                                4: 'relative_l2norm'},
+    ('velocity_solver', 'linear_solver'): {-1: 'slap_pcg', 0: 'slap_bicg', 1: 'slap_gmres', 2: 'pcg',
+                                           3: 'pcg_chrongear'},
+    ('velocity_solver', 'preconditioner'): {0: 'none', 1: 'diagonal', 2: 'sia', 3: 'tridiag_local',
+                                            4: 'tridiag_global'},
+    ('velocity_solver', 'assemble_beta'): {0: 'standard', 1: 'local'},
+    ('velocity_solver', 'assemble_taud'): {0: 'standard', 1: 'local'},
+    ('velocity_solver', 'assemble_bfric'): {0: 'standard', 1: 'local'},
+    ('velocity_solver', 'assemble_lateral'): {0: 'standard', 1: 'local'},
+    ('advection', 'advection_method'): {3: 'remap', 4: 'upwind', 5: 'fixed_thickness'},
+    ('advection', 'vertical_remap_order'): {0: 'first', 1: 'second'},
+    ('temperature', 'temperature_method'): {0: 'isothermal_artm', 1: 'prognostic', 2: 'fixed', 3: 'enthalpy'},
+    ('temperature', 'temperature_init'): {0: 'zero_celsius', 1: 'artm', 2: 'linear', 3: 'advective_diffusive',
+                                          4: 'file'},
+    ('temperature', 'dissipation_method'): {-1: 'none', 0: 'sia', 1: 'first_order'},
+    ('flow_law', 'flow_law'): {0: 'constant', 1: 'paterson_budd_minus5c', 2: 'paterson_budd'},
+    ('basal_physics', 'sliding_law'): {0: 'beta_constant', 1: 'beta_bpmp', 2: 'pseudo_plastic',
+                                       3: 'pseudo_plastic_old', 4: 'no_slip', 5: 'beta_file',
+                                       6: 'no_slip_dirichlet', 7: 'zoet_iverson', 8: 'ismip_hom_c',
+                                       9: 'powerlaw', 10: 'coulomb', 11: 'schoof', 12: 'tsai',
+                                       13: 'powerlaw_effecpress', 14: 'yield_picard'},
+    ('basal_physics', 'btrc_method'): {0: 'none', 1: 'constant', 2: 'constant_bwat', 3: 'constant_bpmp'},
+    ('basal_physics', 'beta_limit_method'): {0: 'absolute', 1: 'fground_scaled'},
+    ('basal_physics', 'powerlaw_c_method'): {0: 'constant', 1: 'inversion', 2: 'file', 3: 'inversion_basin',
+                                             4: 'from_coulomb_c'},
+    ('basal_physics', 'coulomb_c_method'): {0: 'constant', 1: 'inversion', 2: 'file', 3: 'inversion_basin'},
+    ('basal_physics', 'effecpress_method'): {0: 'overburden', 1: 'bpmp', 2: 'bwat', 3: 'cavity_sheet',
+                                             4: 'bwat_bvp'},
+    ('basal_hydro', 'bwat_method'): {0: 'none', 1: 'constant', 2: 'local_till', 3: 'flux_routing'},
+    ('basal_hydro', 'flux_routing_method'): {0: 'd8', 1: 'dinf', 2: 'fd8'},
+    ('basal_hydro', 'cavity_open_slide'): {0: 'none', 1: 'fixed_ub', 2: 'dynamic_ub'},
+    ('basal_hydro', 'cavity_open_melt'): {0: 'none', 1: 'bmlt', 2: 'dissipation', 3: 'bmlt_dissipation'},
+    ('grounding_line', 'grounding_line_param'): {0: 'none', 1: 'vertices', 2: 'deluxe'},
+    ('grounding_line', 'fground_no_glp'): {0: 'grounded_neighbor', 1: 'flotation_function'},
+    ('grounding_line', 'grounding_line_bmlt'): {0: 'none', 1: 'floating_fraction', 2: 'zero_grounded'},
+    ('grounding_line', 'flotation_function'): {0: 'pattyn', 1: 'inverse_pattyn', 2: 'linear'},
+    ('basal_melt', 'bmlt_float_method'): {0: 'none', 1: 'mismip', 2: 'constant', 3: 'depth', 4: 'file',
+                                          6: 'thermal_forcing'},
+    ('basal_melt', 'bmlt_float_thermal_forcing_param'): {0: 'quadratic', 1: 'ismip6_local',
+                                                         2: 'ismip6_nonlocal', 3: 'ismip6_nonlocal_slope'},
+    ('basal_melt', 'deltaT_ocn_method'): {0: 'none', 1: 'inversion', 2: 'file', 3: 'inversion_basin',
+                                          4: 'calibrate_basin', 5: 'dthck_dt'},
+    ('ocean_data', 'ocean_data_domain'): {0: 'internal', 1: 'file', 2: 'coupler'},
+    ('calving', 'calving_law'): {0: 'none', 1: 'float_zero', 3: 'relx_threshold', 4: 'topg_threshold',
+                                 5: 'grid_mask', 6: 'advance_retreat_rate', 7: 'thck_threshold', 8: 'stress',
+                                 9: 'stress_stochastic', 10: 'damage', 11: 'eigencalving'},
+    ('calving', 'calving_domain'): {0: 'ocean_edge', 1: 'everywhere'},
+    ('calving', 'calvingmip_domain'): {0: 'none', 1: 'circular', 2: 'thule'},
+    ('lateral_melt', 'lateral_melt_method'): {0: 'none', 1: 'constant', 2: 'ismip'},
+    ('removal', 'force_retreat'): {0: 'none', 1: 'all_ice', 2: 'floating_ice'},
+    ('climate', 'smb_input_units'): {0: 'm_ice_per_yr', 1: 'mm_we_per_yr'},
+    ('climate', 'smb_input_function'): {0: 'xy', 1: 'xy_gradz', 2: 'xyz', 3: 'pdd'},
+    ('climate', 'artm_input_function'): {0: 'xy', 1: 'xy_gradz', 2: 'xyz', 3: 'xy_lapse'},
+    ('climate', 'overwrite_acab'): {0: 'none', 1: 'acab_zero', 2: 'thck_min', 3: 'mask'},
+    ('geothermal', 'geothermal_method'): {0: 'uniform', 1: 'file'},
+    ('isostasy', 'lithosphere_method'): {0: 'local', 1: 'elastic'},
+    ('isostasy', 'asthenosphere_method'): {0: 'fluid', 1: 'relaxing', 2: 'relaxing_latvar'},
+    ('isostasy', 'input_topg_method'): {0: 'separate_relx', 1: 'relx_from_topg', 2: 'relx_from_load'},
+    ('glaciers', 'mu_star_method'): {0: 'constant', 1: 'inversion', 2: 'file'},
+    ('glaciers', 'alpha_snow_method'): {0: 'constant', 1: 'inversion', 2: 'file'},
+    ('glaciers', 'glacier_powerlaw_c_method'): {0: 'constant', 1: 'inversion', 2: 'file'},
+    ('glaciers', 'snow_method'): {0: 'snow', 1: 'precip_artm'},
+}
+
+# Options that are now logicals: 0/1 -> .false./.true.
+LOGICAL_KEYS = {
+    ('options', 'restart_extend_velo'),
+    ('advection', 'compute_ice_age'),
+    ('basal_melt', 'basal_mbal_in_continuity'),
+    ('ocean_data', 'extrapolate_ocean_data'),
+    ('calving', 'calve_at_startup'),
+    ('calving', 'subgrid_calving_front'),
+    ('isostasy', 'compute_isostasy'),
+}
+
+# Removed option values: (section, key) -> {integer: note}; reported instead of 'not a valid value'.
+REMOVED_VALUES = {
+    ('basal_melt', 'bmlt_float_method'): {5: 'removed with the old MISOMIP plume model'},
+    ('calving', 'calving_law'): {2: 'removed; use calving_law = float_zero with calving_timescale = dt/calving_fraction'},
+}
+
+INT_COMMENT_RE = re.compile(r'^\s*[#;!].*(?<![\w.])[+-]?\d+\s*[=:]')
+INT_VALUE_RE = re.compile(r'^(\s*[=:]\s*)([+-]?\d+)(?=\s|$|[#;!])(.*)$')
+
+
+def convert_value(section, key, rest, quote=''):
+    """Return (new rest of line, change or None) for the value part ('= 4  # comment') of a key."""
+    if (section, key) in OPTION_VALUES:
+        table = OPTION_VALUES[(section, key)]
+    elif (section, key) in LOGICAL_KEYS:
+        table = {0: '.false.', 1: '.true.'}
+        quote = ''
+    else:
+        return rest, None
+    m = INT_VALUE_RE.match(rest)
+    if not m:
+        return rest, None
+    v = int(m.group(2))
+    if v not in table:
+        note = REMOVED_VALUES.get((section, key), {}).get(v)
+        if note:
+            return rest, f'[{section}] {key} = {v}: {note}; left unchanged'
+        return rest, f'[{section}] {key} = {v} is not a valid value; left unchanged'
+    tail = m.group(3)
+    # an inline comment that explains the integer values ('# 0 = off, 1 = on') no longer fits: drop it
+    if INT_COMMENT_RE.match(tail):
+        tail = ''
+    return m.group(1) + quote + table[v] + quote + tail, f'[{section}] {key}: {v} -> {table[v]}'
 
 
 # Keys that lead their section, in this order: the major switches and the keys users edit most often.
@@ -520,7 +667,7 @@ LEAD_KEYS = {
     'removal': ['remove_ice_caps'],
     'climate': ['smb_input_units', 'smb_input_function'],
     'geothermal': ['geothermal_method'],
-    'isostasy': ['isostasy'],
+    'isostasy': ['compute_isostasy'],
     'glaciers': ['enable_glaciers'],
 }
 
@@ -673,7 +820,23 @@ def convert_config(text, moves=None, removed=None):
         if sec.name and order_lead_keys(sec):
             changes.append(f'lead keys of [{sec.name}] moved to the top')
 
+    # integer option values -> names; 0/1 -> logicals
+    for sec in sections:
+        if not sec.name:
+            continue
+        for i, line in enumerate(sec.lines):
+            m = KEY_RE.match(line)
+            if m and not COMMENT_RE.match(line):
+                rest, change = convert_value(sec.name, m.group(2), m.group(3))
+                if change:
+                    sec.lines[i] = m.group(1) + m.group(2) + rest
+                    changes.append(change)
+
     return render(sections), changes
+
+
+# key -> section, for the keys whose values are converted (keys are unique across sections)
+USER_NL_SECTION = {k: s for (s, k) in list(OPTION_VALUES) + list(LOGICAL_KEYS)}
 
 
 def convert_user_nl(text, renames=None):
@@ -682,9 +845,18 @@ def convert_user_nl(text, renames=None):
     out, changes = [], []
     for line in text.split('\n'):
         m = NAMELIST_KEY_RE.match(line)
-        if m and not COMMENT_RE.match(line) and m.group(2) in renames:
-            out.append(m.group(1) + renames[m.group(2)] + m.group(3))
-            changes.append(f'{m.group(2)} -> {renames[m.group(2)]}')
+        if m and not COMMENT_RE.match(line):
+            key, rest = m.group(2), m.group(3)
+            if key in renames:
+                changes.append(f'{key} -> {renames[key]}')
+                key = renames[key]
+            # option values: CESM namelist strings are quoted
+            sec = USER_NL_SECTION.get(key)
+            if sec:
+                rest, change = convert_value(sec, key, rest, quote="'")
+                if change:
+                    changes.append(change.replace(f'[{sec}] ', ''))
+            out.append(m.group(1) + key + rest)
         else:
             out.append(line)
     return '\n'.join(out), changes
@@ -705,28 +877,29 @@ def self_test():
         '[parameters]', 'calving_timescale = 1.0', 'ice_limit = 1.', '',
         '[CF output]', 'name = out.nc', ''])
     new, changes = convert_config(old, moves)
-    assert '[calving]\n# calving: 4 = thickness threshold\ncalving_law = 4   # see docs\ncalving_timescale = 1.0\n\n' in new, new
-    assert '[basal_physics]\nsliding_law = 9\n\n' in new, new
+    assert '[calving]\n# calving: 4 = thickness threshold\ncalving_law = topg_threshold   # see docs\ncalving_timescale = 1.0\n\n' in new, new
+    assert '[basal_physics]\nsliding_law = powerlaw\n\n' in new, new
     assert '[ho_options]' not in new, new                      # emptied section removed
     assert new.index('[basal_physics]') < new.index('[calving]') < new.index('[CF output]'), new
-    assert 'dycore = 2' in new and 'ice_limit = 1.' in new
+    assert 'dycore = glissade' in new and 'ice_limit = 1.' in new
     again, changes2 = convert_config(new, moves)                # idempotent
     assert again == new and not changes2, changes2
     nl, c = convert_user_nl("which_ho_babc = 9\n! comment\nice_limit = 1.\n", {'which_ho_babc': 'sliding_law'})
-    assert nl == "sliding_law = 9\n! comment\nice_limit = 1.\n" and c == ['which_ho_babc -> sliding_law'], nl
-    assert convert_config(old, {})[0] == old                    # empty table: no change
+    assert nl == "sliding_law = 'powerlaw'\n! comment\nice_limit = 1.\n", nl
+    assert c == ['which_ho_babc -> sliding_law', 'sliding_law: 9 -> powerlaw'], c
+    assert convert_config(old, {})[0] == old.replace('dycore = 2', 'dycore = glissade')   # empty table: values only
     commented = old.replace('[ho_options]', '[ho_options]   # Higher order options').replace(
         'dycore = 2', 'dycore = 2\n marine_margin = 1')
     new2, _ = convert_config(commented, moves)                  # header with a trailing comment
-    assert '[basal_physics]\nsliding_law = 9\n' in new2 and '[ho_options]' not in new2, new2
+    assert '[basal_physics]\nsliding_law = powerlaw\n' in new2 and '[ho_options]' not in new2, new2
     assert ' marine_margin = 1' in new2                         # indented key (ignored by CISM) left alone
     glide = old.replace('dycore = 2', 'dycore = 0   # Glide')
     assert convert_config(glide, moves) == (glide, [])          # Glide config: no change
 
     # section order: comment blocks above a header (after a blank line) move with the section below
     unordered = '\n'.join([
-        '# dome test', '[options]', 'dycore = 2', '',
-        '# basal friction', '[basal_physics]', 'sliding_law = 4', '#beta_large = 1.e10',
+        '# dome test', '[options]', 'dycore = glissade', '',
+        '# basal friction', '[basal_physics]', 'sliding_law = no_slip', '#beta_large = 1.e10',
         '[grid]', 'ewn = 31', '',
         '####', '# I/O configuration follows', '####', '[CF default]', 'title = test', '',
         '[time]', 'dt = 1.', ''])
@@ -735,16 +908,16 @@ def self_test():
     assert ordered == '\n'.join([
         '# dome test', '[grid]', 'ewn = 31', '',
         '[time]', 'dt = 1.', '',
-        '[options]', 'dycore = 2', '',
-        '# basal friction', '[basal_physics]', 'sliding_law = 4', '#beta_large = 1.e10', '',
+        '[options]', 'dycore = glissade', '',
+        '# basal friction', '[basal_physics]', 'sliding_law = no_slip', '#beta_large = 1.e10', '',
         '####', '# I/O configuration follows', '####', '[CF default]', 'title = test', '']), ordered
     assert convert_config(ordered, {}) == (ordered, [])          # already in order: unchanged
 
     # lead keys: idiag and jdiag (with the comment above idiag) move to the top of [diagnostics]
-    diag = '\n'.join(['[diagnostics]', 'dt_diag = 1.', '# diagnostic point', 'idiag = 10', 'jdiag = 12', 'dm_dt_diag = 1', ''])
+    diag = '\n'.join(['[diagnostics]', 'dt_diag = 1.', '# diagnostic point', 'idiag = 10', 'jdiag = 12', 'dm_dt_diag = gt_per_yr', ''])
     led, ch = convert_config(diag, {})
     assert led == '\n'.join(['[diagnostics]', '# diagnostic point', 'idiag = 10', 'jdiag = 12', 'dt_diag = 1.',
-                             'dm_dt_diag = 1', '']), led
+                             'dm_dt_diag = gt_per_yr', '']), led
     assert ch == ['lead keys of [diagnostics] moved to the top'], ch
     assert convert_config(led, {}) == (led, [])                  # already in order: unchanged
     grid = '\n'.join(['[grid]', 'upn = 10', 'ewn = 31', 'nsn = 31', '', '[time]', 'dt = 1.', ''])
@@ -759,6 +932,24 @@ def self_test():
     assert ch == ['deleted [ho_options] deltaT_ocn_extrapolate: removed (deltaT_ocn is no longer extrapolated)',
                   'deleted [isostasy] lithosphere_period: removed; see load_update_interval in [isostasy]',
                   'removed empty section [ho_options]'], ch
+    # option values -> names, 0/1 -> logicals; comments kept; invalid integers reported
+    vals = '\n'.join(['[grid]', 'global_bc = 3   # no ice', 'sigma_method = file', '',
+                       '[options]', 'restart = 1', 'restart_extend_velo = 1', '',
+                       '[numerics]', 'compute_blocks = 7', ''])
+    new3, c3 = convert_config(vals, {})
+    assert 'global_bc = no_ice   # no ice\nsigma_method = file\n' in new3, new3
+    assert 'restart = standard\nrestart_extend_velo = .true.\n' in new3, new3
+    one = convert_config('[options]\ndycore = 2   # 0 = glide, 2 = glissade\nrestart = 0  # no restart\n', {})[0]
+    assert one == '[options]\ndycore = glissade\nrestart = none  # no restart\n', one
+    assert 'compute_blocks = 7' in new3 and '[numerics] compute_blocks = 7 is not a valid value; left unchanged' in c3, c3
+    assert convert_config(new3, {})[1] == ['[numerics] compute_blocks = 7 is not a valid value; left unchanged']
+    nl3, c3 = convert_user_nl("restart = 2\nrestart_extend_velo = 0\nglobal_bc = 'outflow'\n", {})
+    assert nl3 == "restart = 'hybrid'\nrestart_extend_velo = .false.\nglobal_bc = 'outflow'\n", nl3
+    assert c3 == ['restart: 2 -> hybrid', 'restart_extend_velo: 0 -> .false.'], c3
+    # removed option values are reported with their replacement
+    _, c5 = convert_config('[calving]\ncalving_law = 2\n', {})
+    assert c5 == ['[calving] calving_law = 2: removed; use calving_law = float_zero with calving_timescale = '
+                  'dt/calving_fraction; left unchanged'], c5
     print('self-test passed')
 
 

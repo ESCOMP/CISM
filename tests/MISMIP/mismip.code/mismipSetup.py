@@ -401,37 +401,37 @@ config.set('diagnostics', 'dt_diag', str(options.timestep))
 
 # Set Stokes approximation in config file.
 if options.approximation == 'SSA':
-    which_ho_approx = 1
+    which_ho_approx = 'ssa'
     print( 'Using SSA velocity solver')
 elif options.approximation == 'DIVA':
-    which_ho_approx = 4
+    which_ho_approx = 'diva'
     print( 'Using DIVA velocity solver')
 elif options.approximation == 'BP':
-    which_ho_approx = 2
+    which_ho_approx = 'blatter_pattyn'
     print( 'Using Blatter-Pattyn velocity solver')
 else:
-    which_ho_approx = 4
+    which_ho_approx = 'diva'
     print( 'Defaulting to DIVA velocity solver')
 
-config.set('velocity', 'stokes_approx', str(which_ho_approx))
+config.set('velocity', 'stokes_approx', which_ho_approx)
 
 # Config settings related to basal friction law.
 # Note: Each of these friction laws is associate with certain basal parameters.
 #       The desired parameters should be set in the config template.
 if options.basalFriction == 'Schoof':
-    which_ho_babc = 11
+    which_ho_babc = 'schoof'
     print( 'Using Schoof basal friction law')
 elif options.basalFriction == 'Tsai':
-    which_ho_babc = 12
+    which_ho_babc = 'tsai'
     print( 'Using Tsai basal friction law')
 elif options.basalFriction == 'powerlaw':
-    which_ho_babc = 9
+    which_ho_babc = 'powerlaw'
     print( 'Using basal friction power law')
 else:
-    which_ho_babc = 9   # powerlaw is default
+    which_ho_babc = 'powerlaw'   # powerlaw is default
     print( 'Defaulting to powerlaw basal friction law')
 
-config.set('basal_physics', 'sliding_law', str(which_ho_babc))
+config.set('basal_physics', 'sliding_law', which_ho_babc)
 
 # Config setting related to spin up time.
 yearsSpinup = float(options.yearsSpinup)

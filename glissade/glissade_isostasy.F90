@@ -48,7 +48,7 @@ module glissade_isostasy
   !
   ! The following config settings are relevant to the isostasy.
   ! All of these are set in the [isostasy] section unless otherwise specified.
-  ! (1) To run with isostasy, set isostasy = 1 in the [options] section.
+  ! (1) To run with isostasy, set compute_isostasy = .true. in the [isostasy] section.
   !     The default is 0 (no isostasy).
   ! (2) There are two lithosphere options:
   !     * Local lithosphere: lithosphere = 0
@@ -113,9 +113,9 @@ contains
 
     type(glissade_global_type) :: model
 
-    if (model%options%isostasy == ISOSTASY_COMPUTE) then
+    if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
 
-       if (model%isostasy%lithosphere == LITHOSPHERE_ELASTIC) then
+       if (model%isostasy%lithosphere == LITHOSPHERE_METHOD_ELASTIC) then
           ! initialize the elastic lithosphere
           call glissade_init_elastic(model%isostasy%rbel, model%numerics%dew)
        end if
@@ -135,12 +135,12 @@ contains
        endif
 
        ! convert asthenosphere relaxation timescale from yr to s
-       if (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_CONST) then
+       if (model%isostasy%asthenosphere == ASTHENOSPHERE_METHOD_RELAXING) then
           if (model%isostasy%tau_relax_const == 0.0d0) then
              call write_log('tau_relax_const must be nonzero with this asthenosphere option', GM_FATAL)
           endif
           model%isostasy%tau_relax_const = model%isostasy%tau_relax_const * scyr
-       elseif (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_LATVAR) then
+       elseif (model%isostasy%asthenosphere == ASTHENOSPHERE_METHOD_RELAXING_LATVAR) then
           if (parallel_is_zero(model%isostasy%tau_relax)) then
              call write_log('tau_relax must be nonzero with this asthenosphere option', GM_FATAL)
           endif
@@ -152,15 +152,15 @@ contains
 
     select case(model%isostasy%which_relaxed)
 
-    case(RELAXED_TOPO_DEFAULT)
+    case(INPUT_TOPG_METHOD_SEPARATE_RELX)
        ! relx, if present in the input file, is read in directly and is distinct from topg;
        ! nothing to do here
 
-    case(RELAXED_TOPO_INPUT)
+    case(INPUT_TOPG_METHOD_RELX_FROM_TOPG)
        ! supplied input topography is relaxed; set relx = topg
        model%isostasy%relx = model%geometry%topg
 
-    case(RELAXED_TOPO_COMPUTE)
+    case(INPUT_TOPG_METHOD_RELX_FROM_LOAD)
 
        ! supplied topography is in equilibrium with the load;
        ! compute relx based on topg and load
@@ -168,16 +168,16 @@ contains
        if (model%options%is_restart == STANDARD_RESTART) then
            ! relx should have been read from the restart file
            if (parallel_is_zero(model%isostasy%relx)) then
-              call write_log ('Failed to read relx on restart with input_topg_method = RELAXED_TOPO_COMPUTE', &
+              call write_log ('Failed to read relx on restart with input_topg_method = relx_from_load', &
                    GM_FATAL)
            endif
         else
            ! Since relx will be computed as topg + load, it should not be present in the input file
            ! Note: For a hybrid restart with 'relx' present in the input restart file,
-           !       the user should set which_relaxed = RELAXED_TOPO_DEFAULT instead.
+           !       the user should set which_relaxed = INPUT_TOPG_METHOD_SEPARATE_RELX instead.
            if (.not.parallel_is_zero(model%isostasy%relx)) then
-              call write_log ('Do not set input_topg_method = RELAXED_TOPO_COMPUTE if relx is in the input file')
-              call write_log ('Either remove relx or set input_topg_method = RELAXED_TOPO_DEFAULT', GM_FATAL)
+              call write_log ('Do not set input_topg_method = relx_from_load if relx is in the input file')
+              call write_log ('Either remove relx or set input_topg_method = separate_relx', GM_FATAL)
            endif
            ! Compute the load, then compute relx = topg + load
            call isostasy_relaxed(model)
@@ -247,7 +247,7 @@ contains
     ! update the ice/water load at the prescribed interval
     ! ------------------------------------------------------------------------
 
-    if (model%options%isostasy == ISOSTASY_COMPUTE) then
+    if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
 
        if (model%isostasy%nlith > 0) then
           if (mod(model%numerics%tstep_count, model%isostasy%nlith) == 0) then
@@ -269,7 +269,7 @@ contains
     ! Calculate isostatic adjustment
     ! ------------------------------------------------------------------------ 
 
-    if (model%options%isostasy == ISOSTASY_COMPUTE) then
+    if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
 
        call compute_isostasy(model)
 
@@ -395,7 +395,7 @@ contains
        call isostasy_lithosphere(model, model%isostasy%load, model%isostasy%load_factors)
 
        ! update bedrock if the mantle is fluid (non-viscous)
-       if (model%isostasy%asthenosphere == ASTHENOSPHERE_FLUID) then
+       if (model%isostasy%asthenosphere == ASTHENOSPHERE_METHOD_FLUID) then
           model%geometry%topg = model%isostasy%relx - model%isostasy%load
        end if
 
@@ -404,8 +404,8 @@ contains
     end if
 
     ! update bedrock if the mantle is relaxing
-    if (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_CONST .or. &
-        model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_LATVAR) then
+    if (model%isostasy%asthenosphere == ASTHENOSPHERE_METHOD_RELAXING .or. &
+        model%isostasy%asthenosphere == ASTHENOSPHERE_METHOD_RELAXING_LATVAR) then
        call relaxing_mantle(model)
     end if
 
@@ -436,11 +436,11 @@ contains
     jtest = model%numerics%jdiag_local
     rtest = model%numerics%rdiag_local
 
-    if (model%isostasy%lithosphere == LITHOSPHERE_LOCAL) then
+    if (model%isostasy%lithosphere == LITHOSPHERE_METHOD_LOCAL) then
 
        load = load_factors
 
-    else if (model%isostasy%lithosphere == LITHOSPHERE_ELASTIC) then
+    else if (model%isostasy%lithosphere == LITHOSPHERE_METHOD_ELASTIC) then
 
        if (verbose_isostasy) then
           if (main_task) then
@@ -496,7 +496,7 @@ contains
        call point_diag(model%geometry%topg, 'topg before relaxation', itest, jtest, rtest, 7, 7)
     endif
 
-    if (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_CONST) then
+    if (model%isostasy%asthenosphere == ASTHENOSPHERE_METHOD_RELAXING) then
 
        ft1 = exp(-model%numerics%dt/model%isostasy%tau_relax_const)
        ft2 = 1.d0 - ft1
@@ -511,7 +511,7 @@ contains
           write(iulog,*) 'tau_relax_const (yr)', model%isostasy%tau_relax_const/scyr
        endif
 
-    elseif (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_LATVAR) then
+    elseif (model%isostasy%asthenosphere == ASTHENOSPHERE_METHOD_RELAXING_LATVAR) then
 
        do j = 1, model%general%nsn
           do i = 1, model%general%ewn

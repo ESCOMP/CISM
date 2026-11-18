@@ -196,11 +196,11 @@ contains
 
   select case(whichbabc)
 
-    case(HO_BABC_BETA_CONSTANT)   ! spatially uniform beta value; useful for debugging and test cases
+    case(SLIDING_LAW_BETA_CONSTANT)   ! spatially uniform beta value; useful for debugging and test cases
 
           beta(:,:) = basal_physics%ho_beta_const  ! Pa yr/m
 
-    case(HO_BABC_BETA_BPMP)  ! large value for frozen bed, lower value for bed at pressure melting point
+    case(SLIDING_LAW_BETA_BPMP)  ! large value for frozen bed, lower value for bed at pressure melting point
 
           where(basal_physics%bpmp_mask == 1)      ! bed is at pressure melting point
              beta(:,:) = basal_physics%ho_beta_small    ! Pa yr/m
@@ -208,7 +208,7 @@ contains
              beta(:,:) = basal_physics%ho_beta_large    ! Pa yr/m
           endwhere
 
-    case(HO_BABC_PSEUDO_PLASTIC)  ! pseudo-plastic sliding law using the new coulomb_c options
+    case(SLIDING_LAW_PSEUDO_PLASTIC)  ! pseudo-plastic sliding law using the new coulomb_c options
 
        ! Pseudo-plastic sliding law from PISM:
        !
@@ -242,7 +242,7 @@ contains
           enddo   ! ew
        enddo   ! ns
 
-    case(HO_BABC_PSEUDO_PLASTIC_OLD)  ! older method, retained for backward compatibility
+    case(SLIDING_LAW_PSEUDO_PLASTIC_OLD)  ! older method, retained for backward compatibility
                                       ! TODO: Remove the old method when no longer the CESM default
 
        q  = basal_physics%pseudo_plastic_q
@@ -286,7 +286,7 @@ contains
           enddo   ! ew
        enddo   ! ns
 
-    case(HO_BABC_YIELD_PICARD)  ! take input value for till yield stress and force beta to be implemented such
+    case(SLIDING_LAW_YIELD_PICARD)  ! take input value for till yield stress and force beta to be implemented such
                                 ! that plastic-till sliding behavior is enforced (see additional notes in documentation).
 
       !!! NOTE: Eventually, this option could provide the till yield stress as calculate from the basal processes submodel.
@@ -299,14 +299,14 @@ contains
       !!! since beta is updated here, communicate that info to halos
       call staggered_parallel_halo(beta, parallel)
 
-    case(HO_BABC_BETA_LARGE)      ! frozen (u=v=0) ice-bed interface
+    case(SLIDING_LAW_NO_SLIP)      ! frozen (u=v=0) ice-bed interface
 
        !Note: This option is redundant in that it could be implemented using HO_BETA_CONST
        !      But keeping it for historical reasons since many config files use it
 
        beta(:,:) = basal_physics%ho_beta_large      ! Pa yr/m  (= 1.0d10 by default)
 
-    case(HO_BABC_ZOET_IVERSON)
+    case(SLIDING_LAW_ZOET_IVERSON)
 
        ! Use the sliding law proposed by Zoet & Iverson (2020):
        !     tau_b = N * C_c * [u_b/(u_b + u_t)]^(1/m), Eq. 3 in ZI(2020)
@@ -337,7 +337,7 @@ contains
           enddo
        enddo
 
-    case(HO_BABC_ISHOMC)          ! prescribe according to ISMIP-HOM test C
+    case(SLIDING_LAW_ISMIP_HOM_C)          ! prescribe according to ISMIP-HOM test C
 
        !TODO: Carry out this operation at initialization, before calling calcbeta?
        !Note: Ideally, beta would be read in from an external netCDF file.
@@ -393,7 +393,7 @@ contains
       ! beta_extend is no longer needed (beta_global is deallocated in scatter_var)
       deallocate(beta_extend)
 
-    case(HO_BABC_BETA_EXTERNAL)   ! use beta value from external file
+    case(SLIDING_LAW_BETA_FILE)   ! use beta value from external file
 
        ! set beta to the prescribed external value
        ! Note: This assumes that beta_external has units of Pa yr/m on input.
@@ -409,7 +409,7 @@ contains
           call write_log('Invalid value for beta. See log file for details.', GM_FATAL)
        end if
 
-    case(HO_BABC_POWERLAW)   ! a simple power law
+    case(SLIDING_LAW_POWERLAW)   ! a simple power law
        !   Assume taub = C * ub^(1/m)
        ! implying beta = C * ub^(1/m - 1) 
        ! m should be a positive exponent
@@ -429,7 +429,7 @@ contains
           enddo
        enddo
 
-    case(HO_BABC_POWERLAW_EFFECPRESS)   ! a power law that uses effective pressure
+    case(SLIDING_LAW_POWERLAW_EFFECPRESS)   ! a power law that uses effective pressure
        !TODO - Change to HO_BABC_BUDD? This is basically a Budd law.
        ! See Cuffey & Paterson, Physics of Glaciers, 4th Ed. (2010), p. 240, eq. 7.17
        ! This is based on Weertman's classic sliding relation (1957),
@@ -450,7 +450,7 @@ contains
             * basal_physics%effecpress_stag(:,:)**(powerlaw_q/powerlaw_p) &
             * speed(:,:)**(1.0d0/powerlaw_p - 1.0d0)
 
-    case(HO_BABC_COULOMB_FRICTION)
+    case(SLIDING_LAW_COULOMB)
 
       ! Note: This option is similar to the Schoof option below, but it is kept because the MISMIP3d test
       !       (tests/MISMIP3d) uses it, following the setup of Leguy et al.
@@ -486,7 +486,7 @@ contains
           beta(:,:) = beta(:,:) * basal_physics%c_space_factor_stag(:,:)
        endif
 
-    case(HO_BABC_SCHOOF)
+    case(SLIDING_LAW_SCHOOF)
 
        ! Use the basal friction formulation of Schoof (2005), formulated following Asay-Davis et al. (2016).
        ! See Eq. 6.2 in Schoof and Eq. 11 is Asay-Davis et al.
@@ -545,7 +545,7 @@ contains
           beta(:,:) = beta(:,:) * basal_physics%c_space_factor_stag(:,:)
        endif
 
-    case(HO_BABC_TSAI)
+    case(SLIDING_LAW_TSAI)
 
        ! Basal stress representation based on Tsai et al. (2015)
        ! The basal stress is the minimum of two values:
@@ -593,7 +593,7 @@ contains
    do ns = 1, nsn-1
       do ew = 1, ewn-1
 
-         if (which_ho_beta_limit == HO_BETA_LIMIT_ABSOLUTE) then  ! absolute limit based on beta_grounded_min
+         if (which_ho_beta_limit == BETA_LIMIT_METHOD_ABSOLUTE) then  ! absolute limit based on beta_grounded_min
 
             ! multiplication by f_ground before limiting
 
@@ -603,7 +603,7 @@ contains
                beta(ew,ns) = basal_physics%beta_grounded_min
             endif
 
-         elseif (which_ho_beta_limit == HO_BETA_LIMIT_FLOATING_FRAC) then  ! weighted by f_ground after limiting
+         elseif (which_ho_beta_limit == BETA_LIMIT_METHOD_FGROUND_SCALED) then  ! weighted by f_ground after limiting
 
             ! multiplication by f_ground after limiting
 
@@ -719,7 +719,7 @@ contains
          uvel, vvel          ! ice velocity (m/s)
 
     real(dp), dimension(:,:), intent(in), optional ::  &
-         delta_bpmp          ! Tpmp - T at the bed (K), used for HO_EFFECPRESS_BPMP option
+         delta_bpmp          ! Tpmp - T at the bed (K), used for EFFECPRESS_METHOD_BPMP option
 
     real(dp), intent(in), optional :: dt                     ! time step (yr)
 
@@ -771,7 +771,7 @@ contains
 
     select case(which_effecpress)
 
-    case(HO_EFFECPRESS_OVERBURDEN)
+    case(EFFECPRESS_METHOD_OVERBURDEN)
 
        ! do nothing; already initialized to overburden
 
@@ -779,7 +779,7 @@ contains
        !       However, the basal friction coefficient (beta) will equal zero for floating ice
        !        since it is weighted by the grounded ice fraction.
 
-    case(HO_EFFECPRESS_BPMP)
+    case(EFFECPRESS_METHOD_BPMP)
 
        if (present(delta_bpmp)) then
 
@@ -801,7 +801,7 @@ contains
 
        endif   ! present(delta_bpmp)
 
-    case(HO_EFFECPRESS_BWAT)
+    case(EFFECPRESS_METHOD_BWAT)
 
        ! Reduce N where basal water is present.
        ! This option uses the field bwat_diag, computed in the steady-state flux-routing model.
@@ -834,7 +834,7 @@ contains
           enddo
        enddo
 
-    case(HO_EFFECPRESS_CAVITY_SHEET)
+    case(EFFECPRESS_METHOD_CAVITY_SHEET)
 
        ! Solve the steady-state equation v_o + V_o = v_c, i.e. opening = closing,
        ! where v_o = u_b * max(bump_height - bwat, 0) / bump_wavelength is the term for opening due to sliding,
@@ -881,12 +881,12 @@ contains
           where (ice_mask == 1)
              opening_melt(:,:) = bmlt_ground(:,:)
           endwhere
-       elseif (basal_hydro%cavity_open_melt == CAVITY_OPEN_MELT_DISSIP) then
+       elseif (basal_hydro%cavity_open_melt == CAVITY_OPEN_MELT_DISSIPATION) then
           ! Note: bwatflx has units of m/s; qflx (which appears in this equation) has units of m^2/s
           where (ice_mask == 1)
              opening_melt(:,:) = basal_hydro%bwatflx(:,:)*sqrt(dew*dns) * rhow*grav*basal_hydro%grad_head(:,:)/(rhoi*lhci)
           endwhere
-       elseif (basal_hydro%cavity_open_melt == CAVITY_OPEN_MELT_BMLT_DISSIP) then
+       elseif (basal_hydro%cavity_open_melt == CAVITY_OPEN_MELT_BMLT_DISSIPATION) then
           where (ice_mask == 1)
              opening_melt(:,:) = bmlt_ground(:,:) &
                   + basal_hydro%bwatflx(:,:)*sqrt(dew*dns) * rhow*grav*basal_hydro%grad_head(:,:) / (rhoi*lhci)
@@ -925,7 +925,7 @@ contains
        call point_diag(opening_melt*scyr, 'opening_melt (m/yr)', itest, jtest, rtest, 7, 7)
        call point_diag(closing*scyr, 'closing (m/yr)', itest, jtest, rtest, 7, 7)
 
-    case(HO_EFFECPRESS_BWAT_BVP)
+    case(EFFECPRESS_METHOD_BWAT_BVP)
 
        ! Reduce N where basal water is present, following Bueler % van Pelt (2015).
        ! N decreases from overburden P_0 for bwat = 0 to a small value for bwat = bwat_till_max.

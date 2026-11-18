@@ -344,9 +344,9 @@
     velo_ew_ubound = ewn-uhalo
 
     ! Set the minimum ice thickness for including cells in diagnostics
-    if (model%options%diag_minthck == DIAG_MINTHCK_ZERO) then
+    if (model%options%diag_minthck == DIAG_ICE_THRESHOLD_ZERO) then
        minthck = eps  ! slightly > 0
-    elseif (model%options%diag_minthck == DIAG_MINTHCK_THKLIM) then
+    elseif (model%options%diag_minthck == DIAG_ICE_THRESHOLD_THCKLIM) then
        ! Note: If the user specifies model%numerics%thklim = 1.0 m in the config file,
        !       then thklim is reset at initialization to a number slightly less than 1.0.
        !       This protects the diagnostics below against rounding errors for cells
@@ -675,7 +675,7 @@
                                    tot_volume*1.0d-9         ! convert to km^3
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    if (model%options%dm_dt_diag == DM_DT_DIAG_KG_S) then
+    if (model%options%dm_dt_diag == DM_DT_DIAG_KG_PER_S) then
 
        write(message,'(a25,e24.16)') 'Total ice mass (kg)      ',   &
                                       tot_mass                  ! kg
@@ -689,7 +689,7 @@
                                       tot_energy                ! J
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_Y) then
+    elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_PER_YR) then
 
        write(message,'(a25,e24.16)') 'Total ice mass (Gt)      ',   &
                                       tot_mass * 1.0d-12        ! Gt
@@ -714,7 +714,7 @@
        call write_log(trim(message), type = GM_DIAGNOSTIC)
     endif
 
-    if (model%options%dm_dt_diag == DM_DT_DIAG_KG_S) then
+    if (model%options%dm_dt_diag == DM_DT_DIAG_KG_PER_S) then
 
        write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
        call write_log(trim(message), type = GM_DIAGNOSTIC)
@@ -763,7 +763,7 @@
        write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_Y) then
+    elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_PER_YR) then
 
        factor = scyr / 1.0d12
 
@@ -1121,14 +1121,14 @@
           usrf_diag = model%geometry%usrf(i,j)
           thck_diag = model%geometry%thck(i,j)
           topg_diag = model%geometry%topg(i,j)
-          if (model%options%isostasy == ISOSTASY_COMPUTE) then
+          if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
              relx_diag = model%isostasy%relx(i,j)
              load_diag = model%isostasy%load(i,j)
           endif
           artm_diag = model%climate%artm_corrected(i,j)  ! artm_corrected = artm + artm_anomaly
           acab_diag = model%climate%acab_applied(i,j) * scyr
           bmlt_diag = model%basal_melt%bmlt_applied(i,j) * scyr
-          if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+          if (model%options%which_ho_bwat == BWAT_METHOD_FLUX_ROUTING) then
              bwat_diag = model%basal_hydro%bwat_diag(i,j)
           else
              bwat_diag = model%basal_hydro%bwat(i,j)
@@ -1141,14 +1141,14 @@
           temp_diag(:) = model%temper%temp(1:upn,i,j)          
           spd_diag(:) = sqrt(model%velocity%uvel(1:upn,i,j)**2   &
                            + model%velocity%vvel(1:upn,i,j)**2) * scyr
-          if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) &
+          if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) &
                age_diag(:) = model%geometry%ice_age(:,i,j)/scyr
        endif
 
        usrf_diag = parallel_reduce_max(usrf_diag)
        thck_diag = parallel_reduce_max(thck_diag)
        topg_diag = parallel_reduce_max(topg_diag)
-       if (model%options%isostasy == ISOSTASY_COMPUTE) then
+       if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
           relx_diag = parallel_reduce_max(relx_diag)
           load_diag = parallel_reduce_max(load_diag)
        endif
@@ -1190,7 +1190,7 @@
        write(message,'(a25,f24.16)') 'Bedrock topo (m)         ', topg_diag
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       if (model%options%isostasy == ISOSTASY_COMPUTE) then
+       if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
           write(message,'(a25,f24.16)') 'Relaxed bedrock (m)   ', relx_diag
           call write_log(trim(message), type = GM_DIAGNOSTIC)
           write(message,'(a25,f24.16)') 'Load deflection (m)   ', load_diag
@@ -1231,7 +1231,7 @@
           endif
 
           ! temp (and optionally age) at layer midpoint
-          if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+          if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
              write (message,'(f6.3,24x,f24.16,f18.6)') model%numerics%stagsigma(k), temp_diag(k), age_diag(k)
              call write_log(trim(message), type = GM_DIAGNOSTIC)
           else
@@ -1325,7 +1325,7 @@
             tot_glc_volume_init_extent / 1.0d9
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
 
           ! diagnostics related to thickness inversion
 
@@ -1468,7 +1468,7 @@
     ! surface mass balance in units of mm/yr w.e.
     ! (model%climate%acab has units of m/s of ice)
     ! Note: This is not necessary (and can break exact restart) if the SMB was already input in units of mm/yr
-    if (model%options%smb_input /= SMB_INPUT_MMYR_WE) then
+    if (model%options%smb_input /= SMB_INPUT_UNITS_MM_WE_PER_YR) then
        model%climate%smb(:,:) = (model%climate%acab(:,:) * scyr) * (1000.d0 * rhoi/rhow)
     endif
 
@@ -1478,7 +1478,7 @@
     ! Note: Both calving_thck and bmlt_applied have dimensionless model units;
     !       calving_thck = calving thickness per timestep, while bmlt_applied = melt per unit time
 
-    if (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) then
+    if (model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask) then
        where (model%calving%calving_front_mask == 1)
           model%calving%calving_thck = model%calving%calving_thck + model%basal_melt%bmlt_applied * model%numerics%dt
           model%basal_melt%bmlt_applied = 0.0d0
@@ -1989,8 +1989,8 @@
          model%calving%effective_areafrac)
 
     ! Compute the diagnostics for the chosen domain (circular or Thule)
-    if (model%options%which_ho_calvingmip_domain == HO_CALVINGMIP_DOMAIN_CIRCULAR .and. &
-        model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+    if (model%options%which_ho_calvingmip_domain == CALVINGMIP_DOMAIN_CIRCULAR .and. &
+        model%options%whichcalving == CALVING_LAW_ADVANCE_RETREAT_RATE) then
 
        call locate_calving_front_circular(&
             nx,             ny,                &
@@ -2011,8 +2011,8 @@
             model%calving%cf_uvel,             &  ! m/s
             model%calving%cf_vvel)
 
-    elseif (model%options%which_ho_calvingmip_domain == HO_CALVINGMIP_DOMAIN_THULE .and. &
-            model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+    elseif (model%options%which_ho_calvingmip_domain == CALVINGMIP_DOMAIN_THULE .and. &
+            model%options%whichcalving == CALVING_LAW_ADVANCE_RETREAT_RATE) then
 
        call locate_calving_front_thule(&
             nx,             ny,                &

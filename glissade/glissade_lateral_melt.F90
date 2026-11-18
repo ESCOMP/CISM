@@ -157,7 +157,7 @@ contains
        call point_diag(mf_length, 'mf_length (m)', itest, jtest, rtest, 7, 7)
     endif
 
-    if (model%options%which_lateral_melt == LATERAL_MELT_CONSTANT) then
+    if (model%options%which_lateral_melt == LATERAL_MELT_METHOD_CONSTANT) then
 
        call constant_lateral_melt(&
             nx,                   ny,              &
@@ -176,7 +176,7 @@ contains
                lateral_melt%melt_rate_const
        endif
 
-    elseif (model%options%which_lateral_melt == LATERAL_MELT_ISMIP) then
+    elseif (model%options%which_lateral_melt == LATERAL_MELT_METHOD_ISMIP) then
 
        if (lateral_melt%runoff_from_ablation) then
           ! compute from the negative portion of acab
@@ -251,10 +251,10 @@ contains
     call parallel_halo(lateral_melt%latmelt_thck, parallel)
 
     ! Melting may have brought some cells to flotation
-    ! In the case CALVING_FLOAT_ZERO (which is the usual case when using a lateral melt parameterization),
+    ! In the case CALVING_LAW_FLOAT_ZERO (which is the usual case when using a lateral melt parameterization),
     !  remove floating ice so that none exists at the end of the timestep.
 
-    if (model%options%whichcalving == CALVING_FLOAT_ZERO) then
+    if (model%options%whichcalving == CALVING_LAW_FLOAT_ZERO) then
 
        call calve_ice_basic(&
             nx,             ny,             &
@@ -270,7 +270,7 @@ contains
             model%geometry%topg,            &  ! m
             model%climate%eus)                 ! m
 
-    endif  ! CALVING_FLOAT_ZERO
+    endif  ! CALVING_LAW_FLOAT_ZERO
 
     if (verbose_latmelt) then
        call point_diag(model%geometry%thck, 'New thck (m)', itest, jtest, rtest, 7, 7)

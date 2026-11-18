@@ -154,8 +154,8 @@ contains
     ! Set up coordinate systems, and change the parallel values of ewn and nsn.
     ! With no_ice BCs, scalars adjacent to the global boundary (including halos) are set to zero.
 
-    if (model%options%compute_blocks == ACTIVE_BLOCKS_ONLY .or.   &
-        model%options%compute_blocks == ACTIVE_BLOCKS_INQUIRE) then
+    if (model%options%compute_blocks == COMPUTE_BLOCKS_ACTIVE_ONLY .or.   &
+        model%options%compute_blocks == COMPUTE_BLOCKS_INQUIRE) then
 
        ! Allocate memory for a global array, ice_domain_mask, on main_task.
 
@@ -178,7 +178,7 @@ contains
        call glimmer_nc_get_var(infile, 'ice_domain_mask', &
                                model%general%ice_domain_mask)
 
-       if (model%options%compute_blocks == ACTIVE_BLOCKS_INQUIRE) then
+       if (model%options%compute_blocks == COMPUTE_BLOCKS_INQUIRE) then
 
           ! The subroutine will report how many tasks are needed to compute on all active blocks, and then abort.
           ! The user can then resubmit (on an optimal number of processors) with model%options%compute_blocks = ACTIVE_BLOCKS.
@@ -190,7 +190,7 @@ contains
                model%parallel,                                 &
                inquire_only = .true.)
 
-       else  ! compute_blocks = ACTIVE_BLOCKS_ONLY
+       else  ! compute_blocks = COMPUTE_BLOCKS_ACTIVE_ONLY
 
           ! Set up a distributed grid with computations on active blocks only.
           ! An active block contains one or more cells with ice_domain_mask = 1.
@@ -251,7 +251,7 @@ contains
 
     endif
 
-    if (model%options%which_ho_precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+    if (model%options%which_ho_precond == PRECONDITIONER_TRIDIAG_GLOBAL) then
 
        ! Set up row-based and column-based communicators (in addition to mpi_comm_world).
        ! These communicators are used to solve tridiagonal matrix problems in parallel along global rows and columns.
@@ -264,7 +264,7 @@ contains
           call parallel_test_comm_row_col(model%parallel)
        endif
 
-    endif  ! HO_PRECOND_TRIDIAG_GLOBAL
+    endif  ! PRECONDITIONER_TRIDIAG_GLOBAL
 
     ! Now that model%parallel has been set, copy to 'parallel' to save typing below
     parallel = model%parallel
@@ -414,7 +414,7 @@ contains
     ! Note: Optionally, can pass a user-specified fill value and replacement value,
     !        and return a mask of grid cells where values are replaced.
 
-    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+    if (model%options%smb_input == SMB_INPUT_UNITS_MM_WE_PER_YR) then
        if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
           call check_fill_values(model%climate%smb_3d)
           call check_fill_values(model%climate%artm_3d)
@@ -425,7 +425,7 @@ contains
        call check_fill_values(model%climate%acab)
     endif
 
-    if (model%options%gthf == GTHF_PRESCRIBED_2D) then
+    if (model%options%gthf == GEOTHERMAL_METHOD_FILE) then
        call check_fill_values(model%temper%bheatflx)
        !TODO - Pass in model%paramets%geot as the replacement value?
     endif
@@ -455,7 +455,7 @@ contains
        endif
     endif
 
-    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or.  &
+    if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_DTHCK_DT .or.  &
         model%options%enable_acab_dthck_dt_correction) then
        call check_fill_values(model%geometry%dthck_dt_obs, scale_factor_in = scyr)
        if (verbose_bmlt_float .and. this_rank == rtest) then
@@ -559,19 +559,19 @@ contains
     ! If no bheatflx field is present in the input file, then we default to the
     !  prescribed uniform value, model%paramets%geot.
 
-    if (model%options%gthf == GTHF_UNIFORM) then
+    if (model%options%gthf == GEOTHERMAL_METHOD_UNIFORM) then
 
        ! Check to see if this flux was present in the input file
        ! (by checking whether the flux is nonuniform over the domain)
        if (abs(maxval(model%temper%bheatflx) - minval(model%temper%bheatflx)) > 1.d-6) then
           call write_log('Setting uniform prescribed geothermal flux')
-          call write_log('(Set geothermal_method = 1 to read geothermal flux field from input file)')
+          call write_log('(Set geothermal_method = file to read geothermal flux field from input file)')
        endif
 
        ! set uniform basal heat flux (positive down)
        model%temper%bheatflx = model%paramets%geot
 
-    elseif (model%options%gthf == GTHF_PRESCRIBED_2D) then
+    elseif (model%options%gthf == GEOTHERMAL_METHOD_FILE) then
 
        ! Make sure the input basal heat flux follows the positive-down sign convention.
        local_maxval = maxval(model%temper%bheatflx)
@@ -597,7 +597,7 @@ contains
     call parallel_halo(model%climate%artm,  parallel)
     call parallel_halo(model%temper%temp,   parallel)
     call parallel_halo(model%temper%tempunstag, parallel)
-    if (model%options%whichtemp == TEMP_ENTHALPY) &
+    if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) &
          call parallel_halo(model%temper%waterfrac, parallel)
 
     ! Note: For outflow BCs, most fields (thck, usrf, temp, etc.) are set to zero in the global halo,
@@ -756,7 +756,7 @@ contains
     !  subroutine calcbeta instead of interpolating from unstagbeta (one processor only).
 
     if (maxval(model%velocity%unstagbeta) > 0.d0 .and.   &
-               model%options%which_ho_babc /= HO_BABC_ISHOMC) then  ! interpolate to staggered grid
+               model%options%which_ho_babc /= SLIDING_LAW_ISMIP_HOM_C) then  ! interpolate to staggered grid
        call write_log('Interpolating beta from unstaggered (unstagbeta) to staggered grid (beta)')
        if (maxval(model%velocity%beta) > 0.0d0 ) then
           call write_log('Warning: the input "beta" field will be overwritten with values interpolated from the input &
@@ -857,7 +857,7 @@ contains
     !       Note: The calving solve includes removal of icebergs and isthmuses.
 
     if (l_evolve_ice .and. &
-         model%options%calving_init == CALVING_INIT_ON .and. &
+         model%options%calving_init == CALVE_AT_STARTUP_TRUE .and. &
          model%options%is_restart == NO_RESTART) then
 
        call glissade_calving_solve(model, .true.)   ! init_calving = .true.
@@ -874,7 +874,7 @@ contains
     ! Note: If inverting for coulomb_c, then coulomb_c is initialized here.
     !       On restart, the saved coulomb_c is read from the restart file and is not reset here.
 
-    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT) then
+    if (model%options%which_ho_coulomb_c == COULOMB_C_METHOD_CONSTANT) then
 
        model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
 
@@ -914,18 +914,18 @@ contains
 
     ! Note: When running with glaciers, there is an independent glacier option,
     !        set_powerlaw_c, that controls glacier inversion.
-    !       We can have model%options%which_ho_powerlaw_c = HO_POWERLAW_C_CONSTANT,
-    !        while model%glacier%set_powerlaw_c = GLACIER_POWERLAW_C_INVERSION.
+    !       We can have model%options%which_ho_powerlaw_c = POWERLAW_C_METHOD_CONSTANT,
+    !        while model%glacier%set_powerlaw_c = GLACIER_POWERLAW_C_METHOD_INVERSION.
     !       In that case, we do *not* want to reset powerlaw_c.
     !TODO:  Have a single option that is applied with or without glaciers enabled?
 
-    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_FUNCTION_COULOMB_C) then
+    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_FROM_COULOMB_C) then
        model%basal_physics%powerlaw_c = model%basal_physics%schoof_gamma * &
             model%basal_physics%coulomb_c**model%basal_physics%schoof_p
-    elseif (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT .or. &
+    elseif (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_CONSTANT .or. &
         parallel_is_zero(model%basal_physics%powerlaw_c)) then
        if (model%options%enable_glaciers .and. &
-            model%glacier%set_powerlaw_c /= GLACIER_POWERLAW_C_CONSTANT) then
+            model%glacier%set_powerlaw_c /= GLACIER_POWERLAW_C_METHOD_CONSTANT) then
           ! do nothing; see note above
        else
           model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_const
@@ -936,12 +936,12 @@ contains
     ! At the start of the run (but not on restart), this might lead to further thickness adjustments,
     !  so it should be called before computing the calving mask.
 
-    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION       .or.  &
-        model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or.  &
-        model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION        .or.  &
-        model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION_BASIN  .or.  &
-        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION       .or.  &
-        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
+    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION       .or.  &
+        model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or.  &
+        model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION        .or.  &
+        model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION_BASIN  .or.  &
+        model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION       .or.  &
+        model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
 
        call glissade_inversion_init(model)
 
@@ -949,7 +949,7 @@ contains
 
     ! If using dthck_dt_obs, make sure it was read in
 
-    if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT .or. &
+    if (model%options%which_ho_deltat_ocn == DELTAT_OCN_METHOD_DTHCK_DT .or. &
         model%options%enable_acab_dthck_dt_correction) then
        if (parallel_is_zero(model%geometry%dthck_dt_obs)) then
           call write_log ('Error: Trying to match dthck_dt, but dthck_dt_obs = 0', GM_FATAL)
@@ -996,11 +996,11 @@ contains
     !       we typically would not want to invert for deltaT_ocn beyond the observed calving front, because the
     !       inversion could override the effects (or lack thereof) of the calving scheme.
 
-    if ( (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask .or. &
-          model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) &
+    if ( (model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask .or. &
+          model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION) &
        .and. model%options%is_restart == NO_RESTART ) then
 
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+       if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
 
           ! Initialize an integer calving_mask.
           ! Note: This is done after initial calving, which may include iceberg removal.
@@ -1073,7 +1073,7 @@ contains
     ! Optionally, set deltaT_ocn (either local or basin scale) to optimize agreement with observed melt rates
     ! Note: Need the current value of lsrf when calling this subroutine
 
-    if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+    if (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
 
        call glissade_bmlt_float_init(model, model%ocean_data)
 
@@ -1147,7 +1147,7 @@ contains
     ! Note: Internally, the age has the same units as dt, but on output is converted to years.
     ! ------------------------------------------------------------------------
 
-    if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+    if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
        do j = 1, model%general%nsn
           do i = 1, model%general%ewn
              if (model%geometry%thck(i,j) > 0.0d0) then
@@ -1242,7 +1242,7 @@ contains
     ! Calculate lateral melting
     ! ------------------------------------------------------------------------
 
-    if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
+    if (model%options%which_lateral_melt /= LATERAL_MELT_METHOD_NONE) then
        call glissade_lateral_melt_solve(model, model%lateral_melt)
     endif
 
@@ -1377,7 +1377,7 @@ contains
 
     !TODO - Move the following calls to a new basal hydrology solver?
 
-    if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+    if (model%options%which_ho_bwat == BWAT_METHOD_FLUX_ROUTING) then
 
        !WHL - Temporary code for debugging: Make up a simple basal melt field.
 !       model%basal_hydro%head(:,:) = &
@@ -1554,7 +1554,7 @@ contains
     integer :: nsubcyc              ! number of times to subcycle advection
 
     logical :: do_upwind_transport  ! logical for whether transport code should do upwind transport or incremental remapping
-                                    ! set to true for EVOL_UPWIND, else = false
+                                    ! set to true for ADVECTION_METHOD_UPWIND, else = false
 
     integer :: i, j, k
     integer :: ewn, nsn, upn
@@ -1587,9 +1587,9 @@ contains
     ! TODO - Remove the case logic
     select case(model%options%whichevol)
 
-    case(EVOL_INC_REMAP, EVOL_UPWIND, EVOL_NO_THICKNESS) 
+    case(ADVECTION_METHOD_REMAP, ADVECTION_METHOD_UPWIND, ADVECTION_METHOD_FIXED_THICKNESS) 
 
-       if (model%options%whichevol == EVOL_UPWIND) then
+       if (model%options%whichevol == ADVECTION_METHOD_UPWIND) then
           do_upwind_transport = .true.
        else
           do_upwind_transport = .false.
@@ -1627,7 +1627,7 @@ contains
        !       This prevents a positive SMB in ocean cells that have H = 0 before transport.
        ! ------------------------------------------------------------------------
 
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+       if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
           ! Pass the default value
           this_thklim = model%numerics%thklim
        else
@@ -1687,7 +1687,7 @@ contains
        !       from flowing beyond the CF in the first place. However, this will require
        !       some major changes in the incremental remapping transport scheme.
 
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_TRUE) then
 
           !TODO - Move the following to a subroutine in the calving module?
           ! First assume all cells are beyond the CF, then identify exceptions.
@@ -1734,7 +1734,7 @@ contains
        ! For the enthalpy option, derive enthalpy from temperature and waterfrac.
        ! Must transport enthalpy rather than temperature/waterfrac to conserve energy.
 
-       if (model%options%whichtemp == TEMP_ENTHALPY) then  ! Use IR to transport enthalpy
+       if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then  ! Use IR to transport enthalpy
           ! Note: glissade_temp2enth expects SI units
           do j = 1, nsn
              do i = 1, ewn
@@ -1743,9 +1743,9 @@ contains
                                          model%geometry%thck(i,j),         model%temper%enthalpy(0:upn,i,j))
              enddo
           enddo
-       endif    ! TEMP_ENTHALPY
+       endif    ! TEMPERATURE_METHOD_ENTHALPY
 
-       if (verbose_calving .and. model%options%whichcalving == CALVING_DAMAGE) then
+       if (verbose_calving .and. model%options%whichcalving == CALVING_LAW_DAMAGE) then
           call point_diag(model%calving%damage(1,:,:), 'Before tracer transport, damage layer 1:', &
                itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
@@ -1770,7 +1770,7 @@ contains
 
        ! --- Determine CFL limits ---
        ! Note: We are using the subcycled dt here (if subcycling is on).
-       !  (See note above about the EVOL_NO_THICKNESS option and how it is affected by a CFL violation)
+       !  (See note above about the ADVECTION_METHOD_FIXED_THICKNESS option and how it is affected by a CFL violation)
        !  stagthck, dusrfdew/ns and u/vvel need to be from the previous time step (and are at this point)
        ! Note: If using adaptive subcycling (with adaptive_cfl_threshold > 0), then dt_transport should
        !       be equal to dt (which is the case by default).
@@ -1905,14 +1905,14 @@ contains
        ! copy tracers (temp/enthalpy, etc.) from model%geometry%tracers back to standard arrays
        call glissade_transport_finish_tracers(model)
 
-       if (verbose_calving .and. model%options%whichcalving == CALVING_DAMAGE) then
+       if (verbose_calving .and. model%options%whichcalving == CALVING_LAW_DAMAGE) then
           call point_diag(model%calving%damage(1,:,:), 'After tracer transport, damage layer 1:', &
                itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
 
        ! For the enthalpy option, convert enthalpy back to temperature/waterfrac.
 
-       if (model%options%whichtemp == TEMP_ENTHALPY) then
+       if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
 
           ! Note: glissade_enth2temp expects SI units
           do j = 1, nsn
@@ -1923,7 +1923,7 @@ contains
              enddo
           enddo
          
-       endif    ! TEMP_ENTHALPY
+       endif    ! TEMPERATURE_METHOD_ENTHALPY
 
        if (verbose_glissade) then
           call point_diag(model%geometry%thck, 'After glissade_transport_driver, thck', &
@@ -1937,7 +1937,7 @@ contains
 
        call t_stopf('inc_remap_driver')
 
-       if (model%options%whichevol == EVOL_NO_THICKNESS) then
+       if (model%options%whichevol == ADVECTION_METHOD_FIXED_THICKNESS) then
           ! restore old thickness
           model%geometry%thck(:,:) = model%geometry%thck_old(:,:)
        endif
@@ -2094,7 +2094,7 @@ contains
     ! Update some masks that are used for subsequent calculations
     ! ------------------------------------------------------------------------
 
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+    if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
        this_thklim = model%numerics%thklim
     else
        this_thklim = eps11
@@ -2254,7 +2254,7 @@ contains
     !       so that it has the same vertical dimensions as flwa.
     ! (3) The flow enhancement factor can either be set to a constant (one value
     !     for grounded ice, another for floating ice) or specified as a 2D field.
-    ! (4) The waterfrac field is ignored unless whichtemp = TEMP_ENTHALPY.
+    ! (4) The waterfrac field is ignored unless whichtemp = TEMPERATURE_METHOD_ENTHALPY.
     ! (5) Inputs and outputs of subroutine glissade_flow_factor should have SI units.
     ! ------------------------------------------------------------------------
 
@@ -2329,7 +2329,7 @@ contains
        ! If these fields were input on the extended mesh, they need to be copied to the standard staggered mesh.
        ! Halo updates are then needed to make sure they have the correct values along the boundaries.
 
-       if (model%options%which_ho_approx == HO_APPROX_DIVA) then
+       if (model%options%which_ho_approx == STOKES_APPROX_DIVA) then
 
           if  ( (maxval(abs(model%velocity%uvel_2d_extend)) /= 0.0d0) .or. & 
                 (maxval(abs(model%velocity%vvel_2d_extend)) /= 0.0d0) ) then
@@ -2430,7 +2430,7 @@ contains
        endif
 
        !! extrapolate value of mintauf into halos to enforce periodic lateral bcs (only if field covers entire domain)
-       if (model%options%which_ho_babc == HO_BABC_YIELD_PICARD) then
+       if (model%options%which_ho_babc == SLIDING_LAW_YIELD_PICARD) then
           call staggered_parallel_halo_extrapolate(model%basal_physics%mintauf, parallel)
        endif
 
@@ -2446,7 +2446,7 @@ contains
 
        model%temper%dissip(:,:,:) = 0.d0
 
-       if (model%options%which_ho_disp == HO_DISP_SIA) then
+       if (model%options%which_ho_disp == DISSIPATION_METHOD_SIA) then
 
           ! Compute dissipation based on the shallow-ice approximation
 
@@ -2624,7 +2624,7 @@ contains
 
     ! Copy some additional 2D arrays to the extended grid if using the DIVA solver.
 
-    if (model%options%which_ho_approx == HO_APPROX_DIVA) then
+    if (model%options%which_ho_approx == STOKES_APPROX_DIVA) then
 
        model%velocity%uvel_2d_extend(:,:) = 0.d0
        model%velocity%vvel_2d_extend(:,:) = 0.d0
@@ -2654,7 +2654,7 @@ contains
     !       The copy would break exact restart, however, if beta is read from an external file.
     !        In that case, users must specify 'beta_internal' to see the weighted beta field.
 
-    if (model%options%which_ho_babc /= HO_BABC_BETA_EXTERNAL) then
+    if (model%options%which_ho_babc /= SLIDING_LAW_BETA_FILE) then
        model%velocity%beta(:,:) = model%velocity%beta_internal(:,:)
     endif
 
