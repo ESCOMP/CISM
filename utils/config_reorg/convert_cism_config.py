@@ -14,8 +14,9 @@ Usage:
     convert_cism_config.py FILE [FILE ...] --check      report what would change; exit 1 if anything would
     convert_cism_config.py --self-test                  run the built-in tests
 
-A file with no [section] lines is treated as a CESM user_nl_cism file, in which only key names change
-(the CESM namelist has no sections).  Use --user-nl to force this.
+A file with no [section] lines is treated as a CESM user_nl_cism file, in which key names are changed
+(USER_NL_RENAMES; the CESM namelist has no sections) and option values are converted as in config
+files, with names quoted ('diva').  Use --user-nl to force this.
 
 How a config file is converted:
   - Each key listed in MOVES is moved to its new section, under its new name, with its value and
@@ -33,10 +34,11 @@ How a config file is converted:
   - Integer values of the options in OPTION_VALUES are replaced by their names, and 0/1 values of the
     keys in LOGICAL_KEYS by .false./.true.  An inline comment is kept, unless it explains integer
     values ('# 0 = off, 1 = on'), which no longer fit.
-    An integer that is not a valid value is left as it is and reported (the model will stop on it).
+    An integer that is not a valid value is left as it is and reported (the model will stop on it);
+    for a removed value (REMOVED_VALUES, e.g. calving_law = 2) the report names the replacement.
   - Other keys are left where they are; the model warns about keys it does not read.
   - Converting a file that is already converted changes nothing.
-  - Glide configs ([options] dycore = 0) are left unchanged: the Glide config format is frozen.
+  - Glide configs ([options] dycore = 0 or glide) are left unchanged: the Glide config format is frozen.
 
 Only the standard library is used.
 """
