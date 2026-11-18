@@ -40,9 +40,6 @@ module glissade_types
   use cism_profile, only: profile_type
   use glimmer_coordinates, only: coordsystem_type
   use glimmer_map_types, only: glimmap_proj
-  use glimmer_sparse_type, only: &
-       HO_SPARSE_PCG_INCH, HO_SPARSE_BICG, HO_SPARSE_GMRES, &
-       HO_SPARSE_PCG_STANDARD, HO_SPARSE_PCG_CHRONGEAR
   use cism_parallel, only: parallel_type
   use glimmer_config, only: option_choice
 
@@ -197,13 +194,19 @@ module glissade_types
        option_choice(NONLINEAR_RESIDUAL_RELATIVE_L2NORM, 'relative_l2norm', 'relative L2 norm, |Ax-b|/|b|') ]
 
   ! [velocity_solver] linear_solver
-  ! The constants HO_SPARSE_* (glimmer_sparse_type) are shared with Glide and keep their names.
+  ! The SLAP solvers (one task only) are in libglimmer-solve; glissade_velo_higher_slap maps the
+  ! LINEAR_SOLVER_SLAP_* choices to that library's methods (SLAP_*).
+  integer, parameter :: LINEAR_SOLVER_SLAP_PCG = 0
+  integer, parameter :: LINEAR_SOLVER_SLAP_BICG = 1
+  integer, parameter :: LINEAR_SOLVER_SLAP_GMRES = 2
+  integer, parameter :: LINEAR_SOLVER_PCG = 3
+  integer, parameter :: LINEAR_SOLVER_PCG_CHRONGEAR = 4
   type(option_choice), dimension(5), parameter :: linear_solver_choices = [ &
-       option_choice(HO_SPARSE_PCG_INCH,      'slap_pcg',      'SLAP PCG with incomplete Cholesky preconditioner'), &
-       option_choice(HO_SPARSE_BICG,          'slap_bicg',     'SLAP BiCG with LU preconditioner'), &
-       option_choice(HO_SPARSE_GMRES,         'slap_gmres',    'SLAP GMRES with LU preconditioner'), &
-       option_choice(HO_SPARSE_PCG_STANDARD,  'pcg',           'native PCG solver, standard'), &
-       option_choice(HO_SPARSE_PCG_CHRONGEAR, 'pcg_chrongear', 'native PCG solver, Chronopoulos-Gear') ]
+       option_choice(LINEAR_SOLVER_SLAP_PCG,      'slap_pcg',      'SLAP PCG with incomplete Cholesky preconditioner'), &
+       option_choice(LINEAR_SOLVER_SLAP_BICG,     'slap_bicg',     'SLAP BiCG with LU preconditioner'), &
+       option_choice(LINEAR_SOLVER_SLAP_GMRES,    'slap_gmres',    'SLAP GMRES with LU preconditioner'), &
+       option_choice(LINEAR_SOLVER_PCG,           'pcg',           'native PCG solver, standard'), &
+       option_choice(LINEAR_SOLVER_PCG_CHRONGEAR, 'pcg_chrongear', 'native PCG solver, Chronopoulos-Gear') ]
 
   ! [velocity_solver] preconditioner
   integer, parameter :: PRECONDITIONER_NONE = 0
@@ -975,7 +978,7 @@ module glissade_types
     !> \item[relative_l2norm] L2 norm of system residual relative to rhs, |Ax-b|/|b|
     !> \end{description}
 
-    integer :: which_ho_sparse = HO_SPARSE_PCG_CHRONGEAR
+    integer :: which_ho_sparse = LINEAR_SOLVER_PCG_CHRONGEAR
     !> Flag that indicates method for solving the sparse linear system
     !> that arises from the higher-order solver
     !> \begin{description}

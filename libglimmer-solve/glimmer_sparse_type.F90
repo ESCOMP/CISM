@@ -33,12 +33,12 @@ module glimmer_sparse_type
   use glimmer_global, only:dp
   implicit none
 
-  ! sparse solver options (model%options%which_ho_sparse)
-  integer, parameter :: HO_SPARSE_PCG_INCH = -1
-  integer, parameter :: HO_SPARSE_BICG = 0
-  integer, parameter :: HO_SPARSE_GMRES = 1
-  integer, parameter :: HO_SPARSE_PCG_STANDARD = 2
-  integer, parameter :: HO_SPARSE_PCG_CHRONGEAR = 3
+  ! SLAP solver methods (the method argument of sparse_easy_solve).
+  ! Glide always uses the default (BiCG). Glissade maps its linear_solver option to these
+  ! (glissade_velo_higher_slap); its native parallel solvers do not use this library.
+  integer, parameter :: SLAP_PCG_INCH = -1   ! PCG with incomplete Cholesky preconditioner
+  integer, parameter :: SLAP_BICG = 0        ! biconjugate gradient with LU preconditioner
+  integer, parameter :: SLAP_GMRES = 1       ! GMRES with LU preconditioner
   
   ! sparse matrix type
   type sparse_matrix_type

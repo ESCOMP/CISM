@@ -1188,9 +1188,9 @@ contains
     ! Forbidden options for running in parallel
     ! Note: The local SIA solver does not use a sparse linear solver, so which_ho_sparse is ignored.
     if (tasks > 1 .and. model%options%which_ho_approx /= STOKES_APPROX_LOCAL_SIA .and.  &
-                        (model%options%which_ho_sparse==HO_SPARSE_BICG  .or.  &
-                         model%options%which_ho_sparse==HO_SPARSE_GMRES .or.  &
-                         model%options%which_ho_sparse==HO_SPARSE_PCG_INCH) ) then
+                        (model%options%which_ho_sparse==LINEAR_SOLVER_SLAP_BICG  .or.  &
+                         model%options%which_ho_sparse==LINEAR_SOLVER_SLAP_GMRES .or.  &
+                         model%options%which_ho_sparse==LINEAR_SOLVER_SLAP_PCG) ) then
        call write_log('Error, SLAP solver not supported for more than one processor', GM_FATAL)
     end if
 
@@ -1201,8 +1201,8 @@ contains
           model%options%which_ho_approx == STOKES_APPROX_DIVA .or.  &
           model%options%which_ho_approx == STOKES_APPROX_HYBRID)    &
                              .and.                            &
-          (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.    &
-           model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
+          (model%options%which_ho_sparse == LINEAR_SOLVER_PCG .or.    &
+           model%options%which_ho_sparse == LINEAR_SOLVER_PCG_CHRONGEAR) ) then
        if (model%options%which_ho_precond == PRECONDITIONER_SIA) then
           !TODO - Change default to tridiagonal if it turns out to be faster than diagonal
           model%options%which_ho_precond = PRECONDITIONER_DIAGONAL
@@ -1210,8 +1210,8 @@ contains
        endif
     endif
 
-    if ((model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.  &
-         model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
+    if ((model%options%which_ho_sparse == LINEAR_SOLVER_PCG .or.  &
+         model%options%which_ho_sparse == LINEAR_SOLVER_PCG_CHRONGEAR) ) then
        if (model%options%reproducible_sums) then
           if (model%options%which_ho_precond == PRECONDITIONER_TRIDIAG_LOCAL .or. &
               model%options%which_ho_precond == PRECONDITIONER_TRIDIAG_GLOBAL) then
@@ -1226,8 +1226,8 @@ contains
     call log_option('nonlinear_residual', model%options%which_ho_resid, nonlinear_residual_choices)
     call log_param('nonlinear_maxiters', model%options%glissade_maxiter)
     call log_option('linear_solver', model%options%which_ho_sparse, linear_solver_choices)
-    if ((model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.  &
-         model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
+    if ((model%options%which_ho_sparse == LINEAR_SOLVER_PCG .or.  &
+         model%options%which_ho_sparse == LINEAR_SOLVER_PCG_CHRONGEAR) ) then
        if (len_trim(note) > 0) then
           call log_option('preconditioner', model%options%which_ho_precond, preconditioner_choices, trim(note))
        else

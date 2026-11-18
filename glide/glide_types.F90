@@ -51,8 +51,7 @@ module glide_types
   use cism_profile, only: profile_type
   use glimmer_coordinates, only: coordsystem_type
   use glimmer_map_types, only: glimmap_proj
-  use glimmer_sparse_type, only: sparse_matrix_type, &
-       HO_SPARSE_PCG_INCH, HO_SPARSE_BICG, HO_SPARSE_GMRES
+  use glimmer_sparse_type, only: sparse_matrix_type
   use cism_parallel, only: parallel_type
 
   implicit none

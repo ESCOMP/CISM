@@ -71,7 +71,8 @@
     use glissade_velo_higher_slap, only:   &
          slap_preprocess_3d,   slap_preprocess_2d,   &
          slap_postprocess_3d,  slap_postprocess_2d,  &
-         slap_compute_residual_vector, slap_solve_test_matrix
+         slap_compute_residual_vector, slap_solve_test_matrix, &
+         is_slap_solver, slap_method
 
     use glissade_velo_higher_pcg, only:   &
          pcg_solver_standard_3d,   pcg_solver_standard_2d,  &
@@ -1306,7 +1307,7 @@
     endif
 
     if (test_matrix) then
-       if (whichsparse <= HO_SPARSE_GMRES) then   ! this test works for SLAP solver only
+       if (is_slap_solver(whichsparse)) then   ! this test works for SLAP solver only
           call slap_solve_test_matrix(test_order, whichsparse)
        else
           write(iulog,*) 'Invalid value for whichsparse with test_matrix subroutine'
@@ -1687,7 +1688,7 @@
     !  answer (x), and residual vector (Ax-b).
     !------------------------------------------------------------------------------
 
-    if (whichsparse <= HO_SPARSE_GMRES) then  ! using SLAP solver
+    if (is_slap_solver(whichsparse)) then  ! using SLAP solver
 
        if (solve_2d) then
           matrix_order = 2*nVerticesSolve
@@ -3046,8 +3047,8 @@
           L2_norm = 0.d0   ! to force convergence on first step
           L2_norm_relative = 0.d0
 
-       elseif (whichsparse == HO_SPARSE_PCG_STANDARD .or.   &
-               whichsparse == HO_SPARSE_PCG_CHRONGEAR) then   ! native PCG solver
+       elseif (whichsparse == LINEAR_SOLVER_PCG .or.   &
+               whichsparse == LINEAR_SOLVER_PCG_CHRONGEAR) then   ! native PCG solver
                                                               ! works for both serial and parallel runs
 
           if (solve_2d) then
@@ -3060,7 +3061,7 @@
 
              call t_startf('glissade_pcg_slv_struct')
 
-             if (whichsparse == HO_SPARSE_PCG_CHRONGEAR) then   ! use Chronopoulos-Gear PCG algorithm
+             if (whichsparse == LINEAR_SOLVER_PCG_CHRONGEAR) then   ! use Chronopoulos-Gear PCG algorithm
                                                                 ! (better scaling for large problems)
                 call pcg_solver_chrongear_2d(nx,           ny,            &
                                              parallel,                    &
@@ -3102,7 +3103,7 @@
 
              call t_startf('glissade_pcg_slv_struct')
 
-             if (whichsparse == HO_SPARSE_PCG_CHRONGEAR) then   ! use Chronopoulos-Gear PCG algorithm
+             if (whichsparse == LINEAR_SOLVER_PCG_CHRONGEAR) then   ! use Chronopoulos-Gear PCG algorithm
                                                                 ! (better scaling for large problems)
 
                 call pcg_solver_chrongear_3d(nx,           ny,            &
@@ -3208,7 +3209,7 @@
 
           call t_startf('glissade_easy_slv')
           call sparse_easy_solve(matrix, rhs,    answer,  &
-                                 err,    niters, whichsparse)
+                                 err,    niters, slap_method(whichsparse))
           call t_stopf('glissade_easy_slv')
 
           !------------------------------------------------------------------------
@@ -3558,7 +3559,7 @@
     !------------------------------------------------------------------------------
 
     call t_startf('glissade_vhs_cleanup')
-    if (whichsparse <= HO_SPARSE_GMRES) then  ! using SLAP solver
+    if (is_slap_solver(whichsparse)) then  ! using SLAP solver
        deallocate(matrix%row, matrix%col, matrix%val)
        deallocate(rhs, answer, resid_vec)
     endif

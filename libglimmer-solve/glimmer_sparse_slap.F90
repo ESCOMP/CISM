@@ -337,7 +337,7 @@ contains
                ! Case values come from parameters defined in glimmer_sparse_type.F90.
                ! (These parameter values are also used in glimmer_sparse.F90.)
 
-               case(HO_SPARSE_GMRES)   ! GMRES
+               case(SLAP_GMRES)   ! GMRES
 
                   if (verbose_slap) then
                      write(iulog,*) 'Call dslugm (GMRES)'
@@ -353,7 +353,7 @@ contains
 
                   if (verbose_slap) write(iulog,*) 'GMRES: iters, err =', niters, err
 
-                case(HO_SPARSE_PCG_STANDARD)  ! PCG with incomplete Cholesky preconditioner 
+                case(SLAP_PCG_INCH)  ! PCG with incomplete Cholesky preconditioner 
 
                   if (verbose_slap) then
                      write(iulog,*) 'Call dsiccg (PCG, incomplete Cholesky)'
@@ -371,7 +371,7 @@ contains
 
                   if (verbose_slap) write(iulog,*) 'PCG_inch: iters, err =', niters, err
 
-               case (HO_SPARSE_BICG)   ! Biconjugate gradient
+               case (SLAP_BICG)   ! Biconjugate gradient
 
                   if (verbose_slap) then
                      write(iulog,*) 'Call dslucs (biconjugate gradient)'
