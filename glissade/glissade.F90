@@ -597,7 +597,7 @@ contains
     call parallel_halo(model%climate%artm,  parallel)
     call parallel_halo(model%temper%temp,   parallel)
     call parallel_halo(model%temper%tempunstag, parallel)
-    if (model%options%whichtemp == TEMP_ENTHALPY) &
+    if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) &
          call parallel_halo(model%temper%waterfrac, parallel)
 
     ! Note: For outflow BCs, most fields (thck, usrf, temp, etc.) are set to zero in the global halo,
@@ -1734,7 +1734,7 @@ contains
        ! For the enthalpy option, derive enthalpy from temperature and waterfrac.
        ! Must transport enthalpy rather than temperature/waterfrac to conserve energy.
 
-       if (model%options%whichtemp == TEMP_ENTHALPY) then  ! Use IR to transport enthalpy
+       if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then  ! Use IR to transport enthalpy
           ! Note: glissade_temp2enth expects SI units
           do j = 1, nsn
              do i = 1, ewn
@@ -1743,7 +1743,7 @@ contains
                                          model%geometry%thck(i,j),         model%temper%enthalpy(0:upn,i,j))
              enddo
           enddo
-       endif    ! TEMP_ENTHALPY
+       endif    ! TEMPERATURE_METHOD_ENTHALPY
 
        if (verbose_calving .and. model%options%whichcalving == CALVING_DAMAGE) then
           call point_diag(model%calving%damage(1,:,:), 'Before tracer transport, damage layer 1:', &
@@ -1912,7 +1912,7 @@ contains
 
        ! For the enthalpy option, convert enthalpy back to temperature/waterfrac.
 
-       if (model%options%whichtemp == TEMP_ENTHALPY) then
+       if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
 
           ! Note: glissade_enth2temp expects SI units
           do j = 1, nsn
@@ -1923,7 +1923,7 @@ contains
              enddo
           enddo
          
-       endif    ! TEMP_ENTHALPY
+       endif    ! TEMPERATURE_METHOD_ENTHALPY
 
        if (verbose_glissade) then
           call point_diag(model%geometry%thck, 'After glissade_transport_driver, thck', &
@@ -2254,7 +2254,7 @@ contains
     !       so that it has the same vertical dimensions as flwa.
     ! (3) The flow enhancement factor can either be set to a constant (one value
     !     for grounded ice, another for floating ice) or specified as a 2D field.
-    ! (4) The waterfrac field is ignored unless whichtemp = TEMP_ENTHALPY.
+    ! (4) The waterfrac field is ignored unless whichtemp = TEMPERATURE_METHOD_ENTHALPY.
     ! (5) Inputs and outputs of subroutine glissade_flow_factor should have SI units.
     ! ------------------------------------------------------------------------
 
@@ -2446,7 +2446,7 @@ contains
 
        model%temper%dissip(:,:,:) = 0.d0
 
-       if (model%options%which_ho_disp == HO_DISP_SIA) then
+       if (model%options%which_ho_disp == DISSIPATION_METHOD_SIA) then
 
           ! Compute dissipation based on the shallow-ice approximation
 

@@ -440,7 +440,7 @@ for expt in experiments:
     #       The Spinup runs end at the year given by 'yearsSpinup'.
     #       The other experiments start from the end of the Spinup and finish at year 1000.
 
-    # TODO: Set up these experiments as hybrid restart (restart = 2), starting at year 0
+    # TODO: Set up these experiments as hybrid restart (restart = hybrid), starting at year 0
     #       by reading the last time slice from the Spinup restart file.
     #       First need to merge the damage/calving branch to main.
     
@@ -517,7 +517,7 @@ for expt in experiments:
         
     # Set other parameters specific to certain experiments
     if expt == 'SpinupCircular' or expt == 'SpinupThule':
-        config.set('temperature', 'temperature_init', '1')
+        config.set('temperature', 'temperature_init', 'artm')
         config.set('calving', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
         config.set('calving', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
         # Both spin-ups use a calving mask to prevent advance beyond the prescribed radius

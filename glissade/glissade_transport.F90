@@ -107,8 +107,8 @@
 
          model%geometry%ntracers = 0
 
-         if (model%options%whichtemp == TEMP_PROGNOSTIC .or.  &
-             model%options%whichtemp == TEMP_ENTHALPY) then
+         if (model%options%whichtemp == TEMPERATURE_METHOD_PROGNOSTIC .or.  &
+             model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
@@ -149,7 +149,7 @@
          ! TODO: Set tracers_usrf to min(artm, 0.0) instead of temp(0) for the case that a cell
          !       is currently ice-free with temp(0) = 0?
 
-         if (model%options%whichtemp == TEMP_PROGNOSTIC) then
+         if (model%options%whichtemp == TEMPERATURE_METHOD_PROGNOSTIC) then
 
             nt = nt + 1
             do k = 1, nlyr
@@ -158,7 +158,7 @@
             model%geometry%tracers_usrf(:,:,nt) = model%temper%temp(0,:,:)
             model%geometry%tracers_lsrf(:,:,nt) = model%temper%temp(nlyr+1,:,:)
 
-         elseif (model%options%whichtemp == TEMP_ENTHALPY) then
+         elseif (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
 
             nt = nt + 1
             do k = 1, nlyr
@@ -239,12 +239,12 @@
 
       ! start with temperature or enthapy, depending on model%options%whichtemp
 
-      if (model%options%whichtemp == TEMP_PROGNOSTIC) then
+      if (model%options%whichtemp == TEMPERATURE_METHOD_PROGNOSTIC) then
          nt = nt+1
          do k = 1, nlyr
             model%temper%temp(k,:,:) = model%geometry%tracers(:,:,nt,k)
          enddo
-      elseif (model%options%whichtemp == TEMP_ENTHALPY) then
+      elseif (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
          nt = nt+1
          do k = 1, nlyr
             model%temper%enthalpy(k,:,:) = model%geometry%tracers(:,:,nt,k)

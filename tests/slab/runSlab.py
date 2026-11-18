@@ -275,7 +275,7 @@ def main():
         mu_n = mu_n_pwrn**(1.0/gn)
 
     # Given mu_n, compute the temperature-independent flow factor A = 1 / [2^((1+n)/2) * mu_n^n].
-    # This is how CISM incorporates a prescribed mu_n (with flow_law = 0, i.e. constant flwa).
+    # This is how CISM incorporates a prescribed mu_n (with flow_law = constant, i.e. constant flwa).
     # Note: The complicated exponent of 2 in the denominator results from CISM and the Dukowicz papers
     #       having different conventions for the squared effective strain rate, eps_sq.
     #       In CISM:        mu = 1/2 * A^(-1/n) * eps_sq_cism^((1-n)/(2n))

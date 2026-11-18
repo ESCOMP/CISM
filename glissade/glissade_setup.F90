@@ -1322,9 +1322,9 @@ contains
     type(glissade_global_type)   :: model
 
     ! options
-    call GetValue(section,'temperature_method', model%options%whichtemp)
-    call GetValue(section,'temperature_init',   model%options%temp_init)
-    call GetValue(section,'dissipation_method', model%options%which_ho_disp)
+    call GetOption(section,'temperature_method', temperature_method_choices, model%options%whichtemp)
+    call GetOption(section,'temperature_init',   temperature_init_choices,   model%options%temp_init)
+    call GetOption(section,'dissipation_method', dissipation_method_choices, model%options%which_ho_disp)
 
     ! parameters
     call GetValue(section,'pmp_offset',    model%temper%pmp_offset)
@@ -1348,60 +1348,31 @@ contains
 
     character(len=100) :: note
 
-    character(len=*), dimension(0:3), parameter :: temperature_method = (/ &
-         'isothermal            ', &
-         'prognostic temperature', &
-         'constant in time      ', &
-         'prognostic enthalpy   ' /)
-
-    character(len=*), dimension(0:4), parameter :: temperature_init = (/ &
-         'set to 0 C                  ', &
-         'set to surface air temp     ', &
-         'linear vertical profile     ', &
-         'advective-diffusive balance ',&
-         'temp from external file     ' /)
-
-    character(len=*), dimension(-1:1), parameter :: dissipation_method = (/ &
-         'no dissipation                    ', &
-         '0-order SIA                       ', &
-         'first-order model (Blatter-Pattyn)' /)
-
-
-    !NOTE : Old option 3 (TEMP_REMAP_ADV) has been removed.
-    ! If this has been set, then change to option 1 (TEMP_PROGNOSTIC), which applies to any dycore.
-
-    if (model%options%whichtemp < 0 .or. model%options%whichtemp >= size(temperature_method)) then
-       call write_log('Error, temperature_method out of range',GM_FATAL)
-    end if
-    if (model%options%temp_init < 0 .or. model%options%temp_init >= size(temperature_init)) then
-       call write_log('Error, temperature_init option out of range',GM_FATAL)
-    end if
-    if (model%options%which_ho_disp < -1 .or. model%options%which_ho_disp >= size(dissipation_method)-1) then
-       call write_log('Error, HO dissipation input out of range', GM_FATAL)
-    end if
-
     ! The local SIA solver cannot use first-order dissipation
     note = ''
     if (model%options%which_ho_approx == STOKES_APPROX_LOCAL_SIA) then
-       if (model%options%which_ho_disp == HO_DISP_FIRSTORDER ) then
-          model%options%which_ho_disp = HO_DISP_SIA
-          note = '; reset from first-order, which cannot be used with the local SIA solver'
+       if (model%options%which_ho_disp == DISSIPATION_METHOD_FIRST_ORDER ) then
+          model%options%which_ho_disp = DISSIPATION_METHOD_SIA
+          note = 'reset from first_order, which cannot be used with the local SIA solver'
        endif
     endif  ! Glissade local SIA solver
 
     call log_section('temperature')
-    call log_option('temperature_method', model%options%whichtemp, temperature_method(model%options%whichtemp))
+    call log_option('temperature_method', model%options%whichtemp, temperature_method_choices)
     ! Note: If temperature is read from an input or restart file, the temperature_init option is overridden.
     !       The method actually used is written to the log file by glissade_init_temp.
-    call log_option('temperature_init', model%options%temp_init, &
-         trim(temperature_init(model%options%temp_init)) // '; not used if temperature is read from a file')
-    call log_option('dissipation_method', model%options%which_ho_disp, &
-         trim(dissipation_method(model%options%which_ho_disp)) // trim(note))
+    call log_option('temperature_init', model%options%temp_init, temperature_init_choices, &
+         'not used if temperature is read from a file')
+    if (len_trim(note) > 0) then
+       call log_option('dissipation_method', model%options%which_ho_disp, dissipation_method_choices, trim(note))
+    else
+       call log_option('dissipation_method', model%options%which_ho_disp, dissipation_method_choices)
+    endif
     call log_param('pmp_threshold', model%temper%pmp_threshold, 'K')
     call log_param('pmp_offset', model%temper%pmp_offset, 'K')
 
     ! unsupported temperature options
-    if (model%options%whichtemp == TEMP_ENTHALPY) then
+    if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
       call write_log('WARNING: Enthalpy-based formulation for solving temperature evolution is not currently &
            &scientifically supported. USE AT YOUR OWN RISK.', GM_WARNING)
     endif
@@ -1424,7 +1395,7 @@ contains
     type(glissade_global_type)   :: model
 
     ! options
-    call GetValue(section,'flow_law',             model%options%whichflwa)
+    call GetOption(section,'flow_law',             flow_law_choices, model%options%whichflwa)
     call GetLogical(section,'damage_flwa_feedback', model%options%damage_flwa_feedback)
 
     ! parameters
@@ -1450,18 +1421,9 @@ contains
 
     type(glissade_global_type)  :: model
 
-    character(len=*), dimension(0:2), parameter :: flow_law = (/ &
-         'uniform factor flwa         ', &
-         'Paterson and Budd (T = -5 C)', &
-         'Paterson and Budd           ' /)
-
-    if (model%options%whichflwa < 0 .or. model%options%whichflwa >= size(flow_law)) then
-       call write_log('Error, flow_law out of range',GM_FATAL)
-    end if
-
     call log_section('flow_law')
-    call log_option('flow_law', model%options%whichflwa, flow_law(model%options%whichflwa))
-    if (model%options%whichflwa == FLWA_CONST_FLWA) then
+    call log_option('flow_law', model%options%whichflwa, flow_law_choices)
+    if (model%options%whichflwa == FLOW_LAW_CONSTANT) then
        call log_param('flwa_const', model%paramets%default_flwa, 'Pa^-n yr^-1; constant flow factor')
     end if
     call log_param('n_glen', n_glen, 'exponent in Glen''s flow law')
@@ -3830,7 +3792,7 @@ contains
 
     ! internal water option (for enthalpy scheme)
     select case (options%whichtemp)
-      case (TEMP_ENTHALPY)
+      case (TEMPERATURE_METHOD_ENTHALPY)
          ! restart needs to know internal water fraction
          call glissade_add_to_restart_variable_list('waterfrac', model_id)
       case default

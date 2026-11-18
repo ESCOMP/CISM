@@ -52,11 +52,11 @@ assemble_lateral = local
 advection_method = remap
 
 [temperature]
-temperature_method = 0         # 0 = sfc air temp, 1 = prognostic
-temperature_init = 4           # 4 = read from external file
+temperature_method = isothermal_artm
+temperature_init = file
 
 [flow_law]
-flow_law = 0            # 0 = constant, 2 = Paterson-Budd
+flow_law = constant
 flwa_const = 2.9377e-18
 
 [basal_physics]

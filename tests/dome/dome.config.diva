@@ -34,10 +34,10 @@ linear_solver = pcg_chrongear
 advection_method = remap
 
 [temperature]
-temperature_method = 1             # 0 = set column to surf. air temp, 1 = prognostic, 2 = hold at init. values             
+temperature_method = prognostic
 
 [flow_law]
-flow_law = 2                # 0 = isothermal, 2 = temperature dependent
+flow_law = paterson_budd
 
 [basal_physics]
 sliding_law = 4           # 4 = no-slip at bed

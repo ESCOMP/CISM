@@ -37,10 +37,10 @@ preconditioner = diagonal
 advection_method = remap
 
 [temperature]
-temperature_method = 1
+temperature_method = prognostic
 
 [flow_law]
-flow_law = 2
+flow_law = paterson_budd
 
 [basal_physics]
 sliding_law = 4          # 4 = no slip

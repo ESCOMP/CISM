@@ -483,12 +483,12 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
 
-    # The Spinup run is initialized to the surface air temperature (temperature_init = 1).
+    # The Spinup run is initialized to the surface air temperature (temperature_init = artm).
     # For all other experiments, the initial temperature is read from the input/restart file.
     if expt != 'Spinup':
-       config.set('temperature', 'temperature_init', '4')
+       config.set('temperature', 'temperature_init', 'file')
 
-    # The Spinup run is an initialization run (restart = 0).
+    # The Spinup run is an initialization run (restart = none).
     # The other experiments use hybrid restart.
     if expt != 'Spinup':
        config.set('options', 'restart', 'hybrid')

@@ -116,9 +116,9 @@ def main():
             flwa_key = 'default_flwa'
         flwa = float(config_parser.get(flwa_section,flwa_key))
         print('Parameter used: ' + config_file + ' has specified a flwa value of ' + str(flwa))
-        flow_law = int(config_parser.get(flow_law_section,'flow_law'))
-        if flow_law != 0:
-            sys.exit('Error: The option "flow_law" must be set to 0 for the test case to work properly.')
+        flow_law = config_parser.get(flow_law_section,'flow_law').split()[0]
+        if flow_law not in ('0', 'constant'):   # 0 in Glide configs, constant in Glissade configs
+            sys.exit('Error: The option "flow_law" must be set to constant (0 for Glide) for the test case to work properly.')
     except:
         raise
         sys.exit('Error: problem getting the flwa parameter value from the config file')

@@ -533,6 +533,11 @@ OPTION_VALUES = {
     ('velocity_solver', 'assemble_lateral'): {0: 'standard', 1: 'local'},
     ('advection', 'advection_method'): {3: 'remap', 4: 'upwind', 5: 'fixed_thickness'},
     ('advection', 'vertical_remap_order'): {0: 'first', 1: 'second'},
+    ('temperature', 'temperature_method'): {0: 'isothermal_artm', 1: 'prognostic', 2: 'fixed', 3: 'enthalpy'},
+    ('temperature', 'temperature_init'): {0: 'zero_celsius', 1: 'artm', 2: 'linear', 3: 'advective_diffusive',
+                                          4: 'file'},
+    ('temperature', 'dissipation_method'): {-1: 'none', 0: 'sia', 1: 'first_order'},
+    ('flow_law', 'flow_law'): {0: 'constant', 1: 'paterson_budd_minus5c', 2: 'paterson_budd'},
 }
 
 # Options that are now logicals: 0/1 -> .false./.true.

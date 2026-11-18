@@ -130,13 +130,13 @@ module glissade_types
        option_choice(COMPUTE_BLOCKS_INQUIRE,     'inquire',     'inquire the number of active blocks') ]
 
   ! [velocity] stokes_approx
-  integer, parameter :: STOKES_APPROX_LOCAL_SIA = -1
-  integer, parameter :: STOKES_APPROX_SIA = 0
-  integer, parameter :: STOKES_APPROX_SSA = 1
-  integer, parameter :: STOKES_APPROX_BLATTER_PATTYN = 2
-  integer, parameter :: STOKES_APPROX_L1L2 = 3
-  integer, parameter :: STOKES_APPROX_DIVA = 4
-  integer, parameter :: STOKES_APPROX_HYBRID = 5
+  integer, parameter :: STOKES_APPROX_LOCAL_SIA = 0
+  integer, parameter :: STOKES_APPROX_SIA = 1
+  integer, parameter :: STOKES_APPROX_SSA = 2
+  integer, parameter :: STOKES_APPROX_BLATTER_PATTYN = 3
+  integer, parameter :: STOKES_APPROX_L1L2 = 4
+  integer, parameter :: STOKES_APPROX_DIVA = 5
+  integer, parameter :: STOKES_APPROX_HYBRID = 6
   type(option_choice), dimension(7), parameter :: stokes_approx_choices = [ &
        option_choice(STOKES_APPROX_LOCAL_SIA,      'local_sia',      'SIA only (glissade_velo_sia)'), &
        option_choice(STOKES_APPROX_SIA,            'sia',            'SIA only (glissade_velo_higher)'), &
@@ -266,21 +266,47 @@ module glissade_types
   integer, parameter :: COMPUTE_ICE_AGE_FALSE = 0
   integer, parameter :: COMPUTE_ICE_AGE_TRUE = 1
 
-  ! Option 3 is not scientifically supported
-  integer, parameter :: TEMP_SURFACE_AIR_TEMP = 0
-  integer, parameter :: TEMP_PROGNOSTIC = 1
-  integer, parameter :: TEMP_STEADY = 2
-  integer, parameter :: TEMP_ENTHALPY = 3
+  ! [temperature] temperature_method (enthalpy is not scientifically supported)
+  integer, parameter :: TEMPERATURE_METHOD_ISOTHERMAL_ARTM = 0
+  integer, parameter :: TEMPERATURE_METHOD_PROGNOSTIC = 1
+  integer, parameter :: TEMPERATURE_METHOD_FIXED = 2
+  integer, parameter :: TEMPERATURE_METHOD_ENTHALPY = 3
+  type(option_choice), dimension(4), parameter :: temperature_method_choices = [ &
+       option_choice(TEMPERATURE_METHOD_ISOTHERMAL_ARTM, 'isothermal_artm', 'isothermal, set to surface air temperature'), &
+       option_choice(TEMPERATURE_METHOD_PROGNOSTIC,      'prognostic',      'prognostic temperature'), &
+       option_choice(TEMPERATURE_METHOD_FIXED,           'fixed',           'constant in time'), &
+       option_choice(TEMPERATURE_METHOD_ENTHALPY,        'enthalpy',        'prognostic enthalpy') ]
 
-  integer, parameter :: TEMP_INIT_ZERO = 0
-  integer, parameter :: TEMP_INIT_ARTM = 1
-  integer, parameter :: TEMP_INIT_LINEAR = 2
-  integer, parameter :: TEMP_INIT_ADVECTIVE_DIFFUSIVE = 3
-  integer, parameter :: TEMP_INIT_EXTERNAL = 4
+  ! [temperature] temperature_init
+  integer, parameter :: TEMPERATURE_INIT_ZERO_CELSIUS = 0
+  integer, parameter :: TEMPERATURE_INIT_ARTM = 1
+  integer, parameter :: TEMPERATURE_INIT_LINEAR = 2
+  integer, parameter :: TEMPERATURE_INIT_ADVECTIVE_DIFFUSIVE = 3
+  integer, parameter :: TEMPERATURE_INIT_FILE = 4
+  type(option_choice), dimension(5), parameter :: temperature_init_choices = [ &
+       option_choice(TEMPERATURE_INIT_ZERO_CELSIUS,        'zero_celsius',        'set to 0 C'), &
+       option_choice(TEMPERATURE_INIT_ARTM,                'artm',                'set to surface air temperature'), &
+       option_choice(TEMPERATURE_INIT_LINEAR,              'linear',              'linear vertical profile'), &
+       option_choice(TEMPERATURE_INIT_ADVECTIVE_DIFFUSIVE, 'advective_diffusive', 'advective-diffusive balance'), &
+       option_choice(TEMPERATURE_INIT_FILE,                'file',                'temperature from an external file') ]
 
-  integer, parameter :: FLWA_CONST_FLWA = 0
-  integer, parameter :: FLWA_PATERSON_BUDD_CONST_TEMP = 1
-  integer, parameter :: FLWA_PATERSON_BUDD = 2
+  ! [temperature] dissipation_method
+  integer, parameter :: DISSIPATION_METHOD_NONE = 0
+  integer, parameter :: DISSIPATION_METHOD_SIA = 1
+  integer, parameter :: DISSIPATION_METHOD_FIRST_ORDER = 2
+  type(option_choice), dimension(3), parameter :: dissipation_method_choices = [ &
+       option_choice(DISSIPATION_METHOD_NONE,        'none',        'no dissipation'), &
+       option_choice(DISSIPATION_METHOD_SIA,         'sia',         '0-order SIA'), &
+       option_choice(DISSIPATION_METHOD_FIRST_ORDER, 'first_order', 'first-order model (Blatter-Pattyn)') ]
+
+  ! [flow_law] flow_law
+  integer, parameter :: FLOW_LAW_CONSTANT = 0
+  integer, parameter :: FLOW_LAW_PATERSON_BUDD_MINUS5C = 1
+  integer, parameter :: FLOW_LAW_PATERSON_BUDD = 2
+  type(option_choice), dimension(3), parameter :: flow_law_choices = [ &
+       option_choice(FLOW_LAW_CONSTANT,              'constant',              'constant flow factor flwa_const'), &
+       option_choice(FLOW_LAW_PATERSON_BUDD_MINUS5C, 'paterson_budd_minus5c', 'Paterson and Budd (T = -5 C)'), &
+       option_choice(FLOW_LAW_PATERSON_BUDD,         'paterson_budd',         'Paterson and Budd') ]
 
   integer, parameter :: BTRC_ZERO = 0
   integer, parameter :: BTRC_CONSTANT = 1
@@ -382,9 +408,6 @@ module glissade_types
 
   ! higher-order options
 
-  integer, parameter :: HO_DISP_NONE = -1
-  integer, parameter :: HO_DISP_SIA = 0
-  integer, parameter :: HO_DISP_FIRSTORDER = 1
 
   !WHL TODO - Deprecate some little-used options during the config reorg
   !           This would include HO_BABC_PSEUDO_PLASTIC_OLD
@@ -548,36 +571,36 @@ module glissade_types
     !> \item[fixed_thickness] Temperature evolves but thickness does not
     !> \end{description}
 
-    integer :: whichtemp = 1
+    integer :: whichtemp = TEMPERATURE_METHOD_PROGNOSTIC
 
     !> Method of ice temperature calculation:
     !> \begin{description} 
-    !> \item[0] Set column to surface air temperature
-    !> \item[1] Prognostic temperature solution 
-    !> \item[2] Do NOTHING - hold temperatures steady at initial value  
-    !> \item[3] Prognostic enthalpy solution
+    !> \item[isothermal_artm] Set column to surface air temperature
+    !> \item[prognostic] Prognostic temperature solution 
+    !> \item[fixed] Do NOTHING - hold temperatures steady at initial value  
+    !> \item[enthalpy] Prognostic enthalpy solution
     !> \end{description}
 
-    integer :: temp_init = 1
+    integer :: temp_init = TEMPERATURE_INIT_ARTM
 
     ! Temperature initialization:
     !> \begin{description} 
-    !> \item[0] Initialize temperature to 0 C
-    !> \item[1] Initialize temperature to surface air temperature
-    !> \item[2] Initialize temperature with a linear profile in each column
-    !> \item[3] Initialize temperature with an advective-diffusive balance in each column
-    !> \item[4] Initialize temperature from external file
+    !> \item[zero_celsius] Initialize temperature to 0 C
+    !> \item[artm] Initialize temperature to surface air temperature
+    !> \item[linear] Initialize temperature with a linear profile in each column
+    !> \item[advective_diffusive] Initialize temperature with an advective-diffusive balance in each column
+    !> \item[file] Initialize temperature from external file
     !> \end{description}
 
     !> Method for calculating flow factor $A$:
 
-    integer :: whichflwa = 2
+    integer :: whichflwa = FLOW_LAW_PATERSON_BUDD
 
     !> \begin{description} 
-    !> \item[0] Set equal to $1\times 10^{-16} \mathrm{Pa}^{-n} \mathrm{yr}^{-1}$
-    !> \item[1] \emph{Paterson and Budd} relationship, 
+    !> \item[constant] Set equal to $1\times 10^{-16} \mathrm{Pa}^{-n} \mathrm{yr}^{-1}$
+    !> \item[paterson_budd_minus5c] \emph{Paterson and Budd} relationship, 
     !> with temperature set to $-5^{\circ}\mathrm{C}$ 
-    !> \item[2] \emph{Paterson and Budd} relationship
+    !> \item[paterson_budd] \emph{Paterson and Budd} relationship
     !> \end{description}
 
     integer :: whichbtrc = 0
@@ -863,13 +886,13 @@ module glissade_types
     !> \item[nonlinear] compute from effective strain rate
     !> \end{description}
 
-    integer :: which_ho_disp = 1
+    integer :: which_ho_disp = DISSIPATION_METHOD_FIRST_ORDER
 
     !> Flag that indicates method for computing the dissipation during the temperature calc.
     !> \begin{description}
-    !> \item[-1] for no dissipation
-    !> \item[0] for 0-order SIA approx
-    !> \item[1] for first-order dissipation (Blatter-Pattyn)
+    !> \item[none] for no dissipation
+    !> \item[sia] for 0-order SIA approx
+    !> \item[first_order] for first-order dissipation (Blatter-Pattyn)
     !> \end{description}
 
 
@@ -982,28 +1005,28 @@ module glissade_types
     !> Flag that indicates method for solving the sparse linear system
     !> that arises from the higher-order solver
     !> \begin{description}
-    !> \item[-1] SLAP (serial): Preconditioned conjugate gradient, incomplete Cholesky preconditioner
-    !> \item[0]  SLAP (serial): Biconjugate gradient, incomplete LU preconditioner
-    !> \item[1]  SLAP (serial): GMRES, incomplete LU preconditioner
-    !> \item[2] Native PCG, parallel-enabled, standard solver
-    !> \item[3] Native PCG, parallel-enabled, Chronopoulos-Gear solver (default)
+    !> \item[slap_pcg] SLAP (serial): Preconditioned conjugate gradient, incomplete Cholesky preconditioner
+    !> \item[slap_bicg]  SLAP (serial): Biconjugate gradient, incomplete LU preconditioner
+    !> \item[slap_gmres]  SLAP (serial): GMRES, incomplete LU preconditioner
+    !> \item[pcg] Native PCG, parallel-enabled, standard solver
+    !> \item[pcg_chrongear] Native PCG, parallel-enabled, Chronopoulos-Gear solver (default)
     !> \end{description}
 
     integer :: which_ho_approx = STOKES_APPROX_DIVA
     !> Flag that indicates which Stokes approximation to use with the glissade dycore.
     !> Not valid for other dycores 
-    !> The default is DIVA (4); it was Blatter-Pattyn (2) until the config reorganization.
+    !> The default is diva; it was blatter_pattyn until the config reorganization.
     !> Note: There are two SIA options:
-    !>       Option -1 uses module glissade_velo_sia to compute local SIA velocities, similar to Glide
-    !>       Option 0 uses module glissade_velo_higher to compute SIA velocities via an iterative solve
+    !>       local_sia uses module glissade_velo_sia to compute local SIA velocities, similar to Glide
+    !>       sia uses module glissade_velo_higher to compute SIA velocities via an iterative solve
     !> \begin{description}
-    !> \item[-1] Shallow-ice approximation, Glide-type calculation; uses glissade_velo_sia
-    !> \item[0]  Shallow-ice approximation, vertical-shear stresses only; uses glissade_velo_higher
-    !> \item[1]  Shallow-shelf approximation, horizontal-plane stresses only; uses glissade_velo_higher
-    !> \item[2]  Blatter-Pattyn approximation with both vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
-    !> \item[3]  Vertically integrated 'L1L2' approximation with vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
-    !> \item[4]  Depth-integrated viscosity approximation (DIVA) based on Goldberg (2011); uses glissade_velo_higher
-    !> \item[5]  Hybrid solver combining an SSA basal solve with a local vertical SIA solve
+    !> \item[local_sia] Shallow-ice approximation, Glide-type calculation; uses glissade_velo_sia
+    !> \item[sia]  Shallow-ice approximation, vertical-shear stresses only; uses glissade_velo_higher
+    !> \item[ssa]  Shallow-shelf approximation, horizontal-plane stresses only; uses glissade_velo_higher
+    !> \item[blatter_pattyn]  Blatter-Pattyn approximation with both vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
+    !> \item[l1l2]  Vertically integrated 'L1L2' approximation with vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
+    !> \item[diva]  Depth-integrated viscosity approximation (DIVA) based on Goldberg (2011); uses glissade_velo_higher
+    !> \item[hybrid]  Hybrid solver combining an SSA basal solve with a local vertical SIA solve
     !> \end{description}
 
     logical :: diva_slope_correction = .true.
@@ -1013,11 +1036,11 @@ module glissade_types
     !> Flag that indicates which Stokes preconditioner to use in the glissade dycore.
     !> Not valid for other dycores 
     !> \begin{description}
-    !> \item[0] No preconditioner
-    !> \item[1] Diagonal preconditioner
-    !> \item[2] Physics-based shallow-ice preconditioner
-    !> \item[3] Local tridiagonal preconditioner (one solve per task)
-    !> \item[4] Global tridiagonal preconditioner (global solve)
+    !> \item[none] No preconditioner
+    !> \item[diagonal] Diagonal preconditioner
+    !> \item[sia] Physics-based shallow-ice preconditioner
+    !> \item[tridiag_local] Local tridiagonal preconditioner (one solve per task)
+    !> \item[tridiag_global] Global tridiagonal preconditioner (global solve)
     !> \end{description}
 
     integer :: which_ho_gradient = SURFACE_GRADIENT_METHOD_CENTERED    
@@ -1081,8 +1104,8 @@ module glissade_types
 
     !> Flag that describes how lateral stress terms are assembled in the glissade finite-element calculation
     !> \begin{description}
-    !> \item[0] standard finite-element calculation of thck and usrf at quadrature points
-    !> \item[1] apply local cell-center value of thck and usrf on each face
+    !> \item[standard] standard finite-element calculation of thck and usrf at quadrature points
+    !> \item[local] apply local cell-center value of thck and usrf on each face
     !> \end{description}
 
     integer :: which_ho_ground = 0

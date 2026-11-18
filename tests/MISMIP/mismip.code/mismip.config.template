@@ -44,10 +44,10 @@ assemble_lateral = standard
 advection_method = remap
 
 [temperature]
-temperature_method = 0         # 1 = prognostic, 3 = enthalpy
+temperature_method = isothermal_artm
 
 [flow_law]
-flow_law = 0            # 0 = constant, 2 = Paterson-Budd
+flow_law = constant
 flow_factor_ground = 1.
 flow_factor_float = 1.
 flwa_const = 1.0e-17

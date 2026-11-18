@@ -1075,13 +1075,9 @@ contains
              model%basal_hydro%bwat(i,j) = 0.0d0
 
              ! thermal variables
-             if (model%options%whichtemp == TEMP_INIT_ZERO) then
-                model%temper%temp(:,i,j) = 0.0d0
-             else
-                model%temper%temp(:,i,j) = min(model%climate%artm(i,j), 0.0d0)
-             endif
+             model%temper%temp(:,i,j) = min(model%climate%artm(i,j), 0.0d0)
 
-             if (model%options%whichtemp == TEMP_ENTHALPY) then
+             if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
                 model%temper%waterfrac(:,i,j) = 0.0d0
              endif
 
