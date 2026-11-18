@@ -624,7 +624,8 @@ contains
     call log_param('upn', model%general%upn)
     call log_param('dew', model%numerics%dew, 'm')
     call log_param('dns', model%numerics%dns, 'm')
-    if (model%options%compute_blocks >= COMPUTE_BLOCKS_ACTIVE_ONLY) then
+    if (model%options%compute_blocks == COMPUTE_BLOCKS_ACTIVE_ONLY .or. &
+        model%options%compute_blocks == COMPUTE_BLOCKS_INQUIRE) then
        call log_param('nx_block', model%general%nx_block, 'block size for compute_blocks')
        call log_param('ny_block', model%general%ny_block, 'block size for compute_blocks')
     endif

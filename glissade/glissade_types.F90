@@ -506,7 +506,7 @@ module glissade_types
     real(dp), dimension(:,:),pointer :: lat => null()
     real(dp), dimension(:,:),pointer :: lon => null()
 
-    integer :: global_bc = 0     ! 0 for periodic, 1 for outflow, 2 for no_penetration, 3 for no_ice
+    integer :: global_bc = GLOBAL_BC_PERIODIC
 
     ! added to handle the active-blocks option
     integer, dimension(:,:), pointer :: ice_domain_mask => null()  ! = 1 for cells that are potentially active
@@ -529,22 +529,20 @@ module glissade_types
     ! standard options
     !-----------------------------------------------------------------------
 
-    integer :: whichdycore = 2
+    integer :: whichdycore = DYCORE_GLISSADE
 
-    !WHL TODO - Change Glissade to option 1 during the config reorg
-    !> Dycore (must be 2 for Glissade):
+    !> Dycore (must be glissade):
     !> \begin{description} 
-    !> \item[2] Glissade dycore (1st-order, FEM, serial (SLAP) or parallel (F90 native PCG solver) )
+    !> \item[glissade] Glissade dycore (1st-order, FEM, serial (SLAP) or parallel (F90 native PCG solver) )
     !> \end{description}
 
-    integer :: whichevol = 3
+    integer :: whichevol = ADVECTION_METHOD_REMAP
 
-    !WHL TODO - Renumber the remaining options during the config reorg
     !> Thickness evolution method:
     !> \begin{description}
-    !> \item[3] Incremental remapping
-    !> \item[4] 1st-order upwind scheme
-    !> \item[5] Temperature evolves but thickness does not
+    !> \item[remap] Incremental remapping
+    !> \item[upwind] 1st-order upwind scheme
+    !> \item[fixed_thickness] Temperature evolves but thickness does not
     !> \end{description}
 
     integer :: whichtemp = 1
@@ -794,51 +792,51 @@ module glissade_types
     logical :: read_lat_lon = .false.
     !> if true, then read lat and lon fields from the input file and write to restarts
 
-    integer :: dt_input_option = 0
+    integer :: dt_input_option = DT_INPUT_OPTION_DT
     !> \begin{description}
-    !> \item[0] Input dt in years
-    !> \item[1] Input dt in steps per year
+    !> \item[dt] Input dt in years
+    !> \item[nsteps_per_year] Input dt in steps per year
     !> \end{description}
 
-    integer :: dm_dt_diag = 0
+    integer :: dm_dt_diag = DM_DT_DIAG_KG_PER_S
     !> \begin{description}
-    !> \item[0] Write dmass/dt diagnostic in units of kg/s
-    !> \item[1] Write dmass/dt diagnostic in units of Gt/yr
+    !> \item[kg_per_s] Write dmass/dt diagnostic in units of kg/s
+    !> \item[gt_per_yr] Write dmass/dt diagnostic in units of Gt/yr
     !> \end{description}
 
-    integer :: diag_minthck = 1
+    integer :: diag_minthck = DIAG_ICE_THRESHOLD_THCKLIM
     !> \begin{description}
-    !> \item[0] Include cells with H > 0 in global diagnostics
-    !> \item[1] Include cells with H > thklim in global diagnostics
+    !> \item[zero] Include cells with H > 0 in global diagnostics
+    !> \item[thcklim] Include cells with H > thklim in global diagnostics
     !> \end{description}
 
-    integer :: which_sigma = 0
+    integer :: which_sigma = SIGMA_METHOD_GLIDE
 
     !> \begin{description}
-    !> \item[0] compute standard Glimmer sigma coordinates
-    !> \item[1] sigma coordinates are given in external file
-    !> \item[2] sigma coordinates are given in configuration file
-    !> \item[3] evenly spaced levels
-    !> \item[4] compute Pattyn sigma coordinates
+    !> \item[glide] compute standard Glimmer sigma coordinates
+    !> \item[file] sigma coordinates are given in external file
+    !> \item[config] sigma coordinates are given in configuration file
+    !> \item[uniform] evenly spaced levels
+    !> \item[pattyn] compute Pattyn sigma coordinates
     !> \end{description}
 
     logical :: forcewrite_final = .false.
     !> if true, then force a write to output and restart files when the model finishes
 
     !WHL TODO - Change 'is_restart' to 'restart' during the config reorg
-    integer :: is_restart = 0
+    integer :: is_restart = NO_RESTART
     !> if the run is a restart of a previous run
     !> \begin{description}
-    !> \item[0] normal start-up (take init fields from .nc input file OR if absent, use default options)
-    !> \item[1] restart model from previous run (do not calc. temp, rate factor, or vel)
-    !> \item[2] hybrid restart; use restart from previous run as the input file, and reset the time
+    !> \item[none] normal start-up (take init fields from .nc input file OR if absent, use default options)
+    !> \item[standard] restart model from previous run (do not calc. temp, rate factor, or vel)
+    !> \item[hybrid] hybrid restart; use restart from previous run as the input file, and reset the time
     !> \end{description}
 
-    integer :: restart_extend_velo = 0
+    integer :: restart_extend_velo = RESTART_EXTEND_VELO_FALSE
     !> if velocity fields should be written on the extended staggered mesh
     !> \begin{description}
-    !> \item[0] write uvel and vvel to restart file on standard staggered mesh
-    !> \item[1] write uvel_extend and vvel_extend to restart file on extended staggered mesh
+    !> \item[.false.] write uvel and vvel to restart file on standard staggered mesh
+    !> \item[.true.] write uvel_extend and vvel_extend to restart file on extended staggered mesh
     !>          (required if restart velocities are nonzero on global boundaries)
     !> \end{description}
 
@@ -846,20 +844,20 @@ module glissade_types
     ! Higher-order options associated with the glissade dycore
     !-----------------------------------------------------------------------
 
-    integer :: compute_blocks = 0
+    integer :: compute_blocks = COMPUTE_BLOCKS_ALL
     !> \begin{description}
-    !> \item[0] Compute on all blocks in the global domain; one task per block
-    !> \item[1] Compute on active blocks only; one task per active block, no task for some or all inactive blocks
-    !> \item[2] Inquire how many active blocks there are, in prep for resubmitting with option 1
+    !> \item[all] Compute on all blocks in the global domain; one task per block
+    !> \item[active_only] Compute on active blocks only; one task per active block, no task for some or all inactive blocks
+    !> \item[inquire] Inquire how many active blocks there are, in prep for resubmitting with active_only
     !> \end{description}
 
-    integer :: which_ho_efvs = 2
+    integer :: which_ho_efvs = EFVS_METHOD_NONLINEAR
 
     !> Flag that indicates how effective viscosity is computed
     !> \begin{description}
-    !> \item[0] constant value
-    !> \item[1] multiple of flow factor
-    !> \item[2] compute from effective strain rate
+    !> \item[constant] constant value
+    !> \item[flow_factor] multiple of flow factor
+    !> \item[nonlinear] compute from effective strain rate
     !> \end{description}
 
     integer :: which_ho_disp = 1
@@ -959,22 +957,22 @@ module glissade_types
     !> \item[5] N is reduced where the bed is at or near the pressure melting point
     !> \end{description}
 
-    integer :: which_ho_nonlinear = 0
+    integer :: which_ho_nonlinear = NONLINEAR_METHOD_PICARD
     !> Flag that indicates method for solving the nonlinear iteration when solving 
     !> the first-order momentum balance
     !> \begin{description}
-    !> \item[0] do standard Picard iteration
-    !> \item[1] do Picard iteration with acceleration
+    !> \item[picard] do standard Picard iteration
+    !> \item[accelerated_picard] do Picard iteration with acceleration
     !> \end{description}
 
-    integer :: which_ho_resid = 3
+    integer :: which_ho_resid = NONLINEAR_RESIDUAL_L2NORM
     !> Flag that indicates method for computing residual in PP dyn core: 
     !> \begin{description}
-    !> \item[0] maxval 
-    !> \item[1] maxval ignoring basal velocity 
-    !> \item[2] mean value
-    !> \item[3] L2 norm of system residual, Ax-b=resid
-    !> \item[4] L2 norm of system residual relative to rhs, |Ax-b|/|b|
+    !> \item[max] maxval 
+    !> \item[max_no_ubas] maxval ignoring basal velocity 
+    !> \item[mean] mean value
+    !> \item[l2norm] L2 norm of system residual, Ax-b=resid
+    !> \item[relative_l2norm] L2 norm of system residual relative to rhs, |Ax-b|/|b|
     !> \end{description}
 
     integer :: which_ho_sparse = HO_SPARSE_PCG_CHRONGEAR
@@ -1019,17 +1017,17 @@ module glissade_types
     !> \item[4] Global tridiagonal preconditioner (global solve)
     !> \end{description}
 
-    integer :: which_ho_gradient = 0    
+    integer :: which_ho_gradient = SURFACE_GRADIENT_METHOD_CENTERED    
     !> Flag that indicates which gradient operator to use in the glissade dycore.
     !> Not valid for other dycores
     !> NOTE: Upstream may be better for ice evolution because it damps checkerboard noise.
     !> \begin{description}
-    !> \item[0] Centered gradient
-    !> \item[1] First-order accurate upstream gradient
-    !> \item[2] Second-order accurate upstream gradient
+    !> \item[centered] Centered gradient
+    !> \item[upstream1] First-order accurate upstream gradient
+    !> \item[upstream2] Second-order accurate upstream gradient
     !> \end{description}
 
-    integer :: which_ho_gradient_margin = 1
+    integer :: which_ho_gradient_margin = SURFACE_GRADIENT_MARGIN_METHOD_HYBRID
     !> Flag that indicates how to compute the gradient at the ice margin in the glissade dycore.
     !> Note: Gradients are always computed at edges with ice on both sides.
     !>       The methods differ in whether gradients are computed when an ice-covered cell
@@ -1038,42 +1036,42 @@ module glissade_types
     !         when a lateral spreading force is computed for marine ice cliffs.
     !         This lateral force ensures spreading where the gradient is zero.
     !> \begin{description}
-    !> \item[0] Compute edge gradient when either cell is ice-covered
-    !> \item[1] Compute edge gradient for ice-covered cell above ice-free land (not ocean)
-    !> \item[2] Compute edge gradient only when both cells have ice
+    !> \item[land] Compute edge gradient when either cell is ice-covered
+    !> \item[hybrid] Compute edge gradient for ice-covered cell above ice-free land (not ocean)
+    !> \item[marine] Compute edge gradient only when both cells have ice
     !> \end{description}
 
     !TODO: Change the default to 2nd order vertical remapping
     ! WHL: Keeping 1st order vertical remapping for now, pending more testing
-    integer :: which_ho_vertical_remap = 0
+    integer :: which_ho_vertical_remap = VERTICAL_REMAP_ORDER_FIRST
     !> Flag that indicates the order of accuracy for vertical remapping
     !> \begin{description}
-    !> \item[0] first-order accurate in the vertical direction
-    !> \item[1] second-order accurate in the vertical direction
+    !> \item[first] first-order accurate in the vertical direction
+    !> \item[second] second-order accurate in the vertical direction
     !> \end{description}
 
-    integer :: which_ho_assemble_taud = 1
+    integer :: which_ho_assemble_taud = ASSEMBLE_TAUD_LOCAL
 
     !> Flag that describes how driving-stress terms are assembled in the glissade finite-element calculation
     !> \begin{description}
-    !> \item[0] standard finite-element calculation (which effectively smooths the driving stress)
-    !> \item[1] apply local value of driving stress at each vertex
+    !> \item[standard] standard finite-element calculation (which effectively smooths the driving stress)
+    !> \item[local] apply local value of driving stress at each vertex
     !> \end{description}
 
-    integer :: which_ho_assemble_beta = 1
+    integer :: which_ho_assemble_beta = ASSEMBLE_BETA_LOCAL
 
     !> Flag that describes how beta terms are assembled in the glissade finite-element calculation
     !> \begin{description}
-    !> \item[0] standard finite-element calculation (which effectively smooths beta at discontinuities)
-    !> \item[1] apply local value of beta at each vertex
+    !> \item[standard] standard finite-element calculation (which effectively smooths beta at discontinuities)
+    !> \item[local] apply local value of beta at each vertex
     !> \end{description}
 
-    integer :: which_ho_assemble_bfric = 1
+    integer :: which_ho_assemble_bfric = ASSEMBLE_BFRIC_LOCAL
 
     !> Flag that describes how the basal friction heat flux is assembled in the glissade finite-element calculation
     !> \begin{description}
-    !> \item[0] standard finite-element calculation summing over quadrature points
-    !> \item[1] apply local value of beta*(u^2 + v^2) at each vertex
+    !> \item[standard] standard finite-element calculation summing over quadrature points
+    !> \item[local] apply local value of beta*(u^2 + v^2) at each vertex
     !> \end{description}
 
     integer :: which_ho_assemble_lateral = ASSEMBLE_LATERAL_LOCAL   ! default was STANDARD until the config reorganization
@@ -1132,11 +1130,11 @@ module glissade_types
     !> item[1] force retreat of all ice identified by a retreat mask
     !> item[2] force retreat of floating or weakly grounded ice identified by a retreat mask
 
-    integer :: which_ho_ice_age = 1
+    integer :: which_ho_ice_age = COMPUTE_ICE_AGE_TRUE
     !> Flag that indicates whether to compute a 3d ice age tracer
     !> \begin{description}
-    !> \item[0] ice age computation off
-    !> \item[1] ice age computation on
+    !> \item[.false.] ice age computation off
+    !> \item[.true.] ice age computation on
     !> \end{description}
 
     logical :: enable_glaciers = .false.
