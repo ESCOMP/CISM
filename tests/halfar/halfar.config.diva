@@ -29,7 +29,7 @@ surface_gradient_method = upstream2
 [velocity_solver]
 nonlinear_method = picard
 linear_solver = pcg_chrongear
-preconditioner = sia
+preconditioner = diagonal
 
 [advection]
 advection_method = remap

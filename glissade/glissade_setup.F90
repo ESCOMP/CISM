@@ -405,8 +405,7 @@ contains
        if (associated(section)) then
           call handle_sigma(section, model)
        else
-          model%grid%sigma_method = SIGMA_METHOD_GLIDE  ! default to standard sigma levels
-          call write_log('No [sigma] section present; will compute standard Glide sigma levels')
+          call write_log('Error, sigma_method = config requires a [sigma] section with sigma_levels', GM_FATAL)
        end if
     endif
 
@@ -1147,13 +1146,12 @@ contains
     use glissade_types
     use glimmer_log
     use glissade_log_config
+    use glimmer_config, only: option_name
     use cism_parallel, only: tasks
 
     implicit none
 
     type(glissade_global_type)  :: model
-
-    character(len=100) :: note
 
     ! Forbidden options for running in parallel
     ! Note: The local SIA solver does not use a sparse linear solver, so linear_solver is ignored.
@@ -1165,7 +1163,6 @@ contains
     end if
 
     ! The SIA preconditioner cannot be used for 2D solves
-    note = ''
     if ( (model%velocity%stokes_approx == STOKES_APPROX_SSA  .or.  &
           model%velocity%stokes_approx == STOKES_APPROX_L1L2 .or.  &
           model%velocity%stokes_approx == STOKES_APPROX_DIVA .or.  &
@@ -1174,9 +1171,9 @@ contains
           (model%velocity_solver%linear_solver == LINEAR_SOLVER_PCG .or.    &
            model%velocity_solver%linear_solver == LINEAR_SOLVER_PCG_CHRONGEAR) ) then
        if (model%velocity_solver%preconditioner == PRECONDITIONER_SIA) then
-          !TODO - Change default to tridiagonal if it turns out to be faster than diagonal
-          model%velocity_solver%preconditioner = PRECONDITIONER_DIAGONAL
-          note = 'reset from sia, which cannot be used for 2D solves'
+          call write_log('Error, preconditioner = sia cannot be used for the 2D solves of stokes_approx = ' // &
+               trim(option_name(stokes_approx_choices, model%velocity%stokes_approx)) // &
+               '; use diagonal, tridiag_local or tridiag_global', GM_FATAL)
        endif
     endif
 
@@ -1198,11 +1195,7 @@ contains
     call log_option('linear_solver', model%velocity_solver%linear_solver, linear_solver_choices)
     if ((model%velocity_solver%linear_solver == LINEAR_SOLVER_PCG .or.  &
          model%velocity_solver%linear_solver == LINEAR_SOLVER_PCG_CHRONGEAR) ) then
-       if (len_trim(note) > 0) then
-          call log_option('preconditioner', model%velocity_solver%preconditioner, preconditioner_choices, trim(note))
-       else
-          call log_option('preconditioner', model%velocity_solver%preconditioner, preconditioner_choices)
-       endif
+       call log_option('preconditioner', model%velocity_solver%preconditioner, preconditioner_choices)
     end if
     call log_param('linear_solve_ncheck', model%velocity_solver%linear_solve_ncheck)
     call log_param('linear_maxiters', model%velocity_solver%linear_maxiters)
@@ -2055,7 +2048,7 @@ contains
   subroutine print_calving(model)
 
     ! Calving options and parameters.
-    ! Note: If remove_isthmuses = .true., remove_icebergs is set to .true. here (for stability).
+    ! Note: remove_isthmuses = .true. requires remove_icebergs = .true. (for stability).
 
     use glissade_types
     use glimmer_log
@@ -2066,13 +2059,10 @@ contains
 
     type(glissade_global_type)  :: model
     character(len=500) :: message
-    logical :: icebergs_reset   ! true if remove_icebergs is reset to .true.
 
-    ! for stability, remove icebergs when removing isthmuses
-    icebergs_reset = .false.
+    ! for stability, icebergs must be removed when isthmuses are removed
     if (model%calving%remove_isthmuses .and. .not.model%calving%remove_icebergs) then
-       model%calving%remove_icebergs = .true.
-       icebergs_reset = .true.
+       call write_log('Error, remove_isthmuses = .true. requires remove_icebergs = .true. (for stability)', GM_FATAL)
     endif
 
     if (model%calving%calving_law == CALVING_LAW_ADVANCE_RETREAT_RATE    .or.  &
@@ -2161,12 +2151,7 @@ contains
     end if
 
     call log_flag('apply_calving_mask', model%calving%apply_calving_mask)
-    if (icebergs_reset) then
-       call log_flag('remove_icebergs', model%calving%remove_icebergs, &
-            'reset from .false. for stability when remove_isthmuses = .true.')
-    else
-       call log_flag('remove_icebergs', model%calving%remove_icebergs)
-    endif
+    call log_flag('remove_icebergs', model%calving%remove_icebergs)
     call log_flag('remove_isthmuses', model%calving%remove_isthmuses)
     if (model%calving%remove_icebergs .or. model%calving%remove_isthmuses) then
        call log_param('f_ground_threshold', model%calving%f_ground_threshold)

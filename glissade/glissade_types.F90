@@ -1672,6 +1672,7 @@ module glissade_types
     !> if true, then identify and remove ice isthmuses after calving
     !> These are narrow bridges connecting two regions of floating ice.
     !> False by default, but may need to be true for the FORCE_RETREAT_FLOATING_ICE option.
+    !> Requires remove_icebergs = .true. (for stability).
 
     logical :: limit_marine_cliffs = .false.
     !> if true, then thin marine-based cliffs based on a thickness threshold
