@@ -196,7 +196,7 @@ contains
       !    w(sigma) = -int_1^sigma [dU/dsigma (sigma) . (grad(s) - sigma*grad(H))
       !                             + H div(U(sigma))] dsigma + w(1)
       !
-      !  (equation 13 in Payne and Dongelmans), where the thickness exceeds thklim.
+      !  (equation 13 in Payne and Dongelmans), where the thickness exceeds thcklim.
       ! For Glissade, wvel is a diagnostic output only.
       ! Adapted from subroutine wvelintg in glide_velo.F90.
 

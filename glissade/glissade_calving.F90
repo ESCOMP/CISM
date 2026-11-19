@@ -58,7 +58,7 @@ contains
        itest, jtest, rtest,                 &
        parallel,                            &
        thck,              topg,             &
-       eus,               thklim,           &
+       eus,               thcklim,          &
        usfc_obs,          vsfc_obs,         &
        calving_front_x,   calving_front_y,  &
        calving_mask)
@@ -75,7 +75,7 @@ contains
     real(dp), dimension(:,:), intent(in) :: thck   !> ice thickness (m)
     real(dp), dimension(:,:), intent(in) :: topg   !> present bedrock topography (m)
     real(dp), intent(in) :: eus                    !> eustatic sea level (m)
-    real(dp), intent(in) :: thklim                 !> minimum thickness for dynamically active grounded ice (m)
+    real(dp), intent(in) :: thcklim                 !> minimum thickness for dynamically active grounded ice (m)
     real(dp), dimension(:,:), intent(in) :: &
          usfc_obs, vsfc_obs                        !> observed surface velocity components (m/yr)
     real(dp), intent(in) :: calving_front_x        !> for CALVING_LAW_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
@@ -193,7 +193,7 @@ contains
             nx,            ny,             &
             parallel,                      &
             thck,          topg,           &
-            eus,           thklim,         &
+            eus,           thcklim,        &
             ice_mask,                      &
             ocean_mask = ocean_mask)
 
@@ -314,7 +314,7 @@ contains
        itest, jtest, rtest,                 &
        parallel,                            &
        thck,              topg,             &
-       eus,               thklim,           &
+       eus,               thcklim,          &
        usfc_obs,          vsfc_obs,         &
        calving_front_x,   calving_front_y,  &
        calving_front_radius,                &
@@ -334,7 +334,7 @@ contains
     real(dp), dimension(:,:), intent(in) :: thck   !> ice thickness (m)
     real(dp), dimension(:,:), intent(in) :: topg   !> present bedrock topography (m)
     real(dp), intent(in) :: eus                    !> eustatic sea level (m)
-    real(dp), intent(in) :: thklim                 !> minimum thickness for dynamically active grounded ice (m)
+    real(dp), intent(in) :: thcklim                 !> minimum thickness for dynamically active grounded ice (m)
     real(dp), dimension(:,:), intent(in) :: &
          usfc_obs, vsfc_obs                        !> observed surface velocity components (m/yr)
     real(dp), intent(in) :: calving_front_x        !> calve ice wherever abs(x) > calving_front_x (m)
@@ -518,7 +518,7 @@ contains
             nx,            ny,             &
             parallel,                      &
             thck,          topg,           &
-            eus,           thklim,         &
+            eus,           thcklim,        &
             ice_mask,                      &
             ocean_mask = ocean_mask)
 
@@ -868,7 +868,7 @@ contains
     ! For the velocity solver to be robust, we require that any floating cell
     !  is connected to grounded ice along a path consisting only of active cells.
     ! Floating cells without such a connection are calved as icebergs.
-    ! Note: ice_mask is computed with a lower limit of thklim (not 0.0),
+    ! Note: ice_mask is computed with a lower limit of thcklim (not 0.0),
     !       since we don't want very thin floating ice to spread the fill.
     ! ------------------------------------------------------------------------
 
@@ -972,7 +972,7 @@ contains
        calving,                 &  ! calving derived type
        itest,  jtest,  rtest,   &
        dt,                      &  ! s
-       thklim,                  &  ! m
+       thck_threshold,          &  ! m
        thck,           relx,    &  ! m
        topg,           eus)        ! m
 
@@ -1011,7 +1011,7 @@ contains
     real(dp), dimension(nx,ny), intent(inout) :: thck              !> ice thickness (m)
     real(dp), dimension(nx,ny), intent(in)    :: relx              !> relaxed bedrock topography (m)
     real(dp), dimension(nx,ny), intent(in)    :: topg              !> present bedrock topography (m)
-    real(dp), intent(in)                      :: thklim            !> minimum thickness for dynamically active grounded ice (m)
+    real(dp), intent(in)                      :: thck_threshold            !> minimum thickness for dynamically active grounded ice (m)
     real(dp), intent(in)                      :: eus               !> eustatic sea level (m)
 
     ! local variables
@@ -1020,8 +1020,8 @@ contains
 
     ! basic masks
     integer, dimension(nx,ny)  ::  &
-         ice_mask,               & ! = 1 where ice is present (thck > thklim), else = 0
-         floating_mask,          & ! = 1 where ice is present (thck > thklim) and floating, else = 0
+         ice_mask,               & ! = 1 where ice is present (thck > thck_threshold), else = 0
+         floating_mask,          & ! = 1 where ice is present (thck > thck_threshold) and floating, else = 0
          ocean_mask,             & ! = 1 where topg is below sea level and ice is absent, else = 0
          land_mask                 ! = 1 where topg is at or above sea level, else = 0
 
@@ -1066,14 +1066,14 @@ contains
     ! Do the calving based on the value of which_calving
 
     ! Get masks.
-    ! Use thickness limit of 0.0 instead of thklim so as to remove ice from any cell
+    ! Use thickness limit of 0.0 instead of thck_threshold so as to remove ice from any cell
     !  that meets the calving criteria, not just dynamically active ice.
 
     call glissade_get_masks(&
          nx,            ny,             &
          parallel,                      &
          thck,          topg,           &
-         eus,           0.0d0,          &   ! thklim = 0.0
+         eus,           0.0d0,          &   ! thck_threshold = 0.0
          ice_mask,                      &
          floating_mask = floating_mask, &
          ocean_mask = ocean_mask)
@@ -1191,7 +1191,7 @@ contains
        dx,             dy,      &  ! m
        x1,             y1,      &  ! m
        sigma,                   &
-       thklim,                  &  ! m
+       thcklim,                 &  ! m
        uvel_2d,        vvel_2d, &  ! m/s
        thck_pre_transport,      &  ! m
        thck,           relx,    &  ! m
@@ -1275,7 +1275,7 @@ contains
     real(dp), dimension(nx,ny), intent(inout) :: thck              !> ice thickness (m)
     real(dp), dimension(nx,ny), intent(in)    :: relx              !> relaxed bedrock topography (m)
     real(dp), dimension(nx,ny), intent(in)    :: topg              !> present bedrock topography (m)
-    real(dp), intent(in)                      :: thklim            !> minimum thickness for dynamically active grounded ice (m)
+    real(dp), intent(in)                      :: thcklim            !> minimum thickness for dynamically active grounded ice (m)
     real(dp), intent(in)                      :: eus               !> eustatic sea level (m)
 
     ! local variables
@@ -1286,8 +1286,8 @@ contains
 
     ! basic masks
     integer, dimension(nx,ny)  ::  &
-         ice_mask,               & ! = 1 where ice is present (thck > thklim), else = 0
-         floating_mask,          & ! = 1 where ice is present (thck > thklim) and floating, else = 0
+         ice_mask,               & ! = 1 where ice is present (thck > thcklim), else = 0
+         floating_mask,          & ! = 1 where ice is present (thck > thcklim) and floating, else = 0
          ocean_mask,             & ! = 1 where topg is below sea level and ice is absent, else = 0
          land_mask                 ! = 1 where topg is at or above sea level, else = 0
 
@@ -1422,7 +1422,7 @@ contains
          nx,            ny,             &
          parallel,                      &
          thck,          topg,           &
-         eus,           eps11,          &  ! thklim (m) = eps11
+         eus,           eps11,          &  ! thck_threshold (m) = eps11
          ice_mask,                      &
          floating_mask = floating_mask, &
          ocean_mask = ocean_mask,       &
@@ -1571,7 +1571,7 @@ contains
        ! If calving%calving_thck_threshold > 0, then also compute a thickness-based calving rate.
        ! Then apply whichever rate is larger at a given location.
 
-       if (calving%calving_thck_threshold > thklim) then
+       if (calving%calving_thck_threshold > thcklim) then
 
           call thickness_based_calving(&
                nx,                 ny,                    &
@@ -3797,7 +3797,7 @@ contains
             nx,                       ny,                         &
             parallel,                                             &
             model%geometry%thck,      model%geometry%topg,        &
-            model%climate%eus,        0.0d0,                      &  ! thklim = 0
+            model%climate%eus,        0.0d0,                      &  ! thck_threshold = 0
             ice_mask,                                             &
             floating_mask = floating_mask,                        &
             ocean_mask = ocean_mask,                              &
@@ -3968,7 +3968,7 @@ contains
     ! (1) Grounded cells must have f_ground_cell > f_ground_threshold to seed the fill.
     ! (2) The recursive fill applies to edge neighbors, not corner neighbors.
     !     The path back to grounded ice must go through edges, not corners.
-    ! (3) Should have a threshold of thklim (not 0.0) for ice_mask.  With a limit of 0.0, very thin
+    ! (3) Should have a threshold of thcklim (not 0.0) for ice_mask.  With a limit of 0.0, very thin
     !     floating cells can be wrongly counted as active, and icebergs can be missed.
     ! (4) Land-based cells that still have the initial color are not marked as icebergs.
     ! (5) To spread the fill, call glissade_fill_with_buffer instead of glissade_fill.
@@ -3985,7 +3985,7 @@ contains
 
     real(dp), dimension(nx,ny), intent(inout) :: thck            !> ice thickness
     real(dp), dimension(nx,ny), intent(in)    :: f_ground_cell   !> grounded fraction in each grid cell
-    integer,  dimension(nx,ny), intent(inout) :: ice_mask        !> = 1 where ice is present (thck > thklim), else = 0;
+    integer,  dimension(nx,ny), intent(inout) :: ice_mask        !> = 1 where ice is present (thck > thcklim), else = 0;
                                                                  !> may exclude partial CF cells
     integer,  dimension(nx,ny), intent(in)    :: floating_mask   !> = 1 where ice is present and floating, else = 0
     integer,  dimension(nx,ny), intent(in)    :: land_mask       !> = 1 where topg - eus >= 0, else = 0
@@ -4262,7 +4262,7 @@ contains
        dt,                              &
        taumax_cliff,   cliff_timescale, &
        thck,           topg,            &
-       eus,            thklim,          &
+       eus,            thcklim,         &
        calving_thck)
 
     ! Impose a thickness limit on marine ice cliffs.
@@ -4281,7 +4281,7 @@ contains
     real(dp), dimension(nx,ny), intent(inout) :: thck   !> ice thickness (m)
     real(dp), dimension(nx,ny), intent(in)    :: topg   !> present bedrock topography (m)
     real(dp), intent(in)    :: eus                      !> eustatic sea level (m)
-    real(dp), intent(in)    :: thklim                   !> minimum thickness for dynamically active grounded ice (m)
+    real(dp), intent(in)    :: thcklim                   !> minimum thickness for dynamically active grounded ice (m)
 
     real(dp), dimension(nx,ny), intent(inout) :: &
          calving_thck             !> thickness (m) lost due to calving; on output, includes ice calved at marine cliffs
@@ -4291,8 +4291,8 @@ contains
     integer :: i, j
 
     integer, dimension(nx,ny) ::  &
-         ice_mask,           & ! = 1 where ice is present (thck > thklim), else = 0
-         floating_mask,      & ! = 1 where ice is present (thck > thklim) and floating, else = 0
+         ice_mask,           & ! = 1 where ice is present (thck > thcklim), else = 0
+         floating_mask,      & ! = 1 where ice is present (thck > thcklim) and floating, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent, else = 0
          land_mask,          & ! = 1 where topg is at or above sea level, else = 0
          marine_cliff_mask     ! = 1 where ice is grounded and marine-based and borders at least one ocean cell
@@ -4311,7 +4311,7 @@ contains
          nx,            ny,             &
          parallel,                      &
          thck,          topg,           &
-         eus,           thklim,         &
+         eus,           thcklim,        &
          ice_mask,                      &
          floating_mask = floating_mask, &
          ocean_mask = ocean_mask,       &

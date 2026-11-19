@@ -885,7 +885,7 @@
     !       will be removed with different logic based on protected_mask.
     ! ------------------------------------------------------------------------
     ! Get masks used for the mass balance calculation.
-    ! Pass thklim = 0 to identify cells with thck > 0 (not thck > thklim).
+    ! Pass thck_threshold = 0 to identify cells with thck > 0 (not thck > thcklim).
     ! This allows ice removal from cells with very thin ice and a negative mass balance;
     !  it also allows accumulation in cells with very thin ice and a positive mass balance.
     ! Use ocean_mask to identify ocean cells where positive acab should not be applied.
@@ -900,7 +900,7 @@
             model%geometry%thck,                &   ! m
             model%geometry%topg,                &   ! m
             model%climate%eus,                  &   ! m
-            0.0d0,                              &   ! thklim = 0
+            0.0d0,                              &   ! thck_threshold = 0
             ice_mask,                           &
             floating_mask = floating_mask,      &
             ocean_mask = ocean_mask,            &
@@ -1052,7 +1052,7 @@
                                 ! = 0 for ice-free cells where bmlt > 0
 
     integer, dimension(nx,ny), intent(in) :: &
-         ocean_mask             ! = 1 if topg is below sea level and thk <= thklim, else = 0
+         ocean_mask             ! = 1 if topg is below sea level and thk <= thcklim, else = 0
 
     integer, intent(in) ::  &
          ntracers               ! number of tracers to be transported
@@ -1295,7 +1295,7 @@
 
     !TODO - Could remove ocean_mask argument, if acab and bmlt have already been set to 0 for ice-free ocean cells.
     integer, dimension(nx,ny), intent(in) :: &
-         ocean_mask             ! = 1 if topg is below sea level and thk <= thklim, else = 0
+         ocean_mask             ! = 1 if topg is below sea level and thk <= thcklim, else = 0
 
     real(dp), dimension (nx,ny), intent(in) ::     &
          effective_areafrac     ! effective fractional area for calving_front cells, in range [0,1]

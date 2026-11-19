@@ -115,7 +115,7 @@ contains
          model%geometry%thck,              &  ! m
          model%geometry%topg,              &  ! m
          model%climate%eus,                &  ! m
-         eps11,                            &  ! thklim (m) = eps11
+         eps11,                            &  ! thck_threshold (m) = eps11
          ice_mask,                         &
          floating_mask = floating_mask,    &
          ocean_mask = ocean_mask,          &
@@ -264,7 +264,7 @@ contains
             model%calving,                  &  ! calving derived type
             itest,  jtest,  rtest,          &
             dt,                             &  ! s
-            eps11,                          &  ! thcklim (m) = eps11
+            eps11,                          &  ! thck_threshold (m) = eps11
             model%geometry%thck,            &  ! m
             model%isostasy%relx,            &  ! m
             model%geometry%topg,            &  ! m

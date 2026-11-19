@@ -114,7 +114,7 @@ contains
   real(dp), intent(in)                    :: eus                ! eustatic sea level (m) relative to z = 0
 
   integer, intent(in), dimension(:,:) :: &
-       ice_mask,        & ! = 1 where ice is present (thck > thklim), else = 0
+       ice_mask,        & ! = 1 where ice is present (thck > thcklim), else = 0
        land_mask          ! = 1 where topg > eus
 
   real(dp), intent(in), dimension(:,:)    :: f_ground           ! grounded ice fraction at vertices, 0 <= f_ground <= 1
@@ -703,7 +703,7 @@ contains
                              ! includes bwat, bwat_diag, and various parameters
 
     integer, dimension(:,:), intent(in) :: &
-         ice_mask,         & ! = 1 where ice is present (thk > thklim), else = 0
+         ice_mask,         & ! = 1 where ice is present (thk > thcklim), else = 0
          floating_mask       ! = 1 where ice is present and floating, else = 0
  
     !NOTE: If used, the following 2D fields (delta_bpmp, bwat, thck and topg) need to be correct in halos.

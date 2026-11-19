@@ -720,7 +720,7 @@
 
     real(dp)  ::   & 
        dt,                   &  ! time step (s)
-       thklim,               &  ! minimum ice thickness for active grounded cells (m)
+       thcklim,              &  ! minimum ice thickness for active grounded cells (m)
        thck_gradient_ramp,   &  ! thickness scale over which gradients are ramped up from zero to full value (m)
        max_slope,            &  ! maximum slope allowed for surface gradient computations (unitless)
        eus,                  &  ! eustatic sea level (m), = 0. by default
@@ -816,8 +816,8 @@
        ubas, vbas             ! basal ice velocity (m/yr); input to calcbeta 
 
     integer, dimension(nx,ny) ::     &
-       ice_mask,            & ! = 1 for cells where ice is present (thck > thklim)
-       floating_mask,       & ! = 1 for cells where ice is present (thck > thklim) and floating
+       ice_mask,            & ! = 1 for cells where ice is present (thck > thcklim)
+       floating_mask,       & ! = 1 for cells where ice is present (thck > thcklim) and floating
        ocean_mask,          & ! = 1 for cells where topography is below sea level and ice is absent
        land_mask,           & ! = 1 for cells where topography is above sea level
        ice_plus_land_mask     ! = 1 for active ice cells plus ice-free land cells
@@ -1125,7 +1125,7 @@
      vmask_no_penetration => model%velocity%vmask_no_penetration(:,:)
 
      dt = model%time%dt
-     thklim = model%numerics%thcklim
+     thcklim = model%numerics%thcklim
      thck_gradient_ramp  = model%numerics%thck_gradient_ramp
      max_slope = model%velocity%max_slope
      eus = model%climate%eus
@@ -1322,7 +1322,7 @@
           write(iulog,*) ' '
           write(iulog,*) 'nx, ny, nz:', nx, ny, nz
           write(iulog,*) 'vol0:', vol0
-          write(iulog,*) 'thklim:', thklim
+          write(iulog,*) 'thcklim:', thcklim
           write(iulog,*) 'max thck, usrf:', maxthck, maxusrf
           write(iulog,*) 'sigma coordinate:'
           do k = 1, nz
@@ -1417,8 +1417,8 @@
 
     !------------------------------------------------------------------------------
     ! Compute masks for the velocity solver: 
-    ! (1) ice mask = 1 in cells where ice is present (thck > thklim)
-    ! (2) floating mask = 1 in cells where ice is present (thck > thklim) and floating
+    ! (1) ice mask = 1 in cells where ice is present (thck > thcklim)
+    ! (2) floating mask = 1 in cells where ice is present (thck > thcklim) and floating
     ! (3) ocean mask = = 1 in cells where topography is below sea level and ice is absent
     ! (4) land mask = 1 in cells where topography is at or above sea level
     !------------------------------------------------------------------------------
@@ -1427,7 +1427,7 @@
     call glissade_get_masks(nx,               ny,               &
                             parallel,                           &
                             thck,             topg,             &
-                            eus,              thklim,           &
+                            eus,              thcklim,          &
                             ice_mask,                           &
                             floating_mask = floating_mask,      &
                             ocean_mask = ocean_mask,            &
@@ -1502,7 +1502,7 @@
                                              land_mask,                      &
                                              usrf,         thck,             &
                                              topg,         eus,              &
-                                             thklim,                         &
+                                             thcklim,                        &
                                              thck_gradient_ramp,             &
                                              dusrf_dx,     dusrf_dy,         &
                                              surface_gradient_method,        &
@@ -1643,7 +1643,7 @@
     flwafact(:,:,:) = 0.d0
 
     ! Note: flwa is available in all cells, so flwafact can be computed in all cells.
-    !       This includes cells with thck <= thklim, in case a value of flwa is needed
+    !       This includes cells with thck <= thcklim, in case a value of flwa is needed
     !        (e.g., inactive land-margin cells adjacent to active cells).
 
     ! Loop over all cells that border locally owned vertices.
@@ -3698,7 +3698,7 @@
     !----------------------------------------------------------------
     ! Compute coordinates for each vertex.
     ! Identify and count the active cells and vertices for the finite-element calculations.
-    ! Active cells include all cells that contain ice (thck > thklim) and border locally owned vertices.
+    ! Active cells include all cells that contain ice (thck > thcklim) and border locally owned vertices.
     ! Active vertices include all vertices of active cells.
     !
     ! Also compute some indices needed for the SLAP solver.
@@ -3738,7 +3738,7 @@
 
     logical, dimension(nx,ny), intent(out) :: &
        active_cell            ! true for active cells 
-                              ! (thck > thklim, bordering a locally owned vertex)
+                              ! (thck > thcklim, bordering a locally owned vertex)
 
     logical, dimension(nx-1,ny-1), intent(out) :: &
        active_vertex          ! true for vertices of active cells
@@ -5578,7 +5578,7 @@
        stagsigma                   ! sigma vertical coordinate at layer midpoints
 
     integer, dimension(nx,ny), intent(in) ::  &
-       ice_mask,        & ! = 1 for cells where ice is present (thck > thklim), else = 0
+       ice_mask,        & ! = 1 for cells where ice is present (thck > thcklim), else = 0
        land_mask          ! = 1 for cells with topg >= eus, else = 0
 
     logical, dimension(nx,ny), intent(in) ::  &

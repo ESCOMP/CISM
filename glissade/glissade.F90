@@ -471,9 +471,9 @@ contains
     allocate(ocean_mask(model%grid%ewn, model%grid%nsn))
 
     ! If model%numerics%thcklim > 0, then decrease it slightly. The reasoning is as follows:
-    ! The requirement for ice_mask = 1 is thck > thklim. We want '>' rather than '>=' in case thklim = 0.
-    ! But suppose thklim = 1.0 m, and many cells in the input file have thck = 1.0 m.
-    ! We would like these cells to have ice_mask = 1. This will be the case if we reduce thklim slightly.
+    ! The requirement for ice_mask = 1 is thck > thcklim. We want '>' rather than '>=' in case thcklim = 0.
+    ! But suppose thcklim = 1.0 m, and many cells in the input file have thck = 1.0 m.
+    ! We would like these cells to have ice_mask = 1. This will be the case if we reduce thcklim slightly.
 
     model%numerics%thcklim = max(model%numerics%thcklim - eps11, 0.0d0)
 
@@ -845,7 +845,7 @@ contains
          model%diagnostics%idiag_local, model%diagnostics%jdiag_local, &
          model%diagnostics%rdiag_local,                                &
          model%geometry%thck,           model%geometry%topg,           &
-         model%climate%eus,             0.0d0,                         &  ! thklim = 0
+         model%climate%eus,             0.0d0,                         &  ! thck_threshold = 0
          model%geometry%marine_connection_mask)
 
     ! TODO: Move calving-related initialization to a separate subroutine.
@@ -1310,8 +1310,8 @@ contains
     integer :: itest, jtest, rtest
 
     integer, dimension(model%grid%ewn, model%grid%nsn) ::   &
-         ice_mask,              & ! = 1 if ice is present (thck > thklim_temp), else = 0
-         floating_mask,         & ! = 1 if ice is present (thck > thklim_temp) and floating, else = 0
+         ice_mask,              & ! = 1 if ice is present (thck > thcklim_temp), else = 0
+         floating_mask,         & ! = 1 if ice is present (thck > thcklim_temp) and floating, else = 0
          ocean_mask,            & ! = 1 if topg is below sea level and ice is absent, else = 0
          bwat_mask                ! = 1 for cells through which basal water is routed, else = 0
 
@@ -1565,7 +1565,7 @@ contains
          partial_cf_mask,         & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
          full_mask                  ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
-    real(dp) :: this_thklim         ! argument passed to glissade_get_masks; depends on subgrid CF option
+    real(dp) :: thck_threshold         ! argument passed to glissade_get_masks; depends on subgrid CF option
 
     rtest = -999
     itest = 1
@@ -1627,10 +1627,10 @@ contains
 
        if (.not. model%calving%subgrid_calving_front) then
           ! Pass the default value
-          this_thklim = model%numerics%thcklim
+          thck_threshold = model%numerics%thcklim
        else
-          ! Pass thklim = eps11 so thin cells near the margin can be identified as partial CF
-          this_thklim = eps11
+          ! Pass thck_threshold = eps11 so thin cells near the margin can be identified as partial CF
+          thck_threshold = eps11
        endif
 
        call glissade_get_masks(&
@@ -1639,7 +1639,7 @@ contains
             model%geometry%thck,                &   ! m
             model%geometry%topg,                &   ! m
             model%climate%eus,                  &   ! m
-            this_thklim,                        &   ! thklim (m)
+            thck_threshold,                     &   ! m
             ice_mask,                           &
             floating_mask = floating_mask,      &
             ocean_mask = ocean_mask,            &
@@ -2007,7 +2007,7 @@ contains
     integer :: itest, jtest, rtest
 
     integer, dimension(model%grid%ewn, model%grid%nsn) :: &
-         ice_mask,           & ! = 1 where thck > thklim, else = 0
+         ice_mask,           & ! = 1 where thck > thcklim, else = 0
          floating_mask,      & ! = 1 where ice is present and floating, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent
          land_mask             ! = 1 where topg is at or above sea level
@@ -2018,7 +2018,7 @@ contains
     integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          partial_cf_mask, full_mask
 
-    real(dp) :: this_thklim
+    real(dp) :: thck_threshold
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
@@ -2093,15 +2093,15 @@ contains
     ! ------------------------------------------------------------------------
 
     if (.not. model%calving%subgrid_calving_front) then
-       this_thklim = model%numerics%thcklim
+       thck_threshold = model%numerics%thcklim
     else
-       this_thklim = eps11
+       thck_threshold = eps11
     endif
 
     call glissade_get_masks(ewn,                 nsn,                   &
                             parallel,                                   &
                             model%geometry%thck, model%geometry%topg,   &
-                            model%climate%eus,   this_thklim,           &
+                            model%climate%eus,   thck_threshold,        &
                             ice_mask,                                   &
                             floating_mask = floating_mask,              &
                             ocean_mask = ocean_mask,                    &

@@ -758,7 +758,7 @@ contains
     integer :: i, j, ng
 
     integer, dimension(model%grid%ewn, model%grid%nsn) ::  &
-         ice_mask,                & ! = 1 where ice is present (thck > thklim), else = 0
+         ice_mask,                & ! = 1 where ice is present (thck > thcklim), else = 0
          glacier_mask               ! temporary mask
 
     real(dp), dimension(model%grid%ewn, model%grid%nsn) ::  &
@@ -2694,7 +2694,7 @@ contains
     !   It is no longer considered to be glaciated.
     !   Here, glacier_minthck is a threshold for counting ice as part of a glacier.
     !   By default, glacier_minthck = model%numerics%thcklim, typically 1 m.
-    !   (Actually, glacier_minthck is slightly less than thklim, to make sure these cells
+    !   (Actually, glacier_minthck is slightly less than thcklim, to make sure these cells
     !   are not dynamically active.)
     ! - When a cell has H > glacier_minthck and cism_glacier_id = 0, we give it a nonzero ID:
     !   either (1) cism_glacier_id_init, if the initial ID > 0,

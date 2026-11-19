@@ -152,7 +152,7 @@ module glissade_bmlt_float
     !-----------------------------------------------------------------
 
     integer, dimension(ewn,nsn) ::  &
-         ice_mask,            & ! = 1 where ice temperature is computed (thck > thklim), else = 0
+         ice_mask,            & ! = 1 where ice temperature is computed (thck > thcklim), else = 0
          floating_mask,       & ! = 1 where ice is present and floating, else = 0
          ocean_mask             ! = 1 where topg is below sea level and ice is absent
 
@@ -177,7 +177,7 @@ module glissade_bmlt_float
     ! - ice_mask = 1 where thck > 0
     ! - floating_mask = 1 where thck > 0 and ice is floating;
     ! - ocean_mask = 1 where topg is below sea level and ice is absent
-    !Note: The '0.0d0' argument is thklim. Here, any ice with thck > 0 gets ice_mask = 1.
+    !Note: The '0.0d0' argument is thck_threshold. Here, any ice with thck > 0 gets ice_mask = 1.
     !TODO: Modify glissade_get_masks so that 'parallel' is not needed.
 
     call glissade_get_masks(ewn,           nsn,            &
@@ -414,7 +414,7 @@ module glissade_bmlt_float
          ewn,                 nsn,                   &
          parallel,                                   &
          model%geometry%thck, model%geometry%topg,   &
-         model%climate%eus,   0.0d0,                 &  ! thklim = 0
+         model%climate%eus,   0.0d0,                 &  ! thck_threshold = 0
          ice_mask,                                   &
          floating_mask = floating_mask,              &
          land_mask = land_mask,                      &
@@ -838,12 +838,12 @@ module glissade_bmlt_float
     if (main_task .and. verbose_bmlt_float) write(iulog,*) 'In glissade_bmlt_float_solve'
 
     ! Compute masks:
-    ! Note: The '0.0d0' argument is thklim. Any ice with thck > 0 gets ice_mask = 1.
+    ! Note: The '0.0d0' argument is thck_threshold. Any ice with thck > 0 gets ice_mask = 1.
 
     call glissade_get_masks(ewn,                 nsn,                   &
                             parallel,                                   &
                             model%geometry%thck, model%geometry%topg,   &
-                            model%climate%eus,   0.0d0,                 &  ! thklim = 0
+                            model%climate%eus,   0.0d0,                 &  ! thck_threshold = 0
                             ice_mask,                                   &
                             floating_mask = floating_mask,              &
                             ocean_mask = ocean_mask,                    &

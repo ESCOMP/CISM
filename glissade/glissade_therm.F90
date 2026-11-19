@@ -510,7 +510,7 @@ module glissade_therm
        ewn,                  nsn,       upn,   &
        itest,                jtest,     rtest, &
        sigma,                stagsigma,        &
-       thklim_temp,                            &
+       thcklim_temp,                           &
        thck,                 topg,             &
        lsrf,                 eus,              &
        artm,                                   &
@@ -556,7 +556,7 @@ module glissade_therm
  
     real(dp), intent(in) ::   &
          dt,              &! time step for temperature solve (s)
-         thklim_temp,     &! minimum ice thickness (m) for temperature calculation
+         thcklim_temp,    &! minimum ice thickness (m) for temperature calculation
          eus               ! eustatic sea level (m), = 0. by default  
 
     real(dp), dimension(:), intent(in) ::   &
@@ -630,7 +630,7 @@ module glissade_therm
                                                ! = coni / (rhoi*shci) for cold ice
 
     integer, dimension(ewn,nsn) ::  &
-         ice_mask,      &! = 1 where ice temperature is computed (thck > thklim_temp), else = 0
+         ice_mask,      &! = 1 where ice temperature is computed (thck > thcklim_temp), else = 0
          floating_mask, &! = 1 where ice is present and floating, else = 0
          grounded_mask   ! = 1 where grounded ice is present (including partly grounded cells), else = 0
 
@@ -685,14 +685,14 @@ module glissade_therm
 
     endif
 
-    ! Compute masks: ice_mask = 1 where thck > thklim_temp;
-    !                floating_mask = 1 where ice is present (thck > thklim_temp) and floating;
+    ! Compute masks: ice_mask = 1 where thck > thcklim_temp;
+    !                floating_mask = 1 where ice is present (thck > thcklim_temp) and floating;
     !TODO: Modify glissade_get_masks so that 'parallel' is not needed
 
     call glissade_get_masks(ewn,           nsn,            &
                             parallel,                      &
                             thck,          topg,           &
-                            eus,           thklim_temp,    &
+                            eus,           thcklim_temp,   &
                             ice_mask,                      &
                             floating_mask = floating_mask)
 
@@ -763,7 +763,7 @@ module glissade_therm
 
     do ns = 1, nsn
        do ew = 1, ewn
-          if (ice_mask(ew,ns) == 1) then    ! thck > thklim_temp
+          if (ice_mask(ew,ns) == 1) then    ! thck > thcklim_temp
              call glissade_pressure_melting_point(thck(ew,ns), bpmp(ew,ns))
           else
              bpmp(ew,ns) = 0.d0
@@ -799,7 +799,7 @@ module glissade_therm
              verbose_column = .false.
           endif
 
-          if (ice_mask(ew,ns) == 1) then   ! thck > thklim_temp
+          if (ice_mask(ew,ns) == 1) then   ! thck > thcklim_temp
 
              ! Set surface temperature
 
@@ -1111,7 +1111,7 @@ module glissade_therm
 
                 if (verbose_column) then
                    write(iulog,*) 'Ice thickness:', thck(ew,ns)
-                   write(iulog,*) 'thklim_temp:', thklim_temp
+                   write(iulog,*) 'thcklim_temp:', thcklim_temp
                    write(iulog,*) ' '
                    write(iulog,*) 'Interior fluxes:'
                    write(iulog,*) 'ftop (pos up)=', -ucondflx(ew,ns) 
@@ -1140,7 +1140,7 @@ module glissade_therm
             
              endif  ! energy conservation error
 
-          endif  ! thck > thklim_temp
+          endif  ! thck > thcklim_temp
        end do    ! ew
        end do    ! ns
 
@@ -1158,13 +1158,13 @@ module glissade_therm
        ! Set the temperature of thin ice columns where the temperature is not computed above.
        ! NOTE: This procedure will maintain a sensible temperature profile for thin ice,
        !        but in general does *not* conserve energy.
-       !       To conserve energy, we need either thklim_temp = 0, or some additional
+       !       To conserve energy, we need either thcklim_temp = 0, or some additional
        !        energy accounting and correction.
 
        do ns = 1, nsn
           do ew = 1, ewn
 
-             if (thck(ew,ns) <= thklim_temp) then
+             if (thck(ew,ns) <= thcklim_temp) then
                 temp(:,ew,ns) = min(0.0d0, artm(ew,ns))
              endif
 
@@ -2058,7 +2058,7 @@ module glissade_therm
          thck                    ! ice thickness (m)
 
     integer, dimension(:,:), intent(in) ::  &
-         ice_mask                ! = 1 where ice is present (thck > thklim_temp), else = 0
+         ice_mask                ! = 1 where ice is present (thck > thcklim_temp), else = 0
 
     real(dp), dimension(:,:), intent(out):: &
          melt_internal           ! basal melt rate for grounded ice (m/s)
@@ -2305,7 +2305,7 @@ module glissade_therm
 
     real(dp), dimension(:,:), intent(in) :: stagthck, dusrfdew, dusrfdns
 
-    integer, dimension(:,:), intent(in) :: ice_mask    ! = 1 where ice is present (thck > thklim), else = 0
+    integer, dimension(:,:), intent(in) :: ice_mask    ! = 1 where ice is present (thck > thcklim), else = 0
 
     real(dp), dimension(:,:,:), intent(in) ::  &
          flwa         ! flow factor, Pa^(-n) yr^(-1)  
@@ -2369,7 +2369,7 @@ module glissade_therm
     use glimmer_physcon, only: rhoi, shci
 
     integer, intent(in) :: ewn, nsn, upn   ! grid dimensions
-    integer, dimension(:,:), intent(in) :: ice_mask    ! = 1 where ice is present (thck > thklim), else = 0
+    integer, dimension(:,:), intent(in) :: ice_mask    ! = 1 where ice is present (thck > thcklim), else = 0
 
     real(dp), dimension(:,:,:), intent(in) ::  &
          tau_eff,    & ! effective stress, Pa

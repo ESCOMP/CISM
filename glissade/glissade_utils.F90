@@ -231,7 +231,7 @@ contains
     call glissade_get_masks(nx,                  ny,                    &
                             model%parallel,                             &
                             model%geometry%thck, model%geometry%topg,   &
-                            model%climate%eus,   0.0d0,                 &  ! thklim = 0
+                            model%climate%eus,   0.0d0,                 &  ! thck_threshold = 0
                             ice_mask,                                   &
                             floating_mask = floating_mask,              &
                             ocean_mask = ocean_mask)

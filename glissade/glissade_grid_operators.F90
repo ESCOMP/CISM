@@ -93,7 +93,7 @@ contains
 
     integer, dimension(nx,ny), intent(in), optional ::        &
        ice_mask                 ! = 1 where values are included in the average, else = 0
-                                ! Typically ice_mask = 1 where ice is present (or thck > thklim), else = 0
+                                ! Typically ice_mask = 1 where ice is present (or thck > thcklim), else = 0
                                 ! Note: ice_mask is not needed if stagger_margin = 0
 
     integer, intent(in), optional ::   &
@@ -838,7 +838,7 @@ contains
                                                  land_mask,               &
                                                  usrf,         thck,      &
                                                  topg,         eus,       &
-                                                 thklim,                  &
+                                                 thcklim,                 &
                                                  thck_gradient_ramp,      &
                                                  ds_dx,        ds_dy,     &
                                                  ho_gradient,             &
@@ -872,7 +872,7 @@ contains
     ! At land-terminating margins the gradient is nonzero (except for nunataks), and at marine-terminating
     !  margins the gradient is zero.
     !
-    ! SURFACE_GRADIENT_MARGIN_METHOD_MARINE = 2: Only values in ice-covered cells (i.e., cells with thck > thklim)
+    ! SURFACE_GRADIENT_MARGIN_METHOD_MARINE = 2: Only values in ice-covered cells (i.e., cells with thck > thcklim)
     !  are used to compute gradients.  If one or both adjacent cells is ice-free, the edge is masked out.
     !  This option works well at shelf margins but less well for land margins (e.g., the Halfar test case).
     !
@@ -916,7 +916,7 @@ contains
 
     real(dp), intent(in) ::       &
          eus,                   & ! eustatic sea level
-         thklim,                & ! minimum thickness for dynamically active ice
+         thcklim,               & ! minimum thickness for dynamically active ice
          thck_gradient_ramp
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::    &
@@ -1015,9 +1015,9 @@ contains
 
              if (land_mask(iu,j) == 1 .and. thck_gradient_ramp > 0.0d0) then
                 ! Compute a factor that reduces the gradient if ice in the upper cell is thin and land-based.
-                ! This inhibits oscillations in the gradient when the thickness in the upper cell is close to thklim.
+                ! This inhibits oscillations in the gradient when the thickness in the upper cell is close to thcklim.
                 edge_thck_upper = thck(iu,j)
-                edge_factor = min(1.0d0, (edge_thck_upper - thklim)/thck_gradient_ramp)
+                edge_factor = min(1.0d0, (edge_thck_upper - thcklim)/thck_gradient_ramp)
                 edge_factor = max(edge_factor, 0.0d0)
              else
                 edge_factor = 1.0d0
@@ -1055,9 +1055,9 @@ contains
 
              if (land_mask(i,ju) == 1 .and. thck_gradient_ramp > 0.0d0) then
                 ! Compute a factor that reduces the gradient if ice in the upper cell is thin and land-based.
-                ! This inhibits oscillations in the gradient when the thickness in the upper cell is close to thklim.
+                ! This inhibits oscillations in the gradient when the thickness in the upper cell is close to thcklim.
                 edge_thck_upper = thck(i,ju)
-                edge_factor = min(1.0d0, (edge_thck_upper - thklim)/thck_gradient_ramp)
+                edge_factor = min(1.0d0, (edge_thck_upper - thcklim)/thck_gradient_ramp)
                 edge_factor = max(edge_factor, 0.0d0)
              else
                 edge_factor = 1.0d0

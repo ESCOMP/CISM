@@ -126,7 +126,7 @@
        sigma                    ! vertical sigma coordinate, [0,1]
 
     real(dp)  ::   & 
-       thklim, &                ! minimum ice thickness for active cells (m)
+       thcklim, &                ! minimum ice thickness for active cells (m)
        eus,  &                  ! eustatic sea level (m), = 0. by default
        btrc_const               ! constant basal traction ((m/yr)/Pa) for btrc_method options
 
@@ -194,8 +194,8 @@
     dx = model%grid%dew
     dy = model%grid%dns
 
-    thklim = model%numerics%thcklim
-    eus    = model%climate%eus
+    thcklim = model%numerics%thcklim
+    eus     = model%climate%eus
     btrc_const = model%basal_physics%btrc_const
     btrc_method = model%basal_physics%btrc_method
     surface_gradient_margin_method = model%velocity%surface_gradient_margin_method
@@ -237,14 +237,14 @@
     call glissade_velo_sia_scale_input(dx,     dy,            &
                                        thck,   usrf,          &
                                        topg,                  &
-                                       eus,    thklim,        &
+                                       eus,    thcklim,       &
                                        flwa,                  &
                                        bwat,   btrc_const,    &
                                        uvel,   vvel)
 
     !------------------------------------------------------------------------------
     ! Compute masks: 
-    ! (1) ice_mask = 1 in cells where ice is present (thck > thklim), = 0 elsewhere
+    ! (1) ice_mask = 1 in cells where ice is present (thck > thcklim), = 0 elsewhere
     ! (2) land_mask = 1 in land cells
     !------------------------------------------------------------------------------
 
@@ -252,7 +252,7 @@
     call glissade_get_masks(nx,          ny,         &
                             parallel,                &
                             thck,        topg,       &
-                            eus,         thklim,     &
+                            eus,         thcklim,    &
                             ice_mask,                &
                             land_mask = land_mask)
 
@@ -354,7 +354,7 @@
     ! Compute velocity at the bed (ubas, vbas)
 
     call glissade_velo_sia_bed(nx,          ny,         &
-                               stagthck,    thklim,     &
+                               stagthck,    thcklim,    &
                                dusrf_dx,    dusrf_dy,   &
                                btrc_method, stagbwat,   &
                                stagbtemp,   stagbpmp,   &
@@ -371,7 +371,7 @@
 
     call glissade_velo_sia_interior(nx,       ny,       nz,         &
                                     dx,       dy,                   &
-                                    sigma,    thklim,               &
+                                    sigma,    thcklim,              &
                                     itest, jtest, rtest,            &
                                     usrf,                           &
                                     thck,     stagthck,             &
@@ -438,7 +438,7 @@
   subroutine glissade_velo_sia_scale_input(dx,     dy,            &
                                            thck,   usrf,          &
                                            topg,                  &
-                                           eus,    thklim,        &
+                                           eus,    thcklim,       &
                                            flwa,                  &
                                            bwat,   btrc_const,    &
                                            uvel,   vvel)
@@ -458,7 +458,7 @@
 
     real(dp), intent(inout) ::   &
        eus,  &                 ! eustatic sea level (= 0 by default)
-       thklim,  &              ! minimum ice thickness for active cells
+       thcklim,  &              ! minimum ice thickness for active cells
        btrc_const              ! constant basal traction ((m/yr)/Pa) for btrc_method options
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
@@ -530,7 +530,7 @@
 !*********************************************************************
 
   subroutine glissade_velo_sia_bed(nx,          ny,         &
-                                   stagthck,    thklim,     &
+                                   stagthck,    thcklim,    &
                                    dusrf_dx,    dusrf_dy,   &
                                    btrc_method, stagbwat,   &
                                    stagbtemp,   stagbpmp,   &
@@ -561,7 +561,7 @@
        stagbpmp                 ! basal pressure melting point temperature averaged to vertices (deg C)
 
     real(dp), intent(in) ::   &
-       thklim                   ! minimum ice thickness for active cells
+       thcklim                   ! minimum ice thickness for active cells
 
     integer, intent(in) :: &
        btrc_method                ! basal traction option for SIA
@@ -586,7 +586,7 @@
     do j = 1, ny-1
        do i = 1, nx-1
 
-          if (stagthck(i,j) > thklim) then
+          if (stagthck(i,j) > thcklim) then
 
              ! Compute basal traction coefficient, btrc = 1/beta
 
@@ -634,7 +634,7 @@
              ubas(i,j) = -btrc(i,j) * rhoi * grav * stagthck(i,j) * dusrf_dx(i,j)
              vbas(i,j) = -btrc(i,j) * rhoi * grav * stagthck(i,j) * dusrf_dy(i,j)
 
-          else   ! stagthck <= thklim
+          else   ! stagthck <= thcklim
 
              btrc(i,j) = 0.d0
              ubas(i,j) = 0.d0
@@ -651,7 +651,7 @@
 
   subroutine glissade_velo_sia_interior(nx,       ny,      nz,          &
                                         dx,       dy,                   &
-                                        sigma,    thklim,               &
+                                        sigma,    thcklim,              &
                                         itest, jtest, rtest,            &
                                         usrf,                           &
                                         thck,     stagthck,             &
@@ -673,7 +673,7 @@
 
     real(dp), intent(in) ::   &
        dx, dy,                & ! grid cell length and width (m)
-       thklim                   ! minimum ice thickness for active cells
+       thcklim                   ! minimum ice thickness for active cells
 
     real(dp), dimension(nz) ::   &
        sigma                    ! vertical sigma coordinate, [0,1]
@@ -743,7 +743,7 @@
     do j = 1, ny-1
        do i = 1, nx-1
           
-          if (stagthck(i,j) > thklim) then
+          if (stagthck(i,j) > thcklim) then
 
              siafact = 2.d0 * (rhoi*grav)**n_glen * stagthck(i,j)**(n_glen+1)             &
                              * (dusrf_dx(i,j)**2 + dusrf_dy(i,j)**2) ** ((n_glen-1)/2)
@@ -758,7 +758,7 @@
 
              enddo   ! k
 
-          else   ! stagthck <= thklim
+          else   ! stagthck <= thcklim
 
              vintfact(:,i,j) = 0.d0
 
@@ -817,7 +817,7 @@
        ! east edges
        do j = 2, ny-1
           do i = 1, nx-1
-             if (stagthck(i,j) > thklim .and. stagthck(i,j-1) > thklim) then
+             if (stagthck(i,j) > thcklim .and. stagthck(i,j-1) > thcklim) then
                 uedge(i,j) = (vintfact(k,i,j) + vintfact(k,i,j-1))/2.d0 * dusrf_dx_edge(i,j)
              endif
           enddo     ! i
@@ -826,7 +826,7 @@
        ! north edges
        do j = 1, ny-1
           do i = 2, nx-1
-             if (stagthck(i,j) > thklim .and. stagthck(i-1,j) > thklim) then
+             if (stagthck(i,j) > thcklim .and. stagthck(i-1,j) > thcklim) then
                 vedge(i,j) = (vintfact(k,i,j) + vintfact(k,i-1,j))/2.d0 * dusrf_dy_edge(i,j)
              endif
           enddo     ! i

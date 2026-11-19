@@ -142,8 +142,8 @@
        eus                    ! eustatic sea level (= 0 by default)
 
     integer, dimension(nx,ny), intent(in) ::   &
-       ice_mask,            & ! = 1 if ice is present (thck > thklim), else = 0
-       floating_mask,       & ! = 1 if ice is present (thck > thklim) and floating, else = 0
+       ice_mask,            & ! = 1 if ice is present (thck > thcklim), else = 0
+       floating_mask,       & ! = 1 if ice is present (thck > thcklim) and floating, else = 0
        land_mask              ! = 1 if topg is at or above sea level
 
     ! see comments above for more information about these options
