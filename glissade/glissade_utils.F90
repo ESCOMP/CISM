@@ -1077,7 +1077,7 @@ contains
              ! thermal variables
              model%temperature%temp(:,i,j) = min(model%climate%artm(i,j), 0.0d0)
 
-             if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
+             if (model%temperature%temperature_method == TEMPERATURE_METHOD_ENTHALPY) then
                 model%temperature%waterfrac(:,i,j) = 0.0d0
              endif
 

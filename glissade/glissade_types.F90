@@ -786,38 +786,6 @@ module glissade_types
     !> \item[glissade] Glissade dycore (1st-order, FEM, serial (SLAP) or parallel (F90 native PCG solver) )
     !> \end{description}
 
-    integer :: whichtemp = TEMPERATURE_METHOD_PROGNOSTIC
-
-    !> Method of ice temperature calculation:
-    !> \begin{description} 
-    !> \item[isothermal_artm] Set column to surface air temperature
-    !> \item[prognostic] Prognostic temperature solution 
-    !> \item[fixed] Do NOTHING - hold temperatures steady at initial value  
-    !> \item[enthalpy] Prognostic enthalpy solution
-    !> \end{description}
-
-    integer :: temp_init = TEMPERATURE_INIT_ARTM
-
-    ! Temperature initialization:
-    !> \begin{description} 
-    !> \item[zero_celsius] Initialize temperature to 0 C
-    !> \item[artm] Initialize temperature to surface air temperature
-    !> \item[linear] Initialize temperature with a linear profile in each column
-    !> \item[advective_diffusive] Initialize temperature with an advective-diffusive balance in each column
-    !> \item[file] Initialize temperature from external file
-    !> \end{description}
-
-    !> Method for calculating flow factor $A$:
-
-    integer :: whichflwa = FLOW_LAW_PATERSON_BUDD
-
-    !> \begin{description} 
-    !> \item[constant] Set equal to $1\times 10^{-16} \mathrm{Pa}^{-n} \mathrm{yr}^{-1}$
-    !> \item[paterson_budd_minus5c] \emph{Paterson and Budd} relationship, 
-    !> with temperature set to $-5^{\circ}\mathrm{C}$ 
-    !> \item[paterson_budd] \emph{Paterson and Budd} relationship
-    !> \end{description}
-
     integer :: whichbtrc = BTRC_METHOD_NONE
 
     !> Basal slip coefficient (used for glide and for glissade local SIA; not glissade HO):
@@ -1019,10 +987,6 @@ module glissade_types
     logical :: limit_marine_cliffs = .false.
     !> if true, then thin marine-based cliffs based on a thickness threshold
 
-    logical :: damage_flwa_feedback = .false.
-    !> if true, then flwa increases as damage increases
-    !> This can be a strong positive feedback on damage
-
     logical :: forcewrite_final = .false.
     !> if true, then force a write to output and restart files when the model finishes
 
@@ -1042,15 +1006,6 @@ module glissade_types
     !-----------------------------------------------------------------------
     ! Higher-order options associated with the glissade dycore
     !-----------------------------------------------------------------------
-
-    integer :: which_ho_disp = DISSIPATION_METHOD_FIRST_ORDER
-
-    !> Flag that indicates method for computing the dissipation during the temperature calc.
-    !> \begin{description}
-    !> \item[none] for no dissipation
-    !> \item[sia] for 0-order SIA approx
-    !> \item[first_order] for first-order dissipation (Blatter-Pattyn)
-    !> \end{description}
 
     integer :: which_ho_babc = SLIDING_LAW_NO_SLIP
 
@@ -1631,6 +1586,35 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+  type glissade_flow_law_type
+
+    !> [flow_law] keys (n_glen is a module variable in glimmer_physcon)
+
+    integer :: flow_law = FLOW_LAW_PATERSON_BUDD
+    !> Method for calculating flow factor $A$:
+    !> \begin{description} 
+    !> \item[constant] Set equal to $1\times 10^{-16} \mathrm{Pa}^{-n} \mathrm{yr}^{-1}$
+    !> \item[paterson_budd_minus5c] \emph{Paterson and Budd} relationship, 
+    !> with temperature set to $-5^{\circ}\mathrm{C}$ 
+    !> \item[paterson_budd] \emph{Paterson and Budd} relationship
+    !> \end{description}
+
+    logical :: damage_flwa_feedback = .false.
+    !> if true, then flwa increases as damage increases
+    !> This can be a strong positive feedback on damage
+
+    real(dp) :: flow_factor_ground = 1.0d0 ! flow enhancement parameter for the Arrhenius relationship;
+                                           ! grounded ice only; typically > 1 for SIA models to speed up the ice
+    real(dp) :: flow_factor_float = 1.0d0  ! flow enhancement parameter for floating ice
+                                           ! Default is 1.0, but for marine simulations a smaller value
+                                           !  is often needed to match observed shelf speeds
+    real(dp) :: flwa_const = 1.0d-16       ! Glen's A to use in isothermal case, in units Pa^{-n} yr^{-1} 
+                                           ! (would change to e.g. 4.6e-18 in EISMINT-ROSS case)
+
+  end type glissade_flow_law_type
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
   type glissade_stress_type      
 
     type(glissade_tensor_type) :: tau         ! HO only
@@ -1919,6 +1903,36 @@ module glissade_types
 
     real(dp) :: pmp_offset = 5.0d0        ! offset of initial Tbed from pressure melting point temperature (deg C)
     real(dp) :: pmp_threshold = 1.0d-3    ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
+
+
+    !> [temperature] keys
+
+    integer :: temperature_method = TEMPERATURE_METHOD_PROGNOSTIC
+    !> Method of ice temperature calculation:
+    !> \begin{description} 
+    !> \item[isothermal_artm] Set column to surface air temperature
+    !> \item[prognostic] Prognostic temperature solution 
+    !> \item[fixed] Do NOTHING - hold temperatures steady at initial value  
+    !> \item[enthalpy] Prognostic enthalpy solution
+    !> \end{description}
+
+    integer :: temperature_init = TEMPERATURE_INIT_ARTM
+    !> Temperature initialization:
+    !> \begin{description} 
+    !> \item[zero_celsius] Initialize temperature to 0 C
+    !> \item[artm] Initialize temperature to surface air temperature
+    !> \item[linear] Initialize temperature with a linear profile in each column
+    !> \item[advective_diffusive] Initialize temperature with an advective-diffusive balance in each column
+    !> \item[file] Initialize temperature from external file
+    !> \end{description}
+
+    integer :: dissipation_method = DISSIPATION_METHOD_FIRST_ORDER
+    !> Flag that indicates method for computing the dissipation during the temperature calc.
+    !> \begin{description}
+    !> \item[none] for no dissipation
+    !> \item[sia] for 0-order SIA approx
+    !> \item[first_order] for first-order dissipation (Blatter-Pattyn)
+    !> \end{description}
 
   end type glissade_temperature_type
 
@@ -2654,15 +2668,6 @@ module glissade_types
   type glissade_paramets_type
     real(dp) :: btrc_const = 0.d0      ! m yr^{-1} Pa^{-1} (gets scaled during init)
     real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down  !TODO - Change default to 0.0?
-    real(dp) :: flow_enhancement_factor_ground = 1.0d0   ! flow enhancement parameter for the Arrhenius relationship;
-                                                         ! grounded ice only; typically > 1 for SIA models to speed up the ice
-    real(dp) :: flow_enhancement_factor_float = 1.0d0    ! flow enhancement parameter for floating ice
-                                                         ! Default is 1.0, but for marine simulations a smaller value
-                                                         !  is often needed to match observed shelf speeds
-
-    !TODO - Move the following higher-order velocity parameters to a different type?
-    real(dp) :: default_flwa = 1.0d-16 ! Glen's A to use in isothermal case, in units Pa^{-n} yr^{-1} 
-                                       ! (would change to e.g. 4.6e-18 in EISMINT-ROSS case)
   end type glissade_paramets_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -2683,6 +2688,7 @@ module glissade_types
     type(glissade_calving_type)  :: calving
     type(glissade_lateral_melt_type) :: lateral_melt
     type(glissade_temperature_type)   :: temperature
+    type(glissade_flow_law_type) :: flow_law
     type(glissade_basal_hydro_type)  :: basal_hydro
     type(glissade_basal_physics_type):: basal_physics
     type(glissade_basal_melt_type)   :: basal_melt

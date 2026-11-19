@@ -590,14 +590,14 @@ contains
     ! Note: We need thck and artm in halo cells so that temperature will be initialized correctly
     !        (if not read from the input file).
     !       We do an update here for temp in case temp is read from an input file.
-    !       If temp is computed below in glissade_init_therm (based on the value of options%temp_init),
+    !       If temp is computed below in glissade_init_therm (based on the value of temperature_init),
     !        then the halos will receive the correct values.
 
     call parallel_halo(model%geometry%thck,    parallel)
     call parallel_halo(model%climate%artm,     parallel)
     call parallel_halo(model%temperature%temp, parallel)
     call parallel_halo(model%temperature%tempunstag, parallel)
-    if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) &
+    if (model%temperature%temperature_method == TEMPERATURE_METHOD_ENTHALPY) &
          call parallel_halo(model%temperature%waterfrac, parallel)
 
     ! Note: For outflow BCs, most fields (thck, usrf, temp, etc.) are set to zero in the global halo,
@@ -686,18 +686,18 @@ contains
     call glissade_mass_balance_init(model)
 
     ! Initialize the temperature profile in each column
-    call glissade_init_therm(model%options%temp_init,       model%options%restart,         &
-                             model%grid%ewn,                model%grid%nsn,                &
-                             model%grid%upn,                                               &
-                             model%diagnostics%idiag_local, model%diagnostics%jdiag_local, &
-                             model%diagnostics%rdiag_local,                                &
-                             model%grid%sigma,              model%grid%stagsigma,          &
-                             model%geometry%thck,                                          & ! m
-                             model%climate%artm_corrected,                                 & ! deg C
-                             model%climate%acab,                                           & ! m/s
-                             model%temperature%bheatflx,                                   & ! W/m^2, positive down
-                             model%temperature%pmp_offset,                                 & ! deg C
-                             model%temperature%temp,                                       & ! deg C
+    call glissade_init_therm(model%temperature%temperature_init, model%options%restart,         &
+                             model%grid%ewn,                     model%grid%nsn,                &
+                             model%grid%upn,                                                    &
+                             model%diagnostics%idiag_local,      model%diagnostics%jdiag_local, &
+                             model%diagnostics%rdiag_local,                                     &
+                             model%grid%sigma,                   model%grid%stagsigma,          &
+                             model%geometry%thck,                                               & ! m
+                             model%climate%artm_corrected,                                      & ! deg C
+                             model%climate%acab,                                                & ! m/s
+                             model%temperature%bheatflx,                                        & ! W/m^2, positive down
+                             model%temperature%pmp_offset,                                      & ! deg C
+                             model%temperature%temp,                                            & ! deg C
                              model%temperature%tempunstag)                                 ! deg C
 
     ! Velocity solver initialization
@@ -1338,8 +1338,8 @@ contains
     ! Note: glissade_therm_driver uses SI units
     !       Output arguments are temp, waterfrac, bpmp and bmlt_ground
     call glissade_therm_driver (&
-         model%options%whichtemp,                                      &
-         model%options%temp_init,                                      &
+         model%temperature%temperature_method,                         &
+         model%temperature%temperature_init,                           &
          dt,                                                           & ! s
          model%parallel,                                               &
          model%grid%ewn,                model%grid%nsn,                &
@@ -1732,7 +1732,7 @@ contains
        ! For the enthalpy option, derive enthalpy from temperature and waterfrac.
        ! Must transport enthalpy rather than temperature/waterfrac to conserve energy.
 
-       if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then  ! Use IR to transport enthalpy
+       if (model%temperature%temperature_method == TEMPERATURE_METHOD_ENTHALPY) then  ! Use IR to transport enthalpy
           ! Note: glissade_temp2enth expects SI units
           do j = 1, nsn
              do i = 1, ewn
@@ -1910,7 +1910,7 @@ contains
 
        ! For the enthalpy option, convert enthalpy back to temperature/waterfrac.
 
-       if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
+       if (model%temperature%temperature_method == TEMPERATURE_METHOD_ENTHALPY) then
 
           ! Note: glissade_enth2temp expects SI units
           do j = 1, nsn
@@ -2252,26 +2252,26 @@ contains
     !       so that it has the same vertical dimensions as flwa.
     ! (3) The flow enhancement factor can either be set to a constant (one value
     !     for grounded ice, another for floating ice) or specified as a 2D field.
-    ! (4) The waterfrac field is ignored unless whichtemp = TEMPERATURE_METHOD_ENTHALPY.
+    ! (4) The waterfrac field is ignored unless temperature_method = enthalpy.
     ! (5) Inputs and outputs of subroutine glissade_flow_factor should have SI units.
     ! ------------------------------------------------------------------------
 
-    call glissade_flow_factor(model%options%whichflwa,                       &
-                              model%options%whichtemp,                       &
-                              model%grid%stagsigma,                          &
-                              model%geometry%thck,                           &  ! m
-                              model%temperature%temp(1:upn-1,:,:),           &
-                              model%temperature%flwa,                        &  ! Pa^{-n} s^{-1}
-                              model%paramets%default_flwa / scyr,            &  ! scale to Pa^{-n} s^{-1}
-                              model%temperature%flow_enhancement_factor,     &
-                              model%paramets%flow_enhancement_factor_ground, &
-                              model%paramets%flow_enhancement_factor_float,  &
-                              model%options%which_ho_ground,                 &
-                              floating_mask,                                 &
-                              model%geometry%f_ground_cell,                  &
-                              model%temperature%waterfrac,                   &
-                              model%calving%damage,                          &
-                              model%options%damage_flwa_feedback)
+    call glissade_flow_factor(model%flow_law%flow_law,                   &
+                              model%temperature%temperature_method,      &
+                              model%grid%stagsigma,                      &
+                              model%geometry%thck,                       &  ! m
+                              model%temperature%temp(1:upn-1,:,:),       &
+                              model%temperature%flwa,                    &  ! Pa^{-n} s^{-1}
+                              model%flow_law%flwa_const / scyr,          &  ! scale to Pa^{-n} s^{-1}
+                              model%temperature%flow_enhancement_factor, &
+                              model%flow_law%flow_factor_ground,         &
+                              model%flow_law%flow_factor_float,          &
+                              model%options%which_ho_ground,             &
+                              floating_mask,                             &
+                              model%geometry%f_ground_cell,              &
+                              model%temperature%waterfrac,               &
+                              model%calving%damage,                      &
+                              model%flow_law%damage_flwa_feedback)
 
     ! Halo update for flwa
     call parallel_halo(model%temperature%flwa, parallel)
@@ -2444,7 +2444,7 @@ contains
 
        model%temperature%dissip(:,:,:) = 0.d0
 
-       if (model%options%which_ho_disp == DISSIPATION_METHOD_SIA) then
+       if (model%temperature%dissipation_method == DISSIPATION_METHOD_SIA) then
 
           ! Compute dissipation based on the shallow-ice approximation
 
@@ -2464,7 +2464,7 @@ contains
                                                          model%stress%efvs,          &  ! Pa s
                                                          model%temperature%dissip)
           
-       endif    ! which_ho_disp
+       endif    ! dissipation_method
           
     endif     ! restart
 

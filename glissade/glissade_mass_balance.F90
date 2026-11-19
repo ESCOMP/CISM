@@ -81,7 +81,7 @@
     character(len=100) :: message
 
     ! Initialize artm for the case that we are reading in artm_ref or artm_3d.
-    ! For some temp_init options, this is needed for correct interior temperatures.
+    ! For some temperature_init options, this is needed for correct interior temperatures.
     ! Note: Do not call if glaciers are enabled. When running with glaciers, artm is
     !       accumulated over year 1 from a forcing file which hasn't been read in yet.
     ! TODO: Think about how to initialize glacier temperatures. Currently assume artm = 0,

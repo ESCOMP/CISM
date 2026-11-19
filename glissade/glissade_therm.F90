@@ -2548,7 +2548,7 @@ module glissade_therm
 
     ! Multiply the default rate factor by the enhancement factor if applicable
     ! Note: Here, the input default_flwa is assumed to have units of Pa^{-n} s^{-1},
-    !       whereas model%paramets%default_flwa has units of Pa^{-n} yr^{-1}.
+    !       whereas model%flow_law%flwa_const has units of Pa^{-n} yr^{-1}.
 
     ! initialize
     !TODO - Move the next few lines inside the select case construct.

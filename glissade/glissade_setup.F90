@@ -1306,9 +1306,9 @@ contains
     type(glissade_global_type)   :: model
 
     ! options
-    call GetOption(section,'temperature_method', temperature_method_choices, model%options%whichtemp)
-    call GetOption(section,'temperature_init',   temperature_init_choices,   model%options%temp_init)
-    call GetOption(section,'dissipation_method', dissipation_method_choices, model%options%which_ho_disp)
+    call GetOption(section,'temperature_method', temperature_method_choices, model%temperature%temperature_method)
+    call GetOption(section,'temperature_init',   temperature_init_choices,   model%temperature%temperature_init)
+    call GetOption(section,'dissipation_method', dissipation_method_choices, model%temperature%dissipation_method)
 
     ! parameters
     call GetValue(section,'pmp_offset',    model%temperature%pmp_offset)
@@ -1335,28 +1335,28 @@ contains
     ! The local SIA solver cannot use first-order dissipation
     note = ''
     if (model%velocity%stokes_approx == STOKES_APPROX_LOCAL_SIA) then
-       if (model%options%which_ho_disp == DISSIPATION_METHOD_FIRST_ORDER ) then
-          model%options%which_ho_disp = DISSIPATION_METHOD_SIA
+       if (model%temperature%dissipation_method == DISSIPATION_METHOD_FIRST_ORDER ) then
+          model%temperature%dissipation_method = DISSIPATION_METHOD_SIA
           note = 'reset from first_order, which cannot be used with the local SIA solver'
        endif
     endif  ! Glissade local SIA solver
 
     call log_section('temperature')
-    call log_option('temperature_method', model%options%whichtemp, temperature_method_choices)
+    call log_option('temperature_method', model%temperature%temperature_method, temperature_method_choices)
     ! Note: If temperature is read from an input or restart file, the temperature_init option is overridden.
     !       The method actually used is written to the log file by glissade_init_temp.
-    call log_option('temperature_init', model%options%temp_init, temperature_init_choices, &
+    call log_option('temperature_init', model%temperature%temperature_init, temperature_init_choices, &
          'not used if temperature is read from a file')
     if (len_trim(note) > 0) then
-       call log_option('dissipation_method', model%options%which_ho_disp, dissipation_method_choices, trim(note))
+       call log_option('dissipation_method', model%temperature%dissipation_method, dissipation_method_choices, trim(note))
     else
-       call log_option('dissipation_method', model%options%which_ho_disp, dissipation_method_choices)
+       call log_option('dissipation_method', model%temperature%dissipation_method, dissipation_method_choices)
     endif
     call log_param('pmp_threshold', model%temperature%pmp_threshold, 'K')
     call log_param('pmp_offset', model%temperature%pmp_offset, 'K')
 
     ! unsupported temperature options
-    if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
+    if (model%temperature%temperature_method == TEMPERATURE_METHOD_ENTHALPY) then
       call write_log('WARNING: Enthalpy-based formulation for solving temperature evolution is not currently &
            &scientifically supported. USE AT YOUR OWN RISK.', GM_WARNING)
     endif
@@ -1379,14 +1379,14 @@ contains
     type(glissade_global_type)   :: model
 
     ! options
-    call GetOption(section,'flow_law',             flow_law_choices, model%options%whichflwa)
-    call GetLogical(section,'damage_flwa_feedback', model%options%damage_flwa_feedback)
+    call GetOption(section,'flow_law',             flow_law_choices, model%flow_law%flow_law)
+    call GetLogical(section,'damage_flwa_feedback', model%flow_law%damage_flwa_feedback)
 
     ! parameters
     call GetValue(section,'n_glen',             n_glen)
-    call GetValue(section,'flow_factor_ground', model%paramets%flow_enhancement_factor_ground)
-    call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
-    call GetValue(section,'flwa_const',         model%paramets%default_flwa)
+    call GetValue(section,'flow_factor_ground', model%flow_law%flow_factor_ground)
+    call GetValue(section,'flow_factor_float',  model%flow_law%flow_factor_float)
+    call GetValue(section,'flwa_const',         model%flow_law%flwa_const)
 
   end subroutine handle_flow_law
 
@@ -1406,14 +1406,14 @@ contains
     type(glissade_global_type)  :: model
 
     call log_section('flow_law')
-    call log_option('flow_law', model%options%whichflwa, flow_law_choices)
-    if (model%options%whichflwa == FLOW_LAW_CONSTANT) then
-       call log_param('flwa_const', model%paramets%default_flwa, 'Pa^-n yr^-1; constant flow factor')
+    call log_option('flow_law', model%flow_law%flow_law, flow_law_choices)
+    if (model%flow_law%flow_law == FLOW_LAW_CONSTANT) then
+       call log_param('flwa_const', model%flow_law%flwa_const, 'Pa^-n yr^-1; constant flow factor')
     end if
     call log_param('n_glen', n_glen, 'exponent in Glen''s flow law')
-    call log_param('flow_factor_ground', model%paramets%flow_enhancement_factor_ground, 'grounded ice')
-    call log_param('flow_factor_float', model%paramets%flow_enhancement_factor_float, 'floating ice')
-    call log_flag('damage_flwa_feedback', model%options%damage_flwa_feedback)
+    call log_param('flow_factor_ground', model%flow_law%flow_factor_ground, 'grounded ice')
+    call log_param('flow_factor_float', model%flow_law%flow_factor_float, 'floating ice')
+    call log_flag('damage_flwa_feedback', model%flow_law%damage_flwa_feedback)
 
   end subroutine print_flow_law
 
@@ -3334,7 +3334,7 @@ contains
     ! ==== Other options ====
 
     ! internal water option (for enthalpy scheme)
-    select case (model%options%whichtemp)
+    select case (model%temperature%temperature_method)
       case (TEMPERATURE_METHOD_ENTHALPY)
          ! restart needs to know internal water fraction
          call glissade_add_to_restart_variable_list('waterfrac', model_id)
