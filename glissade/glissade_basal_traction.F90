@@ -66,7 +66,7 @@ contains
 !***********************************************************************
 
   subroutine glissade_calcbeta (&
-       whichbabc,                    &
+       sliding_law,                  &
        parallel,                     &
        dew,           dns,           &
        ewn,           nsn,           &
@@ -79,11 +79,11 @@ contains
        f_ground,                     &
        beta_external,                &
        beta,                         &
-       which_ho_beta_limit,          &
+       beta_limit_method,            &
        itest, jtest,  rtest)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
-  ! user input ("whichbabc" flag, from config file as "sliding_law").
+  ! user input ("sliding_law" flag, from config file as "sliding_law").
 
   ! NOTE: Previously, the input arguments were assumed to be dimensionless
   ! and were rescaled in this routine.  Now the input arguments are
@@ -99,7 +99,7 @@ contains
 
   ! Input/output arguments
 
-  integer, intent(in) :: whichbabc     ! option for basal friction parameterization
+  integer, intent(in) :: sliding_law     ! option for basal friction parameterization
 
   type(parallel_type), intent(in) :: &
        parallel                        ! info for parallel communication
@@ -114,15 +114,15 @@ contains
   real(dp), intent(in)                    :: eus                ! eustatic sea level (m) relative to z = 0
 
   integer, intent(in), dimension(:,:) :: &
-       ice_mask,        & ! = 1 where ice is present (thck > thklim), else = 0
+       ice_mask,        & ! = 1 where ice is present (thck > thcklim), else = 0
        land_mask          ! = 1 where topg > eus
 
   real(dp), intent(in), dimension(:,:)    :: f_ground           ! grounded ice fraction at vertices, 0 <= f_ground <= 1
   real(dp), intent(in), dimension(:,:)    :: beta_external      ! fixed beta read from external file (Pa yr/m)
   real(dp), intent(inout), dimension(:,:) :: beta               ! basal traction coefficient (Pa yr/m)
 
-  integer, intent(in) :: which_ho_beta_limit                    ! option to limit beta for grounded ice
-                                                                ! 0 = absolute based on beta_grounded_min; 1 = weighted by f_ground
+  integer, intent(in) :: beta_limit_method                    ! option to limit beta for grounded ice
+                                                                ! absolute (based on beta_grounded_min) or fground_scaled (weighted by f_ground)
   integer, intent(in), optional :: itest, jtest, rtest          ! coordinates of diagnostic point
 
   ! Local variables
@@ -192,9 +192,9 @@ contains
      speed(:,:) = min(speed(:,:), basal_physics%beta_powerlaw_umax)
   endif
 
-  ! Compute beta based on whichbabc
+  ! Compute beta based on sliding_law
 
-  select case(whichbabc)
+  select case(sliding_law)
 
     case(SLIDING_LAW_BETA_CONSTANT)   ! spatially uniform beta value; useful for debugging and test cases
 
@@ -301,7 +301,7 @@ contains
 
     case(SLIDING_LAW_NO_SLIP)      ! frozen (u=v=0) ice-bed interface
 
-       !Note: This option is redundant in that it could be implemented using HO_BETA_CONST
+       !Note: This option is redundant in that it could be implemented using sliding_law = beta_constant
        !      But keeping it for historical reasons since many config files use it
 
        beta(:,:) = basal_physics%beta_large      ! Pa yr/m  (= 1.0d10 by default)
@@ -509,7 +509,7 @@ contains
        !   The above equation allows these values to be different.
        !   The greater the value of n, the more rapid the transition between Coulomb and powerlaw behavior.
        !
-       ! Depending on the values of which_ho_powerlaw_c and which_ho_coulomb_c, there are different ways
+       ! Depending on the values of powerlaw_c_method and coulomb_c_method, there are different ways
        !  to apply this sliding law:
        ! * Set powerlaw_c and coulomb_c to constants everywhere.
        ! * Obtain spatially varying powerlaw_c by inversion, with coulomb_c set to a constant.
@@ -593,7 +593,7 @@ contains
    do ns = 1, nsn-1
       do ew = 1, ewn-1
 
-         if (which_ho_beta_limit == BETA_LIMIT_METHOD_ABSOLUTE) then  ! absolute limit based on beta_grounded_min
+         if (beta_limit_method == BETA_LIMIT_METHOD_ABSOLUTE) then  ! absolute limit based on beta_grounded_min
 
             ! multiplication by f_ground before limiting
 
@@ -603,7 +603,7 @@ contains
                beta(ew,ns) = basal_physics%beta_grounded_min
             endif
 
-         elseif (which_ho_beta_limit == BETA_LIMIT_METHOD_FGROUND_SCALED) then  ! weighted by f_ground after limiting
+         elseif (beta_limit_method == BETA_LIMIT_METHOD_FGROUND_SCALED) then  ! weighted by f_ground after limiting
 
             ! multiplication by f_ground after limiting
 
@@ -613,7 +613,7 @@ contains
 
             beta(ew,ns) = beta(ew,ns) * f_ground(ew,ns)
 
-         endif   ! which_ho_beta_limit
+         endif   ! beta_limit_method
 
       enddo
    enddo
@@ -650,7 +650,7 @@ contains
 !***********************************************************************
 
   subroutine glissade_calc_effecpress (&
-       which_effecpress,             &
+       effecpress_method,            &
        parallel,                     &
        itest, jtest,  rtest,         &
        ewn,   nsn,    upn,           &
@@ -681,7 +681,7 @@ contains
     ! Input/output arguments
 
     integer, intent(in) :: &
-         which_effecpress    ! input option for effective pressure
+         effecpress_method    ! input option for effective pressure
 
     type(parallel_type), intent(in) :: &
          parallel            ! info for parallel communication
@@ -703,7 +703,7 @@ contains
                              ! includes bwat, bwat_diag, and various parameters
 
     integer, dimension(:,:), intent(in) :: &
-         ice_mask,         & ! = 1 where ice is present (thk > thklim), else = 0
+         ice_mask,         & ! = 1 where ice is present (thk > thcklim), else = 0
          floating_mask       ! = 1 where ice is present and floating, else = 0
  
     !NOTE: If used, the following 2D fields (delta_bpmp, bwat, thck and topg) need to be correct in halos.
@@ -769,7 +769,7 @@ contains
 
     ! Optionally, reduce N as a function of water or melt conditions at the bed
 
-    select case(which_effecpress)
+    select case(effecpress_method)
 
     case(EFFECPRESS_METHOD_OVERBURDEN)
 
@@ -968,7 +968,7 @@ contains
           basal_physics%effecpress = 0.0d0
        end where
 
-    end select   ! which_effecpress
+    end select   ! effecpress_method
 
     !TODO - Do this calculation in a separate subroutine.
 
@@ -978,9 +978,9 @@ contains
     ! 0 < p < 1 => partial connectivity
     ! p = 0 => no connectivity; water pressure p_w = 0
     !
-    ! Note: This calculation is independent of the computation above based on which_ho_effecpress.
+    ! Note: This calculation is independent of the computation above based on effecpress_method.
     !       In general, we will compute two different values for N in each location, and then take the minimum.
-    !       If which_ho_effecpress = 0 (i.e., N = overburden), then the ocean_p calculation with p > 0
+    !       If effecpress_method = overburden, then the ocean_p calculation with p > 0
     !        will reduce N wherever the topography is below sea level.
 
     ocean_p = basal_physics%p_ocean_penetration
@@ -1020,7 +1020,7 @@ contains
           call point_diag(effecpress_ocean_p, 'N_ocean_p', itest, jtest, rtest, 7, 7, '(f10.0)')
        endif
 
-       ! Use the lesser of this value and the value computed earlier (under the which_ho_effecpress options).
+       ! Use the lesser of this value and the value computed earlier (under the effecpress_method options).
        basal_physics%effecpress(:,:) = &
             min(basal_physics%effecpress(:,:), effecpress_ocean_p(:,:))
 

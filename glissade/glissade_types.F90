@@ -792,7 +792,7 @@ module glissade_types
     !WHL TODO - Option 3 to be removed during the config reorg
     !> Flag that describes basal boundary condition for HO dyn core: 
     !> \begin{description}
-    !> \item[beta_constant] spatially uniform value of ho_beta_const
+    !> \item[beta_constant] spatially uniform value of beta_const
     !> \item[beta_bpmp] large value for frozen bed, lower value for bed at pressure melting point
     !> \item[pseudo_plastic] pseudo-plastic basal sliding law; new version with coulomb_c options
     !> \item[pseudo_plastic_old] pseudo-plastic basal sliding law; old version with tan(phi)
@@ -1563,8 +1563,8 @@ module glissade_types
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving during one time step (m)
      real(dp),dimension(:,:),  pointer :: calving_rate => null()   !> rate of ice loss due to calving (m/yr ice)
      real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
-     integer, dimension(:,:),  pointer :: calving_mask => null()         !> calve floating ice where the mask = 1 (whichcalving = CALVING_LAW_GRID_MASK)
-     real(dp),dimension(:,:),  pointer :: subgrid_calving_mask => null() !> calve floating ice where the mask < 1.0 (whichcalving = CALVING_LAW_GRID_MASK);
+     integer, dimension(:,:),  pointer :: calving_mask => null()         !> calve floating ice where the mask = 1 (calving_law = CALVING_LAW_GRID_MASK)
+     real(dp),dimension(:,:),  pointer :: subgrid_calving_mask => null() !> calve floating ice where the mask < 1.0 (calving_law = CALVING_LAW_GRID_MASK);
                                                                          !> real instead of integer for use with subgrid calving parameterization
      integer, dimension(:,:),  pointer :: calving_front_mask => null()   !> = 1 for cells on the calving front, else = 0
      integer, dimension(:,:),  pointer :: beyond_cf_mask => null() !> = 1 for cells beyond the CF when using the subgrid CF scheme;
@@ -2351,7 +2351,7 @@ module glissade_types
                                                                 !> Note: Defined on velocity grid, whereas temp and bpmp are on ice grid
 
      !WHL TODO - Remove c_space_factor during the config reorg?
-     !           Currently used for which_ho_babc = SLIDING_LAW_COULOMB, *SCHOOF AND *TSAI
+     !           Currently used for sliding_law = SLIDING_LAW_COULOMB, *SCHOOF AND *TSAI
      real(dp), dimension(:,:), pointer :: c_space_factor => null()      !> spatial factor for basal shear stress (no dimension)
      real(dp), dimension(:,:), pointer :: c_space_factor_stag => null() !> spatial factor for basal shear stress on staggered grid
 
@@ -2412,7 +2412,7 @@ module glissade_types
      ! parameters for Schoof basal friction law
      ! Typically, schoof_n (from Eq. 2 in Schoof 2005) has the same value as powerlaw_m, but this is not required.
      ! The parameters gamma and p are not in Schoof (2005) but can be used to relate Cc and Cp during inversion,
-     !  with either the Schoof law or the Tsai law, if which_ho_powerlaw_c = POWERLAW_C_METHOD_FROM_COULOMB_C.
+     !  with either the Schoof law or the Tsai law, if powerlaw_c_method = POWERLAW_C_METHOD_FROM_COULOMB_C.
      !  The default values here are consistent with Cc_max = 1.0, Cp_max = 1.e5, Cc_const = 1.0, Cp_const ~ 2.e4
      real(dp) :: schoof_n = 3.0d0                !> exponent in the Schoof basal friction law;
                                                  !> modulates the transition between powerlaw and coulomb behavior

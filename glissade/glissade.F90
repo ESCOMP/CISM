@@ -471,9 +471,9 @@ contains
     allocate(ocean_mask(model%grid%ewn, model%grid%nsn))
 
     ! If model%numerics%thcklim > 0, then decrease it slightly. The reasoning is as follows:
-    ! The requirement for ice_mask = 1 is thck > thklim. We want '>' rather than '>=' in case thklim = 0.
-    ! But suppose thklim = 1.0 m, and many cells in the input file have thck = 1.0 m.
-    ! We would like these cells to have ice_mask = 1. This will be the case if we reduce thklim slightly.
+    ! The requirement for ice_mask = 1 is thck > thcklim. We want '>' rather than '>=' in case thcklim = 0.
+    ! But suppose thcklim = 1.0 m, and many cells in the input file have thck = 1.0 m.
+    ! We would like these cells to have ice_mask = 1. This will be the case if we reduce thcklim slightly.
 
     model%numerics%thcklim = max(model%numerics%thcklim - eps11, 0.0d0)
 
@@ -845,7 +845,7 @@ contains
          model%diagnostics%idiag_local, model%diagnostics%jdiag_local, &
          model%diagnostics%rdiag_local,                                &
          model%geometry%thck,           model%geometry%topg,           &
-         model%climate%eus,             0.0d0,                         &  ! thklim = 0
+         model%climate%eus,             0.0d0,                         &  ! thck_threshold = 0
          model%geometry%marine_connection_mask)
 
     ! TODO: Move calving-related initialization to a separate subroutine.
@@ -983,10 +983,10 @@ contains
 
     endif   ! force_retreat
 
-    !Note: With which_ho_calving_front = 0 (i.e., without a subgrid calving-front parameterization),
+    !Note: With subgrid_calving_front = .false. (i.e., without a subgrid calving-front parameterization),
     !      we can use a binary integer mask (= 1 where calving is enforced, else = 0) to calve ice
     !      in a prescribed region, e.g., beyond the observed calving front.
-    !      With which_ho_calving_front = 1 (i.e., with a subgrid calving parameterization), we compute
+    !      With subgrid_calving_front = .true. (i.e., with a subgrid calving parameterization), we compute
     !       a real mask in the range (0.0,1.0). For values between 0 and 1, the calving thins the ice
     !       such that the effective area fraction a_eff = H/H_eff = 1 - maskval.
     !      To combine a calving mask with another calving option, the user can set apply_calving_mask = .true.
@@ -1043,7 +1043,7 @@ contains
                   'Created subgrid calving mask:', itest, jtest, rtest, 7, 7, '(f10.6)')
           endif
 
-       endif   ! which_ho_calving_front
+       endif   ! subgrid_calving_front
 
     endif   ! calving mask
 
@@ -1310,8 +1310,8 @@ contains
     integer :: itest, jtest, rtest
 
     integer, dimension(model%grid%ewn, model%grid%nsn) ::   &
-         ice_mask,              & ! = 1 if ice is present (thck > thklim_temp), else = 0
-         floating_mask,         & ! = 1 if ice is present (thck > thklim_temp) and floating, else = 0
+         ice_mask,              & ! = 1 if ice is present (thck > thcklim_temp), else = 0
+         floating_mask,         & ! = 1 if ice is present (thck > thcklim_temp) and floating, else = 0
          ocean_mask,            & ! = 1 if topg is below sea level and ice is absent, else = 0
          bwat_mask                ! = 1 for cells through which basal water is routed, else = 0
 
@@ -1565,7 +1565,7 @@ contains
          partial_cf_mask,         & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
          full_mask                  ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
-    real(dp) :: this_thklim         ! argument passed to glissade_get_masks; depends on subgrid CF option
+    real(dp) :: thck_threshold         ! argument passed to glissade_get_masks; depends on subgrid CF option
 
     rtest = -999
     itest = 1
@@ -1627,10 +1627,10 @@ contains
 
        if (.not. model%calving%subgrid_calving_front) then
           ! Pass the default value
-          this_thklim = model%numerics%thcklim
+          thck_threshold = model%numerics%thcklim
        else
-          ! Pass thklim = eps11 so thin cells near the margin can be identified as partial CF
-          this_thklim = eps11
+          ! Pass thck_threshold = eps11 so thin cells near the margin can be identified as partial CF
+          thck_threshold = eps11
        endif
 
        call glissade_get_masks(&
@@ -1639,7 +1639,7 @@ contains
             model%geometry%thck,                &   ! m
             model%geometry%topg,                &   ! m
             model%climate%eus,                  &   ! m
-            this_thklim,                        &   ! thklim (m)
+            thck_threshold,                     &   ! m
             ice_mask,                           &
             floating_mask = floating_mask,      &
             ocean_mask = ocean_mask,            &
@@ -1727,7 +1727,7 @@ contains
              call point_diag(model%calving%beyond_cf_mask, 'beyond_cf_mask', itest, jtest, rtest, 7, 7)
           endif
 
-       endif  ! which_ho_calving_front
+       endif  ! subgrid_calving_front
 
        ! For the enthalpy option, derive enthalpy from temperature and waterfrac.
        ! Must transport enthalpy rather than temperature/waterfrac to conserve energy.
@@ -2007,7 +2007,7 @@ contains
     integer :: itest, jtest, rtest
 
     integer, dimension(model%grid%ewn, model%grid%nsn) :: &
-         ice_mask,           & ! = 1 where thck > thklim, else = 0
+         ice_mask,           & ! = 1 where thck > thcklim, else = 0
          floating_mask,      & ! = 1 where ice is present and floating, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent
          land_mask             ! = 1 where topg is at or above sea level
@@ -2018,7 +2018,7 @@ contains
     integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          partial_cf_mask, full_mask
 
-    real(dp) :: this_thklim
+    real(dp) :: thck_threshold
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
@@ -2093,15 +2093,15 @@ contains
     ! ------------------------------------------------------------------------
 
     if (.not. model%calving%subgrid_calving_front) then
-       this_thklim = model%numerics%thcklim
+       thck_threshold = model%numerics%thcklim
     else
-       this_thklim = eps11
+       thck_threshold = eps11
     endif
 
     call glissade_get_masks(ewn,                 nsn,                   &
                             parallel,                                   &
                             model%geometry%thck, model%geometry%topg,   &
-                            model%climate%eus,   this_thklim,           &
+                            model%climate%eus,   thck_threshold,        &
                             ice_mask,                                   &
                             floating_mask = floating_mask,              &
                             ocean_mask = ocean_mask,                    &
@@ -2145,7 +2145,7 @@ contains
     ! Note: This subroutine requires that thck and topg are up to date in halo cells.
     !
     ! See comments in subroutine glissade_grounded_fraction for details
-    ! on the whichground and whichflotation_function options.
+    ! on the grounding_line_param and flotation_function options.
     !
     ! Computing f_ground here ensures that it is always available as a diagnostic
     ! at the end of the time step, even if the velocity solver is not called
@@ -2169,7 +2169,7 @@ contains
                                     model%geometry%f_ground_cell)
 
     if (verbose_glp) then
-       if (this_rank == rtest) write(iulog,*) 'Called GLP subroutine, which_ho_ground =', model%grounding_line%grounding_line_param
+       if (this_rank == rtest) write(iulog,*) 'Called GLP subroutine, grounding_line_param =', model%grounding_line%grounding_line_param
        call point_diag(model%geometry%f_flotation, 'f_flotation', itest, jtest, rtest, 7, 7, '(f10.5)')
        call point_diag(model%geometry%f_ground, 'f_ground at vertex', itest, jtest, rtest, 7, 7, '(f10.5)')
        call point_diag(model%geometry%f_ground_cell, 'f_ground_cell', itest, jtest, rtest, 7, 7, '(f10.5)')

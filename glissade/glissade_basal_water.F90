@@ -84,11 +84,11 @@ module glissade_basal_water
 
 !==============================================================
 
-  subroutine glissade_calcbwat(which_ho_bwat,    &
+  subroutine glissade_calcbwat(bwat_method,      &
                                basal_hydro,      &
                                dt,               &
                                thck,             &
-                               thklim,           &
+                               thcklim_temp,     &
                                bmlt,             &
                                bwat)
 
@@ -99,13 +99,13 @@ module glissade_basal_water
     use glissade_types
 
     integer, intent(in) :: &
-         which_ho_bwat     !> basal water options
+         bwat_method     !> basal water options
 
     type(glissade_basal_hydro_type), intent(inout) :: basal_hydro ! basal hydro object
 
     real(dp), intent(in) :: &
          dt,             & !> time step (s) 
-         thklim            !> threshold for dynamically active ice (m)
+         thcklim_temp            !> threshold for dynamically active ice (m)
 
     real(dp), dimension(:,:), intent(in) ::  &
          thck,           & !> ice thickness (m)
@@ -122,7 +122,7 @@ module glissade_basal_water
     real(dp) ::  &
          dbwat_dt        ! rate of change of bwat (m/s of water)
 
-    select case (which_ho_bwat)
+    select case (bwat_method)
 
     ! BWAT_METHOD_NONE:         basal water depth = 0
     ! BWAT_METHOD_CONSTANT:     basal water depth = prescribed constant
@@ -137,7 +137,7 @@ module glissade_basal_water
 
        ! Use a constant water thickness where ice is present, to force Tbed = Tpmp
 
-       where (thck > thklim)
+       where (thck > thcklim_temp)
           bwat(:,:) = basal_hydro%bwat_const
        elsewhere
           bwat(:,:) = 0.0d0
@@ -178,7 +178,7 @@ module glissade_basal_water
        itest, jtest,  rtest,         &
        flux_routing_scheme,          &
        thck,          topg,          &
-       thklim,                       &
+       thcklim_temp,                 &
        bwat_mask,     floating_mask, &
        bmlt_hydro,                   &
        delta_Tb,                     &
@@ -220,7 +220,7 @@ module glissade_basal_water
          delta_Tb                   ! difference T_pmp - T_bed (degC)
 
     real(dp), intent(in) ::  &
-         thklim                     ! minimum ice thickness for basal melt and hydropotential calculations (m)
+         thcklim_temp                     ! minimum ice thickness for basal melt and hydropotential calculations (m)
                                     ! Note: This is typically model%numerics%thcklim_temp
 
     ! Note: These scales ensure a smooth transition in behavior between frozen and thawed beds.
@@ -235,7 +235,7 @@ module glissade_basal_water
          bwat_mask,               & ! mask to identify cells through which basal water is routed;
                                     ! = 0 for floating and ocean cells, cells at global domain edge,
                                     !  and cells with thck = 0 and forced negative SMB
-         floating_mask              ! = 1 if ice is present (thck > thklim) and floating, else = 0
+         floating_mask              ! = 1 if ice is present (thck > thcklim_temp) and floating, else = 0
 
     ! Note: The field bwat_diag is the steady-state basal water depth, diagnosed as a function of bwatflx.
     !       Outside this subroutine, bwat_diag can be used to compute effective pressure,
@@ -318,7 +318,7 @@ module glissade_basal_water
          nx,     ny,    &
          thck,          &
          topg,          &
-         thklim,        &
+         thcklim_temp,  &
          floating_mask, &
          head)
 
@@ -407,7 +407,7 @@ module glissade_basal_water
        nx,      ny,   &
        thck,          &
        topg,          &
-       thklim,        &
+       thcklim_temp,  &
        floating_mask, &
        head)
 
@@ -439,15 +439,15 @@ module glissade_basal_water
          topg                     ! bed elevation (m)
 
     real(dp), intent(in) ::  &
-         thklim                   ! minimum ice thickness for bmlt and head calculations
+         thcklim_temp                   ! minimum ice thickness for bmlt and head calculations
 
     integer, dimension(nx,ny), intent(in) ::  &
-         floating_mask            ! = 1 if ice is present (thck > thklim) and floating, else = 0
+         floating_mask            ! = 1 if ice is present (thck > thcklim_temp) and floating, else = 0
 
     real(dp), dimension(nx,ny), intent(out) ::  &
          head                     ! hydraulic head (m)
 
-    where (thck > thklim .and. floating_mask /= 1)
+    where (thck > thcklim_temp .and. floating_mask /= 1)
        head = topg + (rhoi/rhow)*thck
     elsewhere
        head = max(topg, 0.0d0)

@@ -758,7 +758,7 @@ contains
     integer :: i, j, ng
 
     integer, dimension(model%grid%ewn, model%grid%nsn) ::  &
-         ice_mask,                & ! = 1 where ice is present (thck > thklim), else = 0
+         ice_mask,                & ! = 1 where ice is present (thck > thcklim), else = 0
          glacier_mask               ! temporary mask
 
     real(dp), dimension(model%grid%ewn, model%grid%nsn) ::  &
@@ -2694,7 +2694,7 @@ contains
     !   It is no longer considered to be glaciated.
     !   Here, glacier_minthck is a threshold for counting ice as part of a glacier.
     !   By default, glacier_minthck = model%numerics%thcklim, typically 1 m.
-    !   (Actually, glacier_minthck is slightly less than thklim, to make sure these cells
+    !   (Actually, glacier_minthck is slightly less than thcklim, to make sure these cells
     !   are not dynamically active.)
     ! - When a cell has H > glacier_minthck and cism_glacier_id = 0, we give it a nonzero ID:
     !   either (1) cism_glacier_id_init, if the initial ID > 0,
@@ -3170,7 +3170,7 @@ contains
        parallel,                         &
        nglacier,      cism_glacier_id,   &
        cell_area,     thck,              &
-       diagnostic_minthck,               &
+       glacier_diag_thck_min,            &
        area,          volume)
 
     use cism_parallel, only: parallel_global_sum_patch
@@ -3193,7 +3193,7 @@ contains
          thck                           ! ice thickness (m)
 
     real(dp), intent(in) :: &
-         diagnostic_minthck             ! minimum thickness (m) to be included in area and volume sums
+         glacier_diag_thck_min             ! minimum thickness (m) to be included in area and volume sums
 
     real(dp), dimension(nglacier), intent(out) ::  &
          area,                        & ! area of each glacier (m^2)
@@ -3202,12 +3202,12 @@ contains
     ! local variables
 
     real(dp), dimension(ewn,nsn) ::  &
-         diag_area, diag_volume       ! area and volume where thck >= diagnostic_minthck
+         diag_area, diag_volume       ! area and volume where thck >= glacier_diag_thck_min
 
     ! Compute the area and volume of each glacier.
     ! Need parallel sums, since a glacier can lie on two or more processors.
 
-    where(thck >= diagnostic_minthck)
+    where(thck >= glacier_diag_thck_min)
        diag_area = cell_area
        diag_volume = cell_area*thck
     elsewhere

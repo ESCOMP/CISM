@@ -606,13 +606,13 @@
 
 !****************************************************************************
 
-  subroutine slap_solve_test_matrix (matrix_order, whichsparse)
+  subroutine slap_solve_test_matrix (matrix_order, linear_solver)
 
     ! solve a small test matrix
 
     integer, intent(in) :: &
        matrix_order,       & ! matrix order
-       whichsparse           ! solution method (0=BiCG, 1=GMRES, 2==PCG_INCH)
+       linear_solver           ! solution method (0=BiCG, 1=GMRES, 2==PCG_INCH)
 
     logical :: verbose_test = .true.
 
@@ -730,13 +730,13 @@
        do n = 1, matrix%nonzeros
           write(iulog,*) matrix%row(n), matrix%col(n), matrix%val(n)
        enddo
-       write(iulog,*) 'Call sparse_easy_solve, whichsparse =', whichsparse
+       write(iulog,*) 'Call sparse_easy_solve, linear_solver =', linear_solver
     endif
     
     ! Solve the linear matrix problem
 
     call sparse_easy_solve(matrix, rhs,    answer,  &
-                           err,    niters, slap_method(whichsparse))
+                           err,    niters, slap_method(linear_solver))
 
     if (verbose_test) then
        write(iulog,*) ' '
@@ -751,29 +751,29 @@
 
 !****************************************************************************
 
-  logical function is_slap_solver(whichsparse)
+  logical function is_slap_solver(linear_solver)
 
     ! True if the linear_solver option is one of the SLAP solvers (one task only)
 
-    integer, intent(in) :: whichsparse   ! linear_solver option (LINEAR_SOLVER_*)
+    integer, intent(in) :: linear_solver   ! linear_solver option (LINEAR_SOLVER_*)
 
-    is_slap_solver = (whichsparse == LINEAR_SOLVER_SLAP_PCG  .or.  &
-                      whichsparse == LINEAR_SOLVER_SLAP_BICG .or.  &
-                      whichsparse == LINEAR_SOLVER_SLAP_GMRES)
+    is_slap_solver = (linear_solver == LINEAR_SOLVER_SLAP_PCG  .or.  &
+                      linear_solver == LINEAR_SOLVER_SLAP_BICG .or.  &
+                      linear_solver == LINEAR_SOLVER_SLAP_GMRES)
 
   end function is_slap_solver
 
 !****************************************************************************
 
-  integer function slap_method(whichsparse)
+  integer function slap_method(linear_solver)
 
     ! The SLAP library method (SLAP_*, glimmer_sparse_type) for a linear_solver option
 
     use glimmer_log, only: write_log, GM_FATAL
 
-    integer, intent(in) :: whichsparse   ! linear_solver option (LINEAR_SOLVER_SLAP_*)
+    integer, intent(in) :: linear_solver   ! linear_solver option (LINEAR_SOLVER_SLAP_*)
 
-    select case (whichsparse)
+    select case (linear_solver)
     case (LINEAR_SOLVER_SLAP_PCG)
        slap_method = SLAP_PCG_INCH
     case (LINEAR_SOLVER_SLAP_BICG)

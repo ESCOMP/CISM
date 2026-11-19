@@ -303,7 +303,7 @@ contains
             model%diagnostics%idiag_local, model%diagnostics%jdiag_local, &
             model%diagnostics%rdiag_local,                                &
             model%geometry%thck,           model%geometry%topg,           &
-            model%climate%eus,             0.0d0,                         &  ! thklim = 0
+            model%climate%eus,             0.0d0,                         &  ! thck_threshold = 0
             model%geometry%marine_connection_mask)
 
     end if

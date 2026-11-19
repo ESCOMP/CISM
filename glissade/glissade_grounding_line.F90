@@ -62,9 +62,9 @@
                                         thck,            topg,             &
                                         eus,             ice_mask,         &
                                         floating_mask,   land_mask,        &
-                                        which_ho_ground,                   &
-                                        which_ho_flotation_function,       &
-                                        which_ho_fground_no_glp,           &
+                                        grounding_line_param,              &
+                                        flotation_function,                &
+                                        fground_no_glp,                    &
                                         f_flotation,                       &
                                         f_ground,                          &
                                         f_ground_cell)
@@ -79,7 +79,7 @@
     ! More generally, it can be computed at any point centered in a square or rectangle,
     !  given a flotation function (based on thickness and topography) at the corners of the square or rectangle.
     !
-    ! There are three options for computing the grounded fraction, based on the value of which_ho_ground:
+    ! There are three options for computing the grounded fraction, based on the value of grounding_line_param:
     ! (0) GROUNDING_LINE_PARAM_NONE: f_ground = 1 for grounded vertices
     !                       f_ground = 0 for floating vertices
     !     Vertices are identified as grounded or floating based on (a) presence of grounded neighbors
@@ -142,15 +142,15 @@
        eus                    ! eustatic sea level (= 0 by default)
 
     integer, dimension(nx,ny), intent(in) ::   &
-       ice_mask,            & ! = 1 if ice is present (thck > thklim), else = 0
-       floating_mask,       & ! = 1 if ice is present (thck > thklim) and floating, else = 0
+       ice_mask,            & ! = 1 if ice is present (thck > thcklim), else = 0
+       floating_mask,       & ! = 1 if ice is present (thck > thcklim) and floating, else = 0
        land_mask              ! = 1 if topg is at or above sea level
 
     ! see comments above for more information about these options
     integer, intent(in) ::  &
-       which_ho_ground,             & ! option for computing f_ground
-       which_ho_flotation_function, & ! option for computing f_flotation
-       which_ho_fground_no_glp        ! option for computing f_ground with no GLP
+       grounding_line_param, & ! option for computing f_ground
+       flotation_function,   & ! option for computing f_flotation
+       fground_no_glp          ! option for computing f_ground with no GLP
 
     real(dp), dimension(nx,ny), intent(out) :: &
        f_flotation            ! flotation function; see comments above
@@ -230,7 +230,7 @@
     !       All values used in the f_ground calculation come from cells with ice,
     !        or are extrapolated from cells with ice.
 
-    if (which_ho_flotation_function == FLOTATION_FUNCTION_PATTYN) then
+    if (flotation_function == FLOTATION_FUNCTION_PATTYN) then
 
        ! subtract 1 from (-rhoo*b)/(rhoi*H) so that f > 0 for floating ice, f <= 0 for grounded ice
        do j = 1, ny
@@ -245,7 +245,7 @@
           enddo
        enddo
 
-    elseif (which_ho_flotation_function == FLOTATION_FUNCTION_INVERSE_PATTYN) then
+    elseif (flotation_function == FLOTATION_FUNCTION_INVERSE_PATTYN) then
 
        ! subtract (rhoi*H)/(-rhoo*b) from 1 so that f > 0 for floating ice, f <= 0 for grounded ice
        do j = 1, ny
@@ -262,7 +262,7 @@
           enddo
        enddo
 
-    elseif (which_ho_flotation_function == FLOTATION_FUNCTION_LINEAR) then
+    elseif (flotation_function == FLOTATION_FUNCTION_LINEAR) then
 
        ! If > 0, f_flotation is the thickness of the ocean cavity beneath the ice shelf.
        ! This function (unlike PATTYN and INVERSE_PATTYN) is linear in both thck and topg.
@@ -290,13 +290,13 @@
           enddo
        enddo
 
-    endif  ! which_ho_flotation_function
+    endif  ! flotation_function
 
     ! Extrapolate f_flotation to ice-free ocean cells for the first two options.
     ! TODO - Remove extrapolation for these options too?
 
-    if (which_ho_flotation_function == FLOTATION_FUNCTION_PATTYN .or. &
-        which_ho_flotation_function == FLOTATION_FUNCTION_INVERSE_PATTYN) then
+    if (flotation_function == FLOTATION_FUNCTION_PATTYN .or. &
+        flotation_function == FLOTATION_FUNCTION_INVERSE_PATTYN) then
 
        ! In ice-free ocean cells, fill in f_flotation by extrapolation.
        ! Take the minimum (i.e., most grounded) value from adjacent ice-filled neighbors, using
@@ -355,7 +355,7 @@
        ! copy the extrapolated array to the main f_flotation array
        f_flotation(:,:) = f_flotation_extrap(:,:)
 
-    endif   ! which_ho_flotation_function
+    endif   ! flotation_function
 
     if (verbose_glp) then
        call point_diag(thck, 'GLP calculation, thck (m)', itest, jtest, rtest, 7, 7)
@@ -371,19 +371,19 @@
 
     ! Given f_flotation in all cells, we have the information needed to compute f_ground
     !  at vertices by one of several methods:
-    ! For which_ho_ground = 0, we either
+    ! For grounding_line_param = none, we either
     ! (a) set f_ground = 1 if any neighbor cell is land or has grounded ice
     ! (b) set f_ground = 1 if the interpolated value of f_flotation at the vertex < 0
-    ! For which_ho_ground = 1, we interpolate f_flotation over the staggered cell around each vertex,
+    ! For grounding_line_param = vertices, we interpolate f_flotation over the staggered cell around each vertex,
     !  then analytically evaluate the grounded fraction in the staggered cell.
     !  To obtain f_ground_cell, we average from vertices using glissade_unstagger.
-    ! For which_ho_ground = 2, we interpolate f_flotation over the four quadrants in each cell,
+    ! For grounding_line_param = deluxe, we interpolate f_flotation over the four quadrants in each cell,
     !  then analytically evaluate the grounded fraction in the quadrant, and finally
     !  sum over quadrants to obtain f_ground at vertices (staggered grid) and in cells (unstaggered grid).
 
-    ! Compute f_ground according to the value of which_ho_ground
+    ! Compute f_ground according to the value of grounding_line_param
 
-    if (which_ho_ground == GROUNDING_LINE_PARAM_NONE) then
+    if (grounding_line_param == GROUNDING_LINE_PARAM_NONE) then
 
        ! default: no sub-grid grounding-line parameterization
 
@@ -405,7 +405,7 @@
 
        ! Determine whether each vertex is grounded (f_ground = 1.0) or floating (f_ground = 0.0)
 
-       if (which_ho_fground_no_glp == FGROUND_NO_GLP_FLOTATION_FUNCTION) then
+       if (fground_no_glp == FGROUND_NO_GLP_FLOTATION_FUNCTION) then
 
           ! Set f_ground = 0 or 1 based on interpolation of f_flotation to vertices.
           ! For stagger_margin_in = 0, each neighboring value of f_flotation is included in the interpolation,
@@ -442,9 +442,9 @@
              enddo
           enddo
 
-       endif  ! which_ho_no_glp_stagger
+       endif  ! fground_no_glp
 
-    elseif (which_ho_ground == GROUNDING_LINE_PARAM_VERTICES) then
+    elseif (grounding_line_param == GROUNDING_LINE_PARAM_VERTICES) then
 
        ! Loop over vertices, computing f_ground for each vertex with vmask = 1.
        ! Note: All vertices with vmask = 1 (i.e., all vertices with at least one ice-covered neighbor)
@@ -478,7 +478,7 @@
 
        call parallel_halo(f_ground_cell, parallel)
 
-    elseif (which_ho_ground == GROUNDING_LINE_PARAM_DELUXE) then
+    elseif (grounding_line_param == GROUNDING_LINE_PARAM_DELUXE) then
 
        !----------------------------------------------------------------
        ! Compute f_ground_vertex by finding f_ground for 4 neighboring quadrants
@@ -629,7 +629,7 @@
 
        call parallel_halo(f_ground_cell, parallel)
 
-    endif   ! which_ho_ground
+    endif   ! grounding_line_param
 
   end subroutine glissade_grounded_fraction
 

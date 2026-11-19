@@ -363,7 +363,7 @@ contains
     ! local variables
 
     integer, dimension(model%grid%ewn, model%grid%nsn) :: &
-         ice_mask,           & ! = 1 where thck > thklim, else = 0
+         ice_mask,           & ! = 1 where thck > thcklim, else = 0
          floating_mask,      & ! = 1 where ice is present and floating, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent
          land_mask             ! = 1 where topg is at or above sea level

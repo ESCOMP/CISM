@@ -68,14 +68,14 @@
 
 !****************************************************************************
 
-  subroutine glissade_get_masks(nx,          ny,          &
-                                parallel,                 &
-                                thck,        topg,        &
-                                eus,         thklim,      &
-                                ice_mask,                 &
-                                floating_mask,            &
-                                ocean_mask,               &
-                                land_mask,                &
+  subroutine glissade_get_masks(nx,          ny,             &
+                                parallel,                    &
+                                thck,        topg,           &
+                                eus,         thck_threshold, &
+                                ice_mask,                    &
+                                floating_mask,               &
+                                ocean_mask,                  &
+                                land_mask,                   &
                                 grounding_line_mask)
 
     !TODO: Modify glissade_get_masks so that 'parallel' is not needed
@@ -93,25 +93,25 @@
     !
     ! The basic masks used for Glissade dynamic calculations are as follows:
     !
-    ! (1) ice_mask = 1 where ice is present (thck > thklim), else = 0
-    ! (2) floating_mask = 1 if ice is present (thck > thklim) and floating, else = 0
-    ! (3) ocean_mask = 1 if the topography is below sea level (topg < eus) and thk <= thklim, else = 0
+    ! (1) ice_mask = 1 where ice is present (thck > thck_threshold), else = 0
+    ! (2) floating_mask = 1 if ice is present (thck > thck_threshold) and floating, else = 0
+    ! (3) ocean_mask = 1 if the topography is below sea level (topg < eus) and thk <= thck_threshold, else = 0
     ! (4) land_mask = 1 if the topography is at or above sea level (topg >= eus), else = 0
     ! (5) grounding_line_mask = 1 if a cell is adjacent to the grounding line, else = 0
     !
     ! where thck = ice thickness
-    !       thklim = threshold thickness for ice to be dynamically active
+    !       thck_threshold = threshold thickness for ice to be dynamically active
     !       topg = bed topography
     !       eus = eustatic sea level (= 0 by default)
     !
     ! Notes:
-    ! (1) thck, thklim, topg and eus can either have units of length (e.g., meters)
+    ! (1) thck, thck_threshold, topg and eus can either have units of length (e.g., meters)
     !     or be dimensionless, as long as they are defined consistently.
     ! (2) ice_mask is always computed; the other masks are optional.
-    ! (3) Thermal calculations may have a different threshold, thklim_temp
-    !     (where generally thklim_temp < thklim).
-    !     This mask can be computed by replacing thklim with thklim_temp in the subroutine call.
-    ! (4) For some calculations it may be useful to call this subroutine with thklim = 0
+    ! (3) Thermal calculations may have a different threshold, thcklim_temp
+    !     (where generally thcklim_temp < thck_threshold).
+    !     This mask can be computed by replacing thck_threshold with thcklim_temp in the subroutine call.
+    ! (4) For some calculations it may be useful to call this subroutine with thck_threshold = 0
     !     so as to identify all cells with nonzero ice thickness, not just dynamically active cells.
     !----------------------------------------------------------------
     
@@ -126,7 +126,7 @@
          parallel               ! info for parallel communication
 
     ! Default dimensions are meters, but this subroutine will work for
-    ! any units as long as thck, topg, eus and thklim have the same units.
+    ! any units as long as thck, topg, eus and thck_threshold have the same units.
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          thck,                & ! ice thickness (m)
@@ -134,14 +134,14 @@
 
     real(dp), intent(in) :: &
          eus,                 & ! eustatic sea level (m), = 0. by default
-         thklim                 ! minimum ice thickness for active cells (m)
+         thck_threshold                 ! minimum ice thickness for active cells (m)
 
     integer, dimension(nx,ny), intent(out) ::  &
-         ice_mask               ! = 1 if thck > thklim, else = 0  
+         ice_mask               ! = 1 if thck > thck_threshold, else = 0  
 
     integer, dimension(nx,ny), intent(out), optional ::  &
-         floating_mask,       & ! = 1 if thck > thklim and ice is floating, else = 0
-         ocean_mask,          & ! = 1 if topg is below sea level and thk <= thklim, else = 0
+         floating_mask,       & ! = 1 if thck > thck_threshold and ice is floating, else = 0
+         ocean_mask,          & ! = 1 if topg is below sea level and thk <= thck_threshold, else = 0
          land_mask,           & ! = 1 if topg is at or above sea level, else = 0
          grounding_line_mask    ! = 1 if a cell is adjacent to the grounding line, else = 0
 
@@ -163,7 +163,7 @@
     do j = 1, ny
        do i = 1, nx
 
-          if (thck(i,j) > thklim) then
+          if (thck(i,j) > thck_threshold) then
              ice_mask(i,j) = 1
           else
              ice_mask(i,j) = 0
@@ -275,7 +275,7 @@
 
   subroutine glissade_calving_front_mask(&
        nx,                     ny,                   &
-       which_ho_calving_front,                       &
+       subgrid_calving_front,                        &
        parallel,                                     &
        itest,     jtest,       rtest,                &
        thck,                   topg,                 &
@@ -290,7 +290,7 @@
        effective_areafrac)
 
     ! Compute a calving_front (CF) mask, effective calving_front thickness, and related fields.
-    ! Depending on the value of which_ho_calving_front, we assume either
+    ! Depending on the value of subgrid_calving_front, we assume either
     ! (1) Only floating cells can be CF cells. They derive their effective thickness from upstream floating cells.
     ! (2) Both floating and marine-grounded cells can be CF cells. They derive their effective thickness
     !     from upstream cells that are either floating or marine-grounded.
@@ -305,7 +305,7 @@
          nx,  ny                  ! number of grid cells in each direction
 
     logical, intent(in) ::   &
-         which_ho_calving_front   ! if true, use the subgrid calving front scheme
+         subgrid_calving_front   ! if true, use the subgrid calving front scheme
 
     type(parallel_type), intent(in) :: parallel    !> info for parallel communication
 
@@ -322,9 +322,9 @@
          eus                      ! eustatic sea level (m), = 0. by default
 
     integer, dimension(nx,ny), intent(in) ::  &
-         ice_mask,              & ! = 1 if thck > thklim, else = 0
-         floating_mask,         & ! = 1 if thck > thklim and ice is floating, else = 0
-         ocean_mask,            & ! = 1 if topg is below sea level and thk <= thklim, else = 0
+         ice_mask,              & ! = 1 if thck > thcklim, else = 0
+         floating_mask,         & ! = 1 if thck > thcklim and ice is floating, else = 0
+         ocean_mask,            & ! = 1 if topg is below sea level and thk <= thcklim, else = 0
          land_mask                ! = 1 if topg is at or above sea level, else = 0
 
     integer, dimension(nx,ny), intent(out) ::  &
@@ -393,7 +393,7 @@
     call parallel_halo(calving_front_mask, parallel)
     call parallel_halo(interior_mask, parallel)
 
-    if (which_ho_calving_front) then   ! subgrid CF scheme
+    if (subgrid_calving_front) then   ! subgrid CF scheme
 
        ! Initialize thck_effective and masks
        where (ice_mask == 1)
@@ -497,7 +497,7 @@
           effective_areafrac = 0.0d0
        endwhere
 
-    endif  ! which_ho_calving_front
+    endif  ! subgrid_calving_front
 
   end subroutine glissade_calving_front_mask
 
@@ -516,9 +516,9 @@
          nx,  ny                  ! number of grid cells in each direction
 
     integer, dimension(nx,ny), intent(in) ::  &
-         ice_mask,              & ! = 1 if thck > thklim, else = 0
+         ice_mask,              & ! = 1 if thck > thcklim, else = 0
          land_mask,             & ! = 1 if topg is at or above sea level, else = 0
-         ocean_mask               ! = 1 if topg is below sea level and thk <= thklim, else = 0
+         ocean_mask               ! = 1 if topg is below sea level and thk <= thcklim, else = 0
 
     integer, dimension(nx,ny), intent(out) ::  &
          melt_front_mask          ! = 1 if ice is marine-based
@@ -561,10 +561,10 @@
          nx,  ny                  ! number of grid cells in each direction
 
     integer, dimension(nx,ny), intent(in) ::  &
-         ice_mask,              & ! = 1 if thck > thklim, else = 0
-         floating_mask,         & ! = 1 if thck > thklim and ice is floating, else = 0
+         ice_mask,              & ! = 1 if thck > thcklim, else = 0
+         floating_mask,         & ! = 1 if thck > thcklim and ice is floating, else = 0
          land_mask,             & ! = 1 if topg is at or above sea level, else = 0
-         ocean_mask               ! = 1 if topg is below sea level and thk <= thklim, else = 0
+         ocean_mask               ! = 1 if topg is below sea level and thk <= thcklim, else = 0
 
     integer, dimension(nx,ny), intent(out) ::  &
          marine_cliff_mask        ! = 1 if ice is grounded, marine-based and borders at least one ocean cell
@@ -627,7 +627,7 @@
     integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
 
     integer, dimension(nx,ny), intent(in) ::  &
-         ice_mask               !> = 1 if ice is present (thck > thklim)
+         ice_mask               !> = 1 if ice is present (thck > thcklim)
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          thck                   !> ice thickness (m)
@@ -966,7 +966,7 @@
                                              parallel,                     &
                                              itest, jtest, rtest,          &
                                              thck,         topg,           &
-                                             eus,          thklim,         &
+                                             eus,          thck_threshold, &
                                              marine_connection_mask)
 
     ! Identify cells that have a marine path to the ocean.
@@ -989,7 +989,7 @@
 
     real(dp), intent(in) :: &
          eus,                    & !> eustatic sea level (m), = 0. by default
-         thklim                    !> minimum ice thickness for active cells (m)
+         thck_threshold                    !> minimum ice thickness for active cells (m)
 
     integer, dimension(nx,ny), intent(out) ::  &
          marine_connection_mask    !> = 1 for ocean cells and cells connected to the ocean through marine-based ice
@@ -1020,7 +1020,7 @@
     ! If ocean_topg_threshold was passed in, then ocean_mask includes only cells
     !  with topg - eus < ocean_topg_threshold.
 
-    where (thck <= thklim .and. topg - eus < ocean_topg_threshold)
+    where (thck <= thck_threshold .and. topg - eus < ocean_topg_threshold)
        ocean_mask = 1
     elsewhere
        ocean_mask = 0
@@ -1216,11 +1216,11 @@
     integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
 
     ! Note: The calling subroutine decides how to define floating_mask.
-    !       E.g., it could be defined based on f_ground_cell with which_ho_ground = 2.
+    !       E.g., it could be defined based on f_ground_cell with grounding_line_param = deluxe.
     ! Each input mask needs to be correct in halo cells
 
     integer, dimension(nx,ny), intent(in) ::  &
-         floating_mask,          & !> = 1 where ice is present (thck > thklim) and floating, else = 0
+         floating_mask,          & !> = 1 where ice is present (thck > thcklim) and floating, else = 0
          ocean_mask                !> = 1 where topg - eus is below sea level and ice is absent, else = 0
 
     integer, dimension(nx,ny), intent(out) ::  &

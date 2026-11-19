@@ -916,11 +916,11 @@ contains
        endif
     endif
 
-    !Note: The Glissade dycore is known to crash for thklim = 0, but has not
-    !      been extensively tested for small values of thklim.
+    !Note: The Glissade dycore is known to crash for thcklim = 0, but has not
+    !      been extensively tested for small values of thcklim.
     !      Values smaller than 1 mm may be OK, but no guarantees.
     if (model%numerics%thcklim < 1.d-3) then   ! 1 mm
-       call write_log('ice limit (thklim) is too small for Glissade dycore', GM_FATAL)
+       call write_log('ice limit (thcklim) is too small for Glissade dycore', GM_FATAL)
     endif
 
     call log_section('numerics')
@@ -3065,7 +3065,7 @@ contains
              call glissade_add_to_restart_variable_list('acab', model_id)
           case (SMB_INPUT_UNITS_MM_WE_PER_YR)
              call glissade_add_to_restart_variable_list('smb', model_id)
-          end select  ! smb_input
+          end select  ! smb_input_units
 
        case(SMB_INPUT_FUNCTION_XY_GRADZ)
           call glissade_add_to_restart_variable_list('smb_ref', model_id)

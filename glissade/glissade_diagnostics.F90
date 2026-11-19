@@ -348,7 +348,7 @@
        minthck = eps  ! slightly > 0
     elseif (model%diagnostics%diag_ice_threshold == DIAG_ICE_THRESHOLD_THCKLIM) then
        ! Note: If the user specifies model%numerics%thcklim = 1.0 m in the config file,
-       !       then thklim is reset at initialization to a number slightly less than 1.0.
+       !       then thcklim is reset at initialization to a number slightly less than 1.0.
        !       This protects the diagnostics below against rounding errors for cells
        !       with thck very close to minthck.
        minthck = model%numerics%thcklim
