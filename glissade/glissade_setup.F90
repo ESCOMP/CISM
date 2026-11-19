@@ -69,6 +69,9 @@ contains
     ! read configuration file
     call glissade_readconfig (model,config)
 
+    ! check settings that involve more than one key, and set defaults that depend on other options
+    call glissade_check_config(model, config)
+
     ! read the ocean levels ([ocean_data]), if present, or compute them from dzocn
     call glissade_get_zocn(model,config)
 
@@ -100,6 +103,69 @@ contains
     call glimmer_nc_readparams(model%funits, model%options%restart, config)
 
   end subroutine glissade_config
+
+!-------------------------------------------------------------------------
+
+  subroutine glissade_check_config(model, config)
+
+    ! Check settings that involve keys in more than one section, and set the defaults
+    ! that depend on another option. Called after glissade_readconfig and before glissade_printconfig.
+    ! A dependent default applies only when its key is not in the config file;
+    ! an explicit setting that conflicts with the other option stops the run.
+
+    use glissade_types
+    use glimmer_config
+    use glimmer_log
+
+    implicit none
+
+    type(glissade_global_type) :: model        !> model instance
+    type(ConfigSection), pointer :: config     !> structure holding sections of configuration file
+
+    ! The local SIA solver cannot use first-order dissipation.
+    ! With stokes_approx = local_sia, the default dissipation_method is sia.
+    if (model%velocity%stokes_approx == STOKES_APPROX_LOCAL_SIA .and. &
+        model%temperature%dissipation_method == DISSIPATION_METHOD_FIRST_ORDER) then
+       if (key_given(config, 'temperature', 'dissipation_method')) then
+          call write_log('Error, dissipation_method = first_order cannot be used with stokes_approx = local_sia; ' // &
+               'use sia or none', GM_FATAL)
+       else
+          model%temperature%dissipation_method = DISSIPATION_METHOD_SIA
+       endif
+    endif
+
+    ! Computing on active blocks only requires no-ice boundary conditions.
+    ! With compute_blocks = active_only, the default global_bc is no_ice.
+    if (model%numerics%compute_blocks == COMPUTE_BLOCKS_ACTIVE_ONLY .and. &
+        model%grid%global_bc /= GLOBAL_BC_NO_ICE) then
+       if (key_given(config, 'grid', 'global_bc')) then
+          call write_log('Error, compute_blocks = active_only requires global_bc = no_ice', GM_FATAL)
+       else
+          model%grid%global_bc = GLOBAL_BC_NO_ICE
+       endif
+    endif
+
+  end subroutine glissade_check_config
+
+!-------------------------------------------------------------------------
+
+  logical function key_given(config, secname, key)
+
+    ! True if the config file sets this key in this section
+
+    use glimmer_config
+    implicit none
+    type(ConfigSection), pointer :: config
+    character(len=*), intent(in) :: secname, key
+
+    type(ConfigSection), pointer :: section
+    character(len=512) :: val
+
+    call GetSection(config, section, secname)
+    key_given = .false.
+    if (associated(section)) key_given = ConfigSectionHasValue(section, key, val)
+
+  end function key_given
 
 !-------------------------------------------------------------------------
 
@@ -1302,28 +1368,13 @@ contains
 
     type(glissade_global_type)  :: model
 
-    character(len=100) :: note
-
-    ! The local SIA solver cannot use first-order dissipation
-    note = ''
-    if (model%velocity%stokes_approx == STOKES_APPROX_LOCAL_SIA) then
-       if (model%temperature%dissipation_method == DISSIPATION_METHOD_FIRST_ORDER ) then
-          model%temperature%dissipation_method = DISSIPATION_METHOD_SIA
-          note = 'reset from first_order, which cannot be used with the local SIA solver'
-       endif
-    endif  ! Glissade local SIA solver
-
     call log_section('temperature')
     call log_option('temperature_method', model%temperature%temperature_method, temperature_method_choices)
     ! Note: If temperature is read from an input or restart file, the temperature_init option is overridden.
     !       The method actually used is written to the log file by glissade_init_temp.
     call log_option('temperature_init', model%temperature%temperature_init, temperature_init_choices, &
          'not used if temperature is read from a file')
-    if (len_trim(note) > 0) then
-       call log_option('dissipation_method', model%temperature%dissipation_method, dissipation_method_choices, trim(note))
-    else
-       call log_option('dissipation_method', model%temperature%dissipation_method, dissipation_method_choices)
-    endif
+    call log_option('dissipation_method', model%temperature%dissipation_method, dissipation_method_choices)
     call log_param('pmp_threshold', model%temperature%pmp_threshold, 'K')
     call log_param('pmp_offset', model%temperature%pmp_offset, 'K')
 
