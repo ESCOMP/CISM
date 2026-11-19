@@ -53,7 +53,7 @@ contains
   subroutine glad_i_initialise_gcm(config,           instance,         &
                                     force_start,      force_dt,         &
                                     gcm_restart,      gcm_restart_file, &
-                                    gcm_config_unit,  test_coupling)
+                                    test_coupling)
 
     ! Initialise a GLAD ice model instance for GCM coupling
 
@@ -85,24 +85,17 @@ contains
 
     logical,     optional, intent(in)    :: gcm_restart      ! logical flag to read from a restart file
     character(*),optional, intent(in)    :: gcm_restart_file ! restart filename for restart
-    integer,     optional, intent(in)    :: gcm_config_unit  ! fileunit for reading config files
     logical,     optional, intent(in)    :: test_coupling    ! if true, force frequent coupling for testing purposes
 
     ! Internal
 
-    integer :: config_fileunit
     logical :: do_ice_evolution
     integer :: nzocn
-
-    config_fileunit = 99
-    if (present(gcm_config_unit)) then
-       config_fileunit = gcm_config_unit
-    endif
 
     ! initialise model
 
     call register_model(instance%model%model_id)
-    call glissade_config(instance%model, config, config_fileunit)
+    call glissade_config(instance%model, config)
 
     ! GLAD supports only the Glissade dycore
     if (instance%model%options%dycore /= DYCORE_GLISSADE) then

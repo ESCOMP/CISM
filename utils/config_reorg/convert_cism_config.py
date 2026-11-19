@@ -50,6 +50,13 @@ import sys
 # (old section, old key) -> (new section, new key).
 # Filled in one topic at a time, in the commits of the config reorganization.
 MOVES = {
+    # [grid_atm] and [grid_ocn] are folded into [climate] and [ocean_data] (R3)
+    ('grid_atm', 'nzatm'): ('climate', 'nzatm'),
+    ('grid_atm', 'zatm'): ('climate', 'zatm'),
+    ('grid_ocn', 'nzocn'): ('ocean_data', 'nzocn'),
+    ('grid_ocn', 'dzocn'): ('ocean_data', 'dzocn'),
+    ('grid_ocn', 'zocn'): ('ocean_data', 'zocn'),
+    ('grid_ocn', 'nbasin'): ('ocean_data', 'nbasin'),
     # [calving]
     ('options', 'marine_margin'): ('calving', 'calving_law'),
     ('options', 'calving_init'): ('calving', 'calve_at_startup'),
@@ -357,6 +364,7 @@ REMOVED = {
     ('climate', 'smb_factor'): _SMB_FACTOR,
     ('parameters', 'calving_fraction'): _CALVING_FRACTION,
     ('calving', 'calving_fraction'): _CALVING_FRACTION,
+    ('options', 'ioparams'): 'removed; put the [CF ...] sections in the main config file',
 }
 
 # Order of the Glissade sections in a converted config file: the order in which they are written
@@ -366,7 +374,7 @@ SECTION_ORDER = [
     'grid', 'sigma', 'time', 'diagnostics', 'options', 'numerics', 'constants', 'initialization',
     'velocity', 'velocity_solver', 'advection', 'temperature', 'flow_law',
     'basal_physics', 'basal_hydro', 'grounding_line', 'basal_melt', 'calving', 'lateral_melt', 'removal',
-    'grid_atm', 'climate', 'grid_ocn', 'ocean_data', 'geothermal', 'isostasy', 'inversion', 'glaciers',
+    'climate', 'ocean_data', 'geothermal', 'isostasy', 'inversion', 'glaciers',
 ]
 
 # CESM user_nl_cism: old key -> new key.  Kept separate from MOVES because a few key names occur in
@@ -950,6 +958,17 @@ def self_test():
     _, c5 = convert_config('[calving]\ncalving_law = 2\n', {})
     assert c5 == ['[calving] calving_law = 2: removed; use calving_law = float_zero with calving_timescale = '
                   'dt/calving_fraction; left unchanged'], c5
+    # [grid_atm] and [grid_ocn] fold into [climate] and [ocean_data]; ioparams is removed
+    grids = '\n'.join(['[options]', 'dycore = glissade', 'ioparams = io.config', '',
+                        '[grid_atm]', 'nzatm = 2', 'zatm = 100. 500.', '',
+                        '[climate]', 'smb_input_units = mm_we_per_yr', '',
+                        '[grid_ocn]', 'nzocn = 2', 'dzocn = 50.', 'nbasin = 16', ''])
+    folded, c6 = convert_config(grids)
+    assert folded == '\n'.join(['[options]', 'dycore = glissade', '',
+                                 '[climate]', 'smb_input_units = mm_we_per_yr', 'nzatm = 2', 'zatm = 100. 500.', '',
+                                 '[ocean_data]', 'nzocn = 2', 'dzocn = 50.', 'nbasin = 16', '']), folded
+    assert '[grid_atm]' not in folded and '[grid_ocn]' not in folded and 'ioparams' not in folded
+    assert convert_config(folded) == (folded, [])
     print('self-test passed')
 
 

@@ -275,7 +275,7 @@ contains
     call glad_i_initialise_gcm(instance_config,     params%instances(instance_index), &
                                forcing_start_time,  params%time_step, &
                                params%gcm_restart,  gcm_restart_file, &
-                               params%gcm_fileunit, test_coupling )
+                               test_coupling )
 
   end subroutine glad_initialize_instance
 

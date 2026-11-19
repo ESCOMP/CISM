@@ -51,7 +51,7 @@ contains
 
 !-------------------------------------------------------------------------
 
-  subroutine glissade_config(model,config,fileunit)
+  subroutine glissade_config(model,config)
 
     ! Read Glissade configuration from file and print it to the log
 
@@ -65,23 +65,14 @@ contains
 
     type(glissade_global_type), intent(inout) :: model  ! model instance
     type(ConfigSection), pointer  :: config          ! structure holding sections of configuration file
-    integer, intent(in), optional :: fileunit        ! fileunit for reading config file 
-
-    type(ConfigSection), pointer :: ncconfig
-    integer :: unit
-
-    unit = 99
-    if (present(fileunit)) then
-       unit = fileunit
-    endif
 
     ! read configuration file
     call glissade_readconfig (model,config)
 
-    ! optionally, read zocn levels from config file, if present, or compute them from dzocn
+    ! read the ocean levels ([ocean_data]), if present, or compute them from dzocn
     call glissade_get_zocn(model,config)
 
-    ! optionally, read zatm levels from config file, if present
+    ! read the atmosphere levels ([climate]), if present
     call glissade_get_zatm(model,config)
 
     ! write the configuration to the log
@@ -105,14 +96,8 @@ contains
     call glimmap_readconfig(model%projection,   config,   &
                             model%grid%dew,     model%grid%dns)
 
-    ! netCDF I/O
-    if (trim(model%funits%ncfile) == '') then
-       ncconfig => config
-    else
-       call ConfigRead(process_path(model%funits%ncfile), ncconfig, unit)
-    end if
-
-    call glimmer_nc_readparams(model%funits, model%options%restart, ncconfig)
+    ! netCDF I/O ([CF ...] sections)
+    call glimmer_nc_readparams(model%funits, model%options%restart, config)
 
   end subroutine glissade_config
 
@@ -139,8 +124,8 @@ contains
     !       (e.g., isostasy, lateral_melt_method, bwat_method, enable_glaciers).
     !       The handlers only read values, so reading a section for a feature that is off
     !       has no effect on the results.
-    ! Note: The [grid_ocn] and [grid_atm] sections are read by glissade_get_zocn and glissade_get_zatm,
-    !       and [sigma] by glissade_read_sigma.
+    ! Note: The ocean and atmosphere levels (nzocn, dzocn, zocn, nbasin in [ocean_data]; nzatm, zatm in [climate])
+    !       are read by glissade_get_zocn and glissade_get_zatm, and [sigma] by glissade_read_sigma.
 
     ! read grid size parameters
     call GetSection(config,section,'grid')
@@ -344,10 +329,8 @@ contains
     call print_calving(model)
     call print_lateral_melt(model)
     call print_removal(model)
-    call print_grid_atm(model, config)
-    call print_climate(model)
-    call print_grid_ocn(model, config)
-    call print_ocean_data(model)
+    call print_climate(model, config)
+    call print_ocean_data(model, config)
     call print_geothermal(model)
     call print_isostasy(model)
     call print_inversion(model)
@@ -849,7 +832,6 @@ contains
     call glimmer_set_msg_level(log_level)
 
     call GetDycore(section,model%options%dycore)   ! 2 or glissade (see glimmer_config)
-    call GetValue(section,'ioparams',model%funits%ncfile)
     call GetLogical(section,'forcewrite_final', model%options%forcewrite_final)
     call GetOption(section,'restart',restart_choices,model%options%restart)
     call GetLogical(section,'restart_extend_velo',model%options%restart_extend_velo)
@@ -876,9 +858,6 @@ contains
 
     call log_section('options')
     call log_option('dycore', model%options%dycore, dycore_choices)
-    if (len_trim(model%funits%ncfile) > 0) then
-       call log_string('ioparams', model%funits%ncfile)
-    endif
     call log_option('restart', model%options%restart, restart_choices)
     if (model%options%restart /= NO_RESTART) then
        call log_flag('restart_extend_velo', model%options%restart_extend_velo, &
@@ -2298,10 +2277,45 @@ contains
 
 !--------------------------------------------------------------------------------
 
+  logical function atm_levels_given(section)
+
+    ! True if [climate] gives the atmosphere levels (nzatm or zatm)
+
+    use glimmer_config
+    implicit none
+    type(ConfigSection), pointer :: section
+    character(len=512) :: val
+
+    atm_levels_given = .false.
+    if (.not.associated(section)) return
+    atm_levels_given = ConfigSectionHasValue(section,'nzatm',val) .or. ConfigSectionHasValue(section,'zatm',val)
+
+  end function atm_levels_given
+
+!--------------------------------------------------------------------------------
+
+  logical function ocn_levels_given(section)
+
+    ! True if [ocean_data] gives the ocean levels or basins (nzocn, dzocn, zocn or nbasin)
+
+    use glimmer_config
+    implicit none
+    type(ConfigSection), pointer :: section
+    character(len=512) :: val
+
+    ocn_levels_given = .false.
+    if (.not.associated(section)) return
+    ocn_levels_given = ConfigSectionHasValue(section,'nzocn',val) .or. ConfigSectionHasValue(section,'dzocn',val) .or. &
+                       ConfigSectionHasValue(section,'zocn',val)  .or. ConfigSectionHasValue(section,'nbasin',val)
+
+  end function ocn_levels_given
+
+!--------------------------------------------------------------------------------
+
   subroutine glissade_get_zatm(model,config)
 
-    ! Read atmosphere grid information, if present, from the config file.
-    ! Called after glissade_readconfig and before glissade_printconfig (see print_grid_atm)
+    ! Read the atmosphere levels (nzatm, zatm in [climate]), if present, from the config file.
+    ! Called after glissade_readconfig and before glissade_printconfig (see print_climate)
 
     use glissade_types
     use glimmer_config
@@ -2318,10 +2332,10 @@ contains
     character(len=512) :: message
     integer :: k
 
-    ! Check for section [grid_atm]
-    call GetSection(config,section,'grid_atm')
+    ! Use the levels from [climate] if nzatm or zatm is given there
+    call GetSection(config,section,'climate')
 
-    if (associated(section)) then
+    if (atm_levels_given(section)) then
 
        call GetValue(section,'nzatm',model%climate%nzatm)
 
@@ -2335,7 +2349,7 @@ contains
 
        ! Load the zatm levels from the config file.
        ! For example, the config file could have a section like this:
-       ! [grid_atm]
+       ! [climate]
        ! nzatm = 10
        ! zatm = 100., 300., 550., 850., 1150., 1450., 1800., 2250., 2750., 3500.
 
@@ -2347,7 +2361,7 @@ contains
           if (model%climate%zatm(k) - model%climate%zatm(k-1) < 1.0d0) then
              write(message,*) 'nzatm, zatm =', model%climate%nzatm, model%climate%zatm(:)
              call write_log(trim(message))
-             write(message,*) 'Must have zatm increasing with increasing k in the [grid_atm] section'
+             write(message,*) 'Must have zatm increasing with increasing k in the [climate] section'
              call write_log(message, GM_FATAL)
           endif
        enddo
@@ -2369,36 +2383,9 @@ contains
        allocate(model%climate%zatm(model%climate%nzatm))
        model%climate%zatm(:) = (/ 0.0d0 /)
 
-    endif   ! associated(section)
+    endif   ! atm_levels_given
 
   end subroutine glissade_get_zatm
-
-!--------------------------------------------------------------------------------
-
-  subroutine print_grid_atm(model, config)
-
-    ! Atmosphere grid ([grid_atm]; read or set by glissade_get_zatm), written if there is more than one level
-
-    use glissade_types
-    use glimmer_config
-    use glissade_log_config
-    implicit none
-    type(glissade_global_type)   :: model
-    type(ConfigSection), pointer :: config
-
-    type(ConfigSection), pointer :: section
-
-    if (model%climate%nzatm <= 1) return
-
-    call GetSection(config,section,'grid_atm')
-    call log_section('grid_atm')
-    if (.not.associated(section)) then
-       call log_comment('no [grid_atm] section; using the standard CESM elevation classes')
-    endif
-    call log_param('nzatm', model%climate%nzatm)
-    call log_list('zatm', model%climate%zatm, 'm')
-
-  end subroutine print_grid_atm
 
 !--------------------------------------------------------------------------------
 
@@ -2446,17 +2433,21 @@ contains
 
 !--------------------------------------------------------------------------------
 
-  subroutine print_climate(model)
+  subroutine print_climate(model, config)
 
-    ! Surface climate (SMB and surface temperature) options and parameters
+    ! Surface climate (SMB and surface temperature) options and parameters,
+    ! and the atmosphere levels (read or set by glissade_get_zatm), written if there is more than one level
 
     use glissade_types
+    use glimmer_config
     use glimmer_log
     use glissade_log_config
 
     implicit none
 
     type(glissade_global_type)  :: model
+    type(ConfigSection), pointer :: config
+    type(ConfigSection), pointer :: section
     character(len=500) :: message
 
     ! check the options
@@ -2513,14 +2504,23 @@ contains
     call log_flag('block_inception', model%climate%block_inception, &
          'block inception outside the main ice sheet')
 
+    if (model%climate%nzatm > 1) then
+       call GetSection(config,section,'climate')
+       if (.not.atm_levels_given(section)) then
+          call log_comment('no nzatm or zatm in [climate]; using the standard CESM elevation classes')
+       endif
+       call log_param('nzatm', model%climate%nzatm)
+       call log_list('zatm', model%climate%zatm, 'm')
+    endif
+
   end subroutine print_climate
 
 !-------------------------------------------------------------------------
 
   subroutine glissade_get_zocn(model,config)
 
-    ! Read ocean grid information, if present, from the config file.
-    ! Called after glissade_readconfig and before glissade_printconfig (see print_grid_ocn)
+    ! Read the ocean levels and basins (nzocn, dzocn, zocn, nbasin in [ocean_data]), if present, from the config file.
+    ! Called after glissade_readconfig and before glissade_printconfig (see print_ocean_data)
 
     use glissade_types
     use glimmer_config
@@ -2537,10 +2537,10 @@ contains
     character(len=512) :: message
     integer :: k
 
-    ! Check for section [grid_ocn]
-    call GetSection(config,section,'grid_ocn')
+    ! Use the levels from [ocean_data] if nzocn, dzocn, zocn or nbasin is given there
+    call GetSection(config,section,'ocean_data')
 
-    if (associated(section)) then
+    if (ocn_levels_given(section)) then
 
        call GetValue(section,'nzocn',model%ocean_data%nzocn)
        call GetValue(section,'dzocn',model%ocean_data%dzocn)     ! m
@@ -2572,13 +2572,13 @@ contains
              if (model%ocean_data%zocn(k-1) - model%ocean_data%zocn(k) < 1.0d0) then
                 write(message,*) 'nzocn, zocn =', model%ocean_data%nzocn, model%ocean_data%zocn(:)
                 call write_log(trim(message))
-                write(message,*) 'Must have zocn decreasing with increasing k in the [grid_ocn] section'
+                write(message,*) 'Must have zocn decreasing with increasing k in the [ocean_data] section'
                 call write_log(message, GM_FATAL)
              endif
           enddo
        endif
 
-    else    ! no 'grid_ocn' section
+    else    ! no ocean levels in [ocean_data]
 
        ! Allocate and initialize model%ocean_data%zocn.
        ! Note: Coupled CESM runs require this array to be allocated, even if CISM
@@ -2589,43 +2589,13 @@ contains
        model%ocean_data%zocn(:) = 0.0d0
 
        if (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
-          write(message,*) 'Must have a [grid_ocn] section to use the thermal forcing option'
+          write(message,*) 'Must set nzocn and zocn (or dzocn) in [ocean_data] to use the thermal forcing option'
           call write_log(message, GM_FATAL)
        endif
 
-    endif   ! associated(section)
+    endif   ! ocn_levels_given
 
   end subroutine glissade_get_zocn
-
-!--------------------------------------------------------------------------------
-
-  subroutine print_grid_ocn(model, config)
-
-    ! Ocean grid ([grid_ocn]; read by glissade_get_zocn), written if the section is present
-
-    use glissade_types
-    use glimmer_config
-    use glissade_log_config
-    implicit none
-    type(glissade_global_type)   :: model
-    type(ConfigSection), pointer :: config
-
-    type(ConfigSection), pointer :: section
-
-    call GetSection(config,section,'grid_ocn')
-    if (.not.associated(section)) return
-
-    call log_section('grid_ocn')
-    call log_param('nzocn', model%ocean_data%nzocn)
-    if (model%ocean_data%dzocn > 0.0d0) then
-       call log_param('dzocn', model%ocean_data%dzocn, 'm; uniform level spacing')
-       call log_list('zocn', model%ocean_data%zocn, 'm; computed from dzocn')
-    else
-       call log_list('zocn', model%ocean_data%zocn, 'm')
-    endif
-    call log_param('nbasin', model%ocean_data%nbasin)
-
-  end subroutine print_grid_ocn
 
 !--------------------------------------------------------------------------------
 
@@ -2656,26 +2626,44 @@ contains
 
 !--------------------------------------------------------------------------------
 
-  subroutine print_ocean_data(model)
+  subroutine print_ocean_data(model, config)
 
-    ! Ocean data (thermal forcing) options and parameters.
-    ! The section is written only for the thermal-forcing basal melt scheme, which uses it.
+    ! Ocean data (thermal forcing) options and parameters, and the ocean levels and basins.
+    ! The options and parameters are written only for the thermal-forcing basal melt scheme, which uses them;
+    ! the levels and basins are written when they are given in the config file (see glissade_get_zocn).
 
     use glissade_types
+    use glimmer_config
     use glimmer_log
     use glissade_log_config
 
     implicit none
 
     type(glissade_global_type)  :: model
+    type(ConfigSection), pointer :: config
+    type(ConfigSection), pointer :: section
+    logical :: levels_given
+
+    call GetSection(config,section,'ocean_data')
+    levels_given = ocn_levels_given(section)
+
+    if (model%basal_melt%bmlt_float_method /= BMLT_FLOAT_METHOD_THERMAL_FORCING .and. .not.levels_given) return
+
+    call log_section('ocean_data')
+
+    if (levels_given) then
+       call log_param('nzocn', model%ocean_data%nzocn)
+       if (model%ocean_data%dzocn > 0.0d0) then
+          call log_param('dzocn', model%ocean_data%dzocn, 'm; uniform level spacing')
+          call log_list('zocn', model%ocean_data%zocn, 'm; computed from dzocn')
+       else
+          call log_list('zocn', model%ocean_data%zocn, 'm')
+       endif
+       call log_param('nbasin', model%ocean_data%nbasin)
+    endif
 
     if (model%basal_melt%bmlt_float_method /= BMLT_FLOAT_METHOD_THERMAL_FORCING) return
 
-    ! check the options
-
-    ! write the options and parameters
-
-    call log_section('ocean_data')
     call log_option('ocean_data_domain', model%ocean_data%ocean_data_domain, ocean_data_domain_choices)
     if (model%ocean_data%extrapolate_ocean_data) then
        call log_flag('extrapolate_ocean_data', .true., 'CISM extrapolates the ocean data to cavities at run time')

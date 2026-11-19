@@ -2958,7 +2958,7 @@ contains
     call coordsystem_allocate(model%grid%ice_grid, model%basal_melt%bmlt_float_target)
     call coordsystem_allocate(model%grid%ice_grid, model%basal_melt%bmlt_float_external)
     call coordsystem_allocate(model%grid%ice_grid, model%basal_melt%thermal_forcing_mask)
-    ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
+    ! Note: nzocn and nbasin should be set in the [ocean_data] section of the config file
     call coordsystem_allocate(model%grid%ice_grid, model%ocean_data%nzocn, &
                               model%ocean_data%thermal_forcing)
     call coordsystem_allocate(model%grid%ice_grid, model%ocean_data%thermal_forcing_lsrf)
