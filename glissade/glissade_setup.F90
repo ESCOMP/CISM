@@ -377,7 +377,7 @@ contains
     model%time%dt     = model%time%tinc * scyr
 
     ! scale calving parameters
-    model%calving%timescale = model%calving%timescale * scyr                ! convert from yr to s
+    model%calving%calving_timescale = model%calving%calving_timescale * scyr                ! convert from yr to s
     model%calving%cliff_timescale = model%calving%cliff_timescale * scyr    ! convert from yr to s
 
     ! scale basal traction parameter
@@ -1911,21 +1911,14 @@ contains
 
     type(ConfigSection), pointer :: section
     type(glissade_global_type)   :: model
-    logical :: flag   ! for options that are logicals in the config file
 
     ! options
-    call GetOption(section,'bmlt_float_method',                bmlt_float_method_choices, model%options%whichbmlt_float)
-    call GetOption(section,'bmlt_float_thermal_forcing_param', bmlt_float_thermal_forcing_param_choices, model%options%bmlt_float_thermal_forcing_param)
-    call GetLogical(section,'bmlt_float_init',                  model%options%bmlt_float_init)
-    call GetOption(section,'deltaT_ocn_method',                deltaT_ocn_method_choices, model%options%which_ho_deltaT_ocn)
-    call GetLogical(section,'enable_bmlt_anomaly',              model%options%enable_bmlt_anomaly)
-    flag = (model%options%basal_mbal == BASAL_MBAL_IN_CONTINUITY_TRUE)
-    call GetLogical(section,'basal_mbal_in_continuity', flag)
-    if (flag) then
-       model%options%basal_mbal = BASAL_MBAL_IN_CONTINUITY_TRUE
-    else
-       model%options%basal_mbal = BASAL_MBAL_IN_CONTINUITY_FALSE
-    endif
+    call GetOption(section,'bmlt_float_method',                bmlt_float_method_choices, model%basal_melt%bmlt_float_method)
+    call GetOption(section,'bmlt_float_thermal_forcing_param', bmlt_float_thermal_forcing_param_choices, model%basal_melt%bmlt_float_thermal_forcing_param)
+    call GetLogical(section,'bmlt_float_init',                  model%basal_melt%bmlt_float_init)
+    call GetOption(section,'deltaT_ocn_method',                deltaT_ocn_method_choices, model%basal_melt%deltaT_ocn_method)
+    call GetLogical(section,'enable_bmlt_anomaly',              model%basal_melt%enable_bmlt_anomaly)
+    call GetLogical(section,'basal_mbal_in_continuity', model%basal_melt%basal_mbal_in_continuity)
 
     ! general parameters
     call GetValue(section,'bmlt_float_factor',      model%basal_melt%bmlt_float_factor)
@@ -1948,7 +1941,7 @@ contains
     call GetValue(section,'bmlt_float_depth_zfrzmax',  model%basal_melt%bmlt_float_depth_zfrzmax)
     call GetValue(section,'bmlt_float_depth_meltmin',  model%basal_melt%bmlt_float_depth_meltmin)
     call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
-    call GetValue(section,'bmlt_float_gamma0',         model%ocean_data%gamma0)
+    call GetValue(section,'bmlt_float_gamma0',         model%basal_melt%bmlt_float_gamma0)
 
   end subroutine handle_basal_melt
 
@@ -1967,10 +1960,10 @@ contains
     type(glissade_global_type)  :: model
     character(len=500) :: message
 
-    if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_DTHCK_DT) then
-       if (model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_PARAM_ISMIP6_LOCAL .and. &
-           model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL .and. &
-           model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE) then
+    if (model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_DTHCK_DT) then
+       if (model%basal_melt%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_PARAM_ISMIP6_LOCAL .and. &
+           model%basal_melt%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL .and. &
+           model%basal_melt%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE) then
           write(message,*) 'deltaT_ocn_method dthck_dt option supported only for ISMIP6 bmlt_float schemes'
           call write_log(message, GM_FATAL)
        endif
@@ -1979,47 +1972,47 @@ contains
     ! write the options and parameters
 
     call log_section('basal_melt')
-    call log_option('bmlt_float_method', model%options%whichbmlt_float, bmlt_float_method_choices)
-    if (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
-       call log_option('bmlt_float_thermal_forcing_param', model%options%bmlt_float_thermal_forcing_param, &
+    call log_option('bmlt_float_method', model%basal_melt%bmlt_float_method, bmlt_float_method_choices)
+    if (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
+       call log_option('bmlt_float_thermal_forcing_param', model%basal_melt%bmlt_float_thermal_forcing_param, &
             bmlt_float_thermal_forcing_param_choices)
-       call log_param('bmlt_float_gamma0', model%ocean_data%gamma0, 'm/yr; melt rate coefficient')
-       call log_flag('bmlt_float_init', model%options%bmlt_float_init, &
+       call log_param('bmlt_float_gamma0', model%basal_melt%bmlt_float_gamma0, 'm/yr; melt rate coefficient')
+       call log_flag('bmlt_float_init', model%basal_melt%bmlt_float_init, &
             'compute bmlt_float at initialization')
     endif
-    call log_flag('basal_mbal_in_continuity', model%options%basal_mbal == BASAL_MBAL_IN_CONTINUITY_TRUE, &
+    call log_flag('basal_mbal_in_continuity', model%basal_melt%basal_mbal_in_continuity, &
          'if true, the basal mass balance is applied in the continuity equation')
 
-    if (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
-       call log_option('deltaT_ocn_method', model%options%which_ho_deltaT_ocn, deltaT_ocn_method_choices)
-    elseif (model%options%which_ho_deltaT_ocn /= DELTAT_OCN_METHOD_NONE) then
-       call log_option('deltaT_ocn_method', model%options%which_ho_deltaT_ocn, deltaT_ocn_method_choices, &
+    if (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
+       call log_option('deltaT_ocn_method', model%basal_melt%deltaT_ocn_method, deltaT_ocn_method_choices)
+    elseif (model%basal_melt%deltaT_ocn_method /= DELTAT_OCN_METHOD_NONE) then
+       call log_option('deltaT_ocn_method', model%basal_melt%deltaT_ocn_method, deltaT_ocn_method_choices, &
             'ignored; supported only for bmlt_float_method = thermal_forcing')
     endif
 
-    call log_flag('enable_bmlt_anomaly', model%options%enable_bmlt_anomaly, 'bmlt_float anomaly forcing')
-    if (model%options%enable_bmlt_anomaly) then
+    call log_flag('enable_bmlt_anomaly', model%basal_melt%enable_bmlt_anomaly, 'bmlt_float anomaly forcing')
+    if (model%basal_melt%enable_bmlt_anomaly) then
        call log_param('bmlt_anomaly_tstart', model%basal_melt%bmlt_anomaly_tstart, 'yr')
        call log_param('bmlt_anomaly_timescale', model%basal_melt%bmlt_anomaly_timescale, 'yr')
     endif
 
-    if (model%options%whichbmlt_float /= BMLT_FLOAT_METHOD_NONE .and. &
-        model%options%whichbmlt_float /= BMLT_FLOAT_METHOD_MISMIP) then
+    if (model%basal_melt%bmlt_float_method /= BMLT_FLOAT_METHOD_NONE .and. &
+        model%basal_melt%bmlt_float_method /= BMLT_FLOAT_METHOD_MISMIP) then
        call log_param('bmlt_cavity_h0', model%basal_melt%bmlt_cavity_h0, &
             'm; melt is reduced in cavities thinner than this; 0 = off')
     endif
 
-    if (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_FILE) then
+    if (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_FILE) then
        call log_param('bmlt_float_factor', model%basal_melt%bmlt_float_factor, &
             'multiplies bmlt_float from the input file')
-    elseif (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_CONSTANT) then
+    elseif (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_CONSTANT) then
        call log_param('bmlt_float_const', model%basal_melt%bmlt_float_const, 'm/yr')
        call log_param('bmlt_float_xlim', model%basal_melt%bmlt_float_xlim, 'm')
-    elseif (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_MISMIP) then
+    elseif (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_MISMIP) then
        call log_param('bmlt_float_omega', model%basal_melt%bmlt_float_omega, 'yr^-1')
        call log_param('bmlt_float_h0', model%basal_melt%bmlt_float_h0, 'm')
        call log_param('bmlt_float_z0', model%basal_melt%bmlt_float_z0, 'm')
-    elseif (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_DEPTH) then
+    elseif (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_DEPTH) then
        call log_param('bmlt_float_depth_meltmax', model%basal_melt%bmlt_float_depth_meltmax, 'm/yr')
        call log_param('bmlt_float_depth_frzmax', model%basal_melt%bmlt_float_depth_frzmax, 'm/yr')
        call log_param('bmlt_float_depth_zmeltmax', model%basal_melt%bmlt_float_depth_zmeltmax, 'm')
@@ -2041,45 +2034,32 @@ contains
 
     type(ConfigSection), pointer :: section
     type(glissade_global_type)   :: model
-    logical :: flag   ! for options that are logicals in the config file
 
     ! calving options
-    call GetOption(section,'calving_law',           calving_law_choices, model%options%whichcalving)
-    flag = (model%options%calving_init == CALVE_AT_STARTUP_TRUE)
-    call GetLogical(section,'calve_at_startup', flag)
-    if (flag) then
-       model%options%calving_init = CALVE_AT_STARTUP_TRUE
-    else
-       model%options%calving_init = CALVE_AT_STARTUP_FALSE
-    endif
-    call GetOption(section,'calving_domain',        calving_domain_choices, model%options%calving_domain)
-    call GetLogical(section,'apply_calving_mask',    model%options%apply_calving_mask)
-    call GetLogical(section,'remove_icebergs',       model%options%remove_icebergs)
-    call GetLogical(section,'remove_isthmuses',      model%options%remove_isthmuses)
-    call GetLogical(section,'limit_marine_cliffs',   model%options%limit_marine_cliffs)
-    flag = (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_TRUE)
-    call GetLogical(section,'subgrid_calving_front', flag)
-    if (flag) then
-       model%options%which_ho_calving_front = SUBGRID_CALVING_FRONT_TRUE
-    else
-       model%options%which_ho_calving_front = SUBGRID_CALVING_FRONT_FALSE
-    endif
-    call GetOption(section,'calvingmip_domain',     calvingmip_domain_choices, model%options%which_ho_calvingmip_domain)
+    call GetOption(section,'calving_law',           calving_law_choices, model%calving%calving_law)
+    call GetLogical(section,'calve_at_startup', model%calving%calve_at_startup)
+    call GetOption(section,'calving_domain',        calving_domain_choices, model%calving%calving_domain)
+    call GetLogical(section,'apply_calving_mask',    model%calving%apply_calving_mask)
+    call GetLogical(section,'remove_icebergs',       model%calving%remove_icebergs)
+    call GetLogical(section,'remove_isthmuses',      model%calving%remove_isthmuses)
+    call GetLogical(section,'limit_marine_cliffs',   model%calving%limit_marine_cliffs)
+    call GetLogical(section,'subgrid_calving_front', model%calving%subgrid_calving_front)
+    call GetOption(section,'calvingmip_domain',     calvingmip_domain_choices, model%calving%calvingmip_domain)
 
     ! calving parameters
     call GetValue(section,'marine_limit',       model%calving%marine_limit)
-    call GetValue(section,'calving_timescale',  model%calving%timescale)
-    call GetValue(section,'calving_thck_threshold', model%calving%minthck)
+    call GetValue(section,'calving_timescale',  model%calving%calving_timescale)
+    call GetValue(section,'calving_thck_threshold', model%calving%calving_thck_threshold)
     call GetValue(section,'dthck_dx_cf',        model%calving%dthck_dx_cf)
     call GetValue(section,'thck_effective_min', model%calving%thck_effective_min)
-    call GetValue(section,'eigencalving_const', model%calving%eigenconstant)
+    call GetValue(section,'eigencalving_const', model%calving%eigencalving_const)
     call GetValue(section,'tau_eigenconstant1', model%calving%tau_eigenconstant1)
     call GetValue(section,'tau_eigenconstant2', model%calving%tau_eigenconstant2)
     call GetValue(section,'stress_threshold',   model%calving%stress_threshold)
     call GetValue(section,'lateral_rate_min',   model%calving%lateral_rate_min)
     call GetValue(section,'effec_stress_min',   model%calving%effec_stress_min)
-    call GetValue(section,'calving_length_scale', model%calving%length_scale)
-    call GetValue(section,'damage_const',       model%calving%damage_constant)
+    call GetValue(section,'calving_length_scale', model%calving%calving_length_scale)
+    call GetValue(section,'damage_const',       model%calving%damage_const)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
     call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
@@ -2111,32 +2091,32 @@ contains
 
     ! for stability, remove icebergs when removing isthmuses
     icebergs_reset = .false.
-    if (model%options%remove_isthmuses .and. .not.model%options%remove_icebergs) then
-       model%options%remove_icebergs = .true.
+    if (model%calving%remove_isthmuses .and. .not.model%calving%remove_icebergs) then
+       model%calving%remove_icebergs = .true.
        icebergs_reset = .true.
     endif
 
-    if (model%options%whichcalving == CALVING_LAW_ADVANCE_RETREAT_RATE    .or.  &
-        model%options%whichcalving == CALVING_LAW_THCK_THRESHOLD     .or.  &
-        model%options%whichcalving == CALVING_LAW_STRESS             .or.  &
-        model%options%whichcalving == CALVING_LAW_STRESS_STOCHASTIC  .or.  &
-        model%options%whichcalving == CALVING_LAW_EIGENCALVING              .or.  &
-        model%options%whichcalving == CALVING_LAW_DAMAGE) then
-       if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
-          call write_log('Error, calving_law = ' // trim(option_name(calving_law_choices, model%options%whichcalving)) // &
+    if (model%calving%calving_law == CALVING_LAW_ADVANCE_RETREAT_RATE    .or.  &
+        model%calving%calving_law == CALVING_LAW_THCK_THRESHOLD     .or.  &
+        model%calving%calving_law == CALVING_LAW_STRESS             .or.  &
+        model%calving%calving_law == CALVING_LAW_STRESS_STOCHASTIC  .or.  &
+        model%calving%calving_law == CALVING_LAW_EIGENCALVING              .or.  &
+        model%calving%calving_law == CALVING_LAW_DAMAGE) then
+       if (.not. model%calving%subgrid_calving_front) then
+          call write_log('Error, calving_law = ' // trim(option_name(calving_law_choices, model%calving%calving_law)) // &
                ' requires subgrid_calving_front = .true.', GM_FATAL)
        endif
     endif
 
-    if (model%options%whichcalving == CALVING_LAW_THCK_THRESHOLD) then
-       if (model%calving%minthck <= 0.0d0) then
+    if (model%calving%calving_law == CALVING_LAW_THCK_THRESHOLD) then
+       if (model%calving%calving_thck_threshold <= 0.0d0) then
           write(message,*) 'Error, this calving option needs calving_thck_threshold > 0'
           call write_log(message, GM_FATAL)
        endif
     endif
 
-    if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_TRUE) then
-       if (.not.model%options%remove_icebergs) then
+    if (model%calving%subgrid_calving_front) then
+       if (.not.model%calving%remove_icebergs) then
           call write_log('Error, set remove_icebergs = .true. for stability when subgrid_calving_front = .true.', GM_FATAL)
        endif
     endif
@@ -2144,76 +2124,76 @@ contains
     ! write the options and parameters
 
     call log_section('calving')
-    call log_option('calving_law', model%options%whichcalving, calving_law_choices)
-    call log_flag('calve_at_startup', model%options%calving_init == CALVE_AT_STARTUP_TRUE, &
+    call log_option('calving_law', model%calving%calving_law, calving_law_choices)
+    call log_flag('calve_at_startup', model%calving%calve_at_startup, &
          'if true, ice calves at initialization')
-    call log_option('calving_domain', model%options%calving_domain, calving_domain_choices)
+    call log_option('calving_domain', model%calving%calving_domain, calving_domain_choices)
 
     ! parameters of the calving law
-    if (model%options%whichcalving == CALVING_LAW_RELX_THRESHOLD .or.  &
-            model%options%whichcalving == CALVING_LAW_TOPG_THRESHOLD) then
+    if (model%calving%calving_law == CALVING_LAW_RELX_THRESHOLD .or.  &
+            model%calving%calving_law == CALVING_LAW_TOPG_THRESHOLD) then
        call log_param('marine_limit', model%calving%marine_limit, 'm; marine depth limit')
-    elseif (model%options%whichcalving == CALVING_LAW_EIGENCALVING) then
-       call log_param('eigencalving_const', model%calving%eigenconstant, 'm')
-    elseif (model%options%whichcalving == CALVING_LAW_STRESS) then
+    elseif (model%calving%calving_law == CALVING_LAW_EIGENCALVING) then
+       call log_param('eigencalving_const', model%calving%eigencalving_const, 'm')
+    elseif (model%calving%calving_law == CALVING_LAW_STRESS) then
        call log_param('tau_eigenconstant1', model%calving%tau_eigenconstant1)
        call log_param('tau_eigenconstant2', model%calving%tau_eigenconstant2)
        call log_param('stress_threshold', model%calving%stress_threshold, 'Pa')
        call log_param('lateral_rate_min', model%calving%lateral_rate_min, 'm/yr')
-    elseif (model%options%whichcalving == CALVING_LAW_STRESS_STOCHASTIC) then
+    elseif (model%calving%calving_law == CALVING_LAW_STRESS_STOCHASTIC) then
        call log_param('tau_eigenconstant1', model%calving%tau_eigenconstant1)
        call log_param('tau_eigenconstant2', model%calving%tau_eigenconstant2)
        call log_param('stress_threshold', model%calving%stress_threshold, 'Pa')
        call log_param('effec_stress_min', model%calving%effec_stress_min)
-       call log_param('calving_length_scale', model%calving%length_scale, 'm')
-    elseif (model%options%whichcalving == CALVING_LAW_DAMAGE) then
+       call log_param('calving_length_scale', model%calving%calving_length_scale, 'm')
+    elseif (model%calving%calving_law == CALVING_LAW_DAMAGE) then
        call log_param('tau_eigenconstant1', model%calving%tau_eigenconstant1)
        call log_param('tau_eigenconstant2', model%calving%tau_eigenconstant2)
-       call log_param('damage_const', model%calving%damage_constant, 'Pa yr')
-    elseif (model%options%whichcalving == CALVING_LAW_ADVANCE_RETREAT_RATE) then
+       call log_param('damage_const', model%calving%damage_const, 'Pa yr')
+    elseif (model%calving%calving_law == CALVING_LAW_ADVANCE_RETREAT_RATE) then
        call log_param('cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude, 'm/yr')
        call log_param('cf_advance_retreat_period', model%calving%cf_advance_retreat_period, 'yr')
-    elseif (model%options%whichcalving == CALVING_LAW_GRID_MASK) then
+    elseif (model%calving%calving_law == CALVING_LAW_GRID_MASK) then
        call log_param('calving_front_x', model%calving%calving_front_x, 'm; 0 = not used')
        call log_param('calving_front_y', model%calving%calving_front_y, 'm; 0 = not used')
        call log_param('calving_front_radius', model%calving%calving_front_radius, 'm; 0 = not used')
     endif
-    if (model%options%whichcalving /= CALVING_LAW_NONE) then
-       call log_param('calving_timescale', model%calving%timescale, 'yr; 0 = calve immediately')
+    if (model%calving%calving_law /= CALVING_LAW_NONE) then
+       call log_param('calving_timescale', model%calving%calving_timescale, 'yr; 0 = calve immediately')
     endif
     ! The threshold thickness is used by the thickness-threshold law, by stress-based calving
     !  (if > thcklim), and by mask-based calving without a subgrid calving front when
     !  calving_timescale > 1 yr (the minimum thinning rate is calving_thck_threshold/calving_timescale).
-    if (model%options%whichcalving == CALVING_LAW_THCK_THRESHOLD .or. &
-        model%options%whichcalving == CALVING_LAW_STRESS .or. &
-        ((model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask) .and. &
-         model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE .and. &
-         model%calving%timescale > 1.0d0)) then
-       call log_param('calving_thck_threshold', model%calving%minthck, 'm')
+    if (model%calving%calving_law == CALVING_LAW_THCK_THRESHOLD .or. &
+        model%calving%calving_law == CALVING_LAW_STRESS .or. &
+        ((model%calving%calving_law == CALVING_LAW_GRID_MASK .or. model%calving%apply_calving_mask) .and. &
+         .not. model%calving%subgrid_calving_front .and. &
+         model%calving%calving_timescale > 1.0d0)) then
+       call log_param('calving_thck_threshold', model%calving%calving_thck_threshold, 'm')
     endif
 
-    call log_flag('subgrid_calving_front', model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_TRUE)
-    if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_TRUE) then
+    call log_flag('subgrid_calving_front', model%calving%subgrid_calving_front)
+    if (model%calving%subgrid_calving_front) then
        call log_param('dthck_dx_cf', model%calving%dthck_dx_cf)
        call log_param('thck_effective_min', model%calving%thck_effective_min, 'm')
     endif
-    if (model%options%which_ho_calvingmip_domain /= CALVINGMIP_DOMAIN_NONE) then
-       call log_option('calvingmip_domain', model%options%which_ho_calvingmip_domain, calvingmip_domain_choices)
+    if (model%calving%calvingmip_domain /= CALVINGMIP_DOMAIN_NONE) then
+       call log_option('calvingmip_domain', model%calving%calvingmip_domain, calvingmip_domain_choices)
     end if
 
-    call log_flag('apply_calving_mask', model%options%apply_calving_mask)
+    call log_flag('apply_calving_mask', model%calving%apply_calving_mask)
     if (icebergs_reset) then
-       call log_flag('remove_icebergs', model%options%remove_icebergs, &
+       call log_flag('remove_icebergs', model%calving%remove_icebergs, &
             'reset from .false. for stability when remove_isthmuses = .true.')
     else
-       call log_flag('remove_icebergs', model%options%remove_icebergs)
+       call log_flag('remove_icebergs', model%calving%remove_icebergs)
     endif
-    call log_flag('remove_isthmuses', model%options%remove_isthmuses)
-    if (model%options%remove_icebergs .or. model%options%remove_isthmuses) then
+    call log_flag('remove_isthmuses', model%calving%remove_isthmuses)
+    if (model%calving%remove_icebergs .or. model%calving%remove_isthmuses) then
        call log_param('f_ground_threshold', model%calving%f_ground_threshold)
     endif
-    call log_flag('limit_marine_cliffs', model%options%limit_marine_cliffs)
-    if (model%options%limit_marine_cliffs) then
+    call log_flag('limit_marine_cliffs', model%calving%limit_marine_cliffs)
+    if (model%calving%limit_marine_cliffs) then
        call log_param('taumax_cliff', model%calving%taumax_cliff, 'Pa')
        call log_param('cliff_timescale', model%calving%cliff_timescale, 'yr')
     endif
@@ -2231,7 +2211,7 @@ contains
     type(ConfigSection), pointer :: section
     type(glissade_global_type)  :: model
 
-    call GetOption(section, 'lateral_melt_method', lateral_melt_method_choices, model%options%which_lateral_melt)
+    call GetOption(section, 'lateral_melt_method', lateral_melt_method_choices, model%lateral_melt%lateral_melt_method)
     call GetValue(section, 'melt_rate_const', model%lateral_melt%melt_rate_const)
     call GetValue(section, 'melt_factor', model%lateral_melt%melt_factor)
     call GetLogical(section, 'runoff_from_ablation', model%lateral_melt%runoff_from_ablation)
@@ -2255,11 +2235,11 @@ contains
     type(glissade_global_type)  :: model
 
     call log_section('lateral_melt')
-    call log_option('lateral_melt_method', model%options%which_lateral_melt, lateral_melt_method_choices)
+    call log_option('lateral_melt_method', model%lateral_melt%lateral_melt_method, lateral_melt_method_choices)
 
-    if (model%options%which_lateral_melt == LATERAL_MELT_METHOD_CONSTANT) then
+    if (model%lateral_melt%lateral_melt_method == LATERAL_MELT_METHOD_CONSTANT) then
        call log_param('melt_rate_const', model%lateral_melt%melt_rate_const, 'm/yr')
-    elseif (model%options%which_lateral_melt == LATERAL_MELT_METHOD_ISMIP) then
+    elseif (model%lateral_melt%lateral_melt_method == LATERAL_MELT_METHOD_ISMIP) then
        call log_param('melt_factor', model%lateral_melt%melt_factor)
        call log_flag('runoff_from_ablation', model%lateral_melt%runoff_from_ablation, &
             'if false, runoff is read from an input file')
@@ -2287,8 +2267,8 @@ contains
     type(ConfigSection), pointer :: section
     type(glissade_global_type)   :: model
 
-    call GetLogical(section,'remove_ice_caps', model%options%remove_ice_caps)
-    call GetOption(section,'force_retreat',   force_retreat_choices, model%options%force_retreat)
+    call GetLogical(section,'remove_ice_caps', model%removal%remove_ice_caps)
+    call GetOption(section,'force_retreat',   force_retreat_choices, model%removal%force_retreat)
 
   end subroutine handle_removal
 
@@ -2307,10 +2287,10 @@ contains
     type(glissade_global_type)  :: model
 
     call log_section('removal')
-    call log_flag('remove_ice_caps', model%options%remove_ice_caps, 'removed ice goes to the removal flux')
-    call log_option('force_retreat', model%options%force_retreat, force_retreat_choices)
-    if (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE .and. &
-        .not.model%options%remove_isthmuses) then
+    call log_flag('remove_ice_caps', model%removal%remove_ice_caps, 'removed ice goes to the removal flux')
+    call log_option('force_retreat', model%removal%force_retreat, force_retreat_choices)
+    if (model%removal%force_retreat == FORCE_RETREAT_FLOATING_ICE .and. &
+        .not.model%calving%remove_isthmuses) then
        call log_comment('Warning: force_retreat = floating_ice can be unstable when remove_isthmuses = .false.')
     endif
 
@@ -2608,7 +2588,7 @@ contains
             allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
        model%ocean_data%zocn(:) = 0.0d0
 
-       if (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
+       if (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
           write(message,*) 'Must have a [grid_ocn] section to use the thermal forcing option'
           call write_log(message, GM_FATAL)
        endif
@@ -2659,17 +2639,10 @@ contains
 
     type(ConfigSection), pointer :: section
     type(glissade_global_type)   :: model
-    logical :: flag   ! for options that are logicals in the config file
 
     ! options
-    call GetOption(section,'ocean_data_domain',      ocean_data_domain_choices, model%options%ocean_data_domain)
-    flag = (model%options%ocean_data_extrapolate == EXTRAPOLATE_OCEAN_DATA_TRUE)
-    call GetLogical(section,'extrapolate_ocean_data', flag)
-    if (flag) then
-       model%options%ocean_data_extrapolate = EXTRAPOLATE_OCEAN_DATA_TRUE
-    else
-       model%options%ocean_data_extrapolate = EXTRAPOLATE_OCEAN_DATA_FALSE
-    endif
+    call GetOption(section,'ocean_data_domain',      ocean_data_domain_choices, model%ocean_data%ocean_data_domain)
+    call GetLogical(section,'extrapolate_ocean_data', model%ocean_data%extrapolate_ocean_data)
 
     ! parameters
     call GetValue(section,'thermal_forcing_basin_min',         model%ocean_data%thermal_forcing_basin_min)
@@ -2696,23 +2669,23 @@ contains
 
     type(glissade_global_type)  :: model
 
-    if (model%options%whichbmlt_float /= BMLT_FLOAT_METHOD_THERMAL_FORCING) return
+    if (model%basal_melt%bmlt_float_method /= BMLT_FLOAT_METHOD_THERMAL_FORCING) return
 
     ! check the options
 
     ! write the options and parameters
 
     call log_section('ocean_data')
-    call log_option('ocean_data_domain', model%options%ocean_data_domain, ocean_data_domain_choices)
-    if (model%options%ocean_data_extrapolate == EXTRAPOLATE_OCEAN_DATA_TRUE) then
+    call log_option('ocean_data_domain', model%ocean_data%ocean_data_domain, ocean_data_domain_choices)
+    if (model%ocean_data%extrapolate_ocean_data) then
        call log_flag('extrapolate_ocean_data', .true., 'CISM extrapolates the ocean data to cavities at run time')
     else
        call log_flag('extrapolate_ocean_data', .false., 'CISM does not extrapolate the ocean data to cavities at run time')
     endif
 
-    if (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_THERMAL_FORCING .and. &
-        (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL .or. &
-         model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE)) then
+    if (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_THERMAL_FORCING .and. &
+        (model%basal_melt%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL .or. &
+         model%basal_melt%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE)) then
        call log_param('thermal_forcing_basin_min', model%ocean_data%thermal_forcing_basin_min, &
             'deg C; min basin-scale TF; 0 = no limit')
        call log_param('thermal_forcing_basin_max', model%ocean_data%thermal_forcing_basin_max, &
@@ -2898,8 +2871,8 @@ contains
                       model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION .or. &
                       model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION_BASIN)
 
-    deltaT_inversion = (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION .or. &
-                        model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN)
+    deltaT_inversion = (model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_INVERSION .or. &
+                        model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_INVERSION_BASIN)
 
     glacier_inversion = (model%options%enable_glaciers .and. &
                          model%glaciers%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION)
@@ -2924,7 +2897,7 @@ contains
        call log_param('inversion_deltaT_ocn_thck_scale', model%inversion%deltaT_ocn_thck_scale, 'm')
        call log_param('inversion_deltaT_ocn_timescale', model%inversion%deltaT_ocn_timescale, 'yr')
        call log_param('inversion_deltaT_ocn_temp_scale', model%inversion%deltaT_ocn_temp_scale, 'deg C')
-       if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+       if (model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_INVERSION_BASIN) then
           call log_param('inversion_basin_flotation_threshold', model%inversion%basin_flotation_threshold, 'm')
           call log_param('inversion_deltaT_basin_relax', model%inversion%deltaT_basin_relax, &
                'deg C; value toward which deltaT_basin relaxes')
@@ -3170,7 +3143,7 @@ contains
        call glissade_add_to_restart_variable_list('artm_anomaly', model_id)
     endif
 
-    if (model%options%enable_bmlt_anomaly) then
+    if (model%basal_melt%enable_bmlt_anomaly) then
        call glissade_add_to_restart_variable_list('bmlt_float_anomaly', model_id)
     endif
 
@@ -3179,7 +3152,7 @@ contains
        call glissade_add_to_restart_variable_list('lat lon', model_id)
     endif
 
-    select case (model%options%whichbmlt_float)
+    select case (model%basal_melt%bmlt_float_method)
 
        ! If bmlt_float is read from an external file at startup, then it needs to be in the restart file
        case (BMLT_FLOAT_METHOD_FILE)
@@ -3196,17 +3169,17 @@ contains
           !  is not read at restart.
           call glissade_add_to_restart_variable_list('thermal_forcing', model_id)
 
-    end select  ! whichbmlt_float
+    end select  ! bmlt_float_method
 
     ! If using an ISMIP6 basin-based melt parameterization, and/or inverting for
     !  basin-scale quantities, we need a 2D field of basin numbers.
     ! Not strictly needed for the ISMIP6_LOCAL option, but included for diagnostics.
     ! The thermal-forcing parameterization matters only when bmlt_float_method uses thermal forcing.
-    if ( (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_THERMAL_FORCING .and.  &
-          (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_LOCAL .or.  &
-           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL .or. &
-           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE) ) .or. &
-         model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+    if ( (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_THERMAL_FORCING .and.  &
+          (model%basal_melt%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_LOCAL .or.  &
+           model%basal_melt%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL .or. &
+           model%basal_melt%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE) ) .or. &
+         model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_INVERSION_BASIN) then
        call glissade_add_to_restart_variable_list('basin_number', model_id)
     endif
 
@@ -3279,10 +3252,10 @@ contains
      ! calving options for Glissade
 
      !TODO: CALVING_LAW_GRID_MASK and apply_calving_mask are redundant; remove one option?
-     !      The advantage of apply_calving_mask is that it can be combined with other whichcalving options.
-     if (model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask .or. &
-          model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION) then
-        if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
+     !      The advantage of apply_calving_mask is that it can be combined with other calving_law options.
+     if (model%calving%calving_law == CALVING_LAW_GRID_MASK .or. model%calving%apply_calving_mask .or. &
+          model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_INVERSION) then
+        if (.not. model%calving%subgrid_calving_front) then
            call glissade_add_to_restart_variable_list('calving_mask', model_id)
         else   ! using a subgrid CF scheme
            call glissade_add_to_restart_variable_list('subgrid_calving_mask', model_id)
@@ -3292,25 +3265,25 @@ contains
      ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
      !  which depends on the stress tensor, which is computed by the HO solver.
      ! On restart, the correct stress and strain rate tensors are not available, so we read in the eigenproduct.
-     if (model%options%whichcalving == CALVING_LAW_EIGENCALVING) then
+     if (model%calving%calving_law == CALVING_LAW_EIGENCALVING) then
         call glissade_add_to_restart_variable_list('eps_eigen1', model_id)
         call glissade_add_to_restart_variable_list('eps_eigen2', model_id)
-     elseif (model%options%whichcalving == CALVING_LAW_STRESS .or. &
-             model%options%whichcalving == CALVING_LAW_STRESS_STOCHASTIC .or. &
-             model%options%whichcalving == CALVING_LAW_DAMAGE) then
+     elseif (model%calving%calving_law == CALVING_LAW_STRESS .or. &
+             model%calving%calving_law == CALVING_LAW_STRESS_STOCHASTIC .or. &
+             model%calving%calving_law == CALVING_LAW_DAMAGE) then
         call glissade_add_to_restart_variable_list('tau_eigen1', model_id)
         call glissade_add_to_restart_variable_list('tau_eigen2', model_id)
      endif
 
      ! If forcing ice retreat, then we need ice_fraction_retreat_mask (which specifies the cells where retreat is forced)
      !  and reference_thck (which sets up an upper thickness limit for partly retreating cells)
-     if (model%options%force_retreat /= FORCE_RETREAT_NONE) then
+     if (model%removal%force_retreat /= FORCE_RETREAT_NONE) then
         call glissade_add_to_restart_variable_list('ice_fraction_retreat_mask', model_id)
         call glissade_add_to_restart_variable_list('reference_thck', model_id)
      endif
 
      ! lateral melt options
-     if (model%options%which_lateral_melt == LATERAL_MELT_METHOD_ISMIP) then
+     if (model%lateral_melt%lateral_melt_method == LATERAL_MELT_METHOD_ISMIP) then
         if (model%lateral_melt%runoff_from_ablation) then
            ! Need input SMB; this is already in the restart file
         else   ! lateral melt parameterization needs runoff_applied (= subglacial discharge)
@@ -3375,12 +3348,12 @@ contains
     endif
 
     ! inversion options for ocean temperature corrections
-    if (model%options%which_ho_deltaT_ocn /= DELTAT_OCN_METHOD_NONE) then
+    if (model%basal_melt%deltaT_ocn_method /= DELTAT_OCN_METHOD_NONE) then
        call glissade_add_to_restart_variable_list('deltaT_ocn', model_id)
     endif
 
     ! If using the basin-scale inversion option for deltaT_ocn, we need a target thickness for floating ice
-    if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+    if (model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_INVERSION_BASIN) then
        call glissade_add_to_restart_variable_list('floating_thck_target', model_id)
     endif
 
@@ -3390,16 +3363,16 @@ contains
     !       but they can still be useful diagnostics.
     if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION       .or. &
         model%basal_physics%coulomb_c_method  == COULOMB_C_METHOD_INVERSION        .or. &
-        model%options%which_ho_deltaT_ocn     == DELTAT_OCN_METHOD_INVERSION       .or. &
+        model%basal_melt%deltaT_ocn_method    == DELTAT_OCN_METHOD_INVERSION       .or. &
         model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
         model%basal_physics%coulomb_c_method  == COULOMB_C_METHOD_INVERSION_BASIN  .or. &
-        model%options%which_ho_deltaT_ocn     == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+        model%basal_melt%deltaT_ocn_method    == DELTAT_OCN_METHOD_INVERSION_BASIN) then
        call glissade_add_to_restart_variable_list('usrf_obs', model_id)
        call glissade_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif
 
     ! fields needed for inversion options that try to match observed dthck_dt
-    if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_DTHCK_DT .or. &
+    if (model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_DTHCK_DT .or. &
         model%options%enable_acab_dthck_dt_correction) then
        call glissade_add_to_restart_variable_list('dthk_dt_obs', model_id)
        call glissade_add_to_restart_variable_list('dthk_dt_obs_basin', model_id)

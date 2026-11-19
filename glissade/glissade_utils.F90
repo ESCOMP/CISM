@@ -886,7 +886,7 @@ contains
   subroutine glissade_handle_ice_caps(model)
 
     ! Identify ice caps, defined as cells disconnected from the main ice sheet.
-    ! If model%options%remove_ice_caps = T, then this subroutine removes them.
+    ! If model%removal%remove_ice_caps = T, then this subroutine removes them.
 
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask
     use cism_parallel, only: parallel_halo, parallel_global_sum, parallel_globalindex, parallel_reduce_max
@@ -970,7 +970,7 @@ contains
     ! Note: The ice cap mask is not updated after removal.  So if the mask is written to output,
     !       it will show where ice caps existed before removal.
 
-    if (model%options%remove_ice_caps) then
+    if (model%removal%remove_ice_caps) then
        where (model%geometry%ice_cap_mask == 1)
           model%geometry%removal_thck = model%geometry%removal_thck + model%geometry%thck
           model%geometry%thck = 0.0d0
@@ -1084,7 +1084,7 @@ contains
              ! other tracers
              ! Note: Tracers should be added here as they are added to the model
 
-             if (model%options%whichcalving == CALVING_LAW_DAMAGE) then
+             if (model%calving%calving_law == CALVING_LAW_DAMAGE) then
                 model%calving%damage(:,i,j) = 0.0d0
              endif
 

@@ -362,7 +362,7 @@ module glissade_bmlt_float
     use glissade_utils, only: glissade_basin_average
 
     ! Initialization for basal melting
-    ! Currently called only if model%options%whichbmlt_float == BMLT_FLOAT_METHOD_THERMAL_FORCING)
+    ! Currently called only if model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_THERMAL_FORCING)
 
     type(glissade_global_type), intent(inout) :: model   !> derived type holding ice-sheet info
 
@@ -406,7 +406,7 @@ module glissade_bmlt_float
 
     if (verbose_bmlt_float .and. main_task) then
        write(iulog,*) 'In glissade_bmlt_float_thermal_forcing_init'
-       write(iulog,*) 'bmlt_float_thermal_forcing_param =', model%options%bmlt_float_thermal_forcing_param
+       write(iulog,*) 'bmlt_float_thermal_forcing_param =', model%basal_melt%bmlt_float_thermal_forcing_param
     endif
 
     ! update some masks
@@ -462,7 +462,7 @@ module glissade_bmlt_float
        !  each time CISM gets new ocean data. This will take some additional logic.
        !----------------------------------------------------------------------
 
-       if (model%options%ocean_data_extrapolate == EXTRAPOLATE_OCEAN_DATA_TRUE) then
+       if (model%ocean_data%extrapolate_ocean_data) then
 
           ! Set TF = unphys_val everywhere except open ocean.
           ! Optionally, use a buffer to set TF = unphys_val for ocean cells
@@ -495,9 +495,9 @@ module glissade_bmlt_float
 
        ! initialization for the ISMIP6 basal melt options
 
-       if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_LOCAL .or.  &
-           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL .or. &
-           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE) then
+       if (model%basal_melt%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_LOCAL .or.  &
+           model%basal_melt%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL .or. &
+           model%basal_melt%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE) then
 
           if (verbose_bmlt_float) then
              if (this_rank==rtest) then
@@ -508,7 +508,7 @@ module glissade_bmlt_float
                 do k = 1, ocean_data%nzocn
                    write(iulog,*) k, ocean_data%zocn(k)
                 enddo
-                write(iulog,*) 'gamma0 =', ocean_data%gamma0
+                write(iulog,*) 'gamma0 =', model%basal_melt%bmlt_float_gamma0
              endif
              call point_diag(ocean_data%basin_number(:,:), 'basin_number', itest, jtest, rtest, 7, 7)
              call point_diag(ocean_data%deltaT_ocn(:,:), 'deltaT_ocn', itest, jtest, rtest, 7, 7)
@@ -573,7 +573,7 @@ module glissade_bmlt_float
 
           ! Optionally, compute basin-scale values of deltaT_ocn to match a basin-average melt rate target.
 
-          if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_CALIBRATE_BASIN) then
+          if (model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_CALIBRATE_BASIN) then
 
              if (parallel_is_zero(model%basal_melt%bmlt_float_target)) then
                 call write_log('This value of deltaT_ocn_method requires an input bmlt_float_target', GM_FATAL)
@@ -594,7 +594,7 @@ module glissade_bmlt_float
 
           endif   ! calibrate basins
 
-          if (model%options%bmlt_float_init) then
+          if (model%basal_melt%bmlt_float_init) then
 
              ! Compute bmlt_float now; then it can be written to output files at t = 0
              call glissade_bmlt_float_solve(model, calibrate_in = .false.)
@@ -698,7 +698,7 @@ module glissade_bmlt_float
 
     endif  ! no restart or hybrid restart
 
-    if (model%options%which_ho_deltat_ocn == DELTAT_OCN_METHOD_DTHCK_DT) then
+    if (model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_DTHCK_DT) then
 
        ! Set deltaT_ocn based on dthck_dt_obs.
        ! This is done within the subroutine used to compute bmlt_float from thermal forcing.
@@ -712,8 +712,8 @@ module glissade_bmlt_float
        endif
 
        call compute_bmlt_float_thermal_forcing(&
-            model%options%bmlt_float_thermal_forcing_param, &
-            model%options%ocean_data_extrapolate,     &
+            model%basal_melt%bmlt_float_thermal_forcing_param, &
+            model%ocean_data%extrapolate_ocean_data,  &
             parallel,                                 &
             ewn,       nsn,                           &
             dew,       dns,                           &   ! m
@@ -727,9 +727,10 @@ module glissade_bmlt_float
             model%geometry%lsrf,                      &   ! m
             model%geometry%topg,                      &   ! m
             model%ocean_data,                         &
+            model%basal_melt%bmlt_float_gamma0,       &
             model%basal_melt%thermal_forcing_mask,    &
             model%basal_melt%bmlt_float,              &   ! m/s
-            which_ho_deltaT_ocn = model%options%which_ho_deltaT_ocn,  &
+            which_ho_deltaT_ocn = model%basal_melt%deltaT_ocn_method,  &
             dthck_dt_obs = model%geometry%dthck_dt_obs)   ! m/s
 
        if (verbose_bmlt_float) then
@@ -850,13 +851,13 @@ module glissade_bmlt_float
 
     !TODO - Update f_ground_cell here to be on the safe side?
 
-    ! Compute bmlt_float depending on the whichbmlt_float option
+    ! Compute bmlt_float depending on the bmlt_float_method option
 
-    if (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_NONE) then
+    if (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_NONE) then
 
        model%basal_melt%bmlt_float(:,:) = 0.0d0
 
-    elseif (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_FILE) then
+    elseif (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_FILE) then
 
        ! Apply the external melt rate
 
@@ -867,7 +868,7 @@ module glissade_bmlt_float
           model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * model%basal_melt%bmlt_float_factor
        endif
 
-    elseif (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
+    elseif (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
 
        if (this_rank == rtest .and. verbose_bmlt_float) then
           write(iulog,*) ' '
@@ -884,7 +885,7 @@ module glissade_bmlt_float
        !TODO: Add code to compute thermal forcing internally.
 
        ! Check for positive values of thermal forcing.
-       ! If whichbmlt_float = BMLT_FLOAT_METHOD_THERMAL_FORCING, but there are no positive values,
+       ! If bmlt_float_method = BMLT_FLOAT_METHOD_THERMAL_FORCING, but there are no positive values,
        !  something is probably wrong.
 
        if (parallel_is_zero(model%ocean_data%thermal_forcing)) then
@@ -948,47 +949,49 @@ module glissade_bmlt_float
        if (calibrate) then   ! one-time calibration of deltaT_ocn based on a melt rate target
 
           call compute_bmlt_float_thermal_forcing(&
-               model%options%bmlt_float_thermal_forcing_param, &
-               model%options%ocean_data_extrapolate,  &
-               parallel,                              &
-               ewn,                nsn,               &
-               dew,                dns,               & ! m
-               itest,     jtest,   rtest,             &
-               ice_mask,                              &
-               floating_mask,                         &
-               ocean_mask,                            &
-               model%geometry%marine_connection_mask, &
-               model%geometry%f_ground_cell,          &
-               model%geometry%thck,                   & ! m
-               model%geometry%lsrf,                   & ! m
-               model%geometry%topg,                   & ! m
-               model%ocean_data,                      &
-               model%basal_melt%thermal_forcing_mask, &
-               model%basal_melt%bmlt_float,           & ! m/s
-               which_ho_deltaT_ocn = model%options%which_ho_deltaT_ocn,  &  ! K
+               model%basal_melt%bmlt_float_thermal_forcing_param,        &
+               model%ocean_data%extrapolate_ocean_data,                  &
+               parallel,                                                 &
+               ewn,                nsn,                                  &
+               dew,                dns,                                  & ! m
+               itest,     jtest,   rtest,                                &
+               ice_mask,                                                 &
+               floating_mask,                                            &
+               ocean_mask,                                               &
+               model%geometry%marine_connection_mask,                    &
+               model%geometry%f_ground_cell,                             &
+               model%geometry%thck,                                      & ! m
+               model%geometry%lsrf,                                      & ! m
+               model%geometry%topg,                                      & ! m
+               model%ocean_data,                                         &
+               model%basal_melt%bmlt_float_gamma0,                       &
+               model%basal_melt%thermal_forcing_mask,                    &
+               model%basal_melt%bmlt_float,                              & ! m/s
+               which_ho_deltaT_ocn = model%basal_melt%deltaT_ocn_method, &  ! K
                bmlt_float_target = model%basal_melt%bmlt_float_target)      ! m/s
 
        else   ! usual runtime computation of bmlt_float
 
           call compute_bmlt_float_thermal_forcing(&
-               model%options%bmlt_float_thermal_forcing_param, &
-               model%options%ocean_data_extrapolate,  &
-               parallel,                              &
-               ewn,                nsn,               &
-               dew,                dns,               & ! m
-               itest,     jtest,   rtest,             &
-               ice_mask,                              &
-               floating_mask,                         &
-               ocean_mask,                            &
-               model%geometry%marine_connection_mask, &
-               model%geometry%f_ground_cell,          &
-               model%geometry%thck,                   & ! m
-               model%geometry%lsrf,                   & ! m
-               model%geometry%topg,                   & ! m
-               model%ocean_data,                      &
-               model%basal_melt%thermal_forcing_mask, &
-               model%basal_melt%bmlt_float,           & ! m/s
-               tf_anomaly_in = tf_anomaly,            & ! K
+               model%basal_melt%bmlt_float_thermal_forcing_param, &
+               model%ocean_data%extrapolate_ocean_data,           &
+               parallel,                                          &
+               ewn,                nsn,                           &
+               dew,                dns,                           & ! m
+               itest,     jtest,   rtest,                         &
+               ice_mask,                                          &
+               floating_mask,                                     &
+               ocean_mask,                                        &
+               model%geometry%marine_connection_mask,             &
+               model%geometry%f_ground_cell,                      &
+               model%geometry%thck,                               & ! m
+               model%geometry%lsrf,                               & ! m
+               model%geometry%topg,                               & ! m
+               model%ocean_data,                                  &
+               model%basal_melt%bmlt_float_gamma0,                &
+               model%basal_melt%thermal_forcing_mask,             &
+               model%basal_melt%bmlt_float,                       & ! m/s
+               tf_anomaly_in = tf_anomaly,                        & ! K
                tf_anomaly_basin_in = tf_anomaly_basin)
 
        endif  ! calibrate
@@ -997,7 +1000,7 @@ module glissade_bmlt_float
           !  and BMLT_FLOAT_METHOD_DEPTH
           !TODO - Call separate subroutines for each of these options?
 
-       call glissade_basal_melting_float(model%options%whichbmlt_float,                         &
+       call glissade_basal_melting_float(model%basal_melt%bmlt_float_method,                    &
                                          parallel,                                              &
                                          ewn,                        nsn,                       &
                                          dew,                        dns,                       &
@@ -1011,13 +1014,13 @@ module glissade_bmlt_float
                                          model%basal_melt,                                      & ! bmlt_float in m/s
                                          model%ocean_data)
 
-    endif  ! whichbmlt_float
+    endif  ! bmlt_float_method
 
 
     ! If desired, add a bmlt_anomaly field.
     ! This is done for the initMIP Greenland and Antarctic experimennts.
 
-    if (model%options%enable_bmlt_anomaly) then
+    if (model%basal_melt%enable_bmlt_anomaly) then
 
        ! Add the bmlt_float anomaly where ice is present and floating
        call glissade_add_2d_anomaly(&
@@ -1033,7 +1036,7 @@ module glissade_bmlt_float
     ! Note: Do not do this for the thermal_forcing option, because this option allows nonzero bmlt_float
     !       in ocean cells adjacent to floating cells.
     ! TODO: Look at other options and decide which ones need this logic.
-    if (model%options%whichbmlt_float /= BMLT_FLOAT_METHOD_THERMAL_FORCING) then
+    if (model%basal_melt%bmlt_float_method /= BMLT_FLOAT_METHOD_THERMAL_FORCING) then
        where (ocean_mask == 1)
           model%basal_melt%bmlt_float = 0.0d0
        endwhere
@@ -1100,7 +1103,7 @@ module glissade_bmlt_float
     !       based on model%basal_melt%bmlt_float_h0 and should not be repeated here.
 
     if (model%basal_melt%bmlt_cavity_h0 > 0.0d0 .and.  &
-        model%options%whichbmlt_float /= BMLT_FLOAT_METHOD_MISMIP) then
+        model%basal_melt%bmlt_float_method /= BMLT_FLOAT_METHOD_MISMIP) then
 
        ! TODO: Make sure lsrf is up to date. Add eus term.
 
@@ -1223,6 +1226,7 @@ module glissade_bmlt_float
        lsrf,                      &
        topg,                      &
        ocean_data,                &
+       bmlt_float_gamma0,         &
        thermal_forcing_mask,      &
        bmlt_float,                &
        tf_anomaly_in,             &
@@ -1239,9 +1243,11 @@ module glissade_bmlt_float
     !  and the current lower ice surface, using either a local or nonlocal melt parameterization.
 
     integer, intent(in) :: &
-         bmlt_float_thermal_forcing_param, & !> melting parameterization used to derive melt rate from thermal forcing;
+         bmlt_float_thermal_forcing_param    !> melting parameterization used to derive melt rate from thermal forcing;
                                              !> current options are quadratic and ISMIP6 local, nonlocal and nonlocal_slope
-         ocean_data_extrapolate              !> = 1 if TF is to be extrapolated to sub-shelf cavities, else = 0
+
+    logical, intent(in) :: &
+         ocean_data_extrapolate              !> if true, TF is extrapolated to sub-shelf cavities
 
     type(parallel_type), intent(in) :: &
          parallel                            !> info for parallel communication
@@ -1281,8 +1287,10 @@ module glissade_bmlt_float
                             !> zocn = ocean levels (m)
                             !> nbasin = number of ocean basins
                             !> basin_number = integer assigned to each basin
-                            !> gamma0 = basal melt rate coefficient for ISMIP6 melt parameterization
                             !> deltaT_ocn = ocean temperature corrections for ISMIP6 melt parameterization
+
+    real(dp), intent(in) :: &
+         bmlt_float_gamma0  !> basal melt rate coefficient for ISMIP6 melt parameterization (m/yr)
 
     ! Note: thermal_forcing_mask is similar but not identical to floating_mask.
     !       * floating_mask = 1 where ice is present, and thck satisfies a flotation condition
@@ -1417,7 +1425,7 @@ module glissade_bmlt_float
     !       On subsequent steps, only a few iterations are needed to extrapolate into newly floating cells.
     !-----------------------------------------------
 
-    if (ocean_data_extrapolate == EXTRAPOLATE_OCEAN_DATA_TRUE) then
+    if (ocean_data_extrapolate) then
 
        if (verbose_bmlt_float) then
           if (this_rank == rtest) write(iulog,*) 'Extrapolating TF data beneath ice shelves'
@@ -1638,7 +1646,7 @@ module glissade_bmlt_float
                parallel,                             &
                ocean_data%nbasin,                    &
                ocean_data%basin_number,              &
-               ocean_data%gamma0,                    &
+               bmlt_float_gamma0,                    &
                ocean_data%thermal_forcing_basin_min, &
                ocean_data%thermal_forcing_basin_max, &
                ocean_data%thermal_forcing_lsrf,      &
@@ -1663,7 +1671,7 @@ module glissade_bmlt_float
                   itest,   jtest,    rtest,         &
                   ocean_data%nbasin,                &
                   ocean_data%basin_number,          &
-                  ocean_data%gamma0,                &
+                  bmlt_float_gamma0,                &
                   ocean_data%thermal_forcing_lsrf,  &
                   theta_slope,                      &
                   thermal_forcing_basin,            &  ! K
@@ -1689,7 +1697,7 @@ module glissade_bmlt_float
                      itest,   jtest,    rtest,         &
                      ocean_data%nbasin,                &
                      ocean_data%basin_number,          &
-                     ocean_data%gamma0,                &
+                     bmlt_float_gamma0,                &
                      ocean_data%thermal_forcing_lsrf,  &
                      theta_slope,                      &
                      thermal_forcing_basin,            &  ! K
@@ -1755,7 +1763,7 @@ module glissade_bmlt_float
             itest,   jtest,    rtest,             &
             ocean_data%nbasin,                    &
             ocean_data%basin_number,              &
-            ocean_data%gamma0,                    &
+            bmlt_float_gamma0,                    &
             ocean_data%thermal_forcing_lsrf,      &
             ocean_data%deltaT_ocn,                &
             ocean_data%thermal_forcing_basin_min, &

@@ -455,7 +455,7 @@ contains
        endif
     endif
 
-    if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_DTHCK_DT .or.  &
+    if (model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_DTHCK_DT .or.  &
         model%options%enable_acab_dthck_dt_correction) then
        call check_fill_values(model%geometry%dthck_dt_obs, scale_factor_in = scyr)
        if (verbose_bmlt_float .and. this_rank == rtest) then
@@ -856,7 +856,7 @@ contains
     !       Note: The calving solve includes removal of icebergs and isthmuses.
 
     if (l_evolve_ice .and. &
-         model%options%calving_init == CALVE_AT_STARTUP_TRUE .and. &
+         model%calving%calve_at_startup .and. &
          model%options%restart == NO_RESTART) then
 
        call glissade_calving_solve(model, .true.)   ! init_calving = .true.
@@ -939,8 +939,8 @@ contains
         model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
         model%basal_physics%coulomb_c_method  == COULOMB_C_METHOD_INVERSION        .or. &
         model%basal_physics%coulomb_c_method  == COULOMB_C_METHOD_INVERSION_BASIN  .or. &
-        model%options%which_ho_deltaT_ocn     == DELTAT_OCN_METHOD_INVERSION       .or. &
-        model%options%which_ho_deltaT_ocn     == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+        model%basal_melt%deltaT_ocn_method    == DELTAT_OCN_METHOD_INVERSION       .or. &
+        model%basal_melt%deltaT_ocn_method    == DELTAT_OCN_METHOD_INVERSION_BASIN) then
 
        call glissade_inversion_init(model)
 
@@ -948,7 +948,7 @@ contains
 
     ! If using dthck_dt_obs, make sure it was read in
 
-    if (model%options%which_ho_deltat_ocn == DELTAT_OCN_METHOD_DTHCK_DT .or. &
+    if (model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_DTHCK_DT .or. &
         model%options%enable_acab_dthck_dt_correction) then
        if (parallel_is_zero(model%geometry%dthck_dt_obs)) then
           call write_log ('Error: Trying to match dthck_dt, but dthck_dt_obs = 0', GM_FATAL)
@@ -957,7 +957,7 @@ contains
 
     ! If using a mask to force ice retreat, then set the reference thickness (if not already read in).
 
-    if (model%options%force_retreat /= FORCE_RETREAT_NONE) then
+    if (model%removal%force_retreat /= FORCE_RETREAT_NONE) then
 
        ! Set reference_thck
        ! This field is loaded if present in the input file.  Otherwise, reference_thck is set to the initial thickness.
@@ -976,7 +976,7 @@ contains
        endif
 
        if (verbose_retreat) then
-          if (this_rank == rtest) write(iulog,*) 'force_retreat option =', model%options%force_retreat
+          if (this_rank == rtest) write(iulog,*) 'force_retreat option =', model%removal%force_retreat
           call point_diag(model%geometry%reference_thck, 'reference_thck (m)', itest, jtest, rtest, 7, 7)
           call point_diag(model%geometry%ice_fraction_retreat_mask, 'ice_fraction_retreat_mask', itest, jtest, rtest, 7, 7)
        endif
@@ -995,11 +995,11 @@ contains
     !       we typically would not want to invert for deltaT_ocn beyond the observed calving front, because the
     !       inversion could override the effects (or lack thereof) of the calving scheme.
 
-    if ( (model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask .or. &
-          model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION) &
+    if ( (model%calving%calving_law == CALVING_LAW_GRID_MASK .or. model%calving%apply_calving_mask .or. &
+          model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_INVERSION) &
        .and. model%options%restart == NO_RESTART ) then
 
-       if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
+       if (.not. model%calving%subgrid_calving_front) then
 
           ! Initialize an integer calving_mask.
           ! Note: This is done after initial calving, which may include iceberg removal.
@@ -1061,7 +1061,7 @@ contains
     model%geometry%thck_old(:,:) = model%geometry%thck(:,:)
 
     ! Identify ice caps, defined as cells disconnected from the main ice sheet.
-    ! If model%options%remove_ice_caps = T, then this subroutine removes them.
+    ! If model%removal%remove_ice_caps = T, then this subroutine removes them.
 
     !WHL - Move this to right after calving? This is answer-changing, since we would compute thck_old with ice caps removed
     if (model%options%restart == NO_RESTART ) then
@@ -1072,11 +1072,11 @@ contains
     ! Optionally, set deltaT_ocn (either local or basin scale) to optimize agreement with observed melt rates
     ! Note: Need the current value of lsrf when calling this subroutine
 
-    if (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
+    if (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
 
        call glissade_bmlt_float_init(model, model%ocean_data)
 
-    endif   ! whichbmlt_float
+    endif   ! bmlt_float_method
 
     !TODO - halo update for thck?
 
@@ -1241,7 +1241,7 @@ contains
     ! Calculate lateral melting
     ! ------------------------------------------------------------------------
 
-    if (model%options%which_lateral_melt /= LATERAL_MELT_METHOD_NONE) then
+    if (model%lateral_melt%lateral_melt_method /= LATERAL_MELT_METHOD_NONE) then
        call glissade_lateral_melt_solve(model, model%lateral_melt)
     endif
 
@@ -1251,7 +1251,7 @@ contains
 
     ! ------------------------------------------------------------------------
     ! Identify ice caps, defined as cells disconnected from the main ice sheet.
-    ! If model%options%remove_ice_caps = T, then this subroutine removes them.
+    ! If model%removal%remove_ice_caps = T, then this subroutine removes them.
     ! ------------------------------------------------------------------------
 
     call glissade_handle_ice_caps(model)
@@ -1625,7 +1625,7 @@ contains
        !       This prevents a positive SMB in ocean cells that have H = 0 before transport.
        ! ------------------------------------------------------------------------
 
-       if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
+       if (.not. model%calving%subgrid_calving_front) then
           ! Pass the default value
           this_thklim = model%numerics%thcklim
        else
@@ -1650,7 +1650,7 @@ contains
 
        call glissade_calving_front_mask(&
             ewn,                    nsn,              &
-            model%options%which_ho_calving_front,     &
+            model%calving%subgrid_calving_front,      &
             parallel,                                 &
             itest, jtest, rtest,                      &
             model%geometry%thck,                      &   ! m
@@ -1685,7 +1685,7 @@ contains
        !       from flowing beyond the CF in the first place. However, this will require
        !       some major changes in the incremental remapping transport scheme.
 
-       if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_TRUE) then
+       if (model%calving%subgrid_calving_front) then
 
           !TODO - Move the following to a subroutine in the calving module?
           ! First assume all cells are beyond the CF, then identify exceptions.
@@ -1743,7 +1743,7 @@ contains
           enddo
        endif    ! TEMPERATURE_METHOD_ENTHALPY
 
-       if (verbose_calving .and. model%options%whichcalving == CALVING_LAW_DAMAGE) then
+       if (verbose_calving .and. model%calving%calving_law == CALVING_LAW_DAMAGE) then
           call point_diag(model%calving%damage(1,:,:), 'Before tracer transport, damage layer 1:', &
                itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
@@ -1903,7 +1903,7 @@ contains
        ! copy tracers (temp/enthalpy, etc.) from model%geometry%tracers back to standard arrays
        call glissade_transport_finish_tracers(model)
 
-       if (verbose_calving .and. model%options%whichcalving == CALVING_LAW_DAMAGE) then
+       if (verbose_calving .and. model%calving%calving_law == CALVING_LAW_DAMAGE) then
           call point_diag(model%calving%damage(1,:,:), 'After tracer transport, damage layer 1:', &
                itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
@@ -2092,7 +2092,7 @@ contains
     ! Update some masks that are used for subsequent calculations
     ! ------------------------------------------------------------------------
 
-    if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
+    if (.not. model%calving%subgrid_calving_front) then
        this_thklim = model%numerics%thcklim
     else
        this_thklim = eps11
@@ -2113,7 +2113,7 @@ contains
 
     call glissade_calving_front_mask(&
          ewn,                 nsn,              &
-         model%options%which_ho_calving_front,  &
+         model%calving%subgrid_calving_front,   &
          parallel,                              &
          itest, jtest, rtest,                   &
          model%geometry%thck,                   &
@@ -2532,7 +2532,7 @@ contains
 
     ! Compute the vertically integrated strain-rate tensor (1/s) and stress tensor (Pa) and their eigenvalues.
     ! These are used for some calving schemes.
-    !TODO - Insert whichcalving logic
+    !TODO - Insert calving_law logic
 
     if ( (model%options%restart == STANDARD_RESTART .or. model%options%restart == HYBRID_RESTART) &
          .and. (model%time%time == model%time%tstart) ) then

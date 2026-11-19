@@ -113,8 +113,8 @@ contains
         model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
         model%basal_physics%coulomb_c_method  == COULOMB_C_METHOD_INVERSION        .or. &
         model%basal_physics%coulomb_c_method  == COULOMB_C_METHOD_INVERSION_BASIN  .or. &
-        model%options%which_ho_deltaT_ocn     == DELTAT_OCN_METHOD_INVERSION       .or. &
-        model%options%which_ho_deltaT_ocn     == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+        model%basal_melt%deltaT_ocn_method    == DELTAT_OCN_METHOD_INVERSION       .or. &
+        model%basal_melt%deltaT_ocn_method    == DELTAT_OCN_METHOD_INVERSION_BASIN) then
 
        ! We are likely trying to match usrf_obs, so check whether it has been read in already.
        ! If not, set it to the initial usrf field.
@@ -303,7 +303,7 @@ contains
     ! computations specific to basin-scale ocean temperature inversion
     !----------------------------------------------------------------------
 
-    if (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+    if (model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_INVERSION_BASIN) then
 
        if (model%options%restart == NO_RESTART) then
 
@@ -684,7 +684,7 @@ contains
 
     ! If inverting for deltaT_ocn at the basin scale, then update it here
 
-    if ( model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+    if ( model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_INVERSION_BASIN) then
 
        if (verbose_inversion .and. this_rank == rtest) then
           write(iulog,*) ' '
@@ -714,7 +714,7 @@ contains
 
        call parallel_halo(model%ocean_data%deltaT_ocn, parallel)
 
-    elseif ( model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION) then
+    elseif ( model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_INVERSION) then
 
        ! Inverting for deltaT_ocn based on observed ice thickness; update it here.
 
@@ -780,8 +780,8 @@ contains
        !  advances beyond the original CF, overriding the effects of the calving scheme.
        ! Instead, we compute a calving mask at initialization and set deltaT_ocn = 0 in masked cells.
        !TODO - Apply the basin average TF in this region?
-       if (model%options%whichbmlt_float == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
-          if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
+       if (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_THERMAL_FORCING) then
+          if (.not. model%calving%subgrid_calving_front) then
              if (.not.parallel_is_zero(model%calving%calving_mask)) then
                 where (model%calving%calving_mask == 1) model%ocean_data%deltaT_ocn = 0.0d0
              endif
@@ -798,7 +798,7 @@ contains
 
        call parallel_halo(model%ocean_data%deltaT_ocn, parallel)
 
-    endif   ! which_ho_deltaT_ocn
+    endif   ! deltaT_ocn_method
 
   end subroutine glissade_inversion_solve
 

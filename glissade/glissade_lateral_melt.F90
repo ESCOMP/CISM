@@ -157,7 +157,7 @@ contains
        call point_diag(mf_length, 'mf_length (m)', itest, jtest, rtest, 7, 7)
     endif
 
-    if (model%options%which_lateral_melt == LATERAL_MELT_METHOD_CONSTANT) then
+    if (model%lateral_melt%lateral_melt_method == LATERAL_MELT_METHOD_CONSTANT) then
 
        call constant_lateral_melt(&
             nx,                   ny,              &
@@ -176,7 +176,7 @@ contains
                lateral_melt%melt_rate_const
        endif
 
-    elseif (model%options%which_lateral_melt == LATERAL_MELT_METHOD_ISMIP) then
+    elseif (model%lateral_melt%lateral_melt_method == LATERAL_MELT_METHOD_ISMIP) then
 
        if (lateral_melt%runoff_from_ablation) then
           ! compute from the negative portion of acab
@@ -241,7 +241,7 @@ contains
                itest, jtest, rtest, 7, 7)
        endif
 
-    endif  ! which_lateral_melt
+    endif  ! lateral_melt_method
 
     if (verbose_latmelt) then
        call point_diag(lateral_melt%latmelt_thck, 'latmelt_thck (m)', itest, jtest, rtest, 7, 7)
@@ -254,12 +254,12 @@ contains
     ! In the case CALVING_LAW_FLOAT_ZERO (which is the usual case when using a lateral melt parameterization),
     !  remove floating ice so that none exists at the end of the timestep.
 
-    if (model%options%whichcalving == CALVING_LAW_FLOAT_ZERO) then
+    if (model%calving%calving_law == CALVING_LAW_FLOAT_ZERO) then
 
        call calve_ice_basic(&
             nx,             ny,             &
-            model%options%whichcalving,     &
-            model%options%calving_domain,   &
+            model%calving%calving_law,      &
+            model%calving%calving_domain,   &
             parallel,                       &
             model%calving,                  &  ! calving derived type
             itest,  jtest,  rtest,          &

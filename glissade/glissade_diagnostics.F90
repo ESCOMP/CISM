@@ -525,7 +525,7 @@
                   model%scalars%ivol_basin(nb)/1.0d9, model%scalars%ivol_above_flotation_basin(nb)/1.0d9
              write(iulog,*) 'imass, imass_above_flotation (Gt):', &
                   model%scalars%imass_basin(nb)/1.0d12, model%scalars%imass_above_flotation_basin(nb)/1.0d12
-             if (.not.model%options%remove_ice_caps)  then
+             if (.not.model%removal%remove_ice_caps)  then
                 write(iulog,*) '   ice cap area (km^2):', model%scalars%icap_area_basin(nb)/1.0d6
                 write(iulog,*) '   ice cap vol  (km^3):', model%scalars%icap_vol_basin(nb)/1.0d9
              endif
@@ -705,7 +705,7 @@
 
     endif  ! dm_dt_diag
 
-    if (.not.model%options%remove_ice_caps .and. .not.model%options%enable_glaciers) then
+    if (.not.model%removal%remove_ice_caps .and. .not.model%options%enable_glaciers) then
        write(message,'(a25,e24.16)') 'Ice cap area (km^2)       ',   &
                                       tot_area_ice_caps*1.0d-6  ! convert to km^2
        call write_log(trim(message), type = GM_DIAGNOSTIC)
@@ -1478,7 +1478,7 @@
     ! Note: Both calving_thck and bmlt_applied have dimensionless model units;
     !       calving_thck = calving thickness per timestep, while bmlt_applied = melt per unit time
 
-    if (model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask) then
+    if (model%calving%calving_law == CALVING_LAW_GRID_MASK .or. model%calving%apply_calving_mask) then
        where (model%calving%calving_front_mask == 1)
           model%calving%calving_thck = model%calving%calving_thck + model%basal_melt%bmlt_applied * model%time%dt
           model%basal_melt%bmlt_applied = 0.0d0
@@ -1971,7 +1971,7 @@
 
     call glissade_calving_front_mask(&
          nx,            ny,                &
-         model%options%which_ho_calving_front,   &
+         model%calving%subgrid_calving_front,   &
          parallel,                         &
          itest,  jtest, rtest,             &
          model%geometry%thck,              &
@@ -1989,8 +1989,8 @@
          model%calving%effective_areafrac)
 
     ! Compute the diagnostics for the chosen domain (circular or Thule)
-    if (model%options%which_ho_calvingmip_domain == CALVINGMIP_DOMAIN_CIRCULAR .and. &
-        model%options%whichcalving == CALVING_LAW_ADVANCE_RETREAT_RATE) then
+    if (model%calving%calvingmip_domain == CALVINGMIP_DOMAIN_CIRCULAR .and. &
+        model%calving%calving_law == CALVING_LAW_ADVANCE_RETREAT_RATE) then
 
        call locate_calving_front_circular(&
             nx,             ny,                &
@@ -2011,8 +2011,8 @@
             model%calving%cf_uvel,             &  ! m/s
             model%calving%cf_vvel)
 
-    elseif (model%options%which_ho_calvingmip_domain == CALVINGMIP_DOMAIN_THULE .and. &
-            model%options%whichcalving == CALVING_LAW_ADVANCE_RETREAT_RATE) then
+    elseif (model%calving%calvingmip_domain == CALVINGMIP_DOMAIN_THULE .and. &
+            model%calving%calving_law == CALVING_LAW_ADVANCE_RETREAT_RATE) then
 
        call locate_calving_front_thule(&
             nx,             ny,                &

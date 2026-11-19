@@ -596,7 +596,7 @@ contains
     ! Input fields are assumed to NOT have halo cells.
     !
     ! Glad accumulates and averages ocean thermal_forcing based on salinity and tocn,
-    ! but this thermal forcing is used by CISM only if model%options%ocean_data_domain = 2.
+    ! but this thermal forcing is used by CISM only if model%ocean_data%ocean_data_domain = 2.
     ! Otherwise, CISM will compute thermal_forcing internally (ocean_data_domain = 0)
     ! or read it from an external file (ocean_data_domain = 1).
 

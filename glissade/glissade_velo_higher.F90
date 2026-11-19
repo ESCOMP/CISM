@@ -795,7 +795,6 @@
                                 ! 1 = apply local value of basal friction at each vertex
        whichassemble_lateral, & ! 0 = standard finite element assembly
                                 ! 1 = apply local value of thck and usrf at each marine edge
-       whichcalving_front,  &   ! option for subgrid calving front scheme (either on or off)
        whichground,  &          ! option for computing grounded fraction of each cell
        whichflotation_function,&! option for computing flotation function at and near each vertex
        maxiter_nonlinear,    &  ! maximum number of nonlinear iterations
@@ -1095,7 +1094,7 @@
      !      Instead of pointing to model%geometry%usrf, compute a local value of usrf
      !       that is consistent with the local value of thck.
 
-     if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
+     if (.not. model%calving%subgrid_calving_front) then
         thck  => model%geometry%thck(:,:)
      else
         thck  => model%calving%thck_effective(:,:)
@@ -1167,7 +1166,6 @@
      whichassemble_taud   = model%velocity_solver%assemble_taud
      whichassemble_bfric  = model%velocity_solver%assemble_bfric
      whichassemble_lateral= model%velocity_solver%assemble_lateral
-     whichcalving_front   = model%options%which_ho_calving_front
      whichground          = model%grounding_line%grounding_line_param
      whichflotation_function = model%grounding_line%flotation_function
      diva_slope_correction= model%velocity%diva_slope_correction
