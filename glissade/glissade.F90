@@ -282,7 +282,7 @@ contains
     ! An exception is dimension glacierid, whose length (nglacier) is computed internally by CISM.
     ! On restart, we can get the length from the restart file.
 
-    if (model%options%enable_glaciers .and. &
+    if (model%glaciers%enable_glaciers .and. &
          model%options%restart == STANDARD_RESTART .or. model%options%restart == HYBRID_RESTART) then
        infile => model%funits%in_first   ! assume glacierid is a dimension in the restart file
        call glimmer_nc_get_dimlength(infile, 'glacierid', model%glaciers%nglacier)
@@ -305,7 +305,7 @@ contains
     endif
 
     ! set uniform basal heat flux (positive down)
-    model%temperature%bheatflx = model%paramets%geot
+    model%temperature%bheatflx = model%geothermal%geothermal_flux
 
     ! compute sigma levels or load from external file
     ! (if not already read from config file)
@@ -414,8 +414,8 @@ contains
     ! Note: Optionally, can pass a user-specified fill value and replacement value,
     !        and return a mask of grid cells where values are replaced.
 
-    if (model%options%smb_input == SMB_INPUT_UNITS_MM_WE_PER_YR) then
-       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+    if (model%climate%smb_input_units == SMB_INPUT_UNITS_MM_WE_PER_YR) then
+       if (model%climate%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
           call check_fill_values(model%climate%smb_3d)
           call check_fill_values(model%climate%artm_3d)
        else
@@ -425,9 +425,9 @@ contains
        call check_fill_values(model%climate%acab)
     endif
 
-    if (model%options%gthf == GEOTHERMAL_METHOD_FILE) then
+    if (model%geothermal%geothermal_method == GEOTHERMAL_METHOD_FILE) then
        call check_fill_values(model%temperature%bheatflx)
-       !TODO - Pass in model%paramets%geot as the replacement value?
+       !TODO - Pass in model%geothermal%geothermal_flux as the replacement value?
     endif
 
     if (associated(model%ocean_data%thermal_forcing)) then
@@ -456,7 +456,7 @@ contains
     endif
 
     if (model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_DTHCK_DT .or.  &
-        model%options%enable_acab_dthck_dt_correction) then
+        model%climate%enable_acab_dthck_dt_correction) then
        call check_fill_values(model%geometry%dthck_dt_obs, scale_factor_in = scyr)
        if (verbose_bmlt_float .and. this_rank == rtest) then
           write(iulog,*) 'check_fill_values, dthck_dt_obs'
@@ -554,12 +554,12 @@ contains
     call glissade_isostasy_init(model)
 
     ! If a 2D bheatflx field is present in the input file, it will have been written
-    !  to model%temperature%bheatflx.  For the case model%options%gthf = 0, we want to use
+    !  to model%temperature%bheatflx.  For the case model%geothermal%geothermal_method = 0, we want to use
     !  a uniform heat flux instead.
     ! If no bheatflx field is present in the input file, then we default to the
-    !  prescribed uniform value, model%paramets%geot.
+    !  prescribed uniform value, model%geothermal%geothermal_flux.
 
-    if (model%options%gthf == GEOTHERMAL_METHOD_UNIFORM) then
+    if (model%geothermal%geothermal_method == GEOTHERMAL_METHOD_UNIFORM) then
 
        ! Check to see if this flux was present in the input file
        ! (by checking whether the flux is nonuniform over the domain)
@@ -569,9 +569,9 @@ contains
        endif
 
        ! set uniform basal heat flux (positive down)
-       model%temperature%bheatflx = model%paramets%geot
+       model%temperature%bheatflx = model%geothermal%geothermal_flux
 
-    elseif (model%options%gthf == GEOTHERMAL_METHOD_FILE) then
+    elseif (model%geothermal%geothermal_method == GEOTHERMAL_METHOD_FILE) then
 
        ! Make sure the input basal heat flux follows the positive-down sign convention.
        local_maxval = maxval(model%temperature%bheatflx)
@@ -650,7 +650,7 @@ contains
     !       (and also into the north and east rows of the global domain, which are not included 
     !       on the global staggered grid).
     call staggered_parallel_halo_extrapolate (model%velocity%kinbcmask, parallel)  ! = 1 for Dirichlet BCs
-    if (model%options%enable_glaciers) then
+    if (model%glaciers%enable_glaciers) then
 
        ! If running with glaciers, then process the input glacier data and initialize glacier arrays
 
@@ -912,9 +912,9 @@ contains
     ! initialize powerlaw_c
 
     ! Note: When running with glaciers, there is an independent glacier option,
-    !        set_powerlaw_c, that controls glacier inversion.
+    !        glacier_powerlaw_c_method, that controls glacier inversion.
     !       We can have model%basal_physics%powerlaw_c_method = POWERLAW_C_METHOD_CONSTANT,
-    !        while model%glaciers%set_powerlaw_c = GLACIER_POWERLAW_C_METHOD_INVERSION.
+    !        while model%glaciers%glacier_powerlaw_c_method = GLACIER_POWERLAW_C_METHOD_INVERSION.
     !       In that case, we do *not* want to reset powerlaw_c.
     !TODO:  Have a single option that is applied with or without glaciers enabled?
 
@@ -923,8 +923,8 @@ contains
             model%basal_physics%coulomb_c**model%basal_physics%schoof_p
     elseif (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_CONSTANT .or. &
         parallel_is_zero(model%basal_physics%powerlaw_c)) then
-       if (model%options%enable_glaciers .and. &
-            model%glaciers%set_powerlaw_c /= GLACIER_POWERLAW_C_METHOD_CONSTANT) then
+       if (model%glaciers%enable_glaciers .and. &
+            model%glaciers%glacier_powerlaw_c_method /= GLACIER_POWERLAW_C_METHOD_CONSTANT) then
           ! do nothing; see note above
        else
           model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_const
@@ -949,7 +949,7 @@ contains
     ! If using dthck_dt_obs, make sure it was read in
 
     if (model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_DTHCK_DT .or. &
-        model%options%enable_acab_dthck_dt_correction) then
+        model%climate%enable_acab_dthck_dt_correction) then
        if (parallel_is_zero(model%geometry%dthck_dt_obs)) then
           call write_log ('Error: Trying to match dthck_dt, but dthck_dt_obs = 0', GM_FATAL)
        endif
@@ -1425,7 +1425,7 @@ contains
           bwat_mask = 0
        endwhere
 
-       if (model%options%overwrite_acab /= OVERWRITE_ACAB_NONE .and. &
+       if (model%climate%overwrite_acab /= OVERWRITE_ACAB_NONE .and. &
            model%climate%overwrite_acab_value < 0.0d0) then
           where (model%climate%overwrite_acab_mask == 1 .and. &
                  model%geometry%thck < model%numerics%thcklim)
@@ -2207,7 +2207,7 @@ contains
     !     (b) Once a year, average the fields and do the inversion.
     ! (2) Once a year, update the glacier masks as glaciers advance and retreat.
 
-    if (model%options%enable_glaciers) then
+    if (model%glaciers%enable_glaciers) then
 
        if (model%time%time == model%time%tstart) then
            ! first call at start-up or after a restart; do nothing

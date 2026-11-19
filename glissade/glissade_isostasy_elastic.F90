@@ -54,7 +54,7 @@ contains
 
 !-------------------------------------------------------------------------
 
-  subroutine glissade_init_elastic(rbel, deltax)
+  subroutine glissade_init_elastic(rbel, deltax, flexural_rigidity)
 
     !> initialize elastic lithosphere calculations
 
@@ -63,6 +63,7 @@ contains
 
     type(glissade_isos_elastic_type) :: rbel          !> structure holding elastic lithosphere data
     real(dp), intent(in) :: deltax      !> grid spacing
+    real(dp), intent(in) :: flexural_rigidity   !> flexural rigidity of the lithosphere (N m)
 
     ! local variables
     real(dp) :: a     ! radius of disk
@@ -73,6 +74,8 @@ contains
 
     ! calculate a so that a circle of radius a is equivalent to a square with size deltax
     a = deltax/sqrt(pi)
+
+    rbel%d = flexural_rigidity
 
     ! initialise w
     call init_rbel(rbel, a)

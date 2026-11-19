@@ -658,7 +658,7 @@ module glissade_bmlt_float
        ! On restart, dthck_dt_obs_basin is read from the restart file.
        !TODO: Is dthck_dt_obs needed in the restart file after dthck_dt_obs_basin is computed?
 
-       if (model%options%enable_acab_dthck_dt_correction) then
+       if (model%climate%enable_acab_dthck_dt_correction) then
 
           if (verbose_bmlt_float) then
              call point_diag(model%ocean_data%basin_number, 'basin_number', itest, jtest, rtest, 7, 7)

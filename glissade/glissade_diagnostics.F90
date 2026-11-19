@@ -705,7 +705,7 @@
 
     endif  ! dm_dt_diag
 
-    if (.not.model%removal%remove_ice_caps .and. .not.model%options%enable_glaciers) then
+    if (.not.model%removal%remove_ice_caps .and. .not.model%glaciers%enable_glaciers) then
        write(message,'(a25,e24.16)') 'Ice cap area (km^2)       ',   &
                                       tot_area_ice_caps*1.0d-6  ! convert to km^2
        call write_log(trim(message), type = GM_DIAGNOSTIC)
@@ -1121,7 +1121,7 @@
           usrf_diag = model%geometry%usrf(i,j)
           thck_diag = model%geometry%thck(i,j)
           topg_diag = model%geometry%topg(i,j)
-          if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
+          if (model%isostasy%compute_isostasy) then
              relx_diag = model%isostasy%relx(i,j)
              load_diag = model%isostasy%load(i,j)
           endif
@@ -1148,7 +1148,7 @@
        usrf_diag = parallel_reduce_max(usrf_diag)
        thck_diag = parallel_reduce_max(thck_diag)
        topg_diag = parallel_reduce_max(topg_diag)
-       if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
+       if (model%isostasy%compute_isostasy) then
           relx_diag = parallel_reduce_max(relx_diag)
           load_diag = parallel_reduce_max(load_diag)
        endif
@@ -1190,7 +1190,7 @@
        write(message,'(a25,f24.16)') 'Bedrock topo (m)         ', topg_diag
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
+       if (model%isostasy%compute_isostasy) then
           write(message,'(a25,f24.16)') 'Relaxed bedrock (m)   ', relx_diag
           call write_log(trim(message), type = GM_DIAGNOSTIC)
           write(message,'(a25,f24.16)') 'Load deflection (m)   ', load_diag
@@ -1251,7 +1251,7 @@
 
     ! glacier diagnostics
 
-    if (model%options%enable_glaciers) then
+    if (model%glaciers%enable_glaciers) then
 
        tot_glc_area = 0.0d0
        tot_glc_volume = 0.0d0
@@ -1325,7 +1325,7 @@
             tot_glc_volume_init_extent / 1.0d9
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       if (model%glaciers%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
+       if (model%glaciers%glacier_powerlaw_c_method == GLACIER_POWERLAW_C_METHOD_INVERSION) then
 
           ! diagnostics related to thickness inversion
 
@@ -1384,7 +1384,7 @@
                glc_rmse_thck_init_extent
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       endif  ! set_powerlaw_c
+       endif  ! glacier_powerlaw_c_method
 
        call write_log(' ')
 
@@ -1468,7 +1468,7 @@
     ! surface mass balance in units of mm/yr w.e.
     ! (model%climate%acab has units of m/s of ice)
     ! Note: This is not necessary (and can break exact restart) if the SMB was already input in units of mm/yr
-    if (model%options%smb_input /= SMB_INPUT_UNITS_MM_WE_PER_YR) then
+    if (model%climate%smb_input_units /= SMB_INPUT_UNITS_MM_WE_PER_YR) then
        model%climate%smb(:,:) = (model%climate%acab(:,:) * scyr) * (1000.d0 * rhoi/rhow)
     endif
 

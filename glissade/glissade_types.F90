@@ -681,9 +681,6 @@ module glissade_types
        option_choice(SNOW_METHOD_SNOW,        'snow',        'read in snowfall rate directly'), &
        option_choice(SNOW_METHOD_PRECIP_ARTM, 'precip_artm', 'compute snowfall rate from precip and artm') ]
 
-  ! [isostasy] compute_isostasy: a logical in the config file
-  integer, parameter :: COMPUTE_ISOSTASY_FALSE = 0
-  integer, parameter :: COMPUTE_ISOSTASY_TRUE = 1
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -771,74 +768,6 @@ module glissade_types
     !> \end{description}
 
     !WHL TODO - During the config reorg, Change name to smb_input_units
-    integer :: smb_input = SMB_INPUT_UNITS_M_ICE_PER_YR
-
-    !> units for SMB input:
-    !> \begin{description}
-    !> \item[m_ice_per_yr] SMB input in units of m/yr ice (same as acab)
-    !> \item[mm_we_per_yr] SMB input in units of mm/yr water equivalent
-    !> \end{description}
-    
-    integer :: smb_input_function = SMB_INPUT_FUNCTION_XY
-
-    !> functional form of SMB input:
-    !> \begin{description}
-    !> \item[xy] SMB(x,y); input as a function of horizontal location only
-    !> \item[xy_gradz] SMB(x,y) + dSMB/dz(x,y) * dz; input SMB and its vertical gradient
-    !> \item[xyz] SMB(x,y,z); input SMB at multiple elevations
-    !> \item[pdd] SMB computed with a positive-degree scheme
-    !> \end{description}
-
-    integer :: artm_input_function = ARTM_INPUT_FUNCTION_XY
-
-    !> functional form of surface temperature (artm) input:
-    !> \begin{description}
-    !> \item[xy] artm(x,y); input as a function of horizontal location only
-    !> \item[xy_gradz] artm(x,y) + dartm/dz(x,y) * dz; input artm and its vertical gradient
-    !> \item[xyz] artm(x,y,z); input artm at multiple elevations
-    !> \item[xy_lapse] artm(x,y) + tlapse * dz; input artm and uniform lapse rate
-    !> \end{description}
-
-    logical :: enable_smb_anomaly = .false.
-    !> if true, then apply a prescribed anomaly to smb
-
-    logical :: enable_artm_anomaly = .false.
-    !> if true, then apply a prescribed anomaly to artm
-
-    logical :: enable_snow_anomaly = .false.
-    !> if true, then apply a prescribed anomaly to snow
-
-    logical :: enable_precip_anomaly = .false.
-    !> if true, then apply a prescribed anomaly to precip
-
-    integer :: overwrite_acab = OVERWRITE_ACAB_NONE
-    !> overwrite acab (m/yr ice) in selected regions:
-    !> \begin{description}
-    !> \item[none] Do not overwrite acab anywhere
-    !> \item[acab_zero] Overwrite acab where input acab = 0
-    !> \item[thck_min] Overwrite acab where input thickness <= threshold value
-    !> \item[mask] Overwrite acab where input mask = 1
-    !> \end{description}
-
-    logical :: enable_acab_dthck_dt_correction = .false.
-    !> if true, then add (-dthck_dt_obs) to acab for floating ice
-
-    integer :: gthf = GEOTHERMAL_METHOD_UNIFORM
-
-    !> geothermal heat flux:
-    !> \begin{description}
-    !> \item[uniform] prescribed uniform geothermal heat flux
-    !> \item[file] read 2D geothermal flux field from input file (if present)
-    !> \end{description}
-
-    integer :: isostasy = COMPUTE_ISOSTASY_FALSE
-
-    !> isostasy:
-    !> \begin{description}
-    !> \item[.false.] no isostatic adjustment
-    !> \item[.true.] compute isostatic adjustment using lithosphere/asthenosphere model
-    !> \end{description}
-
     logical :: forcewrite_final = .false.
     !> if true, then force a write to output and restart files when the model finishes
 
@@ -884,13 +813,6 @@ module glissade_types
     !           (Check whether it's needed for tests such as MISMIP)
     !TODO: Change the default to 2nd order vertical remapping
     ! WHL: Keeping 1st order vertical remapping for now, pending more testing
-    logical :: block_inception = .false.
-    !> Flag that indicates whether ice inception away from the main ice sheet is blocked
-
-    logical :: enable_glaciers = .false.
-    !> if true, then read glacier info at initialization and (optionally)
-    !>  tune glacier parameters during the run
-
     !WHL TODO - Put the next few variables in a solver derived type during the config reorg
   end type glissade_options_type
 
@@ -1418,6 +1340,23 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+  type glissade_geothermal_type
+
+    !> [geothermal] keys
+
+    integer :: geothermal_method = GEOTHERMAL_METHOD_UNIFORM
+    !> geothermal heat flux:
+    !> \begin{description}
+    !> \item[uniform] prescribed uniform geothermal heat flux
+    !> \item[file] read 2D geothermal flux field from input file (if present)
+    !> \end{description}
+
+    real(dp) :: geothermal_flux = -5.0d-2  ! uniform geothermal flux (W m^{-2}), positive down  !TODO - Change default to 0.0?
+
+  end type glissade_geothermal_type
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
   type glissade_stress_type      
 
     type(glissade_tensor_type) :: tau         ! HO only
@@ -1545,7 +1484,7 @@ module glissade_types
                                                     !> The initMIP value is 40 yr.
      real(dp) :: overwrite_acab_value = 0.0d0       !> acab value to apply in grid cells where overwrite_acab_mask = 1
                                                     !> input as m/yr ice, converted to model units
-     real(dp) :: overwrite_acab_minthck = 0.0d0     !> overwrite acab where thck <= overwrite_acab_minthck
+     real(dp) :: overwrite_acab_thck_min = 0.0d0     !> overwrite acab where thck <= overwrite_acab_minthck
      real(dp) :: artm_anomaly_const = 0.0d0         !> spatially uniform value of artm_anomaly (degC)
      real(dp) :: artm_anomaly_tstart = 0.0d0        !> time to start applying the anomaly (yr)
      real(dp) :: artm_anomaly_timescale = 0.0d0     !> number of years over which the artm anomaly is phased in linearly
@@ -1559,6 +1498,61 @@ module glissade_types
      real(dp) :: snow_threshold_max = 2.0d0         !> air temperature (deg C) above which all precip falls as rain
 
      !TODO - Remove the equivalent glacier variables
+
+
+    !> [climate] options (parameters are above)
+
+    integer :: smb_input_units = SMB_INPUT_UNITS_M_ICE_PER_YR
+    !> units for SMB input:
+    !> \begin{description}
+    !> \item[m_ice_per_yr] SMB input in units of m/yr ice (same as acab)
+    !> \item[mm_we_per_yr] SMB input in units of mm/yr water equivalent
+    !> \end{description}
+
+    integer :: smb_input_function = SMB_INPUT_FUNCTION_XY
+    !> functional form of SMB input:
+    !> \begin{description}
+    !> \item[xy] SMB(x,y); input as a function of horizontal location only
+    !> \item[xy_gradz] SMB(x,y) + dSMB/dz(x,y) * dz; input SMB and its vertical gradient
+    !> \item[xyz] SMB(x,y,z); input SMB at multiple elevations
+    !> \item[pdd] SMB computed with a positive-degree scheme
+    !> \end{description}
+
+    integer :: artm_input_function = ARTM_INPUT_FUNCTION_XY
+    !> functional form of surface temperature (artm) input:
+    !> \begin{description}
+    !> \item[xy] artm(x,y); input as a function of horizontal location only
+    !> \item[xy_gradz] artm(x,y) + dartm/dz(x,y) * dz; input artm and its vertical gradient
+    !> \item[xyz] artm(x,y,z); input artm at multiple elevations
+    !> \item[xy_lapse] artm(x,y) + tlapse * dz; input artm and uniform lapse rate
+    !> \end{description}
+
+    logical :: enable_smb_anomaly = .false.
+    !> if true, then apply a prescribed anomaly to smb
+
+    logical :: enable_artm_anomaly = .false.
+    !> if true, then apply a prescribed anomaly to artm
+
+    logical :: enable_snow_anomaly = .false.
+    !> if true, then apply a prescribed anomaly to snow
+
+    logical :: enable_precip_anomaly = .false.
+    !> if true, then apply a prescribed anomaly to precip
+
+    integer :: overwrite_acab = OVERWRITE_ACAB_NONE
+    !> overwrite acab (m/yr ice) in selected regions:
+    !> \begin{description}
+    !> \item[none] Do not overwrite acab anywhere
+    !> \item[acab_zero] Overwrite acab where input acab = 0
+    !> \item[thck_min] Overwrite acab where input thickness <= threshold value
+    !> \item[mask] Overwrite acab where input mask = 1
+    !> \end{description}
+
+    logical :: enable_acab_dthck_dt_correction = .false.
+    !> if true, then add (-dthck_dt_obs) to acab for floating ice
+
+    logical :: block_inception = .false.
+    !> Flag that indicates whether ice inception away from the main ice sheet is blocked
 
   end type glissade_climate_type
 
@@ -1815,24 +1809,24 @@ module glissade_types
 
      ! parameters for initializing inversion fields
      real(dp) :: &
-          thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
-          thck_flotation_buffer = 1.0d0      !> if usrf_obs implies thck near the flotation thickness,
+          inversion_thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
+          inversion_thck_flotation_buffer = 1.0d0      !> if usrf_obs implies thck near the flotation thickness,
                                              !> set to thck_flotation +/- thck_flotation_buffer (m)
      ! general inversion parameters
      real(dp) :: &
-          damping_factor = 2.0d0     !> factor that multiplies the dH/dt term in the inversion
+          inversion_damping_factor = 2.0d0     !> factor that multiplies the dH/dt term in the inversion
 
      ! fields and parameters for powerlaw_c and coulomb_c inversion
      ! Note: powerlaw_c and coulomb_c are in the basal_physics type
 
      ! parameters for adjusting powerlaw_c or coulomb_c during inversion
-     ! Note: inversion%babc_timescale is later rescaled to SI units (s).
+     ! Note: inversion%inversion_babc_timescale is later rescaled to SI units (s).
      ! If babc_thck_scale > 0.0, then there is inversion based on a thickness target.
      real(dp) ::  &
-          babc_timescale  = 200.d0,            & !> inversion timescale (yr); must be > 0
-          babc_thck_scale = 100.d0,            & !> thickness inversion scale (m)
-          babc_length_scale = 0.0d0,           & !> diffusive length scale (m) for inversion
-          babc_relax_factor = 0.05d0             !> controls strength of relaxation to default values (unitless)
+          inversion_babc_timescale  = 200.d0,            & !> inversion timescale (yr); must be > 0
+          inversion_babc_thck_scale = 100.d0,            & !> thickness inversion scale (m)
+          inversion_babc_length_scale = 0.0d0,           & !> diffusive length scale (m) for inversion
+          inversion_babc_relax_factor = 0.05d0             !> controls strength of relaxation to default values (unitless)
 
      ! fields for basin-scale coulomb_c or powerlaw_c inversion
      real(dp), dimension(:,:), pointer ::  &
@@ -1841,10 +1835,10 @@ module glissade_types
      ! parameters for local deltaT_ocn inversion
      ! Note: deltaT_ocn is in the ocean_data type
      real(dp) ::  &
-          deltaT_ocn_timescale = 200.0d0,      & !> inversion timescale (yr)
-          deltaT_ocn_thck_scale = 100.0d0,     & !> inversion thickness scale (m)
-          deltaT_ocn_temp_scale = 2.0d0,       & !> inversion temperature scale (degC)
-          deltaT_ocn_length_scale = 0.d0         !> diffusive length scale (m) for inversion
+          inversion_deltaT_ocn_timescale = 200.0d0,      & !> inversion timescale (yr)
+          inversion_deltaT_ocn_thck_scale = 100.0d0,     & !> inversion thickness scale (m)
+          inversion_deltaT_ocn_temp_scale = 2.0d0,       & !> inversion temperature scale (degC)
+          inversion_deltaT_ocn_length_scale = 0.d0         !> diffusive length scale (m) for inversion
 
      ! fields and parameters for basin-scale deltaT_ocn inversion
 
@@ -1852,12 +1846,12 @@ module glissade_types
           floating_thck_target => null()         !> Observational target for floating ice thickness
 
      real(dp) :: &
-          deltaT_basin_relax = 0.0d0,          & !> relax the basin correction toward this value
-          basin_flotation_threshold = 200.d0,  & !> threshold (m) for counting ice as lightly floating/grounded
-          basin_mass_correction = 0.0d0          !> optional mass correction (Gt) for a selected basin
+          inversion_deltaT_basin_relax = 0.0d0,          & !> relax the basin correction toward this value
+          inversion_basin_flotation_threshold = 200.d0,  & !> threshold (m) for counting ice as lightly floating/grounded
+          inversion_basin_mass_correction = 0.0d0          !> optional mass correction (Gt) for a selected basin
 
      integer ::  &
-          basin_number_mass_correction = 0       !> integer ID for the basin receiving the correction
+          inversion_basin_number_mass_correction = 0       !> integer ID for the basin receiving the correction
 
   end type glissade_inversion_type
 
@@ -2059,21 +2053,21 @@ module glissade_types
 
      ! inversion options
 
-     integer :: set_mu_star = MU_STAR_METHOD_CONSTANT
+     integer :: mu_star_method = MU_STAR_METHOD_CONSTANT
      !> \begin{description}
      !> \item[constant] apply spatially uniform mu_star
      !> \item[inversion] invert for glacier-specific mu_star
      !> \item[file] read glacier-specific mu_star from external file
      !> \end{description}
 
-     integer :: set_alpha_snow = ALPHA_SNOW_METHOD_CONSTANT
+     integer :: alpha_snow_method = ALPHA_SNOW_METHOD_CONSTANT
      !> \begin{description}
      !> \item[constant] apply spatially uniform alpha_snow
      !> \item[inversion] invert for glacier-specific alpha_snow
      !> \item[file] read glacier-specific alpha_snow from external file
      !> \end{description}
 
-     integer :: set_powerlaw_c = GLACIER_POWERLAW_C_METHOD_CONSTANT
+     integer :: glacier_powerlaw_c_method = GLACIER_POWERLAW_C_METHOD_CONSTANT
      !> \begin{description}
      !> \item[constant] apply spatially uniform powerlaw_c
      !> \item[inversion] invert for 2D powerlaw_c
@@ -2081,7 +2075,7 @@ module glissade_types
      !> \end{description}
 
      ! other options
-     integer :: snow_calc = SNOW_METHOD_PRECIP_ARTM
+     integer :: snow_method = SNOW_METHOD_PRECIP_ARTM
      !> \begin{description}
      !> \item[snow] read the snowfall rate directly
      !> \item[precip_artm] compute the snowfall rate from precip and downscaled artm
@@ -2095,7 +2089,7 @@ module glissade_types
 
      ! parameters
      ! Note: glacier%minthck is currently set at initialization based on model%numerics%thcklim.
-     !       glacier%diagnostic_minthck is used only for diagnostic area and volume sums;
+     !       glacier%glacier_diag_thck_min is used only for diagnostic area and volume sums;
      !        it does not enter the inversion or dynamics.
      !       Other glacier parameters are declared at the top of module glissade_glacier.
      !       These could be added to the derived type.
@@ -2103,14 +2097,14 @@ module glissade_types
      real(dp) :: length_scale_factor = 1.0d0  !> factor used to scale dew and dns;
                                               !> typically equal to the cosine of an average latitude
 
-     real(dp) :: diagnostic_minthck = 10.0d0  !> min ice thickness to be included in glacier area and volume diagnostics
+     real(dp) :: glacier_diag_thck_min = 10.0d0  !> min ice thickness to be included in glacier area and volume diagnostics
 
      real(dp) :: &
           minthck                             !> min ice thickness (m) to be counted as part of a glacier;
                                               !> currently set based on model%numerics%thcklim
 
      real(dp) :: &
-          tmlt = -1.d0                        !> spatially uniform temperature threshold for melting (deg C)
+          glacier_tmlt = -1.d0                        !> spatially uniform temperature threshold for melting (deg C)
 
      real(dp) :: &
           mu_star_const = 1000.d0,          & ! uniform initial value for mu_star (mm/yr w.e/deg C)
@@ -2130,8 +2124,8 @@ module glissade_types
      ! Note: These thresholds assume that artm is a monthly mean, not an instantaneous value
      !       Huss and Hock (2015) have thresholds of 0.5 and 2.5 C
      real(dp) :: &
-          snow_threshold_min = 0.0d0,       & !> air temperature (deg C) below which all precip falls as snow
-          snow_threshold_max = 2.0d0          !> air temperature (deg C) above which all precip falls as rain
+          glacier_snow_threshold_min = 0.0d0,       & !> air temperature (deg C) below which all precip falls as snow
+          glacier_snow_threshold_max = 2.0d0          !> air temperature (deg C) above which all precip falls as rain
 
      real(dp) :: &
           !TODO - Change baseline date to 1984 as in Alps runs?
@@ -2222,6 +2216,13 @@ module glissade_types
      integer, dimension(:,:), pointer :: &
           imask => null()                     !> 2D mask; indicates whether glaciers are present in the input file
                                               !> TODO - Remove this field?  Easily derived from initial thickness > 0.
+
+
+    !> [glaciers] switch
+
+    logical :: enable_glaciers = .false.
+    !> if true, then read glacier info at initialization and (optionally)
+    !>  tune glacier parameters during the run
 
   end type glissade_glaciers_type
 
@@ -2529,14 +2530,14 @@ module glissade_types
   type glissade_isostasy_type
      !> contains isostasy configuration
 
-     integer :: lithosphere = LITHOSPHERE_METHOD_ELASTIC
+     integer :: lithosphere_method = LITHOSPHERE_METHOD_ELASTIC
      !> method for calculating equilibrium bedrock depression
      !> \begin{description}
      !> \item[local] local lithosphere, equilibrium bedrock depression is found using Archimedes' principle
      !> \item[elastic] elastic lithosphere, flexural rigidity is taken into account
      !> \end{description}
 
-     integer :: asthenosphere = ASTHENOSPHERE_METHOD_RELAXING
+     integer :: asthenosphere_method = ASTHENOSPHERE_METHOD_RELAXING
      !> method for approximating the mantle
      !> \begin{description}
      !> \item[fluid] fluid mantle, isostatic adjustment happens instantaneously
@@ -2544,7 +2545,7 @@ module glissade_types
      !> \item[relaxing_latvar] relaxing mantle, exp adjust toward (relx - load), laterally varying timescale
      !> \end{description}
 
-    integer :: which_relaxed = INPUT_TOPG_METHOD_SEPARATE_RELX
+    integer :: input_topg_method = INPUT_TOPG_METHOD_SEPARATE_RELX
 
     !> relaxed topography:
     !> \begin{description}
@@ -2564,6 +2565,14 @@ module glissade_types
                                                         ! defined as positive for downward deflection
      real(dp),dimension(:,:),pointer :: load_factors => null() ! temporary used for load calculation
      real(dp),dimension(:,:),pointer :: tau_relax => null()    ! 2D mantle relaxation timescale (yr)
+
+
+    !> [isostasy] switch and lithosphere parameter
+
+    logical :: compute_isostasy = .false.
+    !> if true, then compute isostatic adjustment of the bed
+
+    real(dp) :: flexural_rigidity = 0.24d25  !> flexural rigidity (N m) of the elastic lithosphere; copied to rbel%d
 
   end type glissade_isostasy_type
 
@@ -2663,14 +2672,6 @@ module glissade_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  !TODO - Move these parameters to types associated with a certain kind of physics
-  !WHL TODO - During the config reorg, change default geot to 0.0, so that idealized tests by default have no mass loss
-  type glissade_paramets_type
-    real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down  !TODO - Change default to 0.0?
-  end type glissade_paramets_type
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
   type glissade_global_type    ! type containing all of the above for an ice sheet model instance
     integer              :: model_id = 0 !> identifier of this model instance (1..N, where N is the number of ice sheets in this run)
     type(glissade_grid_type)     :: grid
@@ -2688,6 +2689,7 @@ module glissade_types
     type(glissade_removal_type)  :: removal
     type(glissade_lateral_melt_type) :: lateral_melt
     type(glissade_temperature_type)   :: temperature
+    type(glissade_geothermal_type) :: geothermal
     type(glissade_flow_law_type) :: flow_law
     type(glissade_basal_hydro_type)  :: basal_hydro
     type(glissade_basal_physics_type):: basal_physics
@@ -2701,7 +2703,6 @@ module glissade_types
     type(glissade_diagnostics_type) :: diagnostics
     type(glissade_initialization_type) :: initialization
     type(glissade_numerics_type) :: numerics
-    type(glissade_paramets_type) :: paramets
     type(glimmap_proj)   :: projection
     type(profile_type)   :: profile
     type(glissade_isostasy_type)  :: isostasy
@@ -2967,7 +2968,7 @@ contains
     model%ocean_data%deltaT_ocn_basin = 0.0d0   ! computed only for some deltaT_ocn options, but always written
 
     ! glacier options
-    if (model%options%enable_glaciers) then
+    if (model%glaciers%enable_glaciers) then
        call coordsystem_allocate(model%grid%ice_grid, model%glaciers%rgi_glacier_id)
        call coordsystem_allocate(model%grid%ice_grid, model%glaciers%cism_glacier_id)
        call coordsystem_allocate(model%grid%ice_grid, model%glaciers%cism_glacier_id_init)
@@ -3078,31 +3079,31 @@ contains
     call coordsystem_allocate(model%grid%ice_grid, model%climate%precip_corrected)
     call coordsystem_allocate(model%grid%ice_grid, model%climate%overwrite_acab_mask)
 
-    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+    if (model%climate%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
        call coordsystem_allocate(model%grid%ice_grid, model%climate%smb_ref)
        call coordsystem_allocate(model%grid%ice_grid, model%climate%smb_gradz)
        if (.not.associated(model%climate%usrf_ref)) &
             call coordsystem_allocate(model%grid%ice_grid, model%climate%usrf_ref)
-    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+    elseif (model%climate%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
        call coordsystem_allocate(model%grid%ice_grid, model%climate%nzatm, model%climate%smb_3d)
        if (.not.associated(model%climate%zatm)) allocate(model%climate%zatm(model%climate%nzatm))
-    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+    elseif (model%climate%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
        call coordsystem_allocate(model%grid%ice_grid, model%climate%ablation)
     endif
 
     ! Note: Typically, smb_input_function and artm_input_function will have the same value.
     !       If both use a lapse rate, they will share the array usrf_ref
     !       If both are 3d, they will share the array smb_levels.
-    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
+    if (model%climate%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
        call coordsystem_allocate(model%grid%ice_grid, model%climate%artm_ref)
        call coordsystem_allocate(model%grid%ice_grid, model%climate%artm_gradz)
        if (.not.associated(model%climate%usrf_ref)) then
           call coordsystem_allocate(model%grid%ice_grid, model%climate%usrf_ref)
        endif
-    elseif (model%options%smb_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+    elseif (model%climate%smb_input_function == ARTM_INPUT_FUNCTION_XYZ) then
        call coordsystem_allocate(model%grid%ice_grid, model%climate%nzatm, model%climate%artm_3d)
        if (.not.associated(model%climate%zatm)) allocate(model%climate%zatm(model%climate%nzatm))
-    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+    elseif (model%climate%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
        call coordsystem_allocate(model%grid%ice_grid, model%climate%artm_ref)
        if (.not.associated(model%climate%usrf_ref)) then
           call coordsystem_allocate(model%grid%ice_grid, model%climate%usrf_ref)
@@ -3162,7 +3163,7 @@ contains
 
     ! Note: relx needs to be allocated always
     call coordsystem_allocate(model%grid%ice_grid, model%isostasy%relx)
-    if (model%options%isostasy == COMPUTE_ISOSTASY_TRUE) then
+    if (model%isostasy%compute_isostasy) then
        call coordsystem_allocate(model%grid%ice_grid, model%isostasy%load)
        call coordsystem_allocate(model%grid%ice_grid, model%isostasy%load_factors)
        call coordsystem_allocate(model%grid%ice_grid, model%isostasy%tau_relax)

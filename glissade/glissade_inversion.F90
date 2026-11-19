@@ -148,7 +148,7 @@ contains
                    ! convert to meters (can skip the conversion when code scaling is removed)
                    h_obs = thck_obs(i,j)
                    h_flotation = -(rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)
-                   h_buff = model%inversion%thck_flotation_buffer
+                   h_buff = model%inversion%inversion_thck_flotation_buffer
                    dh = h_obs - h_flotation
                    if (abs(dh) < h_buff) then
                       if (dh > 0.0d0) then
@@ -173,15 +173,15 @@ contains
           do j = nhalo+1, nsn-nhalo
              do i = nhalo+1, ewn-nhalo
                 if (verbose_inversion .and. thck_obs(i,j) > 0.0d0 .and. &
-                     thck_obs(i,j) + eps08 < model%inversion%thck_threshold) then
+                     thck_obs(i,j) + eps08 < model%inversion%inversion_thck_threshold) then
                    !WHL - debug
                    ! write(iulog,*) 'thck_obs < threshold, rank, i, j, thck:', this_rank, i, j, thck_obs(i,j)
                 endif
              enddo
           enddo
 
-          model%inversion%thck_threshold = max(model%inversion%thck_threshold, model%numerics%thcklim)
-          where (thck_obs + eps08 <= model%inversion%thck_threshold)
+          model%inversion%inversion_thck_threshold = max(model%inversion%inversion_thck_threshold, model%numerics%thcklim)
+          where (thck_obs + eps08 <= model%inversion%inversion_thck_threshold)
              thck_obs = 0.0d0
           endwhere
 
@@ -320,7 +320,7 @@ contains
                      - (rhoi/rhoo)*model%geometry%thck(i,j))            ! f_flotation < 0 for grounded ice
                 if (model%geometry%thck(i,j) > 0.0d0 .and. &
                     model%geometry%marine_connection_mask(i,j) == 1 .and. &
-                    f_flotation(i,j) > -model%inversion%basin_flotation_threshold) then
+                    f_flotation(i,j) > -model%inversion%inversion_basin_flotation_threshold) then
                    model%inversion%floating_thck_target(i,j) = model%geometry%thck(i,j)
                 else
                    model%inversion%floating_thck_target(i,j) = 0.0d0
@@ -462,23 +462,23 @@ contains
           endif
 
           call invert_basal_friction(&
-               model%time%dt,                            &  ! s
-               ewn,               nsn,                   &
-               model%grid%dew,                           &  ! m
-               model%grid%dns,                           &  ! m
-               itest,    jtest,   rtest,                 &
-               model%inversion%babc_thck_scale,          &  ! m
-               model%inversion%babc_timescale,           &  ! s
-               model%inversion%babc_length_scale,        &  ! m
-               model%inversion%babc_relax_factor,        &
-               model%inversion%damping_factor,           &
-               model%basal_physics%powerlaw_c_max,       &
-               model%basal_physics%powerlaw_c_min,       &
-               model%geometry%f_ground,                  &
-               stag_thck,                                &  ! m
-               stag_thck_obs,                            &  ! m
-               stag_dthck_dt,                            &  ! m/s
-               model%basal_physics%powerlaw_c_const,     &  ! relax to this value
+               model%time%dt,                               &  ! s
+               ewn,               nsn,                      &
+               model%grid%dew,                              &  ! m
+               model%grid%dns,                              &  ! m
+               itest,    jtest,   rtest,                    &
+               model%inversion%inversion_babc_thck_scale,   & ! m
+               model%inversion%inversion_babc_timescale,    &  ! s
+               model%inversion%inversion_babc_length_scale, & ! m
+               model%inversion%inversion_babc_relax_factor, &
+               model%inversion%inversion_damping_factor,    &
+               model%basal_physics%powerlaw_c_max,          &
+               model%basal_physics%powerlaw_c_min,          &
+               model%geometry%f_ground,                     &
+               stag_thck,                                   &  ! m
+               stag_thck_obs,                               &  ! m
+               stag_dthck_dt,                               &  ! m/s
+               model%basal_physics%powerlaw_c_const,        &  ! relax to this value
                model%basal_physics%powerlaw_c)
 
           ! halo update
@@ -498,23 +498,23 @@ contains
           endif
 
           call invert_basal_friction(&
-               model%time%dt,                            &  ! s
-               ewn,               nsn,                   &
-               model%grid%dew,                           &  ! m
-               model%grid%dns,                           &  ! m
-               itest,    jtest,   rtest,                 &
-               model%inversion%babc_thck_scale,          &  ! m
-               model%inversion%babc_timescale,           &  ! s
-               model%inversion%babc_length_scale,        &  ! m
-               model%inversion%babc_relax_factor,        &
-               model%inversion%damping_factor,           &
-               model%basal_physics%coulomb_c_max,        &
-               model%basal_physics%coulomb_c_min,        &
-               model%geometry%f_ground,                  &
-               stag_thck,                                &  ! m
-               stag_thck_obs,                            &  ! m
-               stag_dthck_dt,                            &  ! m/s
-               model%basal_physics%coulomb_c_const,      &  ! relax to this value
+               model%time%dt,                               &  ! s
+               ewn,               nsn,                      &
+               model%grid%dew,                              &  ! m
+               model%grid%dns,                              &  ! m
+               itest,    jtest,   rtest,                    &
+               model%inversion%inversion_babc_thck_scale,   & ! m
+               model%inversion%inversion_babc_timescale,    &  ! s
+               model%inversion%inversion_babc_length_scale, & ! m
+               model%inversion%inversion_babc_relax_factor, &
+               model%inversion%inversion_damping_factor,    &
+               model%basal_physics%coulomb_c_max,           &
+               model%basal_physics%coulomb_c_min,           &
+               model%geometry%f_ground,                     &
+               stag_thck,                                   &  ! m
+               stag_thck_obs,                               &  ! m
+               stag_dthck_dt,                               &  ! m/s
+               model%basal_physics%coulomb_c_const,         &  ! relax to this value
                model%basal_physics%coulomb_c)
 
           ! halo update
@@ -591,25 +591,25 @@ contains
           endif
 
           call invert_basal_friction_basin(&
-               model%time%dt,                             &  ! s
-               ewn, nsn,                                  &
-               model%grid%dew,                            &  ! m
-               model%grid%dns,                            &  ! m
-               parallel,                                  &
-               itest, jtest, rtest,                       &
-               model%ocean_data%nbasin,                   &
-               model%ocean_data%basin_number,             &
-               stag_thck,                                 &  ! m
-               stag_dthck_dt,                             &  ! m/s
-               stag_thck_target,                          &  ! m
-               stag_rmask,                                &
-               model%inversion%babc_thck_scale,           &  ! m
-               model%inversion%babc_timescale,            &  ! s
-               model%inversion%babc_relax_factor,         &
-               model%inversion%damping_factor,            &
-               model%basal_physics%powerlaw_c_max,        &
-               model%basal_physics%powerlaw_c_min,        &
-               model%basal_physics%powerlaw_c_const,      &  ! relax to this value
+               model%time%dt,                               &  ! s
+               ewn, nsn,                                    &
+               model%grid%dew,                              &  ! m
+               model%grid%dns,                              &  ! m
+               parallel,                                    &
+               itest, jtest, rtest,                         &
+               model%ocean_data%nbasin,                     &
+               model%ocean_data%basin_number,               &
+               stag_thck,                                   &  ! m
+               stag_dthck_dt,                               &  ! m/s
+               stag_thck_target,                            &  ! m
+               stag_rmask,                                  &
+               model%inversion%inversion_babc_thck_scale,   &  ! m
+               model%inversion%inversion_babc_timescale,    &  ! s
+               model%inversion%inversion_babc_relax_factor, &
+               model%inversion%inversion_damping_factor,    &
+               model%basal_physics%powerlaw_c_max,          &
+               model%basal_physics%powerlaw_c_min,          &
+               model%basal_physics%powerlaw_c_const,        &  ! relax to this value
                model%basal_physics%powerlaw_c)
 
           call parallel_halo(model%basal_physics%powerlaw_c, parallel)
@@ -626,25 +626,25 @@ contains
           endif
 
           call invert_basal_friction_basin(&
-               model%time%dt,                             &  ! s
-               ewn, nsn,                                  &
-               model%grid%dew,                            &  ! m
-               model%grid%dns,                            &  ! m
-               parallel,                                  &
-               itest, jtest, rtest,                       &
-               model%ocean_data%nbasin,                   &
-               model%ocean_data%basin_number,             &
-               stag_thck,                                 &  ! m
-               stag_dthck_dt,                             &  ! m/s
-               stag_thck_target,                          &  ! m
-               stag_rmask,                                &
-               model%inversion%babc_thck_scale,           &  ! m
-               model%inversion%babc_timescale,            &  ! s
-               model%inversion%babc_relax_factor,         &
-               model%inversion%damping_factor,            &
-               model%basal_physics%coulomb_c_max,         &
-               model%basal_physics%coulomb_c_min,         &
-               model%basal_physics%coulomb_c_const,       &  ! relax to this value
+               model%time%dt,                               &  ! s
+               ewn, nsn,                                    &
+               model%grid%dew,                              &  ! m
+               model%grid%dns,                              &  ! m
+               parallel,                                    &
+               itest, jtest, rtest,                         &
+               model%ocean_data%nbasin,                     &
+               model%ocean_data%basin_number,               &
+               stag_thck,                                   &  ! m
+               stag_dthck_dt,                               &  ! m/s
+               stag_thck_target,                            &  ! m
+               stag_rmask,                                  &
+               model%inversion%inversion_babc_thck_scale,   &  ! m
+               model%inversion%inversion_babc_timescale,    &  ! s
+               model%inversion%inversion_babc_relax_factor, &
+               model%inversion%inversion_damping_factor,    &
+               model%basal_physics%coulomb_c_max,           &
+               model%basal_physics%coulomb_c_min,           &
+               model%basal_physics%coulomb_c_const,         &  ! relax to this value
                model%basal_physics%coulomb_c)
 
           call parallel_halo(model%basal_physics%coulomb_c, parallel)
@@ -692,24 +692,24 @@ contains
        endif
 
        call invert_deltaT_ocn_basin(&
-            model%time%dt,                             &  ! s
-            ewn, nsn,                                  &
-            model%grid%dew,                            &  ! m
-            model%grid%dns,                            &  ! m
-            parallel,                                  &
-            itest, jtest, rtest,                       &
-            model%ocean_data%nbasin,                   &
-            model%ocean_data%basin_number,             &
-            model%geometry%thck,                       &  ! m
-            model%geometry%dthck_dt,                   &  ! m/s
-            model%inversion%floating_thck_target,      &  ! m
-            model%inversion%deltaT_ocn_thck_scale,     &  ! m
-            model%inversion%deltaT_ocn_timescale,      &  ! s
-            model%inversion%deltaT_ocn_temp_scale,     &  ! degC
-            model%inversion%deltaT_basin_relax,        &  ! degC
-            model%inversion%damping_factor,            &
-            model%inversion%basin_mass_correction,     &
-            model%inversion%basin_number_mass_correction, &
+            model%time%dt,                                          &  ! s
+            ewn, nsn,                                               &
+            model%grid%dew,                                         &  ! m
+            model%grid%dns,                                         &  ! m
+            parallel,                                               &
+            itest, jtest, rtest,                                    &
+            model%ocean_data%nbasin,                                &
+            model%ocean_data%basin_number,                          &
+            model%geometry%thck,                                    &  ! m
+            model%geometry%dthck_dt,                                &  ! m/s
+            model%inversion%floating_thck_target,                   &  ! m
+            model%inversion%inversion_deltaT_ocn_thck_scale,        & ! m
+            model%inversion%inversion_deltaT_ocn_timescale,         & ! s
+            model%inversion%inversion_deltaT_ocn_temp_scale,        & ! degC
+            model%inversion%inversion_deltaT_basin_relax,           & ! degC
+            model%inversion%inversion_damping_factor,               &
+            model%inversion%inversion_basin_mass_correction,        &
+            model%inversion%inversion_basin_number_mass_correction, &
             model%ocean_data%deltaT_ocn)
 
        call parallel_halo(model%ocean_data%deltaT_ocn, parallel)
@@ -758,21 +758,21 @@ contains
        endif
 
        call invert_deltaT_ocn(&
-            model%time%dt,                         &  ! s
-            ewn,           nsn,                    &
-            model%grid%dew,                        &  ! m
-            model%grid%dns,                        &  ! m
-            itest, jtest,  rtest,                  &
-            model%inversion%deltaT_ocn_thck_scale, &  ! m
-            model%inversion%deltaT_ocn_timescale,  &  ! s
-            model%inversion%deltaT_ocn_temp_scale, &  ! degC
-            model%inversion%deltaT_ocn_length_scale,& ! m
-            deltaT_ocn_relax,                      &  ! degC
-            model%inversion%damping_factor,        &
-            model%geometry%f_ground_cell,          &
-            model%geometry%thck,                   &  ! m
-            thck_obs,                              &  ! m
-            model%geometry%dthck_dt,               &  ! m/s
+            model%time%dt,                                     &  ! s
+            ewn,           nsn,                                &
+            model%grid%dew,                                    &  ! m
+            model%grid%dns,                                    &  ! m
+            itest, jtest,  rtest,                              &
+            model%inversion%inversion_deltaT_ocn_thck_scale,   & ! m
+            model%inversion%inversion_deltaT_ocn_timescale,    & ! s
+            model%inversion%inversion_deltaT_ocn_temp_scale,   & ! degC
+            model%inversion%inversion_deltaT_ocn_length_scale, & ! m
+            deltaT_ocn_relax,                                  &  ! degC
+            model%inversion%inversion_damping_factor,          &
+            model%geometry%f_ground_cell,                      &
+            model%geometry%thck,                               &  ! m
+            thck_obs,                                          &  ! m
+            model%geometry%dthck_dt,                           &  ! m/s
             model%ocean_data%deltaT_ocn)              ! degC
 
        ! When applying certain calving schemes, we do not want to invert locally for deltaT_ocn
