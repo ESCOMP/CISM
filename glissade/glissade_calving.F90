@@ -761,7 +761,7 @@ contains
        else
 
           ! Apply a calving scheme with a subgrid calving front
-          ! Note: which_ho_calving_front determines whether marine-grounded cells
+          ! Note: subgrid_calving_front determines whether marine-grounded cells
           !       (in addition to floating cells) can be marked as CF cells
           if (main_task .and. verbose_calving) write(iulog,*) 'Call calve_ice_subgrid'
 
@@ -791,7 +791,7 @@ contains
                model%geometry%topg,                    &        ! m
                model%climate%eus)                          ! m
 
-       endif   ! which_ho_calving_front
+       endif   ! subgrid_calving_front
 
     endif   ! calving_grid_mask
 
@@ -966,7 +966,7 @@ contains
 
   subroutine calve_ice_basic(&
        nx,             ny,      &
-       which_calving,           &
+       calving_law,             &
        calving_domain,          &
        parallel,                &
        calving,                 &  ! calving derived type
@@ -990,7 +990,7 @@ contains
     integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
 
     !TODO: Move these options to the calving derived type
-    integer, intent(in) :: which_calving           !> option for calving law
+    integer, intent(in) :: calving_law           !> option for calving law
     integer, intent(in) :: calving_domain          !> option for where calving can occur
                                                    !> = 0 if calving occurs at the ocean edge only
                                                    !> = 1 if calving occurs everywhere the calving criterion is met
@@ -1041,14 +1041,14 @@ contains
 
     ! initialize
 
-    if (which_calving == CALVING_LAW_NONE) then   ! do nothing
+    if (calving_law == CALVING_LAW_NONE) then   ! do nothing
        if (verbose_calving .and. main_task) write(iulog,*) 'No calving'
        return
     endif
 
     if (verbose_calving .and. main_task) then
        write(iulog,*) ' '
-       write(iulog,*) 'In glissade_calve_ice_basic, which_calving =', which_calving
+       write(iulog,*) 'In glissade_calve_ice_basic, calving_law =', calving_law
        write(iulog,*) 'calving_domain =', calving_domain
     endif
 
@@ -1063,7 +1063,7 @@ contains
        float_fraction_calve = min(dt/calving%calving_timescale, 1.0d0)
     endif
 
-    ! Do the calving based on the value of which_calving
+    ! Do the calving based on the value of calving_law
 
     ! Get masks.
     ! Use thickness limit of 0.0 instead of thck_threshold so as to remove ice from any cell
@@ -1082,7 +1082,7 @@ contains
     ! Note: Cells that meet the calving-law criteria will be calved provided they also lie in the calving domain,
     !       as determined below.
 
-    select case (which_calving)
+    select case (calving_law)
 
     case(CALVING_LAW_FLOAT_ZERO)     ! calve ice that is floating
 
@@ -1179,9 +1179,9 @@ contains
 
   subroutine calve_ice_subgrid(&
        nx,             ny,      &
-       which_calving,           &
-       which_ho_calving_front,  &
-       which_lateral_melt,      &
+       calving_law,             &
+       subgrid_calving_front,   &
+       lateral_melt_method,     &
        parallel,                &
        calving,                 &  ! calving derived type
        lateral_melt,            &  ! lateral melt derived type
@@ -1214,11 +1214,11 @@ contains
     integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
 
     !TODO: Move these options to the calving derived type?
-    integer, intent(in) :: which_calving           !> option for calving law
-    logical, intent(in) :: which_ho_calving_front  !> if true, use the subgrid CF scheme
+    integer, intent(in) :: calving_law           !> option for calving law
+    logical, intent(in) :: subgrid_calving_front  !> if true, use the subgrid CF scheme
                                                    !> 1 = floating ice only; 2 = both floating and marine-grounded ice
 
-    integer, intent(in) :: which_lateral_melt      !> option for lateral melt
+    integer, intent(in) :: lateral_melt_method      !> option for lateral melt
 
     type(parallel_type), intent(in) :: parallel    !> info for parallel communication
 
@@ -1235,7 +1235,7 @@ contains
 !    real(dp), dimension(:,:), intent(in)     :: eps_eigen2          !> second eigenvalue of 2D horizontal strain-rate tensor (1/s)
 !    real(dp), dimension(:,:,:), intent(inout):: damage              !> 3D scalar damage parameter
 !    real(dp), intent(in)                     :: damage_threshold    !> threshold value where ice is sufficiently damaged to calve
-!    real(dp), intent(in)                     :: damage_constant     !> rate of change of damage (1/s) per unit stress (Pa)
+!    real(dp), intent(in)                     :: damage_const     !> rate of change of damage (1/s) per unit stress (Pa)
 !    real(dp), intent(in)            :: cf_advance_retreat_amplitude !> amplitude (m/yr) of CF advance/retreat rate
 !    real(dp), intent(in)            :: cf_advance_retreat_period    !> period (yr) of CF advance/retreat rate
 !    integer,  dimension(:,:), intent(in)     :: beyond_cf_mask      !> = 1 for cells beyond the CF that are not allowed to fill
@@ -1329,13 +1329,13 @@ contains
 
     if (verbose_calving .and. main_task) then
        write(iulog,*) ' '
-       write(iulog,*) 'In glissade_calve_ice_subgrid, which_calving =', which_calving
+       write(iulog,*) 'In glissade_calve_ice_subgrid, calving_law =', calving_law
     endif
 
     !WHL - Not sure if this update is needed
     call parallel_halo(thck, parallel)
 
-    ! Apply a subgrid-based calving scheme based on the value of which_calving.
+    ! Apply a subgrid-based calving scheme based on the value of calving_law.
     ! Use one of the following schemes:
     ! * prescribed advance/retreat rate
     ! * thickness-based calving
@@ -1430,7 +1430,7 @@ contains
 
     call glissade_calving_front_mask(&
          nx,            ny,             &
-         which_ho_calving_front,        &
+         subgrid_calving_front,         &
          parallel,                      &
          itest, jtest,  rtest,          &
          thck,          topg,           &
@@ -1453,7 +1453,7 @@ contains
 
     ! Compute the effective length of the calving front in each grid cell
 
-    if (which_calving == CALVING_LAW_ADVANCE_RETREAT_RATE) then
+    if (calving_law == CALVING_LAW_ADVANCE_RETREAT_RATE) then
 
        ! compute the CF length as a function of a cell's location on the unit circle
        ! surrounding the origin (assuming a radially symmetric calving rate).
@@ -1481,7 +1481,7 @@ contains
             ocean_mask,                   &
             cf_length)
 
-    endif   ! which_calving
+    endif   ! calving_law
 
     call parallel_halo(cf_length, parallel)
 
@@ -1497,7 +1497,7 @@ contains
     ! Depending on the calving method, compute the calving rate for each grid cell
     ! and convert to an equivalent thinning rate.
 
-    if (which_calving == CALVING_LAW_ADVANCE_RETREAT_RATE) then
+    if (calving_law == CALVING_LAW_ADVANCE_RETREAT_RATE) then
 
        call calving_front_advance_retreat(&
             nx,                 ny,                    &
@@ -1513,7 +1513,7 @@ contains
             calving%cf_advance_retreat_period*scyr,    &  ! s
             calving_dthck)                                ! m
 
-    elseif (which_calving == CALVING_LAW_THCK_THRESHOLD) then
+    elseif (calving_law == CALVING_LAW_THCK_THRESHOLD) then
 
        call extrapolate_to_calving_front(&
             nx,                 ny,     &
@@ -1534,7 +1534,7 @@ contains
             calving%calving_thck_threshold,            &  ! m
             calving_dthck)                                ! m
 
-    elseif (which_calving == CALVING_LAW_STRESS) then
+    elseif (calving_law == CALVING_LAW_STRESS) then
 
        call extrapolate_to_calving_front(&
             nx,                 ny,     &
@@ -1590,7 +1590,7 @@ contains
 
        endif
 
-    elseif (which_calving == CALVING_LAW_STRESS_STOCHASTIC) then
+    elseif (calving_law == CALVING_LAW_STRESS_STOCHASTIC) then
 
        call extrapolate_to_calving_front(&
             nx,                 ny,     &
@@ -1628,7 +1628,7 @@ contains
             calving%calving_length_scale,      &  ! m
             calving_dthck)                        ! m
 
-    elseif (which_calving == CALVING_LAW_EIGENCALVING) then
+    elseif (calving_law == CALVING_LAW_EIGENCALVING) then
 
        call extrapolate_to_calving_front(&
             nx,                 ny,     &
@@ -1653,7 +1653,7 @@ contains
 
        !TODO: Add thickness-based calving, as for stress-based calving above
 
-    elseif (which_calving == CALVING_LAW_DAMAGE) then
+    elseif (calving_law == CALVING_LAW_DAMAGE) then
 
        call extrapolate_to_calving_front(&
             nx,                 ny,     &
@@ -1693,13 +1693,13 @@ contains
             calving_dthck,                          &  ! m
             calving%eps_eigen1, calving%eps_eigen2)    ! 1/s
 
-    endif   ! which_calving
+    endif   ! calving_law
 
     call parallel_halo(calving_dthck, parallel)
 
     ! Apply calving_dthck as computed above.
 
-    if (which_calving == CALVING_LAW_DAMAGE) then
+    if (calving_law == CALVING_LAW_DAMAGE) then
 
        ! different treatment of calving_dthck because we can calve cells not on the CF
        where (calving_dthck == thck)
@@ -1714,7 +1714,7 @@ contains
 
        upstream_calving_mask = 0
 
-       if (which_ho_calving_front) then
+       if (subgrid_calving_front) then
           where (floating_mask == 1)
              upstream_calving_mask = 1
           endwhere
@@ -1754,7 +1754,7 @@ contains
 
     call glissade_calving_front_mask(&
          nx,            ny,             &
-         which_ho_calving_front,        &
+         subgrid_calving_front,         &
          parallel,                      &
          itest, jtest,  rtest,          &
          thck,          topg,           &
@@ -1808,7 +1808,7 @@ contains
 
        call glissade_calving_front_mask(&
             nx,            ny,             &
-            which_ho_calving_front,        &
+            subgrid_calving_front,         &
             parallel,                      &
             itest, jtest,  rtest,          &
             thck,          topg,           &
@@ -2577,12 +2577,12 @@ contains
        cf_length,                         &  ! m
        thck_effective,                    &  ! m
        eps_eigen1,    eps_eigen2,         &  ! 1/s
-       eigenconstant,                     &  ! m
+       eigencalving_const,                &  ! m
        calving_dthck)                        ! m
 
     ! Calve ice based on the eigenvalues of the 2D horizontal stress tensor near the calving front,
     !  following Levermann et al. (2012).
-    ! Here, eigenconstant corresponds to the Levermann K, but with different units because
+    ! Here, eigencalving_const corresponds to the Levermann K, but with different units because
     !  it multiplies the geometric mean of strain rates rather than the product.
 
     ! input/output arguments
@@ -2604,7 +2604,7 @@ contains
          eps_eigen1, eps_eigen2    ! eigenvalues of the horizontal strain rate tensor (1/s)
 
     real(dp), intent(in) :: &
-         eigenconstant             ! strain-rate multiplier (m)
+         eigencalving_const             ! strain-rate multiplier (m)
 
     real(dp), dimension(nx,ny), intent(inout) :: &
          calving_dthck             ! thickness lost due to calving (m)
@@ -2640,7 +2640,7 @@ contains
           if (calving_front_mask(i,j) == 1) then
 
              if (eps_eigen1(i,j) > 0.0d0 .and. eps_eigen2(i,j) > 0.0d0) then
-                lateral_rate(i,j) = eigenconstant * sqrt(eps_eigen1(i,j) * eps_eigen2(i,j))
+                lateral_rate(i,j) = eigencalving_const * sqrt(eps_eigen1(i,j) * eps_eigen2(i,j))
              endif
 
              calving_dthck(i,j) = lateral_rate(i,j) * dt * thck_effective(i,j) * cf_length(i,j) / (dx*dy)
@@ -2855,7 +2855,7 @@ contains
        tau_eigenconstant2,                &  ! 1/s
        stress_threshold,                  &  ! Pa
        effec_stress_min,                  &  ! Pa
-       damage_constant,                   &  ! Pa s
+       damage_const,                      &  ! Pa s
        damage,                            &
        calving_dthck,                     &  ! m
        eps_eigen1,    eps_eigen2)            ! 1/s
@@ -2896,7 +2896,7 @@ contains
          tau_eigenconstant2,     & ! multiplier for tau_eigen2 (unitless)
          stress_threshold,       & ! stress value at which damage begins (Pa)
          effec_stress_min,       & ! min value for effec_stress (Pa)
-         damage_constant           ! damage scaling term (Pa s)
+         damage_const           ! damage scaling term (Pa s)
 
     real(dp), dimension(nz-1,nx,ny), intent(inout) :: &
          damage                    ! 3D damage tracer, 0 > damage < 1
@@ -2972,9 +2972,9 @@ contains
        do i = 1, nx-1
           if (floating_mask(i,j) == 1) then
              !WHL - Assume a threshold of zero?
-!!             d_damage_dt = (effec_stress(i,j) - stress_threshold) / damage_constant
-             ! Note: damage_constant has units of Pa*s, so d_damage_dt has units of 1/s
-             d_damage_dt = effec_stress(i,j) / damage_constant
+!!             d_damage_dt = (effec_stress(i,j) - stress_threshold) / damage_const
+             ! Note: damage_const has units of Pa*s, so d_damage_dt has units of 1/s
+             d_damage_dt = effec_stress(i,j) / damage_const
              damage(:,i,j) = damage(:,i,j) + d_damage_dt * dt
              damage(:,i,j) = min(damage(:,i,j), 1.0d0)
              damage(:,i,j) = max(damage(:,i,j), 0.0d0)
@@ -3318,7 +3318,7 @@ contains
 
     integer, dimension(nx,ny), intent(in)  ::  &
          calving_front_mask,     & ! = 1 where ice is floating and borders at least one ocean cell, else = 0
-                                   ! can include marine-grounded cells for the which_ho_calving_front option 2
+                                   ! can include marine-grounded cells for the subgrid_calving_front option 2
          upstream_calving_mask     ! = 1 for upstream interior cells that are allowed to calve, else = 0
 
     real(dp), dimension(-1:1,-1:1,nx,ny), intent(in) :: &

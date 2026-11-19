@@ -915,7 +915,7 @@
           model%calving%effective_areafrac = 0.0d0
        endwhere
 
-    endif  ! which_ho_calving_front
+    endif  ! subgrid_calving_front
 
     ! TODO: Zero out acab and bmlt in cells that are ice-free ocean after transport?
     !       Then it would not be necessary to pass ocean_mask to mass_balance_driver.

@@ -983,10 +983,10 @@ contains
 
     endif   ! force_retreat
 
-    !Note: With which_ho_calving_front = 0 (i.e., without a subgrid calving-front parameterization),
+    !Note: With subgrid_calving_front = .false. (i.e., without a subgrid calving-front parameterization),
     !      we can use a binary integer mask (= 1 where calving is enforced, else = 0) to calve ice
     !      in a prescribed region, e.g., beyond the observed calving front.
-    !      With which_ho_calving_front = 1 (i.e., with a subgrid calving parameterization), we compute
+    !      With subgrid_calving_front = .true. (i.e., with a subgrid calving parameterization), we compute
     !       a real mask in the range (0.0,1.0). For values between 0 and 1, the calving thins the ice
     !       such that the effective area fraction a_eff = H/H_eff = 1 - maskval.
     !      To combine a calving mask with another calving option, the user can set apply_calving_mask = .true.

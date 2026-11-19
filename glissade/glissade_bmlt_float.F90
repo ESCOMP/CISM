@@ -72,7 +72,7 @@ module glissade_bmlt_float
 !****************************************************
 
   !TODO - Break up this subroutine into shorter subroutines called from glissade_bmlt_float_solve
-  subroutine glissade_basal_melting_float(whichbmlt_float,              &
+  subroutine glissade_basal_melting_float(bmlt_float_method,            &
                                           parallel,                     &
                                           ewn,         nsn,             &
                                           dew,         dns,             &
@@ -92,7 +92,7 @@ module glissade_bmlt_float
     ! Input/output arguments
     !-----------------------------------------------------------------
 
-    integer, intent(in) :: whichbmlt_float            ! method for computing melt rate of floating ice
+    integer, intent(in) :: bmlt_float_method            ! method for computing melt rate of floating ice
 
     type(parallel_type), intent(in) :: &
          parallel                ! info for parallel communication
@@ -167,7 +167,7 @@ module glissade_bmlt_float
     ! Compute the basal melt rate for floating ice
     !-----------------------------------------------------------------
 
-    if (main_task .and. verbose_bmlt_float) write(iulog,*) 'Computing bmlt_float, whichbmlt_float =', whichbmlt_float
+    if (main_task .and. verbose_bmlt_float) write(iulog,*) 'Computing bmlt_float, bmlt_float_method =', bmlt_float_method
 
     ! Set bmlt_float pointer and initialize
     bmlt_float  => basal_melt%bmlt_float
@@ -188,7 +188,7 @@ module glissade_bmlt_float
                             floating_mask = floating_mask, &
                             ocean_mask = ocean_mask)
 
-    if (whichbmlt_float == BMLT_FLOAT_METHOD_CONSTANT) then
+    if (bmlt_float_method == BMLT_FLOAT_METHOD_CONSTANT) then
 
        ! Set melt rate to a constant value for floating ice.
        ! This includes ice-free ocean cells, in case ice is advected to those cells by the transport scheme.
@@ -215,7 +215,7 @@ module glissade_bmlt_float
           enddo
        enddo
 
-    elseif (whichbmlt_float == BMLT_FLOAT_METHOD_MISMIP) then   ! MISMIP+
+    elseif (bmlt_float_method == BMLT_FLOAT_METHOD_MISMIP) then   ! MISMIP+
 
        ! compute melt rate based on bed depth and cavity thickness
        !
@@ -257,7 +257,7 @@ module glissade_bmlt_float
           call point_diag(bmlt_float*scyr, 'bmlt_float (m/yr)', itest, jtest, rtest, 7, 7)
        endif
 
-    elseif (whichbmlt_float == BMLT_FLOAT_METHOD_DEPTH) then
+    elseif (bmlt_float_method == BMLT_FLOAT_METHOD_DEPTH) then
 
        ! Compute melt rates as a piecewise linear function of depth, generally with greater melting at depth.
        ! This scheme is similar to the MISMIP scheme, with the additional option of near-surface freezing.
@@ -348,7 +348,7 @@ module glissade_bmlt_float
        endif
 
 
-    endif   ! whichbmlt_float
+    endif   ! bmlt_float_method
 
   end subroutine glissade_basal_melting_float
 
@@ -491,7 +491,7 @@ module glissade_bmlt_float
              enddo
           endif
 
-       endif  ! ocean_data_extrapolate
+       endif  ! extrapolate_ocean_data
 
        ! initialization for the ISMIP6 basal melt options
 
@@ -581,7 +581,7 @@ module glissade_bmlt_float
 
              ! Call the driver subruotine to calibrate deltaT_ocn and compute the resulting bmlt_float.
              ! With calibrate = T, the driver subroutine will call compute_bmlt_float_thermal_forcing
-             !  with which_ho_deltaT_ocn == DELTAT_OCN_METHOD_CALIBRATE_BASIN.
+             !  with deltaT_ocn_method == DELTAT_OCN_METHOD_CALIBRATE_BASIN.
              ! This is the signal to calibrate deltaT_ocn in the process of computing bmlt_float.
              ! Note: f_ground_cell must be up to date; that's done above
 
@@ -730,7 +730,7 @@ module glissade_bmlt_float
             model%basal_melt%bmlt_float_gamma0,       &
             model%basal_melt%thermal_forcing_mask,    &
             model%basal_melt%bmlt_float,              &   ! m/s
-            which_ho_deltaT_ocn = model%basal_melt%deltaT_ocn_method,  &
+            deltaT_ocn_method = model%basal_melt%deltaT_ocn_method,  &
             dthck_dt_obs = model%geometry%dthck_dt_obs)   ! m/s
 
        if (verbose_bmlt_float) then
@@ -949,25 +949,25 @@ module glissade_bmlt_float
        if (calibrate) then   ! one-time calibration of deltaT_ocn based on a melt rate target
 
           call compute_bmlt_float_thermal_forcing(&
-               model%basal_melt%bmlt_float_thermal_forcing_param,        &
-               model%ocean_data%extrapolate_ocean_data,                  &
-               parallel,                                                 &
-               ewn,                nsn,                                  &
-               dew,                dns,                                  & ! m
-               itest,     jtest,   rtest,                                &
-               ice_mask,                                                 &
-               floating_mask,                                            &
-               ocean_mask,                                               &
-               model%geometry%marine_connection_mask,                    &
-               model%geometry%f_ground_cell,                             &
-               model%geometry%thck,                                      & ! m
-               model%geometry%lsrf,                                      & ! m
-               model%geometry%topg,                                      & ! m
-               model%ocean_data,                                         &
-               model%basal_melt%bmlt_float_gamma0,                       &
-               model%basal_melt%thermal_forcing_mask,                    &
-               model%basal_melt%bmlt_float,                              & ! m/s
-               which_ho_deltaT_ocn = model%basal_melt%deltaT_ocn_method, &  ! K
+               model%basal_melt%bmlt_float_thermal_forcing_param,      &
+               model%ocean_data%extrapolate_ocean_data,                &
+               parallel,                                               &
+               ewn,                nsn,                                &
+               dew,                dns,                                & ! m
+               itest,     jtest,   rtest,                              &
+               ice_mask,                                               &
+               floating_mask,                                          &
+               ocean_mask,                                             &
+               model%geometry%marine_connection_mask,                  &
+               model%geometry%f_ground_cell,                           &
+               model%geometry%thck,                                    & ! m
+               model%geometry%lsrf,                                    & ! m
+               model%geometry%topg,                                    & ! m
+               model%ocean_data,                                       &
+               model%basal_melt%bmlt_float_gamma0,                     &
+               model%basal_melt%thermal_forcing_mask,                  &
+               model%basal_melt%bmlt_float,                            & ! m/s
+               deltaT_ocn_method = model%basal_melt%deltaT_ocn_method, &
                bmlt_float_target = model%basal_melt%bmlt_float_target)      ! m/s
 
        else   ! usual runtime computation of bmlt_float
@@ -1080,7 +1080,7 @@ module glissade_bmlt_float
              model%basal_melt%bmlt_float = 0.0d0
           endwhere
 
-       endif  ! which_ho_ground_bmlt
+       endif  ! grounding_line_bmlt
 
     else
 
@@ -1134,7 +1134,7 @@ module glissade_bmlt_float
     if (verbose_bmlt_float) then
        if (this_rank == rtest) then
           write(iulog,*) ' '
-          write(iulog,*) 'After glissade_bmlt_float_solve, which_ho_ground_bmlt =', model%grounding_line%grounding_line_bmlt
+          write(iulog,*) 'After glissade_bmlt_float_solve, grounding_line_bmlt =', model%grounding_line%grounding_line_bmlt
        endif
        if (model%grounding_line%grounding_line_param == GROUNDING_LINE_PARAM_DELUXE) then
           call point_diag(1.0d0 - model%geometry%f_ground_cell, '1 - f_ground_cell', itest, jtest, rtest, 7, 7)
@@ -1212,7 +1212,7 @@ module glissade_bmlt_float
 
   subroutine compute_bmlt_float_thermal_forcing(&
        bmlt_float_thermal_forcing_param, &
-       ocean_data_extrapolate,    &
+       extrapolate_ocean_data,    &
        parallel,                  &
        nx,        ny,             &
        dew,       dns,            &
@@ -1231,7 +1231,7 @@ module glissade_bmlt_float
        bmlt_float,                &
        tf_anomaly_in,             &
        tf_anomaly_basin_in,       &
-       which_ho_deltaT_ocn,       &
+       deltaT_ocn_method,         &
        dthck_dt_obs,              &
        bmlt_float_target)
 
@@ -1247,7 +1247,7 @@ module glissade_bmlt_float
                                              !> current options are quadratic and ISMIP6 local, nonlocal and nonlocal_slope
 
     logical, intent(in) :: &
-         ocean_data_extrapolate              !> if true, TF is extrapolated to sub-shelf cavities
+         extrapolate_ocean_data              !> if true, TF is extrapolated to sub-shelf cavities
 
     type(parallel_type), intent(in) :: &
          parallel                            !> info for parallel communication
@@ -1308,7 +1308,7 @@ module glissade_bmlt_float
          tf_anomaly_basin_in    !> basin where anomaly is applied; for default value of 0, apply to all basins
 
     integer, intent(in), optional :: &
-         which_ho_deltaT_ocn    !> option to compute deltaT_ocn; relevant here if = DELTAT_OCN_METHOD_DTHCK_DT
+         deltaT_ocn_method    !> option to compute deltaT_ocn; relevant here if = DELTAT_OCN_METHOD_DTHCK_DT
 
     real(dp), dimension(nx,ny), intent(in), optional :: &
          dthck_dt_obs,        & !> observed rate of thickness change (m/s)
@@ -1355,7 +1355,7 @@ module glissade_bmlt_float
        write(iulog,*) ' '
        write(iulog,*) 'In subroutine glissade_bmlt_float_thermal_forcing'
        write(iulog,*) '   bmlt_float_thermal_forcing_param =', bmlt_float_thermal_forcing_param
-       write(iulog,*) '   ocean_data_extrapolate =', ocean_data_extrapolate
+       write(iulog,*) '   extrapolate_ocean_data =', extrapolate_ocean_data
        write(iulog,*) '   nbasin =', ocean_data%nbasin
     endif
 
@@ -1425,7 +1425,7 @@ module glissade_bmlt_float
     !       On subsequent steps, only a few iterations are needed to extrapolate into newly floating cells.
     !-----------------------------------------------
 
-    if (ocean_data_extrapolate) then
+    if (extrapolate_ocean_data) then
 
        if (verbose_bmlt_float) then
           if (this_rank == rtest) write(iulog,*) 'Extrapolating TF data beneath ice shelves'
@@ -1475,7 +1475,7 @@ module glissade_bmlt_float
           enddo
        endif
 
-    endif   ! ocean_data_extrapolate
+    endif   ! extrapolate_ocean_data
 
     !-----------------------------------------------
     ! Interpolate the thermal forcing to the lower ice surface.
@@ -1630,9 +1630,9 @@ module glissade_bmlt_float
     ! The following call of ismip6_bmlt_float checks that the computation works.
     !-----------------------------------------------
 
-    if (present(which_ho_deltaT_ocn)) then
+    if (present(deltaT_ocn_method)) then
 
-       if (which_ho_deltaT_ocn == DELTAT_OCN_METHOD_CALIBRATE_BASIN) then
+       if (deltaT_ocn_method == DELTAT_OCN_METHOD_CALIBRATE_BASIN) then
 
           ! compute deltaT_ocn_basin to match bmlt_float_target in each basin
           ! Note: After this call, the call below to ismip6_bmlt_float is redundant,
@@ -1659,7 +1659,7 @@ module glissade_bmlt_float
                ocean_data%deltaT_ocn,                &
                ocean_data%deltaT_ocn_basin)
 
-       elseif (which_ho_deltaT_ocn == DELTAT_OCN_METHOD_DTHCK_DT) then  ! compute deltaT_ocn to fit dthck_dt_obs
+       elseif (deltaT_ocn_method == DELTAT_OCN_METHOD_DTHCK_DT) then  ! compute deltaT_ocn to fit dthck_dt_obs
 
           if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_LOCAL) then
 
@@ -1725,9 +1725,9 @@ module glissade_bmlt_float
 
           endif   ! bmlt_float parameterization
 
-       endif  ! which_ho_deltaT_ocn
+       endif  ! deltaT_ocn_method
 
-    endif  ! present(which_ho_deltaT_ocn)
+    endif  ! present(deltaT_ocn_method)
 
     !-----------------------------------------------
     ! Compute the basal melt rate for each grid cell.
