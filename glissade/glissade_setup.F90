@@ -826,14 +826,20 @@ contains
     ! and the units and cells used for the global diagnostics.
 
     use glimmer_config
+    use glimmer_log
     use glissade_types
     implicit none
 
     type(ConfigSection), pointer :: section
     type(glissade_global_type)   :: model
 
-    !Note: Either dt_diag or ndiag can be specified in the config file.
-    !      If dt_diag is specified, it is used to compute ndiag. (Output is written every ndiag timesteps.)
+    character(len=512) :: val
+
+    !Note: Give either dt_diag (yr) or ndiag (time steps) in the config file, not both.
+    !      If dt_diag is given, it is used to compute ndiag. (Output is written every ndiag timesteps.)
+    if (ConfigSectionHasValue(section,'dt_diag',val) .and. ConfigSectionHasValue(section,'ndiag',val)) then
+       call write_log('Error, dt_diag and ndiag are both set in [diagnostics]; set only one of them', GM_FATAL)
+    endif
     call GetValue(section,'idiag',        model%diagnostics%idiag)
     call GetValue(section,'jdiag',        model%diagnostics%jdiag)
     call GetValue(section,'dt_diag',      model%diagnostics%dt_diag)
