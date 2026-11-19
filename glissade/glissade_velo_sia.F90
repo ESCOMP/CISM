@@ -128,15 +128,15 @@
     real(dp)  ::   & 
        thklim, &                ! minimum ice thickness for active cells (m)
        eus,  &                  ! eustatic sea level (m), = 0. by default
-       btrc_const               ! constant basal traction ((m/yr)/Pa) for whichbtrc options
+       btrc_const               ! constant basal traction ((m/yr)/Pa) for btrc_method options
 
     integer :: &
-       whichbtrc,              &! basal traction option for SIA
+       btrc_method,              &! basal traction option for SIA
                                 ! Note: Several, but not all, of the Glide options are supported
-       whichgradient_margin     ! option for computing gradient at ice margin
-                                ! 0 = include all neighbor cells in gradient calculation
-                                ! 1 = include ice-covered and/or land cells
-                                ! 2 = include ice-covered cells only
+       surface_gradient_margin_method     ! option for computing gradient at ice margin
+                                          ! land:   include ice-covered and land neighbors
+                                          ! hybrid: include ice-covered neighbors, and ice-free land below ice
+                                          ! marine: include ice-covered neighbors only
 
     real(dp), dimension(:,:), pointer ::  &
        thck,                 &  ! ice thickness (m)
@@ -197,8 +197,8 @@
     thklim = model%numerics%thcklim
     eus    = model%climate%eus
     btrc_const = model%basal_physics%btrc_const
-    whichbtrc = model%basal_physics%btrc_method
-    whichgradient_margin = model%velocity%surface_gradient_margin_method
+    btrc_method = model%basal_physics%btrc_method
+    surface_gradient_margin_method = model%velocity%surface_gradient_margin_method
 
     sigma    => model%grid%sigma(:)
     thck     => model%geometry%thck(:,:)
@@ -280,7 +280,7 @@
                              ice_mask,    stagger_margin_in = 1)
     enddo
 
-    if (whichbtrc == BTRC_METHOD_CONSTANT_BWAT) then
+    if (btrc_method == BTRC_METHOD_CONSTANT_BWAT) then
 
        ! stagger_margin_in = 1 omits empty cells from the average
 
@@ -288,7 +288,7 @@
                              bwat(:,:),    stagbwat(:,:),   &
                              ice_mask,     stagger_margin_in = 1)
 
-    elseif (whichbtrc == BTRC_METHOD_CONSTANT_BPMP) then
+    elseif (btrc_method == BTRC_METHOD_CONSTANT_BPMP) then
 
        call glissade_stagger(nx,           ny,         &
                              temp(nz,:,:), stagbtemp,  &
@@ -305,7 +305,7 @@
                              bpmp(:,:),    stagbpmp(:,:), &
                              ice_mask,     stagger_margin_in = 1)
 
-    endif    ! whichbtrc
+    endif    ! btrc_method
 
     ! Compute surface elevation gradient
     !
@@ -316,7 +316,7 @@
     !       For the SIA solver, however, checkerboard noise is damped, because
     !        interior ice velocities are computed at cell edges rather than vertices.
     !
-    ! Possible settings for whichgradient_margin:
+    ! Possible settings for surface_gradient_margin_method:
     !   SURFACE_GRADIENT_MARGIN_METHOD_LAND = 0
     !   SURFACE_GRADIENT_MARGIN_METHOD_HYBRID = 1
     !   SURFACE_GRADIENT_MARGIN_METHOD_MARINE = 2
@@ -338,7 +338,7 @@
                            usrf,                   &
                            dusrf_dx,     dusrf_dy, &
                            ice_mask,               &
-                           gradient_margin_in = whichgradient_margin)
+                           gradient_margin_in = surface_gradient_margin_method)
 
     if (verbose_sia .and. main_task) then
        write(iulog,*) ' '
@@ -353,13 +353,13 @@
 
     ! Compute velocity at the bed (ubas, vbas)
 
-    call glissade_velo_sia_bed(nx,         ny,             &
-                               stagthck,   thklim,         &
-                               dusrf_dx,   dusrf_dy,       &
-                               whichbtrc,  stagbwat,       &
-                               stagbtemp,  stagbpmp,       &
-                               btrc,       btrc_const,     &
-                               ubas,       vbas)
+    call glissade_velo_sia_bed(nx,          ny,         &
+                               stagthck,    thklim,     &
+                               dusrf_dx,    dusrf_dy,   &
+                               btrc_method, stagbwat,   &
+                               stagbtemp,   stagbpmp,   &
+                               btrc,        btrc_const, &
+                               ubas,        vbas )
 
     if (verbose_bed) then
        call point_diag(btrc, 'btrc', itest, jtest, rtest, 7, 7)
@@ -369,18 +369,18 @@
 
     ! Compute velocity in the ice interior
 
-    call glissade_velo_sia_interior(nx,       ny,       nz,  &
-                                    dx,       dy,            &
-                                    sigma,    thklim,        &
-                                    itest, jtest, rtest,     &
-                                    usrf,                    &
-                                    thck,     stagthck,      &
-                                    dusrf_dx, dusrf_dy,      &
-                                    stagflwa,                &
-                                    ice_mask,                &
-                                    land_mask,               &
-                                    whichgradient_margin,    &
-                                    ubas,     vbas,          &
+    call glissade_velo_sia_interior(nx,       ny,       nz,         &
+                                    dx,       dy,                   &
+                                    sigma,    thklim,               &
+                                    itest, jtest, rtest,            &
+                                    usrf,                           &
+                                    thck,     stagthck,             &
+                                    dusrf_dx, dusrf_dy,             &
+                                    stagflwa,                       &
+                                    ice_mask,                       &
+                                    land_mask,                      &
+                                    surface_gradient_margin_method, &
+                                    ubas,     vbas,                 &
                                     uvel,     vvel)
 
     call staggered_parallel_halo(uvel, parallel)
@@ -459,7 +459,7 @@
     real(dp), intent(inout) ::   &
        eus,  &                 ! eustatic sea level (= 0 by default)
        thklim,  &              ! minimum ice thickness for active cells
-       btrc_const              ! constant basal traction ((m/yr)/Pa) for whichbtrc options
+       btrc_const              ! constant basal traction ((m/yr)/Pa) for btrc_method options
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        flwa                    ! flow factor in units of Pa^(-n) yr^(-1)
@@ -529,20 +529,20 @@
 
 !*********************************************************************
 
-  subroutine glissade_velo_sia_bed(nx,         ny,             &
-                                   stagthck,   thklim,         &
-                                   dusrf_dx,   dusrf_dy,       &
-                                   whichbtrc,  stagbwat,       &
-                                   stagbtemp,  stagbpmp,       &
-                                   btrc,       btrc_const,     &
-                                   ubas,       vbas)
+  subroutine glissade_velo_sia_bed(nx,          ny,         &
+                                   stagthck,    thklim,     &
+                                   dusrf_dx,    dusrf_dy,   &
+                                   btrc_method, stagbwat,   &
+                                   stagbtemp,   stagbpmp,   &
+                                   btrc,        btrc_const, &
+                                   ubas,        vbas )
 
     !----------------------------------------------------------------
     ! Compute the basal traction coefficient (btrc = 1/beta) and
     ! the resulting basal velocities, assuming these velocities are
     ! a linear function of the gravitational driving stress.
     !
-    ! Note: Not all the Glide whichbtrc options are supported, but
+    ! Note: Not all the Glide btrc_method options are supported, but
     ! we support the ones needed for the EISMINT tests.
     !----------------------------------------------------------------
  
@@ -564,12 +564,12 @@
        thklim                   ! minimum ice thickness for active cells
 
     integer, intent(in) :: &
-       whichbtrc                ! basal traction option for SIA
+       btrc_method                ! basal traction option for SIA
                                 ! Note: Several, but not all, of the Glide options are supported
                                 !       We support the ones used for EISMINT
 
     real(dp), intent(inout) :: & 
-       btrc_const               ! constant basal traction ((m/yr)/Pa) for whichbtrc options
+       btrc_const               ! constant basal traction ((m/yr)/Pa) for btrc_method options
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::   &
        btrc,                  & ! basal traction parameter ((m/yr)/Pa), = 1/beta
@@ -590,7 +590,7 @@
 
              ! Compute basal traction coefficient, btrc = 1/beta
 
-             select case(whichbtrc)
+             select case(btrc_method)
 
              case(BTRC_METHOD_CONSTANT)
 
@@ -649,18 +649,18 @@
 
 !*********************************************************************
 
-  subroutine glissade_velo_sia_interior(nx,       ny,      nz,  &
-                                        dx,       dy,           &
-                                        sigma,    thklim,       &
-                                        itest, jtest, rtest,    &
-                                        usrf,                   &
-                                        thck,     stagthck,     &
-                                        dusrf_dx, dusrf_dy,     &
-                                        stagflwa,               &
-                                        ice_mask,               &
-                                        land_mask,              &
-                                        whichgradient_margin,   &
-                                        ubas,     vbas,         &
+  subroutine glissade_velo_sia_interior(nx,       ny,      nz,          &
+                                        dx,       dy,                   &
+                                        sigma,    thklim,               &
+                                        itest, jtest, rtest,            &
+                                        usrf,                           &
+                                        thck,     stagthck,             &
+                                        dusrf_dx, dusrf_dy,             &
+                                        stagflwa,                       &
+                                        ice_mask,                       &
+                                        land_mask,                      &
+                                        surface_gradient_margin_method, &
+                                        ubas,     vbas,                 &
                                         uvel,     vvel)
 
     !----------------------------------------------------------------
@@ -698,10 +698,10 @@
        land_mask                ! = 1 for land cells, else = 0
 
     integer, intent(in) ::   &
-       whichgradient_margin     ! option for computing gradient at ice margin
-                                ! 0 = include all neighbor cells in gradient calculation
-                                ! 1 = include ice-covered and/or land cells
-                                ! 2 = include ice-covered cells only
+       surface_gradient_margin_method     ! option for computing gradient at ice margin
+                                          ! land:   include ice-covered and land neighbors
+                                          ! hybrid: include ice-covered neighbors, and ice-free land below ice
+                                          ! marine: include ice-covered neighbors only
 
     real(dp), dimension(nz, nx-1,ny-1), intent(out) ::   &
        uvel, vvel               ! velocity components at vertices (m/yr)
@@ -792,7 +792,7 @@
 
     ! Compute ice velocity components at cell edges (u at E edge, v at N edge; relative to bed).
     ! Then interpolate the edge velocities to cell vertices.
-    ! Note: The higher-order default is whichgradient_margin = SURFACE_GRADIENT_MARGIN_METHOD_HYBRID = 1,
+    ! Note: The higher-order default is surface_gradient_margin_method = SURFACE_GRADIENT_MARGIN_METHOD_HYBRID = 1,
     !       which is appropriate for HO problems where we compute lateral spreading at ice cliffs.
     !       The SIA solver does not do this, so this option is a bad idea for SIA problems
     !        with marine ice. (In fact, the SIA is generally ill-suited for problems with marine ice.)
@@ -803,7 +803,7 @@
                                     usrf,                             &
                                     dusrf_dx_edge,    dusrf_dy_edge,  &
                                     ice_mask,                         &
-                                    gradient_margin_in = whichgradient_margin, &
+                                    gradient_margin_in = surface_gradient_margin_method, &
                                     usrf = usrf,                      &
                                     land_mask = land_mask)
     

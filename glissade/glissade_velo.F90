@@ -57,7 +57,7 @@ contains
       integer :: i, j, k
       integer :: ewn, nsn, upn
       integer :: itest, jtest, rtest
-      integer :: whichbtrc_sav
+      integer :: btrc_method_sav
 
       logical :: verbose_velo = .false.
 
@@ -92,13 +92,13 @@ contains
          !-------------------------------------------------------------------
 
          ! make sure basal sliding is turned off
-         whichbtrc_sav = model%basal_physics%btrc_method
+         btrc_method_sav = model%basal_physics%btrc_method
          model%basal_physics%btrc_method = BTRC_METHOD_NONE
 
          call glissade_velo_sia_solve(model, ewn, nsn, upn)
 
-         ! restore the original value of whichbtrc, just in case
-         model%basal_physics%btrc_method = whichbtrc_sav
+         ! restore the original value of btrc_method, just in case
+         model%basal_physics%btrc_method = btrc_method_sav
 
          ! save the result
          allocate(uvel_sia(upn,ewn,nsn))
