@@ -835,20 +835,20 @@ contains
        ! Compute f_ground_cell for isthmus removal
 
        call glissade_grounded_fraction(&
-            nx,          ny,               &
-            parallel,                      &
-            itest, jtest, rtest,           &
-            model%geometry%thck,           &
-            model%geometry%topg,           &
-            model%climate%eus,             &
-            ice_mask,                      &
-            floating_mask,                 &
-            land_mask,                     &
-            model%options%which_ho_ground, &
-            model%options%which_ho_flotation_function, &
-            model%options%which_ho_fground_no_glp,     &
-            model%geometry%f_flotation,    &
-            model%geometry%f_ground,       &
+            nx,          ny,                           &
+            parallel,                                  &
+            itest, jtest, rtest,                       &
+            model%geometry%thck,                       &
+            model%geometry%topg,                       &
+            model%climate%eus,                         &
+            ice_mask,                                  &
+            floating_mask,                             &
+            land_mask,                                 &
+            model%grounding_line%grounding_line_param, &
+            model%grounding_line%flotation_function,   &
+            model%grounding_line%fground_no_glp,       &
+            model%geometry%f_flotation,                &
+            model%geometry%f_ground,                   &
             model%geometry%f_ground_cell)
 
        call remove_isthmuses(&
@@ -887,20 +887,20 @@ contains
        ! Compute the grounded ice fraction in each grid cell
        !TODO - See if we can spread the fill with a grounded_mask (i.e., without f_ground_cell)
        call glissade_grounded_fraction(&
-            nx,          ny,               &
-            parallel,                      &
-            itest, jtest, rtest,           &
-            model%geometry%thck,           &
-            model%geometry%topg,           &
-            model%climate%eus,             &
-            ice_mask,                      &
-            floating_mask,                 &
-            land_mask,                     &
-            model%options%which_ho_ground, &
-            model%options%which_ho_flotation_function, &
-            model%options%which_ho_fground_no_glp,     &
-            model%geometry%f_flotation,    &
-            model%geometry%f_ground,       &
+            nx,          ny,                           &
+            parallel,                                  &
+            itest, jtest, rtest,                       &
+            model%geometry%thck,                       &
+            model%geometry%topg,                       &
+            model%climate%eus,                         &
+            ice_mask,                                  &
+            floating_mask,                             &
+            land_mask,                                 &
+            model%grounding_line%grounding_line_param, &
+            model%grounding_line%flotation_function,   &
+            model%grounding_line%fground_no_glp,       &
+            model%geometry%f_flotation,                &
+            model%geometry%f_ground,                   &
             model%geometry%f_ground_cell)
 
        ! Remove icebergs.
@@ -3638,20 +3638,20 @@ contains
 
        ! Compute f_ground_cell for forced retreat
 
-       call glissade_grounded_fraction(nx,          ny,               &
-                                       parallel,                      &
-                                       itest, jtest, rtest,           &  ! diagnostic only
-                                       model%geometry%thck,           &
-                                       model%geometry%topg,           &
-                                       model%climate%eus,             &
-                                       ice_mask,                      &
-                                       floating_mask,                 &
-                                       land_mask,                     &
-                                       model%options%which_ho_ground, &
-                                       model%options%which_ho_flotation_function, &
-                                       model%options%which_ho_fground_no_glp,     &
-                                       model%geometry%f_flotation,    &
-                                       model%geometry%f_ground,       &
+       call glissade_grounded_fraction(nx,          ny,                           &
+                                       parallel,                                  &
+                                       itest, jtest, rtest,                       &  ! diagnostic only
+                                       model%geometry%thck,                       &
+                                       model%geometry%topg,                       &
+                                       model%climate%eus,                         &
+                                       ice_mask,                                  &
+                                       floating_mask,                             &
+                                       land_mask,                                 &
+                                       model%grounding_line%grounding_line_param, &
+                                       model%grounding_line%flotation_function,   &
+                                       model%grounding_line%fground_no_glp,       &
+                                       model%geometry%f_flotation,                &
+                                       model%geometry%f_ground,                   &
                                        model%geometry%f_ground_cell)
 
        ! Identify floating or weakly grounded cells with ice_fraction_retreat_mask exceeding a prescribed threshold.

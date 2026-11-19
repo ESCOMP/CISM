@@ -1149,8 +1149,8 @@
      effstrain_min = model%velocity%effstrain_min
      pmp_threshold = model%temperature%pmp_threshold
 
-     whichbabc            = model%options%which_ho_babc
-     whichbeta_limit      = model%options%which_ho_beta_limit
+     whichbabc            = model%basal_physics%sliding_law
+     whichbeta_limit      = model%basal_physics%beta_limit_method
      whichefvs            = model%velocity%efvs_method
      whichresid           = model%velocity_solver%nonlinear_residual
      whichsparse          = model%velocity_solver%linear_solver
@@ -1168,8 +1168,8 @@
      whichassemble_bfric  = model%velocity_solver%assemble_bfric
      whichassemble_lateral= model%velocity_solver%assemble_lateral
      whichcalving_front   = model%options%which_ho_calving_front
-     whichground          = model%options%which_ho_ground
-     whichflotation_function = model%options%which_ho_flotation_function
+     whichground          = model%grounding_line%grounding_line_param
+     whichflotation_function = model%grounding_line%flotation_function
      diva_slope_correction= model%velocity%diva_slope_correction
 
     !--------------------------------------------------------

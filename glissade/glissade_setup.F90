@@ -381,7 +381,7 @@ contains
     model%calving%cliff_timescale = model%calving%cliff_timescale * scyr    ! convert from yr to s
 
     ! scale basal traction parameter
-    model%paramets%btrc_const = model%paramets%btrc_const/scyr
+    model%basal_physics%btrc_const = model%basal_physics%btrc_const/scyr
 
     ! scale inversion parameters
     model%inversion%babc_timescale = model%inversion%babc_timescale * scyr    ! convert yr to s
@@ -1432,23 +1432,23 @@ contains
     type(glissade_global_type)   :: model
 
     ! options
-    call GetOption(section,'sliding_law',               sliding_law_choices, model%options%which_ho_babc)
-    call GetLogical(section,'use_c_space_factor',        model%options%use_c_space_factor)
-    call GetOption(section,'beta_limit_method',         beta_limit_method_choices, model%options%which_ho_beta_limit)
-    call GetOption(section,'powerlaw_c_method',         powerlaw_c_method_choices, model%options%which_ho_powerlaw_c)
-    call GetOption(section,'coulomb_c_method',          coulomb_c_method_choices, model%options%which_ho_coulomb_c)
-    call GetLogical(section,'elevation_based_coulomb_c', model%options%elevation_based_coulomb_c)
-    call GetOption(section,'effecpress_method',         effecpress_method_choices, model%options%which_ho_effecpress)
+    call GetOption(section,'sliding_law',               sliding_law_choices, model%basal_physics%sliding_law)
+    call GetLogical(section,'use_c_space_factor',        model%basal_physics%use_c_space_factor)
+    call GetOption(section,'beta_limit_method',         beta_limit_method_choices, model%basal_physics%beta_limit_method)
+    call GetOption(section,'powerlaw_c_method',         powerlaw_c_method_choices, model%basal_physics%powerlaw_c_method)
+    call GetOption(section,'coulomb_c_method',          coulomb_c_method_choices, model%basal_physics%coulomb_c_method)
+    call GetLogical(section,'elevation_based_coulomb_c', model%basal_physics%elevation_based_coulomb_c)
+    call GetOption(section,'effecpress_method',         effecpress_method_choices, model%basal_physics%effecpress_method)
 
     ! basal traction for the local SIA solver (Glide-style; inverse sense of beta)
-    call GetOption(section,'btrc_method', btrc_method_choices, model%options%whichbtrc)
-    call GetValue(section,'btrc_const',  model%paramets%btrc_const)
+    call GetOption(section,'btrc_method', btrc_method_choices, model%basal_physics%btrc_method)
+    call GetValue(section,'btrc_const',  model%basal_physics%btrc_const)
 
     ! beta parameters
     call GetValue(section,'beta_grounded_min', model%basal_physics%beta_grounded_min)
-    call GetValue(section,'beta_const',        model%basal_physics%ho_beta_const)
-    call GetValue(section,'beta_small',        model%basal_physics%ho_beta_small)
-    call GetValue(section,'beta_large',        model%basal_physics%ho_beta_large)
+    call GetValue(section,'beta_const',        model%basal_physics%beta_const)
+    call GetValue(section,'beta_small',        model%basal_physics%beta_small)
+    call GetValue(section,'beta_large',        model%basal_physics%beta_large)
 
     ! basal friction parameters
     call GetValue(section,'powerlaw_c_const',        model%basal_physics%powerlaw_c_const)
@@ -1502,10 +1502,10 @@ contains
     type(glissade_global_type)  :: model
     character(len=500) :: message
 
-    if (model%options%use_c_space_factor) then
-       if (model%options%which_ho_babc /= SLIDING_LAW_COULOMB .and.  &
-           model%options%which_ho_babc /= SLIDING_LAW_SCHOOF .and. &
-           model%options%which_ho_babc /= SLIDING_LAW_TSAI) then
+    if (model%basal_physics%use_c_space_factor) then
+       if (model%basal_physics%sliding_law /= SLIDING_LAW_COULOMB .and.  &
+           model%basal_physics%sliding_law /= SLIDING_LAW_SCHOOF .and. &
+           model%basal_physics%sliding_law /= SLIDING_LAW_TSAI) then
           call write_log('Error, C_space_factor not supported for this choice of sliding_law', GM_FATAL)
        endif
     endif
@@ -1513,19 +1513,19 @@ contains
     ! Inversion options
 
     ! coulomb_c inversion not supported with elevation-based coulomb_c
-    if (model%options%elevation_based_coulomb_c) then
-       if (model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION .or. &
-           model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN) then
+    if (model%basal_physics%elevation_based_coulomb_c) then
+       if (model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION .or. &
+           model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION_BASIN) then
           call write_log('Error, inversion not supported with elevation_based_coulomb_c = T', GM_FATAL)
        endif
     endif
 
     ! Note: Cp inversion supported for the basic power law and the Schoof and Tsai laws
-    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION .or. &
-        model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN) then
-       if (model%options%which_ho_babc == SLIDING_LAW_POWERLAW .or. &
-           model%options%which_ho_babc == SLIDING_LAW_SCHOOF .or.  &
-           model%options%which_ho_babc == SLIDING_LAW_TSAI) then
+    if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION .or. &
+        model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN) then
+       if (model%basal_physics%sliding_law == SLIDING_LAW_POWERLAW .or. &
+           model%basal_physics%sliding_law == SLIDING_LAW_SCHOOF .or.  &
+           model%basal_physics%sliding_law == SLIDING_LAW_TSAI) then
           ! inversion for Cp is supported
        else
           call write_log('Error, Cp inversion is not supported for this sliding_law; ' // &
@@ -1534,12 +1534,12 @@ contains
     endif
 
     ! Note: Cc inversion supported for the Zoet-Iverson law, pseudoplastic, Schoof and Tsai laws
-    if (model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION .or. &
-        model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN) then
-       if (model%options%which_ho_babc == SLIDING_LAW_ZOET_IVERSON .or. &
-           model%options%which_ho_babc == SLIDING_LAW_PSEUDO_PLASTIC .or. &
-           model%options%which_ho_babc == SLIDING_LAW_SCHOOF .or.  &
-           model%options%which_ho_babc == SLIDING_LAW_TSAI) then
+    if (model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION .or. &
+        model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION_BASIN) then
+       if (model%basal_physics%sliding_law == SLIDING_LAW_ZOET_IVERSON .or. &
+           model%basal_physics%sliding_law == SLIDING_LAW_PSEUDO_PLASTIC .or. &
+           model%basal_physics%sliding_law == SLIDING_LAW_SCHOOF .or.  &
+           model%basal_physics%sliding_law == SLIDING_LAW_TSAI) then
           ! inversion for Cc is supported
        else
           call write_log('Error, Cc inversion is not supported for this sliding_law; ' // &
@@ -1548,59 +1548,59 @@ contains
     endif
 
     ! Note: The Schoof and Tsai laws permit inversion for Cc combined with
-    !        which_ho_powerlaw_c = POWERLAW_C_METHOD_FROM_COULOMB_C.
+    !        powerlaw_c_method = from_coulomb_c.
     !       In these cases we invert for Cc, with Cp coming along for the ride.
     !       There is currently no option to invert for Cc and Cp independently.
-    if ( (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION .or. &
-          model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN) &
+    if ( (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION .or. &
+          model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN) &
           .and. &
-         (model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION .or. &
-          model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN) ) then
+         (model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION .or. &
+          model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION_BASIN) ) then
        call write_log('Simultaneous independent inversion for Cp and Cc is not supported', &
             GM_FATAL)
     endif
 
     ! Make sure the user isn't trying to invert for powerlaw_c and coulomb_c independently.
     ! We can invert for both at once only if the two coefficients have a specified functional relationship.
-    if ( (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION .and. &
-          model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION) &
+    if ( (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION .and. &
+          model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION) &
                                         .or. &
-         (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .and. &
-          model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN) ) then
+         (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN .and. &
+          model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION_BASIN) ) then
        call write_log('Cannot invert for powerlaw_c and coulomb_c independently')
        call write_log('Please set powerlaw_c_method = from_coulomb_c', GM_FATAL)
     endif
 
     call log_section('basal_physics')
-    call log_option('sliding_law', model%options%which_ho_babc, sliding_law_choices)
+    call log_option('sliding_law', model%basal_physics%sliding_law, sliding_law_choices)
     if (model%velocity%stokes_approx == STOKES_APPROX_LOCAL_SIA) then
-       call log_option('btrc_method', model%options%whichbtrc, btrc_method_choices)
+       call log_option('btrc_method', model%basal_physics%btrc_method, btrc_method_choices)
     endif
-    call log_option('beta_limit_method', model%options%which_ho_beta_limit, beta_limit_method_choices)
-    call log_option('powerlaw_c_method', model%options%which_ho_powerlaw_c, powerlaw_c_method_choices)
-    call log_option('coulomb_c_method', model%options%which_ho_coulomb_c, coulomb_c_method_choices)
-    call log_flag('use_c_space_factor', model%options%use_c_space_factor, 'if true, beta is multiplied by C_space_factor')
-    call log_flag('elevation_based_coulomb_c', model%options%elevation_based_coulomb_c)
-    call log_option('effecpress_method', model%options%which_ho_effecpress, effecpress_method_choices)
+    call log_option('beta_limit_method', model%basal_physics%beta_limit_method, beta_limit_method_choices)
+    call log_option('powerlaw_c_method', model%basal_physics%powerlaw_c_method, powerlaw_c_method_choices)
+    call log_option('coulomb_c_method', model%basal_physics%coulomb_c_method, coulomb_c_method_choices)
+    call log_flag('use_c_space_factor', model%basal_physics%use_c_space_factor, 'if true, beta is multiplied by C_space_factor')
+    call log_flag('elevation_based_coulomb_c', model%basal_physics%elevation_based_coulomb_c)
+    call log_option('effecpress_method', model%basal_physics%effecpress_method, effecpress_method_choices)
 
-    if (model%options%whichbtrc == BTRC_METHOD_CONSTANT      .or.  &
-        model%options%whichbtrc == BTRC_METHOD_CONSTANT_BWAT .or.  &
-        model%options%whichbtrc == BTRC_METHOD_CONSTANT_BPMP) then
-       call log_param('btrc_const', model%paramets%btrc_const, 'm/yr/Pa; basal traction parameter for the local SIA solver')
+    if (model%basal_physics%btrc_method == BTRC_METHOD_CONSTANT      .or.  &
+        model%basal_physics%btrc_method == BTRC_METHOD_CONSTANT_BWAT .or.  &
+        model%basal_physics%btrc_method == BTRC_METHOD_CONSTANT_BPMP) then
+       call log_param('btrc_const', model%basal_physics%btrc_const, 'm/yr/Pa; basal traction parameter for the local SIA solver')
     end if
 
-    if (model%options%which_ho_babc == SLIDING_LAW_BETA_CONSTANT) then
-       call log_param('beta_const', model%basal_physics%ho_beta_const, 'Pa yr/m')
-    elseif (model%options%which_ho_babc == SLIDING_LAW_NO_SLIP) then
-       call log_param('beta_large', model%basal_physics%ho_beta_large, 'Pa yr/m')
-    elseif (model%options%which_ho_babc == SLIDING_LAW_BETA_BPMP) then
-       call log_param('beta_large', model%basal_physics%ho_beta_large, 'Pa yr/m')
-       call log_param('beta_small', model%basal_physics%ho_beta_small, 'Pa yr/m')
-    elseif (model%options%which_ho_babc == SLIDING_LAW_PSEUDO_PLASTIC_OLD .or.  &
-            model%options%which_ho_babc == SLIDING_LAW_PSEUDO_PLASTIC) then
+    if (model%basal_physics%sliding_law == SLIDING_LAW_BETA_CONSTANT) then
+       call log_param('beta_const', model%basal_physics%beta_const, 'Pa yr/m')
+    elseif (model%basal_physics%sliding_law == SLIDING_LAW_NO_SLIP) then
+       call log_param('beta_large', model%basal_physics%beta_large, 'Pa yr/m')
+    elseif (model%basal_physics%sliding_law == SLIDING_LAW_BETA_BPMP) then
+       call log_param('beta_large', model%basal_physics%beta_large, 'Pa yr/m')
+       call log_param('beta_small', model%basal_physics%beta_small, 'Pa yr/m')
+    elseif (model%basal_physics%sliding_law == SLIDING_LAW_PSEUDO_PLASTIC_OLD .or.  &
+            model%basal_physics%sliding_law == SLIDING_LAW_PSEUDO_PLASTIC) then
        call log_param('pseudo_plastic_q', model%basal_physics%pseudo_plastic_q)
        call log_param('pseudo_plastic_u0', model%basal_physics%pseudo_plastic_u0)
-       if (model%options%which_ho_babc == SLIDING_LAW_PSEUDO_PLASTIC_OLD) then
+       if (model%basal_physics%sliding_law == SLIDING_LAW_PSEUDO_PLASTIC_OLD) then
           call log_param('pseudo_plastic_phimin', model%basal_physics%pseudo_plastic_phimin, 'deg')
           call log_param('pseudo_plastic_phimax', model%basal_physics%pseudo_plastic_phimax, 'deg')
           call log_param('pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin, 'm')
@@ -1614,7 +1614,7 @@ contains
           call write_log('Local bfric assembly is recommended for the pseudo-plastic sliding law; ' // &
                'set assemble_bfric = local', GM_WARNING)
        endif
-    elseif (model%options%which_ho_babc == SLIDING_LAW_ZOET_IVERSON) then
+    elseif (model%basal_physics%sliding_law == SLIDING_LAW_ZOET_IVERSON) then
        ! Note: The Zoet-Iverson law typically uses a spatially variable coulomb_c.
        !       If so, the value written here is just the initial value.
        call log_param('coulomb_c_const', model%basal_physics%coulomb_c_const)
@@ -1623,64 +1623,64 @@ contains
        call log_param('powerlaw_m', model%basal_physics%powerlaw_m)
        call log_param('zoet_iverson_ut', model%basal_physics%zoet_iverson_ut, 'm/yr')
        call log_param('zoet_iverson_nmax', model%basal_physics%zoet_iverson_nmax, 'Pa')
-    elseif (model%options%which_ho_babc == SLIDING_LAW_ISMIP_HOM_C) then
+    elseif (model%basal_physics%sliding_law == SLIDING_LAW_ISMIP_HOM_C) then
        if (model%grid%ewn /= model%grid%nsn) then
           call write_log('Error, must have ewn = nsn for ISMIP-HOM test C', GM_FATAL)
        endif
-    elseif (model%options%which_ho_babc == SLIDING_LAW_POWERLAW) then
+    elseif (model%basal_physics%sliding_law == SLIDING_LAW_POWERLAW) then
        call log_param('powerlaw_c_const', model%basal_physics%powerlaw_c_const, 'Pa (m/yr)^(-1/m)')
        call log_param('powerlaw_c_max', model%basal_physics%powerlaw_c_max)
        call log_param('powerlaw_c_min', model%basal_physics%powerlaw_c_min)
        call log_param('powerlaw_m', model%basal_physics%powerlaw_m)
-    elseif (model%options%which_ho_babc == SLIDING_LAW_COULOMB) then
+    elseif (model%basal_physics%sliding_law == SLIDING_LAW_COULOMB) then
        call log_param('coulomb_c_const', model%basal_physics%coulomb_c_const)
        call log_param('coulomb_bump_max_slope', model%basal_physics%coulomb_bump_max_slope)
        call log_param('coulomb_bump_wavelength', model%basal_physics%coulomb_bump_wavelength, 'm')
        call log_param('flwa_basal_const', model%basal_physics%flwa_basal_const, 'Pa^-3 yr^-1; flow factor at the bed')
-    elseif (model%options%which_ho_babc == SLIDING_LAW_SCHOOF) then
+    elseif (model%basal_physics%sliding_law == SLIDING_LAW_SCHOOF) then
        ! Note: The Schoof and Tsai laws often invert for a spatially variable powerlaw_c or coulomb_c.
        !       If so, the values written here are just the initial values.
        call log_param('coulomb_c_const', model%basal_physics%coulomb_c_const)
-       if (model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION .or. &
-           model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN) then
+       if (model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION .or. &
+           model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION_BASIN) then
           call log_param('coulomb_c_max', model%basal_physics%coulomb_c_max)
           call log_param('coulomb_c_min', model%basal_physics%coulomb_c_min)
        endif
-       if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_FROM_COULOMB_C) then
+       if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_FROM_COULOMB_C) then
           call log_comment('Cp = schoof_gamma * Cc^schoof_p')
           call log_param('schoof_gamma', model%basal_physics%schoof_gamma)
           call log_param('schoof_p', model%basal_physics%schoof_p)
        else
           call log_param('powerlaw_c_const', model%basal_physics%powerlaw_c_const, 'Pa (m/yr)^(-1/m)')
        endif
-       if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION .or. &
-           model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN) then
+       if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION .or. &
+           model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN) then
           call log_param('powerlaw_c_max', model%basal_physics%powerlaw_c_max)
           call log_param('powerlaw_c_min', model%basal_physics%powerlaw_c_min)
        endif
        call log_param('powerlaw_m', model%basal_physics%powerlaw_m)
        call log_param('schoof_n', model%basal_physics%schoof_n)
-    elseif (model%options%which_ho_babc == SLIDING_LAW_TSAI) then
+    elseif (model%basal_physics%sliding_law == SLIDING_LAW_TSAI) then
        call log_param('coulomb_c_const', model%basal_physics%coulomb_c_const)
-       if (model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION .or. &
-           model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN) then
+       if (model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION .or. &
+           model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION_BASIN) then
           call log_param('coulomb_c_max', model%basal_physics%coulomb_c_max)
           call log_param('coulomb_c_min', model%basal_physics%coulomb_c_min)
        endif
-       if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_FROM_COULOMB_C) then
+       if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_FROM_COULOMB_C) then
           call log_comment('Cp = schoof_gamma * Cc^schoof_p')
           call log_param('schoof_gamma', model%basal_physics%schoof_gamma)
           call log_param('schoof_p', model%basal_physics%schoof_p)
        else
           call log_param('powerlaw_c_const', model%basal_physics%powerlaw_c_const, 'Pa (m/yr)^(-1/m)')
        endif
-       if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION .or. &
-           model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN) then
+       if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION .or. &
+           model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN) then
           call log_param('powerlaw_c_max', model%basal_physics%powerlaw_c_max)
           call log_param('powerlaw_c_min', model%basal_physics%powerlaw_c_min)
        endif
        call log_param('powerlaw_m', model%basal_physics%powerlaw_m)
-    elseif (model%options%which_ho_babc == SLIDING_LAW_POWERLAW_EFFECPRESS) then
+    elseif (model%basal_physics%sliding_law == SLIDING_LAW_POWERLAW_EFFECPRESS) then
        call write_log('Weertman-style power law higher-order basal boundary condition is not currently scientifically &
             &supported.  USE AT YOUR OWN RISK.', GM_WARNING)
        !TODO - Use powerlaw_c instead of friction_powerlaw_k?  Allow p and q to be set in config file instead of hard-wired?
@@ -1688,7 +1688,7 @@ contains
     endif
 
     ! Coulomb elevation parameters
-    if (model%options%elevation_based_coulomb_c) then
+    if (model%basal_physics%elevation_based_coulomb_c) then
        call log_param('coulomb_c_hi', model%basal_physics%coulomb_c_hi)
        call log_param('coulomb_c_lo', model%basal_physics%coulomb_c_lo)
        call log_param('coulomb_c_bed_hi', model%basal_physics%coulomb_c_bed_hi, 'm')
@@ -1698,7 +1698,7 @@ contains
     call log_param('beta_powerlaw_umax', model%basal_physics%beta_powerlaw_umax, &
          'm/yr; max ice speed when evaluating beta(u); 0 = no limit')
 
-    if (model%options%which_ho_beta_limit == BETA_LIMIT_METHOD_ABSOLUTE) then
+    if (model%basal_physics%beta_limit_method == BETA_LIMIT_METHOD_ABSOLUTE) then
        call log_param('beta_grounded_min', model%basal_physics%beta_grounded_min, 'Pa yr/m; min beta for grounded ice')
     endif
 
@@ -1721,18 +1721,18 @@ contains
     type(glissade_global_type)  :: model
 
     ! basal water option (the switch for this section)
-    call GetOption(section, 'bwat_method', bwat_method_choices, model%options%which_ho_bwat)
+    call GetOption(section, 'bwat_method', bwat_method_choices, model%basal_hydro%bwat_method)
 
     ! constant basal water
-    call GetValue(section, 'bwat_const', model%basal_hydro%const_bwat)
+    call GetValue(section, 'bwat_const', model%basal_hydro%bwat_const)
 
     ! local basal till
     call GetValue(section, 'bwat_till_max', model%basal_hydro%bwat_till_max)
-    call GetValue(section, 'till_drainage_rate', model%basal_hydro%c_drainage)
+    call GetValue(section, 'till_drainage_rate', model%basal_hydro%till_drainage_rate)
 
     ! flux routing
-    call GetOption(section, 'flux_routing_method', flux_routing_method_choices, model%basal_hydro%ho_flux_routing_scheme)
-    call GetValue(section, 'bwat_source_const', model%basal_hydro%const_source)
+    call GetOption(section, 'flux_routing_method', flux_routing_method_choices, model%basal_hydro%flux_routing_method)
+    call GetValue(section, 'bwat_source_const', model%basal_hydro%bwat_source_const)
     call GetValue(section, 'btemp_flow_scale', model%basal_hydro%btemp_flow_scale)
     call GetValue(section, 'btemp_freeze_scale', model%basal_hydro%btemp_freeze_scale)
 
@@ -1747,7 +1747,7 @@ contains
     call GetValue(section, 'bump_wavelength', model%basal_hydro%bump_wavelength)
     call GetValue(section, 'sliding_speed_fixed', model%basal_hydro%sliding_speed_fixed)
     call GetValue(section, 'flwa_basal', model%basal_hydro%flwa_basal)
-    call GetValue(section, 'cavity_closing_const', model%basal_hydro%c_close)
+    call GetValue(section, 'cavity_closing_const', model%basal_hydro%cavity_closing_const)
 
   end subroutine handle_basal_hydro
 
@@ -1766,13 +1766,13 @@ contains
 
     ! check the options
 
-    if (model%options%which_ho_bwat == BWAT_METHOD_LOCAL_TILL) then
-       if (model%options%which_ho_effecpress /= EFFECPRESS_METHOD_BWAT_BVP) then
+    if (model%basal_hydro%bwat_method == BWAT_METHOD_LOCAL_TILL) then
+       if (model%basal_physics%effecpress_method /= EFFECPRESS_METHOD_BWAT_BVP) then
           call write_log('Error, bwat_method = local_till requires effecpress_method = bwat_bvp', GM_FATAL)
        endif
-    elseif (model%options%which_ho_bwat == BWAT_METHOD_FLUX_ROUTING) then
+    elseif (model%basal_hydro%bwat_method == BWAT_METHOD_FLUX_ROUTING) then
        if (model%numerics%reproducible_sums) then
-          if (model%basal_hydro%ho_flux_routing_scheme /= FLUX_ROUTING_METHOD_D8) then
+          if (model%basal_hydro%flux_routing_method /= FLUX_ROUTING_METHOD_D8) then
              call write_log('Error, this flux_routing scheme is not supported with reproducible sums')
              call write_log('Please use D8 flux-routing or turn off reproducible sums', GM_FATAL)
           endif
@@ -1786,27 +1786,27 @@ contains
     ! write the options and parameters
 
     call log_section('basal_hydro')
-    call log_option('bwat_method', model%options%which_ho_bwat, bwat_method_choices)
+    call log_option('bwat_method', model%basal_hydro%bwat_method, bwat_method_choices)
 
-    if (model%options%which_ho_bwat == BWAT_METHOD_CONSTANT) then
-       call log_param('bwat_const', model%basal_hydro%const_bwat, 'm; constant basal water depth')
-    elseif (model%options%which_ho_bwat == BWAT_METHOD_LOCAL_TILL) then
+    if (model%basal_hydro%bwat_method == BWAT_METHOD_CONSTANT) then
+       call log_param('bwat_const', model%basal_hydro%bwat_const, 'm; constant basal water depth')
+    elseif (model%basal_hydro%bwat_method == BWAT_METHOD_LOCAL_TILL) then
        call log_param('bwat_till_max', model%basal_hydro%bwat_till_max, 'm; maximum till water depth')
-       call log_param('till_drainage_rate', model%basal_hydro%c_drainage, 'm/yr; till drainage rate')
+       call log_param('till_drainage_rate', model%basal_hydro%till_drainage_rate, 'm/yr; till drainage rate')
        call log_param('effecpress_delta', model%basal_hydro%effecpress_delta, &
             'min effective pressure relative to overburden')
-    elseif (model%options%which_ho_bwat == BWAT_METHOD_FLUX_ROUTING) then
-       call log_option('flux_routing_method', model%basal_hydro%ho_flux_routing_scheme, flux_routing_method_choices)
-       call log_param('bwat_source_const', model%basal_hydro%const_source, 'm/yr; constant melt source at the bed')
+    elseif (model%basal_hydro%bwat_method == BWAT_METHOD_FLUX_ROUTING) then
+       call log_option('flux_routing_method', model%basal_hydro%flux_routing_method, flux_routing_method_choices)
+       call log_param('bwat_source_const', model%basal_hydro%bwat_source_const, 'm/yr; constant melt source at the bed')
        call log_param('btemp_flow_scale', model%basal_hydro%btemp_flow_scale, &
             'deg C; temperature scale for flow around frozen bed; 0 = off')
        call log_param('btemp_freeze_scale', model%basal_hydro%btemp_freeze_scale, &
             'deg C; temperature scale for refreezing at the bed; 0 = off')
-       if (model%options%which_ho_effecpress == EFFECPRESS_METHOD_BWAT) then
+       if (model%basal_physics%effecpress_method == EFFECPRESS_METHOD_BWAT) then
           call log_param('effecpress_delta', model%basal_hydro%effecpress_delta, &
                'min effective pressure relative to overburden')
           call log_param('bwat_threshold', model%basal_hydro%bwat_threshold, 'm')
-       elseif (model%options%which_ho_effecpress == EFFECPRESS_METHOD_CAVITY_SHEET) then
+       elseif (model%basal_physics%effecpress_method == EFFECPRESS_METHOD_CAVITY_SHEET) then
           call log_option('cavity_open_slide', model%basal_hydro%cavity_open_slide, cavity_open_slide_choices)
           call log_option('cavity_open_melt', model%basal_hydro%cavity_open_melt, cavity_open_melt_choices)
           if (model%basal_hydro%cavity_open_slide /= CAVITY_OPEN_SLIDE_NONE) then
@@ -1817,13 +1817,13 @@ contains
              endif
           endif   ! opening by sliding
           call log_param('flwa_basal', model%basal_hydro%flwa_basal, 'Pa^-3 yr^-1; flow factor for cavity closing')
-          call log_param('cavity_closing_const', model%basal_hydro%c_close, 'constant for cavity closing')
+          call log_param('cavity_closing_const', model%basal_hydro%cavity_closing_const, 'constant for cavity closing')
        endif   ! cavity-sheet parameterization
-    endif   ! which_ho_bwat
+    endif   ! bwat_method
 
     ! other effective pressure options
 
-    if (model%options%which_ho_effecpress == EFFECPRESS_METHOD_BPMP) then
+    if (model%basal_physics%effecpress_method == EFFECPRESS_METHOD_BPMP) then
        call log_param('effecpress_delta', model%basal_hydro%effecpress_delta, &
             'min effective pressure relative to overburden')
        call log_param('bpmp_threshold', model%basal_hydro%bpmp_threshold, 'K')
@@ -1851,10 +1851,10 @@ contains
     type(ConfigSection), pointer :: section
     type(glissade_global_type)   :: model
 
-    call GetOption(section,'grounding_line_param', grounding_line_param_choices, model%options%which_ho_ground)
-    call GetOption(section,'fground_no_glp',       fground_no_glp_choices, model%options%which_ho_fground_no_glp)
-    call GetOption(section,'grounding_line_bmlt',  grounding_line_bmlt_choices, model%options%which_ho_ground_bmlt)
-    call GetOption(section,'flotation_function',   flotation_function_choices, model%options%which_ho_flotation_function)
+    call GetOption(section,'grounding_line_param', grounding_line_param_choices, model%grounding_line%grounding_line_param)
+    call GetOption(section,'fground_no_glp',       fground_no_glp_choices, model%grounding_line%fground_no_glp)
+    call GetOption(section,'grounding_line_bmlt',  grounding_line_bmlt_choices, model%grounding_line%grounding_line_bmlt)
+    call GetOption(section,'flotation_function',   flotation_function_choices, model%grounding_line%flotation_function)
 
   end subroutine handle_grounding_line
 
@@ -1873,9 +1873,9 @@ contains
     type(glissade_global_type)  :: model
     character(len=500) :: message
 
-    if (model%options%which_ho_ground_bmlt == GROUNDING_LINE_BMLT_FLOATING_FRACTION  .or. &
-        model%options%which_ho_ground_bmlt == GROUNDING_LINE_BMLT_ZERO_GROUNDED) then
-       if (model%options%which_ho_ground /= GROUNDING_LINE_PARAM_DELUXE) then
+    if (model%grounding_line%grounding_line_bmlt == GROUNDING_LINE_BMLT_FLOATING_FRACTION  .or. &
+        model%grounding_line%grounding_line_bmlt == GROUNDING_LINE_BMLT_ZERO_GROUNDED) then
+       if (model%grounding_line%grounding_line_param /= GROUNDING_LINE_PARAM_DELUXE) then
           call write_log('Error, this setting of grounding_line_bmlt requires grounding_line_param = deluxe', GM_FATAL)
        endif
     endif
@@ -1883,15 +1883,15 @@ contains
     ! write the options
 
     call log_section('grounding_line')
-    call log_option('grounding_line_param', model%options%which_ho_ground, grounding_line_param_choices)
-    if (model%options%which_ho_ground == GROUNDING_LINE_PARAM_NONE) then
-       call log_option('fground_no_glp', model%options%which_ho_fground_no_glp, fground_no_glp_choices)
+    call log_option('grounding_line_param', model%grounding_line%grounding_line_param, grounding_line_param_choices)
+    if (model%grounding_line%grounding_line_param == GROUNDING_LINE_PARAM_NONE) then
+       call log_option('fground_no_glp', model%grounding_line%fground_no_glp, fground_no_glp_choices)
     endif
-    call log_option('grounding_line_bmlt', model%options%which_ho_ground_bmlt, grounding_line_bmlt_choices)
-    call log_option('flotation_function', model%options%which_ho_flotation_function, flotation_function_choices)
+    call log_option('grounding_line_bmlt', model%grounding_line%grounding_line_bmlt, grounding_line_bmlt_choices)
+    call log_option('flotation_function', model%grounding_line%flotation_function, flotation_function_choices)
 
-    if (model%options%which_ho_ground == GROUNDING_LINE_PARAM_NONE .and. &
-        model%options%which_ho_flotation_function == FLOTATION_FUNCTION_PATTYN) then
+    if (model%grounding_line%grounding_line_param == GROUNDING_LINE_PARAM_NONE .and. &
+        model%grounding_line%flotation_function == FLOTATION_FUNCTION_PATTYN) then
        write(message,*) 'WARNING: Pattyn flotation function with no GLP tends to be unstable'
        call write_log(message, GM_WARNING)
     endif
@@ -2893,10 +2893,10 @@ contains
     logical :: deltaT_inversion   ! true for an inversion for deltaT_ocn
     logical :: glacier_inversion  ! true for an inversion for glacier powerlaw_c
 
-    babc_inversion = (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION .or. &
-                      model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
-                      model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION .or. &
-                      model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN)
+    babc_inversion = (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION .or. &
+                      model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
+                      model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION .or. &
+                      model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION_BASIN)
 
     deltaT_inversion = (model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION .or. &
                         model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN)
@@ -3265,7 +3265,7 @@ contains
      endif
 
      ! basal water option for Glissade
-     select case (model%options%which_ho_bwat)
+     select case (model%basal_hydro%bwat_method)
      case (BWAT_METHOD_NONE, BWAT_METHOD_CONSTANT)
         ! no restart variables needed
      case (BWAT_METHOD_FLUX_ROUTING)
@@ -3343,10 +3343,10 @@ contains
     end select
 
     ! basal sliding option
-    select case (model%options%which_ho_babc)
+    select case (model%basal_physics%sliding_law)
       case (SLIDING_LAW_COULOMB, SLIDING_LAW_SCHOOF, SLIDING_LAW_TSAI)
          ! Note: These options compute beta internally, so it does not need to be in the restart file.
-         if (model%options%use_c_space_factor) then
+         if (model%basal_physics%use_c_space_factor) then
             ! c_space_factor needs to be in the restart file
             call glissade_add_to_restart_variable_list('c_space_factor', model_id)
          endif
@@ -3359,18 +3359,18 @@ contains
 
     ! basal friction inversion options
 
-    if (model%options%which_ho_powerlaw_c /= POWERLAW_C_METHOD_CONSTANT .and. &
-        model%options%which_ho_powerlaw_c /= POWERLAW_C_METHOD_FROM_COULOMB_C) then
+    if (model%basal_physics%powerlaw_c_method /= POWERLAW_C_METHOD_CONSTANT .and. &
+        model%basal_physics%powerlaw_c_method /= POWERLAW_C_METHOD_FROM_COULOMB_C) then
        call glissade_add_to_restart_variable_list('powerlaw_c', model_id)
     endif
 
-    if (model%options%which_ho_coulomb_c /= COULOMB_C_METHOD_CONSTANT) then
+    if (model%basal_physics%coulomb_c_method /= COULOMB_C_METHOD_CONSTANT) then
        call glissade_add_to_restart_variable_list('coulomb_c', model_id)
     endif
 
     ! If using the basin-scale inversion option for powerlaw_c or coulomb_c, we need a target thickness for grounded ice
-    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
-        model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN) then
+    if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
+        model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION_BASIN) then
        call glissade_add_to_restart_variable_list('grounded_thck_target', model_id)
     endif
 
@@ -3388,12 +3388,12 @@ contains
     ! Note: If usrf_obs is supplied, thck_obs will be computed at initialization.
     ! Note: Some options do not need usrf_obs and/or velo_sfc_obs as targets,
     !       but they can still be useful diagnostics.
-    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION .or. &
-        model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION  .or. &
-        model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION .or. &
-        model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
-        model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION_BASIN  .or. &
-        model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+    if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION       .or. &
+        model%basal_physics%coulomb_c_method  == COULOMB_C_METHOD_INVERSION        .or. &
+        model%options%which_ho_deltaT_ocn     == DELTAT_OCN_METHOD_INVERSION       .or. &
+        model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
+        model%basal_physics%coulomb_c_method  == COULOMB_C_METHOD_INVERSION_BASIN  .or. &
+        model%options%which_ho_deltaT_ocn     == DELTAT_OCN_METHOD_INVERSION_BASIN) then
        call glissade_add_to_restart_variable_list('usrf_obs', model_id)
        call glissade_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif

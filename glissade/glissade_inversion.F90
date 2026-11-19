@@ -109,12 +109,12 @@ contains
     ! Also set velo_sfc_obs, which usually is not an inversion target but is still of interest.
     !----------------------------------------------------------------------
 
-    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION .or.  &
-        model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or.  &
-        model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION  .or.  &
-        model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION_BASIN  .or.  &
-        model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION .or.  &
-        model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+    if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION       .or. &
+        model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
+        model%basal_physics%coulomb_c_method  == COULOMB_C_METHOD_INVERSION        .or. &
+        model%basal_physics%coulomb_c_method  == COULOMB_C_METHOD_INVERSION_BASIN  .or. &
+        model%options%which_ho_deltaT_ocn     == DELTAT_OCN_METHOD_INVERSION       .or. &
+        model%options%which_ho_deltaT_ocn     == DELTAT_OCN_METHOD_INVERSION_BASIN) then
 
        ! We are likely trying to match usrf_obs, so check whether it has been read in already.
        ! If not, set it to the initial usrf field.
@@ -233,8 +233,8 @@ contains
     !        Cp = gamma*Cc^p
     !----------------------------------------------------------------------
 
-    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION .or.  &
-        model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN) then
+    if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION .or.  &
+        model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN) then
 
        if (parallel_is_zero(model%basal_physics%powerlaw_c)) then
           model%basal_physics%powerlaw_c(:,:) = model%basal_physics%powerlaw_c_const
@@ -247,8 +247,8 @@ contains
 
     endif   ! invert for powerlaw_c
 
-    if (model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION .or.  &
-        model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN) then
+    if (model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION .or.  &
+        model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION_BASIN) then
 
        if (parallel_is_zero(model%basal_physics%coulomb_c)) then
           model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
@@ -265,8 +265,8 @@ contains
     ! computations specific to basin-scale coulomb_c or powerlaw_c inversion
     !----------------------------------------------------------------------
 
-    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
-        model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN) then
+    if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
+        model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION_BASIN) then
 
        if (model%options%restart == NO_RESTART) then
 
@@ -291,7 +291,7 @@ contains
     endif   ! basin-scale inversion
 
     ! If Cp is a prescribed function of Cc, then set it now
-    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_FROM_COULOMB_C) then
+    if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_FROM_COULOMB_C) then
        model%basal_physics%powerlaw_c = model%basal_physics%schoof_gamma * &
             model%basal_physics%coulomb_c**model%basal_physics%schoof_p
        if (verbose_inversion) then
@@ -424,8 +424,8 @@ contains
     ! If running with glaciers, inversion for powerlaw_c is done elsewhere,
     !  in subroutine glissade_glacier_update.
 
-    if ( model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION .or. &
-         model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION) then
+    if ( model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION .or. &
+         model%basal_physics%coulomb_c_method  == COULOMB_C_METHOD_INVERSION) then
 
        ! Given the surface elevation target, compute the thickness target.
        ! (This can change in time if the bed topography is dynamic.)
@@ -454,7 +454,7 @@ contains
        ! Invert for powerlaw_c and/or coulomb_c
        ! The logic is the same for each; only the max and min values and the in/out field are different.
 
-       if ( model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION) then
+       if ( model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION) then
 
           if (verbose_inversion .and. this_rank == rtest) then
              write(iulog,*) ' '
@@ -490,7 +490,7 @@ contains
 
        endif   ! invert for powerlaw_c
 
-       if (model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION) then
+       if (model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION) then
 
           if (verbose_inversion .and. this_rank == rtest) then
              write(iulog,*) ' '
@@ -531,8 +531,8 @@ contains
 
     ! If inverting for powerlaw_c or coulomb_c at the basin scale, then update it here
 
-    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
-        model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN) then
+    if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
+        model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION_BASIN) then
 
        ! Invert for powerlaw_c or coulomb_c in each basin.
        ! The inversion aims to minimize the thickness error for grounded ice.
@@ -583,7 +583,7 @@ contains
 
        ! Do the inversion
 
-       if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN) then
+       if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN) then
 
           if (verbose_inversion .and. this_rank == rtest) then
              write(iulog,*) ' '
@@ -658,7 +658,7 @@ contains
     endif   ! invert for basin-scale powerlaw_c or coulomb_c
 
     ! If Cp is a prescribed function of Cc, then set it now
-    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_FROM_COULOMB_C) then
+    if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_FROM_COULOMB_C) then
        model%basal_physics%powerlaw_c = model%basal_physics%schoof_gamma * &
             model%basal_physics%coulomb_c**model%basal_physics%schoof_p
        if (verbose_inversion) then
@@ -670,13 +670,13 @@ contains
     ! Note: The current algorithm initializes Cc to a nonzero value everywhere and never sets Cp = 0.
     !       However, some BCs will set these values to zero near global boundaries.
 
-    if (model%options%which_ho_powerlaw_c /= POWERLAW_C_METHOD_CONSTANT) then
+    if (model%basal_physics%powerlaw_c_method /= POWERLAW_C_METHOD_CONSTANT) then
        where (model%basal_physics%powerlaw_c == 0.0d0)
           model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_min
        endwhere
     endif
 
-    if (model%options%which_ho_coulomb_c /= COULOMB_C_METHOD_CONSTANT) then
+    if (model%basal_physics%coulomb_c_method /= COULOMB_C_METHOD_CONSTANT) then
        where (model%basal_physics%coulomb_c == 0.0d0)
           model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_min
        endwhere

@@ -196,8 +196,8 @@
 
     thklim = model%numerics%thcklim
     eus    = model%climate%eus
-    btrc_const = model%paramets%btrc_const
-    whichbtrc = model%options%whichbtrc
+    btrc_const = model%basal_physics%btrc_const
+    whichbtrc = model%basal_physics%btrc_method
     whichgradient_margin = model%velocity%surface_gradient_margin_method
 
     sigma    => model%grid%sigma(:)

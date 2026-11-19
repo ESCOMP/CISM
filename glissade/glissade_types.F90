@@ -786,18 +786,6 @@ module glissade_types
     !> \item[glissade] Glissade dycore (1st-order, FEM, serial (SLAP) or parallel (F90 native PCG solver) )
     !> \end{description}
 
-    integer :: whichbtrc = BTRC_METHOD_NONE
-
-    !> Basal slip coefficient (used for glide and for glissade local SIA; not glissade HO):
-    !> \begin{description}
-    !> \item[none] Set equal to zero everywhere
-    !> \item[constant] Set to (non--zero) constant
-    !> \item[constant_bwat] Set to (non--zero) constant where basal water is present, otherwise to zero
-    !> \item[constant_bpmp] Set to (non--zero) constant where bed temperature is at pressure melting point, otherwise to zero
-    !> \item[4] linear function of basal melt rate
-    !> \item[5] \texttt{tanh} function of basal water depth 
-    !> \end{description}
-
     integer :: whichbmlt_float = BMLT_FLOAT_METHOD_NONE
 
     !> basal melt rate for floating ice:
@@ -1007,8 +995,6 @@ module glissade_types
     ! Higher-order options associated with the glissade dycore
     !-----------------------------------------------------------------------
 
-    integer :: which_ho_babc = SLIDING_LAW_NO_SLIP
-
 
     !WHL TODO - Option 3 to be removed during the config reorg
     !> Flag that describes basal boundary condition for HO dyn core: 
@@ -1032,38 +1018,6 @@ module glissade_types
 
     !WHL TODO - Remove this option during the config reorg?
     !           (Check whether it's needed for tests such as MISMIP)
-    logical :: use_c_space_factor = .false.
-    !> Flag that indicates whether to multiply beta by a 2D scalar field
-
-    integer :: which_ho_beta_limit = BETA_LIMIT_METHOD_ABSOLUTE
-    !> Flag for setting minimum beta beneath grounded ice
-    !> \begin{description}
-    !> \item[absolute] absolute limit given by beta_grounded_min
-    !> \item[fground_scaled] limited using beta_grounded_min, then multiplied by f_ground
-    !> \end{description}
-
-    integer :: which_ho_powerlaw_c = POWERLAW_C_METHOD_CONSTANT
-    !> Flag for basal powerlaw_c options
-    !> \begin{description}
-    !> \item[constant] powerlaw_c = spatially uniform constant
-    !> \item[inversion] invert for 2D powerlaw_c
-    !> \item[file] read 2D powerlaw_c from external file
-    !> \item[inversion_basin] invert for basin-scale powerlaw_c
-    !> \item[from_coulomb_c] relate to coulomb_c: Cp = gamma*Cc^p
-    !> \end{description}
-
-    integer :: which_ho_coulomb_c = COULOMB_C_METHOD_CONSTANT
-    !> Flag for basal coulomb_c options
-    !> \begin{description}
-    !> \item[constant] coulomb_c = spatially uniform constant
-    !> \item[inversion] invert for 2D coulomb_c
-    !> \item[file] read 2D coulomb_c from external file
-    !> \item[inversion_basin] invert for basin-scale coulomb_c
-    !> \end{description}
-
-    logical :: elevation_based_coulomb_c = .false.
-    !> Flag that indicates whether coulomb_c depends on elevation
-
     integer :: which_ho_deltaT_ocn = DELTAT_OCN_METHOD_NONE
     !> Flag for ocean temperature corrections
     !> \begin{description}
@@ -1075,64 +1029,8 @@ module glissade_types
     !> \item[dthck_dt] set deltaT_ocn to match a local dH/dt target
     !> \end{description}
 
-    integer :: which_ho_bwat = BWAT_METHOD_NONE
-    !> Basal water depth:
-    !> \begin{description}
-    !> \item[none] Set to zero everywhere
-    !> \item[constant] Set to constant everywhere, to force T = Tpmp
-    !> \item[local_till] Local basal till model with constant drainage
-    !> \item[flux_routing] Steady-state water routing with flux calculation
-    !> \end{description}
-
-    integer :: which_ho_effecpress = EFFECPRESS_METHOD_OVERBURDEN
-    !> Flag that describes effective pressure calculation for HO dyn core: 
-    !> \begin{description}
-    !> \item[overburden] N = overburden pressure, rhoi*grav*thck
-    !> \item[bpmp] N is proportional to height above flotation
-    !> \item[bwat] N is reduced based on basal water thickness from active hydrology
-    !> \item[cavity_sheet] N depends on cavity opening and closing
-    !> \item[bwat_bvp] N is reduced based on basal water thickness, following Bueler/van Pelt
-    !> \item[5] N is reduced where the bed is at or near the pressure melting point
-    !> \end{description}
-
     !TODO: Change the default to 2nd order vertical remapping
     ! WHL: Keeping 1st order vertical remapping for now, pending more testing
-    integer :: which_ho_ground = GROUNDING_LINE_PARAM_NONE
-    !> Flag that indicates how to compute the grounded fraction of each gridcell in the glissade dycore.
-    !> Not valid for other dycores
-    !> \begin{description}
-    !> \item[none] f_ground = 0 in floating cells (based on flotation condition), else f_ground = 1
-    !> \item[vertices] basal friction GLP with 0 <= f_ground <= 1 at vertices
-    !> \item[deluxe] "deluxe" GLP with f_ground at both cells and vertices; includes basal fraction and basal melting
-    !> \end{description}
-
-    integer :: which_ho_fground_no_glp = FGROUND_NO_GLP_GROUNDED_NEIGHBOR
-    !> Flag that indicates how to identify grounded and floating vertices when running without a GLP
-    !> \begin{description}
-    !> \item[grounded_neighbor] f_ground = 1 if any neighbor cell is grounded or land, else f_ground = 0
-    !> \item[flotation_function] f_ground = 0 or 1 based on staggered flotation function
-    !> \end{description}
-
-    integer :: which_ho_ground_bmlt = GROUNDING_LINE_BMLT_NONE
-    !> Flag that indicates how to compute bmlt_float in partly grounded cells
-    !> \begin{description}
-    !> \item[none] Apply bmlt_float in all floating cells, based on floating_mask
-    !> \item[floating_fraction] Weigh bmlt by floating fraction of cell if 0 < f_ground < 1
-    !> \item[zero_grounded] Set bmlt_float = 0 in partly grounded cells (f_ground > 0)
-    !> \end{description}
-
-    integer :: which_ho_flotation_function = FLOTATION_FUNCTION_LINEAR
-    !WHL TODO - Remove option 3 during the config reorg
-    !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore
-    !> Not valid for other dycores
-    !> \begin{description}
-    !> \item[pattyn] f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
-    !> \item[inverse_pattyn] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
-    !> \item[linear] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
-    !>          (without extrapolation to ice-free ocean, as in an older version)
-    !> \item[3] Like (2), but with a correction for topg
-    !> \end{description}
-
     logical :: block_inception = .false.
     !> Flag that indicates whether ice inception away from the main ice sheet is blocked
 
@@ -1612,6 +1510,50 @@ module glissade_types
                                            ! (would change to e.g. 4.6e-18 in EISMINT-ROSS case)
 
   end type glissade_flow_law_type
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  type glissade_grounding_line_type
+
+    !> [grounding_line] keys
+
+    integer :: grounding_line_param = GROUNDING_LINE_PARAM_NONE
+    !> Flag that indicates how to compute the grounded fraction of each gridcell in the glissade dycore.
+    !> Not valid for other dycores
+    !> \begin{description}
+    !> \item[none] f_ground = 0 in floating cells (based on flotation condition), else f_ground = 1
+    !> \item[vertices] basal friction GLP with 0 <= f_ground <= 1 at vertices
+    !> \item[deluxe] "deluxe" GLP with f_ground at both cells and vertices; includes basal fraction and basal melting
+    !> \end{description}
+
+    integer :: fground_no_glp = FGROUND_NO_GLP_GROUNDED_NEIGHBOR
+    !> Flag that indicates how to identify grounded and floating vertices when running without a GLP
+    !> \begin{description}
+    !> \item[grounded_neighbor] f_ground = 1 if any neighbor cell is grounded or land, else f_ground = 0
+    !> \item[flotation_function] f_ground = 0 or 1 based on staggered flotation function
+    !> \end{description}
+
+    integer :: grounding_line_bmlt = GROUNDING_LINE_BMLT_NONE
+    !> Flag that indicates how to compute bmlt_float in partly grounded cells
+    !> \begin{description}
+    !> \item[none] Apply bmlt_float in all floating cells, based on floating_mask
+    !> \item[floating_fraction] Weigh bmlt by floating fraction of cell if 0 < f_ground < 1
+    !> \item[zero_grounded] Set bmlt_float = 0 in partly grounded cells (f_ground > 0)
+    !> \end{description}
+
+    integer :: flotation_function = FLOTATION_FUNCTION_LINEAR
+    !WHL TODO - Remove option 3 during the config reorg
+    !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore
+    !> Not valid for other dycores
+    !> \begin{description}
+    !> \item[pattyn] f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
+    !> \item[inverse_pattyn] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
+    !> \item[linear] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
+    !>          (without extrapolation to ice-free ocean, as in an older version)
+    !> \item[3] Like (2), but with a correction for topg
+    !> \end{description}
+
+  end type glissade_grounding_line_type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -2307,7 +2249,7 @@ module glissade_types
 
      ! hydrology options
 
-     integer :: ho_flux_routing_scheme = FLUX_ROUTING_METHOD_D8
+     integer :: flux_routing_method = FLUX_ROUTING_METHOD_D8
      !> Flux routing scheme for basal water:
      !> \begin{description}
      !> \item[d8] D8; send flux to lowest-elevation neighbor
@@ -2348,13 +2290,13 @@ module glissade_types
 
      ! parameters for constant basal water
      ! Note: This parameter applies to the case BWAT_METHOD_CONSTANT.
-     real(dp) :: const_bwat = 10.d0              !> constant basal water depth (m)
+     real(dp) :: bwat_const = 10.d0              !> constant basal water depth (m)
 
      ! parameters for local till model
      ! These parameters apply to the case BWAT_METHOD_LOCAL_TILL.
      ! The default values are from Aschwanden et al. (2016) and Bueler and van Pelt (2015).
      real(dp) :: bwat_till_max = 2.0d0           !> maximum water depth in till (m)
-     real(dp) :: c_drainage = 1.0d-3             !> uniform drainage rate (m/yr)
+     real(dp) :: till_drainage_rate = 1.0d-3     !> uniform drainage rate (m/yr)
      real(dp) :: N_0 = 1000.d0                   !> reference effective pressure (Pa)
      real(dp) :: e_0 = 0.69d0                    !> reference void ratio (dimensionless)
      real(dp) :: C_c = 0.12d0                    !> till compressibility (dimensionless)
@@ -2362,7 +2304,7 @@ module glissade_types
 
      ! parameters for steady-state flux-routing model
      !TODO - Add visc_water and omega_hydro? Currently set in glissade_basal_water module
-     real(dp) :: const_source = 0.0d0            !> constant melt source at the bed (m/yr)
+     real(dp) :: bwat_source_const = 0.0d0       !> constant melt source at the bed (m/yr)
                                                  !> could be used to represent an englacial or surface source
      real(dp) :: btemp_flow_scale = 0.0d0        !> temperature scale (degC) for transition between thawed and frozen bed;
                                                  !> used to route flow away from cells with a frozen bed;
@@ -2382,13 +2324,25 @@ module glissade_types
                                                  !> de Fleurian et al. (2018): 1.e-6 m/s = 31.5 m/yr (Table 3)
      real(dp) :: flwa_basal = 1.064e-16          !> flow factor A at the bed for cavity closing by creep (Pa^-3 yr-1);
                                                  !> de Fleurian et al. (2018): 3.375e-24 Pa^-3 s^-1 = 1.064e-16 Pa^-3 yr^-1 (Table 3)
-     real(dp) :: c_close = 0.074                 !> constant in the closing equation, v_close = c_close * A * bwat * N^n
+     real(dp) :: cavity_closing_const = 0.074    !> constant in the closing equation, v_close = cavity_closing_const * A * bwat * N^n
                                                  !> de Fleurian et al. (2018): 2/(n^n) = 0.074 with n = 3
 
      ! other parameters for effective pressure
      real(dp) :: effecpress_delta = 0.02d0       !> min value for effecpress N relative to overburden (unitless)
      real(dp) :: bpmp_threshold = 0.1d0          !> temperature range over which N ramps up from a small value to overburden (deg C)
      real(dp) :: haf_threshold = 500.d0          !> thickness at which height above flotation is capped (m)
+
+
+    !> [basal_hydro] switch
+
+    integer :: bwat_method = BWAT_METHOD_NONE
+    !> Basal water depth:
+    !> \begin{description}
+    !> \item[none] Set to zero everywhere
+    !> \item[constant] Set to constant everywhere, to force T = Tpmp
+    !> \item[local_till] Local basal till model with constant drainage
+    !> \item[flux_routing] Steady-state water routing with flux calculation
+    !> \end{description}
 
   end type glissade_basal_hydro_type
 
@@ -2403,9 +2357,9 @@ module glissade_types
      !      Larger values (~10 to 100 Pa yr/m) might be needed for stability in realistic simulations.
      real(dp) :: beta_grounded_min = 1.0d0  !> minimum value of beta for grounded ice, Pa yr/m (glissade only; scaled during init)
      
-     real(dp) :: ho_beta_const = 1000.d0    !> spatially uniform beta for HO dycores, Pa yr/m (scaled during init)
-     real(dp) :: ho_beta_small = 1000.d0    !> small beta for sliding over a thawed bed, Pa yr/m (scaled during init)
-     real(dp) :: ho_beta_large = 1.0d10     !> large beta to enforce (virtually) no slip, Pa yr/m (scaled during init)
+     real(dp) :: beta_const = 1000.d0    !> spatially uniform beta for HO dycores, Pa yr/m (scaled during init)
+     real(dp) :: beta_small = 1000.d0    !> small beta for sliding over a thawed bed, Pa yr/m (scaled during init)
+     real(dp) :: beta_large = 1.0d10     !> large beta to enforce (virtually) no slip, Pa yr/m (scaled during init)
 
      integer,  dimension(:,:), pointer :: bpmp_mask => null()   !> basal pressure melting point mask; = 1 where Tbed = bpmp, elsewhere = 0
                                                                 !> Note: Defined on velocity grid, whereas temp and bpmp are on ice grid
@@ -2510,6 +2464,67 @@ module glissade_types
 
      ! parameters for reducing the effective pressure where the bed is connected to the ocean
      real(dp) :: p_ocean_penetration = 0.0d0           !> p-exponent for ocean penetration; N weighted by (1-Hf/H)^p (0 <= p <= 1)
+
+
+    !> [basal_physics] keys (others are above)
+
+    integer :: sliding_law = SLIDING_LAW_NO_SLIP
+
+    logical :: use_c_space_factor = .false.
+    !> Flag that indicates whether to multiply beta by a 2D scalar field
+
+    integer :: beta_limit_method = BETA_LIMIT_METHOD_ABSOLUTE
+    !> Flag for setting minimum beta beneath grounded ice
+    !> \begin{description}
+    !> \item[absolute] absolute limit given by beta_grounded_min
+    !> \item[fground_scaled] limited using beta_grounded_min, then multiplied by f_ground
+    !> \end{description}
+
+    integer :: powerlaw_c_method = POWERLAW_C_METHOD_CONSTANT
+    !> Flag for basal powerlaw_c options
+    !> \begin{description}
+    !> \item[constant] powerlaw_c = spatially uniform constant
+    !> \item[inversion] invert for 2D powerlaw_c
+    !> \item[file] read 2D powerlaw_c from external file
+    !> \item[inversion_basin] invert for basin-scale powerlaw_c
+    !> \item[from_coulomb_c] relate to coulomb_c: Cp = gamma*Cc^p
+    !> \end{description}
+
+    integer :: coulomb_c_method = COULOMB_C_METHOD_CONSTANT
+    !> Flag for basal coulomb_c options
+    !> \begin{description}
+    !> \item[constant] coulomb_c = spatially uniform constant
+    !> \item[inversion] invert for 2D coulomb_c
+    !> \item[file] read 2D coulomb_c from external file
+    !> \item[inversion_basin] invert for basin-scale coulomb_c
+    !> \end{description}
+
+    logical :: elevation_based_coulomb_c = .false.
+    !> Flag that indicates whether coulomb_c depends on elevation
+
+    integer :: effecpress_method = EFFECPRESS_METHOD_OVERBURDEN
+    !> Flag that describes effective pressure calculation for HO dyn core: 
+    !> \begin{description}
+    !> \item[overburden] N = overburden pressure, rhoi*grav*thck
+    !> \item[bpmp] N is proportional to height above flotation
+    !> \item[bwat] N is reduced based on basal water thickness from active hydrology
+    !> \item[cavity_sheet] N depends on cavity opening and closing
+    !> \item[bwat_bvp] N is reduced based on basal water thickness, following Bueler/van Pelt
+    !> \item[5] N is reduced where the bed is at or near the pressure melting point
+    !> \end{description}
+
+    integer :: btrc_method = BTRC_METHOD_NONE
+    !> Basal slip coefficient (used for glide and for glissade local SIA; not glissade HO):
+    !> \begin{description}
+    !> \item[none] Set equal to zero everywhere
+    !> \item[constant] Set to (non--zero) constant
+    !> \item[constant_bwat] Set to (non--zero) constant where basal water is present, otherwise to zero
+    !> \item[constant_bpmp] Set to (non--zero) constant where bed temperature is at pressure melting point, otherwise to zero
+    !> \item[4] linear function of basal melt rate
+    !> \item[5] \texttt{tanh} function of basal water depth 
+    !> \end{description}
+
+    real(dp) :: btrc_const = 0.d0      ! m yr^{-1} Pa^{-1} (gets scaled during init)
 
   end type glissade_basal_physics_type
 
@@ -2666,7 +2681,6 @@ module glissade_types
   !TODO - Move these parameters to types associated with a certain kind of physics
   !WHL TODO - During the config reorg, change default geot to 0.0, so that idealized tests by default have no mass loss
   type glissade_paramets_type
-    real(dp) :: btrc_const = 0.d0      ! m yr^{-1} Pa^{-1} (gets scaled during init)
     real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down  !TODO - Change default to 0.0?
   end type glissade_paramets_type
 
@@ -2691,6 +2705,7 @@ module glissade_types
     type(glissade_flow_law_type) :: flow_law
     type(glissade_basal_hydro_type)  :: basal_hydro
     type(glissade_basal_physics_type):: basal_physics
+    type(glissade_grounding_line_type) :: grounding_line
     type(glissade_basal_melt_type)   :: basal_melt
     type(glissade_ocean_data_type)   :: ocean_data
     type(glissade_glaciers_type)  :: glaciers
@@ -2800,7 +2815,7 @@ contains
 
     call coordsystem_allocate(model%grid%ice_grid,  model%basal_hydro%bwat)
     call coordsystem_allocate(model%grid%ice_grid,  model%basal_hydro%bwatflx)
-    if (model%options%which_ho_bwat == BWAT_METHOD_FLUX_ROUTING) then
+    if (model%basal_hydro%bwat_method == BWAT_METHOD_FLUX_ROUTING) then
        call coordsystem_allocate(model%grid%ice_grid,  model%basal_hydro%bmlt_hydro)
        call coordsystem_allocate(model%grid%ice_grid,  model%basal_hydro%bwat_diag)
        call coordsystem_allocate(model%grid%ice_grid,  model%basal_hydro%head)
@@ -3016,8 +3031,8 @@ contains
     call coordsystem_allocate(model%grid%velo_grid,model%basal_physics%powerlaw_c)
     call coordsystem_allocate(model%grid%velo_grid,model%basal_physics%coulomb_c)
 
-    if (model%options%which_ho_coulomb_c == COULOMB_C_METHOD_INVERSION_BASIN .or. &
-        model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN) then
+    if (model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION_BASIN .or. &
+        model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN) then
        if (model%ocean_data%nbasin < 1) then
           call write_log ('Must set nbasin >= 1 for basin-scale inversion of C_c or C_p', GM_FATAL)
        endif

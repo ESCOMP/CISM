@@ -92,13 +92,13 @@ contains
          !-------------------------------------------------------------------
 
          ! make sure basal sliding is turned off
-         whichbtrc_sav = model%options%whichbtrc
-         model%options%whichbtrc = BTRC_METHOD_NONE
+         whichbtrc_sav = model%basal_physics%btrc_method
+         model%basal_physics%btrc_method = BTRC_METHOD_NONE
 
          call glissade_velo_sia_solve(model, ewn, nsn, upn)
 
          ! restore the original value of whichbtrc, just in case
-         model%options%whichbtrc = whichbtrc_sav
+         model%basal_physics%btrc_method = whichbtrc_sav
 
          ! save the result
          allocate(uvel_sia(upn,ewn,nsn))

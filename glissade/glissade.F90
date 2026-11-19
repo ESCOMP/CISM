@@ -755,7 +755,7 @@ contains
     !  subroutine calcbeta instead of interpolating from unstagbeta (one processor only).
 
     if (maxval(model%velocity%unstagbeta) > 0.d0 .and.   &
-               model%options%which_ho_babc /= SLIDING_LAW_ISMIP_HOM_C) then  ! interpolate to staggered grid
+               model%basal_physics%sliding_law /= SLIDING_LAW_ISMIP_HOM_C) then  ! interpolate to staggered grid
        call write_log('Interpolating beta from unstaggered (unstagbeta) to staggered grid (beta)')
        if (maxval(model%velocity%beta) > 0.0d0 ) then
           call write_log('Warning: the input "beta" field will be overwritten with values interpolated from the input &
@@ -777,7 +777,7 @@ contains
     ! The MISMIP 3D test case requires reading in a spatial factor that multiplies Coulomb_C.
     ! This factor is read in on the unstaggered grid, then interpolated to the staggered grid.
     ! If this factor is not present in the input file, then set it to 1 everywhere.
-    if (model%options%use_c_space_factor) then
+    if (model%basal_physics%use_c_space_factor) then
 
        if (parallel_is_zero(model%basal_physics%c_space_factor)) then
           ! c_space_factor was not read in; set to 1 everywhere, so it will be ignored when computing beta
@@ -873,13 +873,13 @@ contains
     ! Note: If inverting for coulomb_c, then coulomb_c is initialized here.
     !       On restart, the saved coulomb_c is read from the restart file and is not reset here.
 
-    if (model%options%which_ho_coulomb_c == COULOMB_C_METHOD_CONSTANT) then
+    if (model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_CONSTANT) then
 
        model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
 
     else   ! either inverting for coulomb_c or reading values from an input file
 
-       if (model%options%elevation_based_coulomb_c) then
+       if (model%basal_physics%elevation_based_coulomb_c) then
 
           ! Given coulomb_c_hi and coulomb_c_lo, compute coulomb_c based on elevation
 
@@ -913,15 +913,15 @@ contains
 
     ! Note: When running with glaciers, there is an independent glacier option,
     !        set_powerlaw_c, that controls glacier inversion.
-    !       We can have model%options%which_ho_powerlaw_c = POWERLAW_C_METHOD_CONSTANT,
+    !       We can have model%basal_physics%powerlaw_c_method = POWERLAW_C_METHOD_CONSTANT,
     !        while model%glaciers%set_powerlaw_c = GLACIER_POWERLAW_C_METHOD_INVERSION.
     !       In that case, we do *not* want to reset powerlaw_c.
     !TODO:  Have a single option that is applied with or without glaciers enabled?
 
-    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_FROM_COULOMB_C) then
+    if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_FROM_COULOMB_C) then
        model%basal_physics%powerlaw_c = model%basal_physics%schoof_gamma * &
             model%basal_physics%coulomb_c**model%basal_physics%schoof_p
-    elseif (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_CONSTANT .or. &
+    elseif (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_CONSTANT .or. &
         parallel_is_zero(model%basal_physics%powerlaw_c)) then
        if (model%options%enable_glaciers .and. &
             model%glaciers%set_powerlaw_c /= GLACIER_POWERLAW_C_METHOD_CONSTANT) then
@@ -935,12 +935,12 @@ contains
     ! At the start of the run (but not on restart), this might lead to further thickness adjustments,
     !  so it should be called before computing the calving mask.
 
-    if (model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION       .or.  &
-        model%options%which_ho_powerlaw_c == POWERLAW_C_METHOD_INVERSION_BASIN .or.  &
-        model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION        .or.  &
-        model%options%which_ho_coulomb_c  == COULOMB_C_METHOD_INVERSION_BASIN  .or.  &
-        model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION       .or.  &
-        model%options%which_ho_deltaT_ocn == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+    if (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION       .or. &
+        model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
+        model%basal_physics%coulomb_c_method  == COULOMB_C_METHOD_INVERSION        .or. &
+        model%basal_physics%coulomb_c_method  == COULOMB_C_METHOD_INVERSION_BASIN  .or. &
+        model%options%which_ho_deltaT_ocn     == DELTAT_OCN_METHOD_INVERSION       .or. &
+        model%options%which_ho_deltaT_ocn     == DELTAT_OCN_METHOD_INVERSION_BASIN) then
 
        call glissade_inversion_init(model)
 
@@ -1353,7 +1353,7 @@ contains
          model%geometry%lsrf,                                          & ! m
          model%climate%eus,                                            & ! m
          model%climate%artm_corrected,                                 & ! deg C
-         model%options%which_ho_ground,                                &
+         model%grounding_line%grounding_line_param,                    &
          model%geometry%f_ground_cell,                                 & ! [0,1]
          model%temperature%bheatflx,                                   & ! W/m2
          model%temperature%bfricflx,                                   & ! W/m2
@@ -1375,7 +1375,7 @@ contains
 
     !TODO - Move the following calls to a new basal hydrology solver?
 
-    if (model%options%which_ho_bwat == BWAT_METHOD_FLUX_ROUTING) then
+    if (model%basal_hydro%bwat_method == BWAT_METHOD_FLUX_ROUTING) then
 
        !WHL - Temporary code for debugging: Make up a simple basal melt field.
 !       model%basal_hydro%head(:,:) = &
@@ -1437,10 +1437,10 @@ contains
 
        ! Set the meltwater source for the basal hydrology scheme.
        ! By default, this is bmlt_ground (m/s), but optionally can be
-       !  increased by the value const_source where bwat_mask = 1.
+       !  increased by the value bwat_source_const where bwat_mask = 1.
        !TODO - Optionally, use the constant value only, ignoring bmlt_ground?
        where (bwat_mask == 1)
-          model%basal_hydro%bmlt_hydro = model%basal_melt%bmlt_ground + model%basal_hydro%const_source/scyr
+          model%basal_hydro%bmlt_hydro = model%basal_melt%bmlt_ground + model%basal_hydro%bwat_source_const/scyr
           ! Do not pass in negative values
           model%basal_hydro%bmlt_hydro = max(model%basal_hydro%bmlt_hydro, 0.0d0)
        elsewhere
@@ -1454,7 +1454,7 @@ contains
             model%grid%dew,          model%grid%dns,                 &  ! m
             model%parallel,                                          &
             itest, jtest, rtest,                                     &
-            model%basal_hydro%ho_flux_routing_scheme,                &
+            model%basal_hydro%flux_routing_method,                   &
             model%geometry%thck,                                     &  ! m
             model%geometry%topg,                                     &  ! m
             model%numerics%thcklim_temp,                             &  ! m
@@ -1479,7 +1479,7 @@ contains
 
     else  ! simpler basal water options
 
-       call glissade_calcbwat(model%options%which_ho_bwat,      &
+       call glissade_calcbwat(model%basal_hydro%bwat_method,    &
                               model%basal_hydro,                &
                               dt,                               &  ! s
                               model%geometry%thck,              &  ! m
@@ -2152,24 +2152,24 @@ contains
     ! (e.g., on the first time step of a restart).
     ! ------------------------------------------------------------------------
 
-    call glissade_grounded_fraction(ewn,          nsn,             &
-                                    parallel,                      &
-                                    itest, jtest, rtest,           &  ! diagnostic only
-                                    model%geometry%thck,           &
-                                    model%geometry%topg,           &
-                                    model%climate%eus,             &
-                                    ice_mask,                      &
-                                    floating_mask,                 &
-                                    land_mask,                     &
-                                    model%options%which_ho_ground, &
-                                    model%options%which_ho_flotation_function, &
-                                    model%options%which_ho_fground_no_glp,     &
-                                    model%geometry%f_flotation,    &
-                                    model%geometry%f_ground,       &
+    call glissade_grounded_fraction(ewn,          nsn,                         &
+                                    parallel,                                  &
+                                    itest, jtest, rtest,                       &  ! diagnostic only
+                                    model%geometry%thck,                       &
+                                    model%geometry%topg,                       &
+                                    model%climate%eus,                         &
+                                    ice_mask,                                  &
+                                    floating_mask,                             &
+                                    land_mask,                                 &
+                                    model%grounding_line%grounding_line_param, &
+                                    model%grounding_line%flotation_function,   &
+                                    model%grounding_line%fground_no_glp,       &
+                                    model%geometry%f_flotation,                &
+                                    model%geometry%f_ground,                   &
                                     model%geometry%f_ground_cell)
 
     if (verbose_glp) then
-       if (this_rank == rtest) write(iulog,*) 'Called GLP subroutine, which_ho_ground =', model%options%which_ho_ground
+       if (this_rank == rtest) write(iulog,*) 'Called GLP subroutine, which_ho_ground =', model%grounding_line%grounding_line_param
        call point_diag(model%geometry%f_flotation, 'f_flotation', itest, jtest, rtest, 7, 7, '(f10.5)')
        call point_diag(model%geometry%f_ground, 'f_ground at vertex', itest, jtest, rtest, 7, 7, '(f10.5)')
        call point_diag(model%geometry%f_ground_cell, 'f_ground_cell', itest, jtest, rtest, 7, 7, '(f10.5)')
@@ -2222,7 +2222,7 @@ contains
     ! Note: There is currently no option to compute powerlaw_c based on elevation.
     ! ------------------------------------------------------------------------
 
-    if (model%options%elevation_based_coulomb_c) then
+    if (model%basal_physics%elevation_based_coulomb_c) then
 
        call glissade_elevation_based_coulomb_c(&
             ewn,                 nsn,                 &
@@ -2266,7 +2266,7 @@ contains
                               model%temperature%flow_enhancement_factor, &
                               model%flow_law%flow_factor_ground,         &
                               model%flow_law%flow_factor_float,          &
-                              model%options%which_ho_ground,             &
+                              model%grounding_line%grounding_line_param, &
                               floating_mask,                             &
                               model%geometry%f_ground_cell,              &
                               model%temperature%waterfrac,               &
@@ -2391,21 +2391,21 @@ contains
        !TODO - Use btemp_ground instead of temp(upn)?
        !TODO - Break into two subroutines (second subroutine for ocean_p)
        call glissade_calc_effecpress(&
-            model%options%which_ho_effecpress,   &
-            parallel,                            &
-            itest, jtest,  rtest,                &
-            ewn,   nsn,    upn,                  &
-            model%grid%dew,                      &   ! m
-            model%grid%dns,                      &   ! m
-            model%basal_physics,                 &
-            model%basal_hydro,                   &
-            ice_mask,      floating_mask,        &
-            model%geometry%thck,                 &   ! m
-            model%geometry%topg,                 &   ! m
-            model%climate%eus,                   &   ! m
-            model%basal_melt%bmlt_ground,        &   ! m/s
-            model%velocity%uvel,                 &   ! m/s
-            model%velocity%vvel,                 &   ! m/s
+            model%basal_physics%effecpress_method,                         &
+            parallel,                                                      &
+            itest, jtest,  rtest,                                          &
+            ewn,   nsn,    upn,                                            &
+            model%grid%dew,                                                &   ! m
+            model%grid%dns,                                                &   ! m
+            model%basal_physics,                                           &
+            model%basal_hydro,                                             &
+            ice_mask,      floating_mask,                                  &
+            model%geometry%thck,                                           &   ! m
+            model%geometry%topg,                                           &   ! m
+            model%climate%eus,                                             &   ! m
+            model%basal_melt%bmlt_ground,                                  &   ! m/s
+            model%velocity%uvel,                                           &   ! m/s
+            model%velocity%vvel,                                           &   ! m/s
             model%temperature%bpmp(:,:) - model%temperature%temp(upn,:,:), & ! degC
             model%time%dt/scyr)                  ! yr
 
@@ -2428,7 +2428,7 @@ contains
        endif
 
        !! extrapolate value of mintauf into halos to enforce periodic lateral bcs (only if field covers entire domain)
-       if (model%options%which_ho_babc == SLIDING_LAW_YIELD_PICARD) then
+       if (model%basal_physics%sliding_law == SLIDING_LAW_YIELD_PICARD) then
           call staggered_parallel_halo_extrapolate(model%basal_physics%mintauf, parallel)
        endif
 
@@ -2653,7 +2653,7 @@ contains
     !       The copy would break exact restart, however, if beta is read from an external file.
     !        In that case, users must specify 'beta_internal' to see the weighted beta field.
 
-    if (model%options%which_ho_babc /= SLIDING_LAW_BETA_FILE) then
+    if (model%basal_physics%sliding_law /= SLIDING_LAW_BETA_FILE) then
        model%velocity%beta(:,:) = model%velocity%beta_internal(:,:)
     endif
 
