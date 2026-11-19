@@ -100,16 +100,16 @@ contains
 
     ! Copy some model variables to local variables
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
 
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
        itest_m3 = max(itest-3, 1)
        itest_p3 = min(itest+3, nx)
        jtest_m3 = max(jtest-3, 1)
@@ -174,13 +174,13 @@ contains
 
     ! local variables
 
-    real(dp), dimension(model%general%ewn, model%general%nsn) :: &
+    real(dp), dimension(model%grid%ewn, model%grid%nsn) :: &
          topg,               &  ! bed topography (m)
          thck,               &  ! thickness (m)
          usrf,               &  ! surface elevation (m)
          usrf_smoothed          ! surface elevation after smoothing
 
-    integer, dimension(model%general%ewn, model%general%nsn) :: &
+    integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          ice_mask,           &  ! = 1 if ice is present (thck > 0, else = 0
          floating_mask,      &  ! = 1 if ice is present (thck > 0) and floating, else = 0
          ocean_mask             ! = 1 if topg < 0 and ice is absent, else = 0
@@ -202,16 +202,16 @@ contains
 
     ! Copy some model variables to local variables
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
 
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     ! compute the initial surface elevation
@@ -886,7 +886,7 @@ contains
   subroutine glissade_handle_ice_caps(model)
 
     ! Identify ice caps, defined as cells disconnected from the main ice sheet.
-    ! If model%options%remove_ice_caps = T, then this subroutine removes them.
+    ! If model%removal%remove_ice_caps = T, then this subroutine removes them.
 
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask
     use cism_parallel, only: parallel_halo, parallel_global_sum, parallel_globalindex, parallel_reduce_max
@@ -899,7 +899,7 @@ contains
 
     ! local variables
 
-    integer, dimension(model%general%ewn, model%general%nsn) :: &
+    integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          ice_mask           ! = 1 where ice is present, else = 0
 
     integer :: i, j, ig, jg
@@ -913,16 +913,16 @@ contains
 
     ! Copy some model variables to local variables
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
 
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     parallel = model%parallel
@@ -930,10 +930,10 @@ contains
     call parallel_halo(model%geometry%thck, parallel)
 
     call glissade_get_masks(&
-         nx,                  ny,                    &
-         parallel,                                   &
-         model%geometry%thck, model%geometry%topg,   &
-         model%climate%eus,   model%numerics%thklim, &
+         nx,                  ny,                     &
+         parallel,                                    &
+         model%geometry%thck, model%geometry%topg,    &
+         model%climate%eus,   model%numerics%thcklim, &
          ice_mask)
 
     call glissade_ice_sheet_mask(&
@@ -970,7 +970,7 @@ contains
     ! Note: The ice cap mask is not updated after removal.  So if the mask is written to output,
     !       it will show where ice caps existed before removal.
 
-    if (model%options%remove_ice_caps) then
+    if (model%removal%remove_ice_caps) then
        where (model%geometry%ice_cap_mask == 1)
           model%geometry%removal_thck = model%geometry%removal_thck + model%geometry%thck
           model%geometry%thck = 0.0d0
@@ -1000,8 +1000,8 @@ contains
 
     logical :: verbose_cleanup = .false.
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
 
     parallel = model%parallel
 
@@ -1057,8 +1057,8 @@ contains
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
 
     parallel = model%parallel
 
@@ -1075,20 +1075,20 @@ contains
              model%basal_hydro%bwat(i,j) = 0.0d0
 
              ! thermal variables
-             model%temper%temp(:,i,j) = min(model%climate%artm(i,j), 0.0d0)
+             model%temperature%temp(:,i,j) = min(model%climate%artm(i,j), 0.0d0)
 
-             if (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
-                model%temper%waterfrac(:,i,j) = 0.0d0
+             if (model%temperature%temperature_method == TEMPERATURE_METHOD_ENTHALPY) then
+                model%temperature%waterfrac(:,i,j) = 0.0d0
              endif
 
              ! other tracers
              ! Note: Tracers should be added here as they are added to the model
 
-             if (model%options%whichcalving == CALVING_LAW_DAMAGE) then
+             if (model%calving%calving_law == CALVING_LAW_DAMAGE) then
                 model%calving%damage(:,i,j) = 0.0d0
              endif
 
-             if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
+             if (model%advection%compute_ice_age) then
                 model%geometry%ice_age(:,i,j) = 0.0d0
              endif
 

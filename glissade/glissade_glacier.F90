@@ -80,7 +80,7 @@ contains
 
     type(glissade_global_type),intent(inout) :: model
 
-    type(glissade_glacier_type) :: glacier    ! derived type for glacier info
+    type(glissade_glaciers_type) :: glacier    ! derived type for glacier info
                                       ! included in 'model', but passed separately to save typing
 
     ! local variables
@@ -113,7 +113,7 @@ contains
          current_id,                & ! current glacier_id from list
          gid_minval, gid_maxval       ! min and max values of glacier_id
 
-    integer, dimension(model%general%ewn,model%general%nsn) :: &
+    integer, dimension(model%grid%ewn,model%grid%nsn) :: &
          glacier_mask                 ! = 1 for cells with glaciers (glacier_id > 0), else = 0
 
     type(parallel_type) :: parallel   ! info for parallel communication
@@ -140,13 +140,13 @@ contains
 
     global_ewn = parallel%global_ewn
     global_nsn = parallel%global_nsn
-    ewn = model%general%ewn
-    nsn = model%general%nsn
-    dew = model%numerics%dew
-    dns = model%numerics%dns
-    rtest = model%numerics%rdiag_local
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
+    ewn = model%grid%ewn
+    nsn = model%grid%nsn
+    dew = model%grid%dew
+    dns = model%grid%dns
+    rtest = model%diagnostics%rdiag_local
+    itest = model%diagnostics%idiag_local
+    jtest = model%diagnostics%jdiag_local
 
     if (verbose_glacier) then
        if (this_rank == rtest) write(iulog,*) 'In glissade_glacier_init'
@@ -157,17 +157,17 @@ contains
 
        ! Optionally, rescale the grid cell dimensions and coordinates
        ! This is answer-changing throughout the code.
-       ! Note: The global arrays model%general%x1_global, etc., which are written to output files, are not rescaled.
+       ! Note: The global arrays model%grid%x1_global, etc., which are written to output files, are not rescaled.
        !       These arrays are computed from the input file, which typically ignores the scale factor.
        if (glacier%length_scale_factor /= 1.0d0) then
-          model%general%x0 = model%general%x0 * glacier%length_scale_factor
-          model%general%y0 = model%general%y0 * glacier%length_scale_factor
-          model%general%x1 = model%general%x1 * glacier%length_scale_factor
-          model%general%y1 = model%general%y1 * glacier%length_scale_factor
-          model%numerics%dew = model%numerics%dew * glacier%length_scale_factor
-          model%numerics%dns = model%numerics%dns * glacier%length_scale_factor
-          dew = model%numerics%dew
-          dns = model%numerics%dns
+          model%grid%x0 = model%grid%x0 * glacier%length_scale_factor
+          model%grid%y0 = model%grid%y0 * glacier%length_scale_factor
+          model%grid%x1 = model%grid%x1 * glacier%length_scale_factor
+          model%grid%y1 = model%grid%y1 * glacier%length_scale_factor
+          model%grid%dew = model%grid%dew * glacier%length_scale_factor
+          model%grid%dns = model%grid%dns * glacier%length_scale_factor
+          dew = model%grid%dew
+          dns = model%grid%dns
        endif
 
        ! Rescale the grid cell areas (diagnostic only; not used for dynamic calculations).
@@ -175,7 +175,7 @@ contains
        ! Note: These use the actual cell latitudes, as opposed to acos(length_scale_factor)
        do j = 1, nsn
           do i = 1, ewn
-             theta_rad = model%general%lat(i,j) * pi/180.d0
+             theta_rad = model%grid%lat(i,j) * pi/180.d0
              model%geometry%cell_area(i,j) = model%geometry%cell_area(i,j) * cos(theta_rad)**2
           enddo
        enddo
@@ -183,16 +183,16 @@ contains
 
        if (verbose_glacier .and. this_rank == rtest) then
           i = itest; j = jtest
-          theta_rad = model%general%lat(i,j) * pi/180.d0
+          theta_rad = model%grid%lat(i,j) * pi/180.d0
           write(iulog,*) 'Scale dew and dns: factor, new dew, dns =', &
                glacier%length_scale_factor, dew, dns
           write(iulog,*) 'Scale cell area: i, j, lat, cos(lat), cell_area =', &
-               i, j, model%general%lat(i,j), cos(theta_rad), model%geometry%cell_area(i,j)
+               i, j, model%grid%lat(i,j), cos(theta_rad), model%geometry%cell_area(i,j)
        endif
 
     endif   ! scale_area
 
-    if (model%options%is_restart == NO_RESTART) then
+    if (model%options%restart == NO_RESTART) then
 
        ! not a restart; initialize everything from the input file
 
@@ -402,7 +402,7 @@ contains
        ! Set each glaciated cell to at least the minimum dynamically active thickness
        ! Adjust the upper surface accordingly
        where (glacier%cism_glacier_id > 0)
-          model%geometry%thck = max(model%geometry%thck, model%numerics%thklim)
+          model%geometry%thck = max(model%geometry%thck, model%numerics%thcklim)
           model%geometry%usrf = &
                max(model%geometry%usrf, model%geometry%topg + model%geometry%thck)
        endwhere
@@ -426,7 +426,7 @@ contains
 
        ! Compute the initial area and volume of each glacier.
        ! These values are saved and written to the restart file.
-       ! Only ice thicker than diagnostic_minthck is included in area and volume sums.
+       ! Only ice thicker than glacier_diag_thck_min is included in area and volume sums.
 
        call glacier_area_volume(&
             ewn,           nsn,               &
@@ -435,7 +435,7 @@ contains
             glacier%cism_glacier_id_init,     &
             model%geometry%cell_area,         &  ! m^2
             model%geometry%thck,              &  ! m
-            glacier%diagnostic_minthck,       &  ! m
+            glacier%glacier_diag_thck_min,    &  ! m
             glacier%area_init,                &  ! m^2
             glacier%volume_init)                 ! m^3
 
@@ -487,7 +487,7 @@ contains
        !       the input thickness, if the input thickness corresponds to the RGI date.
        ! On restart, powerlaw_c is read from the restart file;
        !  thck_target is not a restart field but is updated annually during the inversion.
-       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
+       if (glacier%glacier_powerlaw_c_method == GLACIER_POWERLAW_C_METHOD_INVERSION) then
           model%basal_physics%powerlaw_c(:,:) = model%basal_physics%powerlaw_c_const
           glacier%thck_target = model%geometry%thck
        endif
@@ -524,8 +524,8 @@ contains
           enddo
        enddo
 
-       if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
-           glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
+       if (glacier%mu_star_method == MU_STAR_METHOD_INVERSION .and. &
+           glacier%alpha_snow_method == ALPHA_SNOW_METHOD_INVERSION) then
           ! Make sure a nonzero smb_obs field was read in
           if (parallel_is_zero(model%climate%smb_obs)) then
              call write_log ('Error, no nonzero values for smb_obs', GM_FATAL)
@@ -590,13 +590,13 @@ contains
           call write_log ('Error, no positive values for glacier powerlaw_c', GM_FATAL)
        endif
 
-       if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION) then
+       if (glacier%mu_star_method == MU_STAR_METHOD_INVERSION) then
           max_glcval = maxval(model%geometry%usrf_obs)
           max_glcval = parallel_reduce_max(max_glcval)
           if (max_glcval <= 0.0d0) then
              call write_log ('Error, no positive values for usrf_obs', GM_FATAL)
           endif
-          if (glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
+          if (glacier%alpha_snow_method == ALPHA_SNOW_METHOD_INVERSION) then
              ! need nonzero smb_obs for inversion
              max_glcval = maxval(abs(glacier%smb_obs))
              max_glcval = parallel_reduce_max(max_glcval)
@@ -617,7 +617,7 @@ contains
             glacier%cism_glacier_id,          &
             model%geometry%cell_area,         &  ! m^2
             model%geometry%thck,              &  ! m
-            glacier%diagnostic_minthck,       &  ! m
+            glacier%glacier_diag_thck_min,    &  ! m
             glacier%area,                     &  ! m^2
             glacier%volume)                      ! m^3
 
@@ -630,7 +630,7 @@ contains
             glacier%cism_glacier_id_init,     &
             model%geometry%cell_area,         &  ! m^2
             model%geometry%thck,              &  ! m
-            glacier%diagnostic_minthck,       &  ! m
+            glacier%glacier_diag_thck_min,    &  ! m
             glacier%area_init_extent,         &  ! m^2
             glacier%volume_init_extent)          ! m^3
 
@@ -654,7 +654,7 @@ contains
     ! Thus, any ice that is not part of a glacier is dynamically inactive,
     !  but could receive a glacier ID and become active with thickening.
 
-    glacier%minthck = model%numerics%thklim - eps08
+    glacier%minthck = model%numerics%thcklim - eps08
 
     ! Set the index of the diagnostic glacier, using the CISM glacier ID for the diagnostic point
     if (this_rank == rtest) then
@@ -740,7 +740,7 @@ contains
 
     type(glissade_global_type), intent(inout) :: model
 
-    type(glissade_glacier_type) :: glacier  ! derived type for glacier info
+    type(glissade_glaciers_type) :: glacier  ! derived type for glacier info
                                     ! included in 'model', but passed separately to save typing
 
     ! local variables
@@ -757,11 +757,11 @@ contains
     integer :: ngdiag         ! CISM index of diagnostic glacier
     integer :: i, j, ng
 
-    integer, dimension(model%general%ewn, model%general%nsn) ::  &
+    integer, dimension(model%grid%ewn, model%grid%nsn) ::  &
          ice_mask,                & ! = 1 where ice is present (thck > thklim), else = 0
          glacier_mask               ! temporary mask
 
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+    real(dp), dimension(model%grid%ewn, model%grid%nsn) ::  &
          thck,                    & ! ice thickness (m)
          dthck_dt,                & ! rate of change of thickness (m/yr)
          cell_area_uniform,       & ! grid cell area defined as dew*dns(m^2)
@@ -785,7 +785,7 @@ contains
          smb_weight_init,         & ! ratio of applied SMB to potential SMB, in range [0,1], for sums over initial area
          smb_weight_current         ! ratio of applied SMB to potential SMB, in range [0,1], for sums over current area
 
-    real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::  &
+    real(dp), dimension(model%grid%ewn-1, model%grid%nsn-1) ::  &
          stag_thck,                 & ! ice thickness at vertices (m)
          stag_thck_target,          & ! target ice thickness at vertices (m)
          stag_dthck_dt                ! rate of change of ice thickness at vertices (m/yr)
@@ -854,13 +854,13 @@ contains
 
     parallel = model%parallel
 
-    ewn = model%general%ewn
-    nsn = model%general%nsn
-    dew = model%numerics%dew                  ! convert to m
-    dns = model%numerics%dns                  ! convert to m
-    rtest = model%numerics%rdiag_local
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
+    ewn = model%grid%ewn
+    nsn = model%grid%nsn
+    dew = model%grid%dew                  ! convert to m
+    dns = model%grid%dns                  ! convert to m
+    rtest = model%diagnostics%rdiag_local
+    itest = model%diagnostics%idiag_local
+    jtest = model%diagnostics%jdiag_local
 
     nglacier = glacier%nglacier
     ngdiag = glacier%ngdiag
@@ -868,7 +868,7 @@ contains
 
     ! some unit conversions
     !       Skip these conversion and use SI units (s instead of yr) in the code.
-    dt = model%numerics%dt /scyr                    ! s to yr
+    dt = model%time%dt /scyr                    ! s to yr
     dthck_dt = model%geometry%dthck_dt * scyr       ! m/s to m/yr
 
     ! Accumulate the 2D fields used for mu_star and alpha_snow inversion: snow and Tpos.
@@ -885,23 +885,23 @@ contains
        glacier%Tpos_annmean = 0.0d0
        glacier%smb_applied_annmean = 0.0d0
 
-       if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
-           glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
+       if (glacier%mu_star_method == MU_STAR_METHOD_INVERSION .and. &
+           glacier%alpha_snow_method == ALPHA_SNOW_METHOD_INVERSION) then
           glacier%snow_recent_annmean = 0.0d0
           glacier%Tpos_recent_annmean = 0.0d0
           glacier%snow_rgi_annmean = 0.0d0
           glacier%Tpos_rgi_annmean = 0.0d0
        endif
 
-       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
+       if (glacier%glacier_powerlaw_c_method == GLACIER_POWERLAW_C_METHOD_INVERSION) then
           glacier%dthck_dt_annmean = 0.0d0
        endif
 
        ! If inverting for mu_star and alpha_snow, then compute some SMB-related quantities
        ! used in the inversion.
 
-       if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
-           glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
+       if (glacier%mu_star_method == MU_STAR_METHOD_INVERSION .and. &
+           glacier%alpha_snow_method == ALPHA_SNOW_METHOD_INVERSION) then
 
           ! Compute the SMB anomaly for the RGI and recent climates relative to the baseline climate.
           ! This is done once a year; smb, smb_rgi, and smb_recent are updated at the end of the previous year.
@@ -941,7 +941,7 @@ contains
                   glacier%delta_usrf_recent(i,j), delta_smb_recent(i,j)
           endif
 
-       endif   ! set_mu_star
+       endif   ! mu_star_method
 
     endif   ! time_since_last_avg = 0
 
@@ -949,14 +949,14 @@ contains
     ! Note: artm_corrected, snow_corrected, and precip_corrected are the input fields.
     !       The 'corrected' suffix means that anomaly forcing, if enabled, has been included.
     !       Assuming artm_input_function = xy_lapse, a lapse rate correction has already been applied.
-    ! Note: snow_calc is the snow calculation option: Either use the snowfall rate directly,
+    ! Note: snow_method is the snow calculation option: Either use the snowfall rate directly,
     !       or compute the snowfall rate from the precip rate and downscaled artm.
     !TODO - Not sure these are needed. Maybe can save halo updates for the annual-averaged snow and Tpos
 
     call parallel_halo(model%climate%artm_corrected, parallel)
-    if (glacier%snow_calc == SNOW_METHOD_SNOW) then
+    if (glacier%snow_method == SNOW_METHOD_SNOW) then
        call parallel_halo(model%climate%snow_corrected, parallel)
-    elseif (glacier%snow_calc == SNOW_METHOD_PRECIP_ARTM) then
+    elseif (glacier%snow_method == SNOW_METHOD_PRECIP_ARTM) then
        call parallel_halo(model%climate%precip_corrected, parallel)
     endif
 
@@ -986,29 +986,29 @@ contains
           if (ng > 0) then
              artm(i,j) = artm(i,j) + glacier%beta_artm(ng)
           endif
-          Tpos(i,j) = max(artm(i,j) - glacier%tmlt, 0.0d0)
+          Tpos(i,j) = max(artm(i,j) - glacier%glacier_tmlt, 0.0d0)
        enddo
     enddo
 
     ! Compute the snowfall rate
 
-    if (glacier%snow_calc == SNOW_METHOD_SNOW) then
+    if (glacier%snow_method == SNOW_METHOD_SNOW) then
 
        ! do nothing; use the input snowfall rate directly
 
-    elseif (glacier%snow_calc == SNOW_METHOD_PRECIP_ARTM) then
+    elseif (glacier%snow_method == SNOW_METHOD_PRECIP_ARTM) then
 
        ! compute snowfall based on precip and artm
 
        call glacier_calc_snow(&
-            ewn,       nsn,                   &
-            glacier%snow_threshold_min,       &
-            glacier%snow_threshold_max,       &
-            precip,                           &
-            artm,                             &
+            ewn,       nsn,                     &
+            glacier%glacier_snow_threshold_min, &
+            glacier%glacier_snow_threshold_max, &
+            precip,                             &
+            artm,                               &
             snow)
 
-    endif   ! snow_calc
+    endif   ! snow_method
 
     if (verbose_glacier .and. this_rank == rtest) then
        i = itest; j = jtest
@@ -1031,8 +1031,8 @@ contains
     !       enable_precip_anomaly = F. The anomalies are used here for inversion, but are not applied
     !       in the main glissade module.
 
-    if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
-        glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
+    if (glacier%mu_star_method == MU_STAR_METHOD_INVERSION .and. &
+        glacier%alpha_snow_method == ALPHA_SNOW_METHOD_INVERSION) then
 
        artm_recent(:,:)   = artm(:,:)   + model%climate%artm_anomaly(:,:)
        snow_recent(:,:)   = snow(:,:)   + model%climate%snow_anomaly(:,:)
@@ -1048,7 +1048,7 @@ contains
        do j = nhalo+1, nsn-nhalo
           do i = nhalo+1, ewn-nhalo
              artm_recent(i,j) = artm_recent(i,j) - glacier%delta_usrf_recent(i,j)*model%climate%t_lapse
-             Tpos_recent(i,j) = max(artm_recent(i,j) - glacier%tmlt, 0.0d0)
+             Tpos_recent(i,j) = max(artm_recent(i,j) - glacier%glacier_tmlt, 0.0d0)
           enddo
        enddo
 
@@ -1061,34 +1061,34 @@ contains
             (1.d0 - rgi_date_frac) * artm(:,:)  &
                  +  rgi_date_frac  * artm_recent(:,:)
 
-       Tpos_rgi(:,:) = max(artm_rgi(:,:) - glacier%tmlt, 0.0d0)
+       Tpos_rgi(:,:) = max(artm_rgi(:,:) - glacier%glacier_tmlt, 0.0d0)
 
        ! Compute the snowfall rate for the RGI and recent climate.
 
-       if (glacier%snow_calc == SNOW_METHOD_SNOW) then
+       if (glacier%snow_method == SNOW_METHOD_SNOW) then
 
           snow_rgi(:,:) = (1.d0 - rgi_date_frac) * snow(:,:)  &
                                +  rgi_date_frac  * snow_recent(:,:)
 
-       elseif (glacier%snow_calc == SNOW_METHOD_PRECIP_ARTM) then
+       elseif (glacier%snow_method == SNOW_METHOD_PRECIP_ARTM) then
 
           call glacier_calc_snow(&
-               ewn,       nsn,                   &
-               glacier%snow_threshold_min,       &
-               glacier%snow_threshold_max,       &
-               precip_recent,                    &
-               artm_recent,                      &
+               ewn,       nsn,                     &
+               glacier%glacier_snow_threshold_min, &
+               glacier%glacier_snow_threshold_max, &
+               precip_recent,                      &
+               artm_recent,                        &
                snow_recent)
 
           precip_rgi(:,:) = (1.d0 - rgi_date_frac) * precip(:,:)  &
                                   + rgi_date_frac  * precip_recent(:,:)
 
           call glacier_calc_snow(&
-               ewn,       nsn,                   &
-               glacier%snow_threshold_min,       &
-               glacier%snow_threshold_max,       &
-               precip_rgi,                       &
-               artm_rgi,                         &
+               ewn,       nsn,                     &
+               glacier%glacier_snow_threshold_min, &
+               glacier%glacier_snow_threshold_max, &
+               precip_rgi,                         &
+               artm_rgi,                           &
                snow_rgi)
 
        endif   ! snow calc
@@ -1101,7 +1101,7 @@ contains
                artm_recent(i,j), Tpos_recent(i,j), snow_recent(i,j)
        endif
 
-    endif   ! set_mu_star
+    endif   ! mu_star_method
 
     ! Accumulate snow_annmean, Tpos_annmean, and dthck_dt_annmean over this timestep
 
@@ -1112,15 +1112,15 @@ contains
     glacier%smb_applied_annmean = glacier%smb_applied_annmean  &
          + model%climate%acab_applied*scyr * 1000.d0*(rhoi/rhow) * dt
 
-    if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
-        glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
+    if (glacier%mu_star_method == MU_STAR_METHOD_INVERSION .and. &
+        glacier%alpha_snow_method == ALPHA_SNOW_METHOD_INVERSION) then
        glacier%snow_rgi_annmean = glacier%snow_rgi_annmean + snow_rgi * dt
        glacier%Tpos_rgi_annmean = glacier%Tpos_rgi_annmean + Tpos_rgi * dt
        glacier%snow_recent_annmean = glacier%snow_recent_annmean + snow_recent * dt
        glacier%Tpos_recent_annmean = glacier%Tpos_recent_annmean + Tpos_recent * dt
     endif
 
-    if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
+    if (glacier%glacier_powerlaw_c_method == GLACIER_POWERLAW_C_METHOD_INVERSION) then
        glacier%dthck_dt_annmean = glacier%dthck_dt_annmean + dthck_dt * dt
     endif
 
@@ -1136,15 +1136,15 @@ contains
        glacier%Tpos_annmean = glacier%Tpos_annmean / time_since_last_avg
        glacier%smb_applied_annmean = glacier%smb_applied_annmean / time_since_last_avg
 
-    if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
-        glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
+    if (glacier%mu_star_method == MU_STAR_METHOD_INVERSION .and. &
+        glacier%alpha_snow_method == ALPHA_SNOW_METHOD_INVERSION) then
           glacier%snow_rgi_annmean = glacier%snow_rgi_annmean / time_since_last_avg
           glacier%Tpos_rgi_annmean = glacier%Tpos_rgi_annmean / time_since_last_avg
           glacier%snow_recent_annmean = glacier%snow_recent_annmean / time_since_last_avg
           glacier%Tpos_recent_annmean = glacier%Tpos_recent_annmean / time_since_last_avg
        endif
 
-       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
+       if (glacier%glacier_powerlaw_c_method == GLACIER_POWERLAW_C_METHOD_INVERSION) then
           glacier%dthck_dt_annmean = glacier%dthck_dt_annmean / time_since_last_avg
        endif
 
@@ -1157,14 +1157,14 @@ contains
           write(iulog,*) '   snow (mm/yr)       =', glacier%snow_annmean(i,j)
           write(iulog,*) '   Tpos (deg C)       =', glacier%Tpos_annmean(i,j)
           write(iulog,*) '   smb_applied (mm/yr)=', glacier%smb_applied_annmean(i,j)
-          if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
-              glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
+          if (glacier%mu_star_method == MU_STAR_METHOD_INVERSION .and. &
+              glacier%alpha_snow_method == ALPHA_SNOW_METHOD_INVERSION) then
              write(iulog,*) '   snow_rgi (mm/yr)   =', glacier%snow_rgi_annmean(i,j)
              write(iulog,*) '   Tpos_rgi (deg C)   =', glacier%Tpos_rgi_annmean(i,j)
              write(iulog,*) '   snow_rec (mm/yr)   =', glacier%snow_recent_annmean(i,j)
              write(iulog,*) '   Tpos_rec (deg C)   =', glacier%Tpos_recent_annmean(i,j)
           endif
-          if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
+          if (glacier%glacier_powerlaw_c_method == GLACIER_POWERLAW_C_METHOD_INVERSION) then
              write(iulog,*) '   dthck_dt (m/yr)    =', glacier%dthck_dt_annmean(i,j)
           endif
        endif
@@ -1249,18 +1249,18 @@ contains
 
        ! Invert for mu_star
        ! This can be done in either of two ways:
-       ! (1) set_mu_star = 1, set_alpha_snow = 0 (1-parameter inversion)
+       ! (1) mu_star_method = inversion, alpha_snow_method = constant (1-parameter inversion)
        !     In this case, mu_star is chosen such that SMB ~ 0 over the initial glacier extent,
        !     given the input temperature and snow/precip fields (without the 'recent' suffix).
-       ! (2) set_mu_star = 1, set_alpha_snow = 1 (2-parameter inversion)
+       ! (2) mu_star_method = inversion, alpha_snow_method = inversion (2-parameter inversion)
        !     In this case, mu_star and alpha_snow are chosen jointly such that
        !     (a) SMB = 0 over the initial extent given the baseline temperature and snow/precip, and
        !     (b) SMB = smb_obs given the recent temperature and snow/precip.
        ! The code aborts at startup if set to invert for alpha_snow without inverting for mu_star.
 
-       if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION) then
+       if (glacier%mu_star_method == MU_STAR_METHOD_INVERSION) then
 
-          if (glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
+          if (glacier%alpha_snow_method == ALPHA_SNOW_METHOD_INVERSION) then
 
              ! invert for both mu_star and alpha_snow, based on two SMB conditions
              ! (SMB = 0 in a balanced climate, SMB = smb_obs in an out-of-balance climate)
@@ -1307,9 +1307,9 @@ contains
                   glacier%alpha_snow,                          &
                   glacier%mu_star,       glacier%beta_artm)
 
-          endif  ! set_alpha_snow
+          endif  ! alpha_snow_method
 
-       endif   ! set_mu_star
+       endif   ! mu_star_method
 
        ! advance/retreat diagnostics
        call glacier_area_advance_retreat(&
@@ -1351,7 +1351,7 @@ contains
           enddo
        endif   ! verbose_glacier
 
-       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
+       if (glacier%glacier_powerlaw_c_method == GLACIER_POWERLAW_C_METHOD_INVERSION) then
 
           ! Given the current and target ice thickness, invert for powerlaw_c.
           ! For this to work, the SMB should be close to zero over the initial glacier footprint,
@@ -1402,16 +1402,16 @@ contains
 
           ! Update powerlaw_c
           call glacier_invert_powerlaw_c(&
-               ewn,                nsn,                 &
-               itest,    jtest,    rtest,               &
-               model%basal_physics%powerlaw_c_min,      &
-               model%basal_physics%powerlaw_c_max,      &
-               model%inversion%babc_timescale/scyr,     &  ! yr
-               model%inversion%babc_thck_scale,         &  ! m
-               model%inversion%babc_relax_factor,       &
-               stag_thck,          stag_thck_target,    &
-               stag_dthck_dt,                           &
-               model%basal_physics%powerlaw_c_const,    &  ! relax to this value
+               ewn,                nsn,                       &
+               itest,    jtest,    rtest,                     &
+               model%basal_physics%powerlaw_c_min,            &
+               model%basal_physics%powerlaw_c_max,            &
+               model%inversion%inversion_babc_timescale/scyr, & ! yr
+               model%inversion%inversion_babc_thck_scale,     & ! m
+               model%inversion%inversion_babc_relax_factor,   &
+               stag_thck,          stag_thck_target,          &
+               stag_dthck_dt,                                 &
+               model%basal_physics%powerlaw_c_const,          &  ! relax to this value
                model%basal_physics%powerlaw_c)
 
           ! Set Cp to a large value at glacier boundaries, to minimize flow from one glacier to another.
@@ -1421,7 +1421,7 @@ contains
              model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_max
           endwhere
 
-       endif   ! set_powerlaw_c
+       endif   ! glacier_powerlaw_c_method
 
        !-------------------------------------------------------------------------
        ! Update glacier IDs based on advance and retreat since the last update.
@@ -1521,8 +1521,8 @@ contains
 
        ! If inverting, then repeat for the RGI and recent SMB
 
-       if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
-           glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
+       if (glacier%mu_star_method == MU_STAR_METHOD_INVERSION .and. &
+           glacier%alpha_snow_method == ALPHA_SNOW_METHOD_INVERSION) then
 
           do j = 1, nsn
              do i = 1, ewn
@@ -1550,7 +1550,7 @@ contains
           call parallel_halo(glacier%smb_rgi, parallel)
           call parallel_halo(glacier%smb_recent, parallel)
 
-       endif   ! set_mu_star
+       endif   ! mu_star_method
 
        if (verbose_glacier) then
           call point_diag(model%geometry%thck, 'After advance_retreat, thck', itest, jtest, rtest, 7, 7)
@@ -1563,11 +1563,11 @@ contains
           call point_diag(glacier%Tpos_annmean, 'Tpos_annmean', itest, jtest, rtest, 7, 7)
           call point_diag(glacier%snow_annmean, 'snow_annmean', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%smb, 'climate%smb', itest, jtest, rtest, 7, 7)
-          if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
-              glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
+          if (glacier%mu_star_method == MU_STAR_METHOD_INVERSION .and. &
+              glacier%alpha_snow_method == ALPHA_SNOW_METHOD_INVERSION) then
              call point_diag(glacier%smb_rgi, 'smb_rgi', itest, jtest, rtest, 7, 7)
              call point_diag(glacier%smb_recent, 'smb_recent', itest, jtest, rtest, 7, 7)
-          endif   ! set_mu_star
+          endif   ! mu_star_method
        endif
 
        ! Find the minimum and maximum SMB for each glacier in the baseline climate.
@@ -1615,8 +1615,8 @@ contains
 
        ! If inverting for mu_star and alpha_snow, then repeat for the recent climate
 
-       if (glacier%set_mu_star == MU_STAR_METHOD_INVERSION .and. &
-           glacier%set_alpha_snow == ALPHA_SNOW_METHOD_INVERSION) then
+       if (glacier%mu_star_method == MU_STAR_METHOD_INVERSION .and. &
+           glacier%alpha_snow_method == ALPHA_SNOW_METHOD_INVERSION) then
 
           call glacier_smb_min_max(&
                ewn,            nsn,           &
@@ -1657,7 +1657,7 @@ contains
              enddo
           endif
 
-       endif   ! set_mu_star
+       endif   ! mu_star_method
 
        ! Compute the area and volume of each glacier
 
@@ -1668,7 +1668,7 @@ contains
             glacier%cism_glacier_id,          &
             model%geometry%cell_area,         &  ! m^2
             model%geometry%thck,              &  ! m
-            glacier%diagnostic_minthck,       &  ! m
+            glacier%glacier_diag_thck_min,    &  ! m
             glacier%area,                     &  ! m^2
             glacier%volume)                      ! m^3
 
@@ -1682,7 +1682,7 @@ contains
             glacier%cism_glacier_id_init,     &
             model%geometry%cell_area,         &  ! m^2
             model%geometry%thck,              &  ! m
-            glacier%diagnostic_minthck,       &  ! m
+            glacier%glacier_diag_thck_min,    &  ! m
             glacier%area_init_extent,         &  ! m^2
             glacier%volume_init_extent)          ! m^3
 
@@ -1701,7 +1701,7 @@ contains
 
        ! If inverting for thickness, compute the target area and volume
 
-       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_METHOD_INVERSION) then
+       if (glacier%glacier_powerlaw_c_method == GLACIER_POWERLAW_C_METHOD_INVERSION) then
 
           call glacier_area_volume(&
                ewn,           nsn,               &
@@ -1710,7 +1710,7 @@ contains
                glacier%cism_glacier_id_init,     &
                model%geometry%cell_area,         &  ! m^2
                glacier%thck_target,              &  ! m
-               glacier%diagnostic_minthck,       &  ! m
+               glacier%glacier_diag_thck_min,    &  ! m
                glacier%area_target,              &  ! m^2
                glacier%volume_target)               ! m^3
 
@@ -2693,7 +2693,7 @@ contains
     ! - If a cell has H <= glacier_minthck and cism_glacier_id > 0, we set cism_glacier_id = 0.
     !   It is no longer considered to be glaciated.
     !   Here, glacier_minthck is a threshold for counting ice as part of a glacier.
-    !   By default, glacier_minthck = model%numerics%thklim, typically 1 m.
+    !   By default, glacier_minthck = model%numerics%thcklim, typically 1 m.
     !   (Actually, glacier_minthck is slightly less than thklim, to make sure these cells
     !   are not dynamically active.)
     ! - When a cell has H > glacier_minthck and cism_glacier_id = 0, we give it a nonzero ID:

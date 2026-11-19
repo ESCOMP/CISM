@@ -69,13 +69,13 @@ contains
 
     ! --- Local variables ---
 
-    integer, dimension(model%general%ewn, model%general%nsn) :: &
+    integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          ice_mask,                & ! = 1 if ice is present
          floating_mask,           & ! = 1 if ice is present and floating
          land_mask,               & ! = 1 if topg - eus >= 0
          ocean_mask                 ! = 1 if ice is absent and topg - eus < 0
 
-    real(dp), dimension(model%general%ewn, model%general%nsn) :: &
+    real(dp), dimension(model%grid%ewn, model%grid%nsn) :: &
          thck_submerged,          & ! thickness of submerged ice (m)
          mf_length,               & ! melt front length for each cell (m)
          surface_runoff             ! surface meltwater runoff (kg/m^2/s)
@@ -88,19 +88,19 @@ contains
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
-    nx = model%general%ewn
-    ny = model%general%nsn
-    dx = model%numerics%dew
-    dy = model%numerics%dns
-    dt = model%numerics%dt
+    nx = model%grid%ewn
+    ny = model%grid%nsn
+    dx = model%grid%dew
+    dy = model%grid%dns
+    dt = model%time%dt
 
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     parallel = model%parallel
@@ -157,7 +157,7 @@ contains
        call point_diag(mf_length, 'mf_length (m)', itest, jtest, rtest, 7, 7)
     endif
 
-    if (model%options%which_lateral_melt == LATERAL_MELT_METHOD_CONSTANT) then
+    if (model%lateral_melt%lateral_melt_method == LATERAL_MELT_METHOD_CONSTANT) then
 
        call constant_lateral_melt(&
             nx,                   ny,              &
@@ -176,7 +176,7 @@ contains
                lateral_melt%melt_rate_const
        endif
 
-    elseif (model%options%which_lateral_melt == LATERAL_MELT_METHOD_ISMIP) then
+    elseif (model%lateral_melt%lateral_melt_method == LATERAL_MELT_METHOD_ISMIP) then
 
        if (lateral_melt%runoff_from_ablation) then
           ! compute from the negative portion of acab
@@ -241,7 +241,7 @@ contains
                itest, jtest, rtest, 7, 7)
        endif
 
-    endif  ! which_lateral_melt
+    endif  ! lateral_melt_method
 
     if (verbose_latmelt) then
        call point_diag(lateral_melt%latmelt_thck, 'latmelt_thck (m)', itest, jtest, rtest, 7, 7)
@@ -254,12 +254,12 @@ contains
     ! In the case CALVING_LAW_FLOAT_ZERO (which is the usual case when using a lateral melt parameterization),
     !  remove floating ice so that none exists at the end of the timestep.
 
-    if (model%options%whichcalving == CALVING_LAW_FLOAT_ZERO) then
+    if (model%calving%calving_law == CALVING_LAW_FLOAT_ZERO) then
 
        call calve_ice_basic(&
             nx,             ny,             &
-            model%options%whichcalving,     &
-            model%options%calving_domain,   &
+            model%calving%calving_law,      &
+            model%calving%calving_domain,   &
             parallel,                       &
             model%calving,                  &  ! calving derived type
             itest,  jtest,  rtest,          &

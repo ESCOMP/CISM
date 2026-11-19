@@ -643,7 +643,7 @@ contains
 
     ! --- Local variables ---
 
-    integer, dimension(model%general%ewn, model%general%nsn) :: &
+    integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          ice_mask,                & ! = 1 if ice is present
          floating_mask,           & ! = 1 if ice is present and floating
          land_mask,               & ! = 1 if topg - eus >= 0
@@ -659,16 +659,16 @@ contains
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
 
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     parallel = model%parallel
@@ -696,11 +696,11 @@ contains
     ! Note: Option 2 is now part of subroutine apply_calving_mask.
     !       Consider whether the following logic could go in the same subroutine, or if it is still needed.
 
-    if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE .and. .not.init_calving) then
+    if (model%removal%force_retreat == FORCE_RETREAT_ALL_ICE .and. .not.init_calving) then
 
        if (verbose_retreat) then
           if (this_rank == rtest) then
-             write(iulog,*) 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
+             write(iulog,*) 'Forcing retreat using ice_fraction_retreat_mask, time =', model%time%time
           endif
           call point_diag(model%geometry%thck, 'Before forced retreat, thck (m)', itest, jtest, rtest, 7, 7)
           call point_diag(model%geometry%ice_fraction_retreat_mask, 'ice_fraction_retreat_mask', &
@@ -709,8 +709,8 @@ contains
                'maxthck (m)', itest, jtest, rtest, 7, 7)
        endif
 
-       do j = 1, model%general%nsn
-          do i = 1, model%general%ewn
+       do j = 1, model%grid%nsn
+          do i = 1, model%grid%ewn
              if (model%geometry%ice_fraction_retreat_mask(i,j) > 0.0d0) then
                 maxthck = model%geometry%reference_thck(i,j) &
                      * (1.0d0 - model%geometry%ice_fraction_retreat_mask(i,j))
@@ -731,28 +731,28 @@ contains
     !TODO - Make sure no additional halo updates are needed before glissade_calve_ice
 
     ! ------------------------------------------------------------------------
-    ! Calve ice based on the value of whichcalving.
+    ! Calve ice based on the value of calving_law.
     ! Pass in thck, topg, etc. with units of meters.
     ! TODO: Pass in individual fields with SI units, instead of the calving derived type?
-    !       Replace with calls to multiple subroutines based on whichcalving?
+    !       Replace with calls to multiple subroutines based on calving_law?
     ! ------------------------------------------------------------------------
 
-    if (model%options%whichcalving /= CALVING_LAW_GRID_MASK) then
+    if (model%calving%calving_law /= CALVING_LAW_GRID_MASK) then
 
-       if (model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
+       if (.not. model%calving%subgrid_calving_front) then
 
           ! Apply a basic position-based calving scheme without a subgrid CF
           if (main_task .and. verbose_calving) write(iulog,*) 'Call calve_ice_basic'
 
           call calve_ice_basic(&
                nx,           ny,                  &
-               model%options%whichcalving,        &
-               model%options%calving_domain,      &
+               model%calving%calving_law,         &
+               model%calving%calving_domain,      &
                parallel,                          &
                model%calving,                     &        ! calving object; includes calving_thck (m)
                itest, jtest, rtest,               &
-               model%numerics%dt,                 &        ! s
-               model%numerics%thklim,             &        ! m
+               model%time%dt,                     &        ! s
+               model%numerics%thcklim,            &        ! m
                model%geometry%thck,               &        ! m
                model%isostasy%relx,               &        ! m
                model%geometry%topg,               &        ! m
@@ -766,29 +766,29 @@ contains
           if (main_task .and. verbose_calving) write(iulog,*) 'Call calve_ice_subgrid'
 
           call calve_ice_subgrid(&
-               nx,           ny,                  &
-               model%options%whichcalving,        &
-               model%options%which_ho_calving_front,  &
-               model%options%which_lateral_melt,  &
-               parallel,                          &
-               model%calving,                     &        ! calving object; includes calving_thck (m)
-               model%lateral_melt,                &        ! lateral melt object; includes melt_thck (m)
-               model%ocean_data,                  &        ! ocean data object, for lateral forcing
-               itest, jtest, rtest,               &
-               model%numerics%dt,                 &        ! s
-               model%numerics%time*scyr,          &        ! s
-               model%numerics%dew,                &        ! m
-               model%numerics%dns,                &        ! m
-               model%general%x1,                  &        ! m
-               model%general%y1,                  &        ! m
-               model%numerics%sigma,              &
-               model%numerics%thklim,             &        ! m
-               model%velocity%uvel_2d,            &        ! m/s
-               model%velocity%vvel_2d,            &        ! m/s
-               model%geometry%thck_old,           &        ! m
-               model%geometry%thck,               &        ! m
-               model%isostasy%relx,               &        ! m
-               model%geometry%topg,               &        ! m
+               nx,           ny,                       &
+               model%calving%calving_law,              &
+               model%calving%subgrid_calving_front,    &
+               model%lateral_melt%lateral_melt_method, &
+               parallel,                               &
+               model%calving,                          &        ! calving object; includes calving_thck (m)
+               model%lateral_melt,                     &        ! lateral melt object; includes melt_thck (m)
+               model%ocean_data,                       &        ! ocean data object, for lateral forcing
+               itest, jtest, rtest,                    &
+               model%time%dt,                          &        ! s
+               model%time%time*scyr,                   &        ! s
+               model%grid%dew,                         &        ! m
+               model%grid%dns,                         &        ! m
+               model%grid%x1,                          &        ! m
+               model%grid%y1,                          &        ! m
+               model%grid%sigma,                       &
+               model%numerics%thcklim,                 &        ! m
+               model%velocity%uvel_2d,                 &        ! m/s
+               model%velocity%vvel_2d,                 &        ! m/s
+               model%geometry%thck_old,                &        ! m
+               model%geometry%thck,                    &        ! m
+               model%isostasy%relx,                    &        ! m
+               model%geometry%topg,                    &        ! m
                model%climate%eus)                          ! m
 
        endif   ! which_ho_calving_front
@@ -797,8 +797,8 @@ contains
 
     ! Optionally, apply one of several kinds of calving mask
 
-    if (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE .or. &
-        model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask) then
+    if (model%removal%force_retreat == FORCE_RETREAT_FLOATING_ICE .or. &
+        model%calving%calving_law == CALVING_LAW_GRID_MASK .or. model%calving%apply_calving_mask) then
 
        ! Thin or remove ice based on other masks (model%calving%calving_mask, model%calving%subgrid_calving_mask)
        call apply_calving_mask(model)
@@ -807,11 +807,11 @@ contains
 
     ! If running a CalvingMIP experiment, then compute some diagnostics
 
-    if (model%options%which_ho_calvingmip_domain /= CALVINGMIP_DOMAIN_NONE) then
+    if (model%calving%calvingmip_domain /= CALVINGMIP_DOMAIN_NONE) then
        call glissade_calvingmip_diag(model)
     endif
 
-    if (model%options%remove_isthmuses) then
+    if (model%calving%remove_isthmuses) then
 
        ! Optionally, remove isthmuses.
        ! An isthmus is defined as a floating or weakly grounded grid cell with ice-free ocean
@@ -826,7 +826,7 @@ contains
             nx,                     ny,                         &
             parallel,                                           &
             model%geometry%thck,    model%geometry%topg,        &
-            model%climate%eus,      model%numerics%thklim,      &
+            model%climate%eus,      model%numerics%thcklim,     &
             ice_mask,                                           &
             floating_mask = floating_mask,                      &
             ocean_mask = ocean_mask,                            &
@@ -835,20 +835,20 @@ contains
        ! Compute f_ground_cell for isthmus removal
 
        call glissade_grounded_fraction(&
-            nx,          ny,               &
-            parallel,                      &
-            itest, jtest, rtest,           &
-            model%geometry%thck,           &
-            model%geometry%topg,           &
-            model%climate%eus,             &
-            ice_mask,                      &
-            floating_mask,                 &
-            land_mask,                     &
-            model%options%which_ho_ground, &
-            model%options%which_ho_flotation_function, &
-            model%options%which_ho_fground_no_glp,     &
-            model%geometry%f_flotation,    &
-            model%geometry%f_ground,       &
+            nx,          ny,                           &
+            parallel,                                  &
+            itest, jtest, rtest,                       &
+            model%geometry%thck,                       &
+            model%geometry%topg,                       &
+            model%climate%eus,                         &
+            ice_mask,                                  &
+            floating_mask,                             &
+            land_mask,                                 &
+            model%grounding_line%grounding_line_param, &
+            model%grounding_line%flotation_function,   &
+            model%grounding_line%fground_no_glp,       &
+            model%geometry%f_flotation,                &
+            model%geometry%f_ground,                   &
             model%geometry%f_ground_cell)
 
        call remove_isthmuses(&
@@ -872,7 +872,7 @@ contains
     !       since we don't want very thin floating ice to spread the fill.
     ! ------------------------------------------------------------------------
 
-    if (model%options%remove_icebergs) then
+    if (model%calving%remove_icebergs) then
 
        ! Update the basic masks
 
@@ -880,27 +880,27 @@ contains
             nx,                     ny,                            &
             parallel,                                              &
             model%geometry%thck,    model%geometry%topg,           &
-            model%climate%eus,      model%numerics%thklim,         &
+            model%climate%eus,      model%numerics%thcklim,        &
             ice_mask,               floating_mask = floating_mask, &
             land_mask = land_mask,  ocean_mask = ocean_mask)
 
        ! Compute the grounded ice fraction in each grid cell
        !TODO - See if we can spread the fill with a grounded_mask (i.e., without f_ground_cell)
        call glissade_grounded_fraction(&
-            nx,          ny,               &
-            parallel,                      &
-            itest, jtest, rtest,           &
-            model%geometry%thck,           &
-            model%geometry%topg,           &
-            model%climate%eus,             &
-            ice_mask,                      &
-            floating_mask,                 &
-            land_mask,                     &
-            model%options%which_ho_ground, &
-            model%options%which_ho_flotation_function, &
-            model%options%which_ho_fground_no_glp,     &
-            model%geometry%f_flotation,    &
-            model%geometry%f_ground,       &
+            nx,          ny,                           &
+            parallel,                                  &
+            itest, jtest, rtest,                       &
+            model%geometry%thck,                       &
+            model%geometry%topg,                       &
+            model%climate%eus,                         &
+            ice_mask,                                  &
+            floating_mask,                             &
+            land_mask,                                 &
+            model%grounding_line%grounding_line_param, &
+            model%grounding_line%flotation_function,   &
+            model%grounding_line%fground_no_glp,       &
+            model%geometry%f_flotation,                &
+            model%geometry%f_ground,                   &
             model%geometry%f_ground_cell)
 
        ! Remove icebergs.
@@ -924,19 +924,19 @@ contains
     ! Optionally, impose a thickness limit on marine ice cliffs.
     ! These are defined as grounded marine-based cells adjacent to inactive calving_front cells or ice-free ocean.
 
-    if (model%options%limit_marine_cliffs) then   ! Impose a thickness limit on marine ice cliffs
+    if (model%calving%limit_marine_cliffs) then   ! Impose a thickness limit on marine ice cliffs
 
        call limit_cliffs(&
             nx,             ny,            &
             parallel,                      &
             itest,  jtest,  rtest,         &
-            model%numerics%dt,             &     ! s
+            model%time%dt,                 &     ! s
             model%calving%taumax_cliff,    &     ! Pa
             model%calving%cliff_timescale, &     ! s
             model%geometry%thck,           &     ! m
             model%geometry%topg,           &     ! m
             model%climate%eus,             &     ! m
-            model%numerics%thklim,         &     ! m
+            model%numerics%thcklim,        &     ! m
             model%calving%calving_thck)          ! m
 
     endif
@@ -1037,7 +1037,7 @@ contains
 
     real(dp) :: &
          float_fraction_calve    ! fraction of the column that calves in eligible cells;
-                                 ! = 1.0 if calving%timescale = 0, else min(dt/timescale, 1)
+                                 ! = 1.0 if calving%calving_timescale = 0, else min(dt/timescale, 1)
 
     ! initialize
 
@@ -1057,10 +1057,10 @@ contains
 
     ! Set the thickness fraction to be removed in each calving cell
 
-    if (calving%timescale == 0.0d0) then  ! calve the entire column for eligible columns (this is the default)
+    if (calving%calving_timescale == 0.0d0) then  ! calve the entire column for eligible columns (this is the default)
        float_fraction_calve = 1.0d0
     else  ! calve a fraction of the column based on the calving time scale
-       float_fraction_calve = min(dt/calving%timescale, 1.0d0)
+       float_fraction_calve = min(dt/calving%calving_timescale, 1.0d0)
     endif
 
     ! Do the calving based on the value of which_calving
@@ -1215,7 +1215,7 @@ contains
 
     !TODO: Move these options to the calving derived type?
     integer, intent(in) :: which_calving           !> option for calving law
-    integer, intent(in) :: which_ho_calving_front  !> option for subgrid CF scheme
+    logical, intent(in) :: which_ho_calving_front  !> if true, use the subgrid CF scheme
                                                    !> 1 = floating ice only; 2 = both floating and marine-grounded ice
 
     integer, intent(in) :: which_lateral_melt      !> option for lateral melt
@@ -1531,7 +1531,7 @@ contains
             speed,                                     &  ! m/s
             cf_length,                                 &  ! m
             calving%thck_effective,                    &  ! m
-            calving%minthck,                           &  ! m
+            calving%calving_thck_threshold,            &  ! m
             calving_dthck)                                ! m
 
     elseif (which_calving == CALVING_LAW_STRESS) then
@@ -1568,10 +1568,10 @@ contains
             calving%lateral_rate_min/scyr,     &  ! m/s
             calving_dthck)                        ! m
 
-       ! If calving%minthck > 0, then also compute a thickness-based calving rate.
+       ! If calving%calving_thck_threshold > 0, then also compute a thickness-based calving rate.
        ! Then apply whichever rate is larger at a given location.
 
-       if (calving%minthck > thklim) then
+       if (calving%calving_thck_threshold > thklim) then
 
           call thickness_based_calving(&
                nx,                 ny,                    &
@@ -1582,7 +1582,7 @@ contains
                speed,                                     &  ! m/s
                cf_length,                                 &  ! m
                calving%thck_effective,                    &  ! m
-               calving%minthck,                           &  ! m
+               calving%calving_thck_threshold,            &  ! m
                alt_calving_dthck)                            ! m
 
           calving_dthck = max(calving_dthck, alt_calving_dthck)
@@ -1625,7 +1625,7 @@ contains
             calving%tau_eigenconstant2,        &
             calving%stress_threshold,          &  ! Pa
             calving%effec_stress_min,          &  ! Pa
-            calving%length_scale,              &  ! m
+            calving%calving_length_scale,      &  ! m
             calving_dthck)                        ! m
 
     elseif (which_calving == CALVING_LAW_EIGENCALVING) then
@@ -1648,7 +1648,7 @@ contains
             calving%thck_effective,            &  ! m
             calving%eps_eigen1,                &  ! 1/s
             calving%eps_eigen2,                &  ! 1/s
-            calving%eigenconstant,             &  ! m
+            calving%eigencalving_const,        &  ! m
             calving_dthck)                        ! m
 
        !TODO: Add thickness-based calving, as for stress-based calving above
@@ -1688,7 +1688,7 @@ contains
             calving%tau_eigenconstant2,             &
             calving%stress_threshold,               &
             calving%effec_stress_min,               &  ! Pa
-            calving%damage_constant*scyr,           &  ! Pa s
+            calving%damage_const*scyr,              &  ! Pa s
             calving%damage,                         &
             calving_dthck,                          &  ! m
             calving%eps_eigen1, calving%eps_eigen2)    ! 1/s
@@ -1714,7 +1714,7 @@ contains
 
        upstream_calving_mask = 0
 
-       if (which_ho_calving_front == SUBGRID_CALVING_FRONT_TRUE) then
+       if (which_ho_calving_front) then
           where (floating_mask == 1)
              upstream_calving_mask = 1
           endwhere
@@ -3553,20 +3553,20 @@ contains
 
     ! --- Local variables ---
 
-    integer, dimension(model%general%ewn, model%general%nsn) :: &
+    integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          ice_mask,                & ! = 1 if ice is present
          floating_mask,           & ! = 1 if ice is present and floating
          land_mask,               & ! = 1 if topg - eus >= 0
          ocean_mask                 ! = 1 if ice is absent and topg - eus < 0
 
-    integer, dimension(model%general%ewn, model%general%nsn) :: &
+    integer, dimension(model%grid%ewn, model%grid%nsn) :: &
          ocean_connection_mask,   & ! = 1 for cells that are masked for retreat and are connected to the ocean
                                     ! through other cells that are masked for retreat
          retreat_mask,            & ! local version of ice_fraction_retreat_mask; excludes grounded cells
          partial_cf_mask,         & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
          full_mask                  ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
-    logical, dimension(model%general%ewn, model%general%nsn) :: &
+    logical, dimension(model%grid%ewn, model%grid%nsn) :: &
          already_calved             ! = true for cells that have already calved (to avoid repeat calving)
 
     real(dp) :: &
@@ -3590,16 +3590,16 @@ contains
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
-    nx = model%general%ewn
-    ny = model%general%nsn
+    nx = model%grid%ewn
+    ny = model%grid%nsn
 
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     parallel = model%parallel
@@ -3613,7 +3613,7 @@ contains
     ! Remove floating ice based on ice_fraction_retreat_mask.
     !--------------------------------------------------------------------
 
-    if (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE) then
+    if (model%removal%force_retreat == FORCE_RETREAT_FLOATING_ICE) then
 
        ! This is done after the main calving routine, to avoid complications
        !  involving thin ice near the calving front that calves after transport.
@@ -3630,7 +3630,7 @@ contains
             nx,                     ny,                         &
             parallel,                                           &
             model%geometry%thck,    model%geometry%topg,        &
-            model%climate%eus,      model%numerics%thklim,      &
+            model%climate%eus,      model%numerics%thcklim,     &
             ice_mask,                                           &
             floating_mask = floating_mask,                      &
             ocean_mask = ocean_mask,                            &
@@ -3638,20 +3638,20 @@ contains
 
        ! Compute f_ground_cell for forced retreat
 
-       call glissade_grounded_fraction(nx,          ny,               &
-                                       parallel,                      &
-                                       itest, jtest, rtest,           &  ! diagnostic only
-                                       model%geometry%thck,           &
-                                       model%geometry%topg,           &
-                                       model%climate%eus,             &
-                                       ice_mask,                      &
-                                       floating_mask,                 &
-                                       land_mask,                     &
-                                       model%options%which_ho_ground, &
-                                       model%options%which_ho_flotation_function, &
-                                       model%options%which_ho_fground_no_glp,     &
-                                       model%geometry%f_flotation,    &
-                                       model%geometry%f_ground,       &
+       call glissade_grounded_fraction(nx,          ny,                           &
+                                       parallel,                                  &
+                                       itest, jtest, rtest,                       &  ! diagnostic only
+                                       model%geometry%thck,                       &
+                                       model%geometry%topg,                       &
+                                       model%climate%eus,                         &
+                                       ice_mask,                                  &
+                                       floating_mask,                             &
+                                       land_mask,                                 &
+                                       model%grounding_line%grounding_line_param, &
+                                       model%grounding_line%flotation_function,   &
+                                       model%grounding_line%fground_no_glp,       &
+                                       model%geometry%f_flotation,                &
+                                       model%geometry%f_ground,                   &
                                        model%geometry%f_ground_cell)
 
        ! Identify floating or weakly grounded cells with ice_fraction_retreat_mask exceeding a prescribed threshold.
@@ -3699,25 +3699,25 @@ contains
     ! Apply a binary mask for runs without a subgrid calving front parameterization
     !--------------------------------------------------------------------
 
-    ! Note: whichcalving = CALVING_LAW_GRID_MASK and apply_calving_mask = T are currently redundant.
+    ! Note: calving_law = CALVING_LAW_GRID_MASK and apply_calving_mask = T are currently redundant.
     ! TODO: Remove either the CALVING_LAW_GRID_MASK option or apply_calving_mask.
 
-    if ((model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask) .and. &
-         model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_FALSE) then
+    if ((model%calving%calving_law == CALVING_LAW_GRID_MASK .or. model%calving%apply_calving_mask) .and. &
+         .not. model%calving%subgrid_calving_front) then
 
        ! Calve ice where calving_mask = 1
-       ! Optionally, if calving%timescale > 0, then there is a time scale for removal,
+       ! Optionally, if calving%calving_timescale > 0, then there is a time scale for removal,
        !  allowing the CF to advance into masked regions.
-       !TODO - Apply a time scale wherever calving%timescale > 0.
+       !TODO - Apply a time scale wherever calving%calving_timescale > 0.
 
        if (verbose_calving) then
           if (this_rank == rtest) write(iulog,*) 'Apply binary calving mask'
           call point_diag(model%calving%calving_mask, 'calving_mask', itest, jtest, rtest, 7, 7)
        endif
 
-       ! Note: calving%timescale has units of s. A timescale of up to 1 yr (scyr) gives immediate removal;
+       ! Note: calving%calving_timescale has units of s. A timescale of up to 1 yr (scyr) gives immediate removal;
        !       this includes the default timescale of 0.
-       if (model%calving%timescale <= scyr) then
+       if (model%calving%calving_timescale <= scyr) then
 
           ! Remove ice in all cells with calving_mask = 1
           where (model%geometry%thck > 0.0d0 .and. model%calving%calving_mask == 1)
@@ -3733,13 +3733,13 @@ contains
           !  where H_c is the calving thickness scale and tau_c the timescale.
           ! Thus the thinning rate is largest for thick ice.
           ! For thin ice, the rate has a minimum value H_c/tau_c..
-          ! Note: calving%timescale has units of s (though input in yr in the config file)
+          ! Note: calving%calving_timescale has units of s (though input in yr in the config file)
 
           do j = 1, ny
              do i = 1, nx
                 if (floating_mask(i,j) == 1 .and. model%calving%calving_mask(i,j) == 1) then
-                   dthck = model%numerics%dt  &
-                        * max(model%geometry%thck(i,j), model%calving%minthck) / model%calving%timescale
+                   dthck = model%time%dt  &
+                        * max(model%geometry%thck(i,j), model%calving%calving_thck_threshold) / model%calving%calving_timescale
                    if (model%geometry%thck(i,j) > dthck) then
                       model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + dthck
                       model%geometry%thck(i,j) = model%geometry%thck(i,j) - dthck
@@ -3753,9 +3753,9 @@ contains
 
           if (verbose_calving .and. this_rank==rtest) then
              write(iulog,*) ' '
-             write(iulog,*) 'Relaxed calving, timescale (yr) =', model%calving%timescale/scyr
-             write(iulog,*) 'dt (yr) =', model%numerics%dt/scyr
-             write(iulog,*) 'calving_thck_threshold (m) =', model%calving%minthck
+             write(iulog,*) 'Relaxed calving, timescale (yr) =', model%calving%calving_timescale/scyr
+             write(iulog,*) 'dt (yr) =', model%time%dt/scyr
+             write(iulog,*) 'calving_thck_threshold (m) =', model%calving%calving_thck_threshold
           endif
 
        endif  ! calving_timescale
@@ -3771,8 +3771,8 @@ contains
     ! Apply a real-valued mask for runs with a subgrid calving front parameterization
     !--------------------------------------------------------------------
 
-    if ((model%options%whichcalving == CALVING_LAW_GRID_MASK .or. model%options%apply_calving_mask) .and. &
-         model%options%which_ho_calving_front == SUBGRID_CALVING_FRONT_TRUE) then
+    if ((model%calving%calving_law == CALVING_LAW_GRID_MASK .or. model%calving%apply_calving_mask) .and. &
+         model%calving%subgrid_calving_front) then
 
        ! Remove ice based on a subgrid calving mask.
        ! This is a real mask in the range [0,1], which thins and removes ice beyond a prescribed radius.
@@ -3847,23 +3847,23 @@ contains
           ! Compute masks for subgrid calving
 
           call glissade_calving_front_mask(&
-               nx,            ny,                    &
-               model%options%which_ho_calving_front, &
-               parallel,                             &
-               itest, jtest,  rtest,                 &
-               model%geometry%thck,                  &
-               model%geometry%topg,                  &
-               model%climate%eus,                    &
-               ice_mask,      floating_mask,         &
-               ocean_mask,    land_mask,             &
-               model%calving%calving_front_mask,     &
-               model%calving%dthck_dx_cf,            &
-               model%numerics%dew,                   &
-               model%numerics%dns,                   &
-               model%calving%thck_effective,         &
-               model%calving%thck_effective_min,     &
-               partial_cf_mask,                      &
-               full_mask,                            &
+               nx,            ny,                   &
+               model%calving%subgrid_calving_front, &
+               parallel,                            &
+               itest, jtest,  rtest,                &
+               model%geometry%thck,                 &
+               model%geometry%topg,                 &
+               model%climate%eus,                   &
+               ice_mask,      floating_mask,        &
+               ocean_mask,    land_mask,            &
+               model%calving%calving_front_mask,    &
+               model%calving%dthck_dx_cf,           &
+               model%grid%dew,                      &
+               model%grid%dns,                      &
+               model%calving%thck_effective,        &
+               model%calving%thck_effective_min,    &
+               partial_cf_mask,                     &
+               full_mask,                           &
                model%calving%effective_areafrac)
 
           if (verbose_calving) then

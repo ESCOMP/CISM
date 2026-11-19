@@ -105,7 +105,7 @@ contains
 
     ! Convert to kg/m^2/s
     output_fluxes%rofi_sum(:,:) = output_fluxes%rofi_sum(:,:)  &
-         + (model%calving%calving_thck(:,:) + model%geometry%removal_thck(:,:)) * rhoi / model%numerics%dt
+         + (model%calving%calving_thck(:,:) + model%geometry%removal_thck(:,:)) * rhoi / model%time%dt
 
     ! Add the positive SMB that was passed to the dycore but not applied.
     ! Note: model%climate%acab_unapplied has units of m/s ice; multiply by rhoi to convert to kg/m^2/s.
@@ -128,24 +128,24 @@ contains
     !       to the liquid runoff rather than to the solid ice runoff.
     !--------------------------------------------------------------------
 
-    ! Note on units: model%temper%bmlt has dimensionless units of m/s ice
+    ! Note on units: model%temperature%bmlt has dimensionless units of m/s ice
     !                Multiply by rhoi to convert to kg/m^2/s water equiv.
     !                model%lateral_melt%latmelt_thck has dimensions of m of ice;
     !                multiply by rhoi and divide by dt to convert to kg/m^2/s.
 
     ! Convert to kg/m^2/s
     output_fluxes%rofl_sum(:,:) = output_fluxes%rofl_sum(:,:) + model%basal_melt%bmlt(:,:) * rhoi &
-         + model%lateral_melt%latmelt_thck(:,:) * rhoi / model%numerics%dt
+         + model%lateral_melt%latmelt_thck(:,:) * rhoi / model%time%dt
 
     !--------------------------------------------------------------------
     ! Accumulate basal heat flux
     !--------------------------------------------------------------------
 
-    ! Note on units: model%temper%ucondflx has units of W/m^2, positive down
+    ! Note on units: model%temperature%ucondflx has units of W/m^2, positive down
     !                Flip the sign so that hflx is positive up.
 
     output_fluxes%hflx_sum(:,:) = output_fluxes%hflx_sum(:,:) &
-         - model%temper%ucondflx(:,:)
+         - model%temperature%ucondflx(:,:)
 
   end subroutine accumulate_output_fluxes
 

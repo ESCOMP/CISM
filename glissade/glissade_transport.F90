@@ -91,9 +91,9 @@
 
       integer :: i, j, nx, ny
 
-      nx = model%general%ewn
-      ny = model%general%nsn
-      nlyr = model%general%upn - 1
+      nx = model%grid%ewn
+      ny = model%grid%nsn
+      nlyr = model%grid%upn - 1
 
       if (present(transport_tracers_in)) then
          transport_tracers = transport_tracers_in
@@ -107,16 +107,16 @@
 
          model%geometry%ntracers = 0
 
-         if (model%options%whichtemp == TEMPERATURE_METHOD_PROGNOSTIC .or.  &
-             model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
+         if (model%temperature%temperature_method == TEMPERATURE_METHOD_PROGNOSTIC .or.  &
+             model%temperature%temperature_method == TEMPERATURE_METHOD_ENTHALPY) then
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
-         if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
+         if (model%advection%compute_ice_age) then
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
-         if (model%options%whichcalving == CALVING_LAW_DAMAGE) then
+         if (model%calving%calving_law == CALVING_LAW_DAMAGE) then
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
@@ -149,28 +149,28 @@
          ! TODO: Set tracers_usrf to min(artm, 0.0) instead of temp(0) for the case that a cell
          !       is currently ice-free with temp(0) = 0?
 
-         if (model%options%whichtemp == TEMPERATURE_METHOD_PROGNOSTIC) then
+         if (model%temperature%temperature_method == TEMPERATURE_METHOD_PROGNOSTIC) then
 
             nt = nt + 1
             do k = 1, nlyr
-               model%geometry%tracers(:,:,nt,k) = model%temper%temp(k,:,:)
+               model%geometry%tracers(:,:,nt,k) = model%temperature%temp(k,:,:)
             enddo
-            model%geometry%tracers_usrf(:,:,nt) = model%temper%temp(0,:,:)
-            model%geometry%tracers_lsrf(:,:,nt) = model%temper%temp(nlyr+1,:,:)
+            model%geometry%tracers_usrf(:,:,nt) = model%temperature%temp(0,:,:)
+            model%geometry%tracers_lsrf(:,:,nt) = model%temperature%temp(nlyr+1,:,:)
 
-         elseif (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
+         elseif (model%temperature%temperature_method == TEMPERATURE_METHOD_ENTHALPY) then
 
             nt = nt + 1
             do k = 1, nlyr
-               model%geometry%tracers(:,:,nt,k) = model%temper%enthalpy(k,:,:)
+               model%geometry%tracers(:,:,nt,k) = model%temperature%enthalpy(k,:,:)
             enddo
-            model%geometry%tracers_usrf(:,:,nt) = model%temper%enthalpy(0,:,:)
-            model%geometry%tracers_lsrf(:,:,nt) = model%temper%enthalpy(nlyr+1,:,:)
+            model%geometry%tracers_usrf(:,:,nt) = model%temperature%enthalpy(0,:,:)
+            model%geometry%tracers_lsrf(:,:,nt) = model%temperature%enthalpy(nlyr+1,:,:)
 
          endif
 
          ! damage parameter for prognostic calving scheme
-         if (model%options%whichcalving == CALVING_LAW_DAMAGE) then
+         if (model%calving%calving_law == CALVING_LAW_DAMAGE) then
 
             nt = nt + 1
             do k = 1, nlyr
@@ -189,7 +189,7 @@
          endif
          
          ! ice age parameter
-         if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
+         if (model%advection%compute_ice_age) then
 
             nt = nt + 1
             do k = 1, nlyr
@@ -230,29 +230,29 @@
 
       !WHL - debug
       integer :: i, j, nx, ny
-      nx = model%general%ewn
-      ny = model%general%nsn
+      nx = model%grid%ewn
+      ny = model%grid%nsn
 
-      nlyr = model%general%upn - 1
+      nlyr = model%grid%upn - 1
 
       nt = 0
 
-      ! start with temperature or enthapy, depending on model%options%whichtemp
+      ! start with temperature or enthapy, depending on model%temperature%temperature_method
 
-      if (model%options%whichtemp == TEMPERATURE_METHOD_PROGNOSTIC) then
+      if (model%temperature%temperature_method == TEMPERATURE_METHOD_PROGNOSTIC) then
          nt = nt+1
          do k = 1, nlyr
-            model%temper%temp(k,:,:) = model%geometry%tracers(:,:,nt,k)
+            model%temperature%temp(k,:,:) = model%geometry%tracers(:,:,nt,k)
          enddo
-      elseif (model%options%whichtemp == TEMPERATURE_METHOD_ENTHALPY) then
+      elseif (model%temperature%temperature_method == TEMPERATURE_METHOD_ENTHALPY) then
          nt = nt+1
          do k = 1, nlyr
-            model%temper%enthalpy(k,:,:) = model%geometry%tracers(:,:,nt,k)
+            model%temperature%enthalpy(k,:,:) = model%geometry%tracers(:,:,nt,k)
          enddo
       endif
 
       ! damage parameter for prognostic calving scheme
-      if (model%options%whichcalving == CALVING_LAW_DAMAGE) then
+      if (model%calving%calving_law == CALVING_LAW_DAMAGE) then
          nt = nt + 1
          do k = 1, nlyr
             model%calving%damage(k,:,:) = model%geometry%tracers(:,:,nt,k) 
@@ -260,7 +260,7 @@
       endif
 
       ! ice age parameter
-      if (model%options%which_ho_ice_age == COMPUTE_ICE_AGE_TRUE) then
+      if (model%advection%compute_ice_age) then
          nt = nt + 1
          do k = 1, nlyr
             model%geometry%ice_age(k,:,:) = model%geometry%tracers(:,:,nt,k)

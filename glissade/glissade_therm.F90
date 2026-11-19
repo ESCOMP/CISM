@@ -78,11 +78,10 @@ module glissade_therm
 
 !****************************************************    
 
-  subroutine glissade_init_therm (temp_init,  is_restart,        &
+  subroutine glissade_init_therm (temp_init,  restart,           &
                                   ewn,        nsn,        upn,   &
                                   itest,      jtest,      rtest, &
                                   sigma,      stagsigma,         &
-                                  dups,                          &
                                   thck,                          &
                                   artm,                          &
                                   acab,                          &
@@ -100,7 +99,7 @@ module glissade_therm
 
     integer, intent(in) :: &
          temp_init,       &! method for initializing the temperature
-         is_restart        ! = 1 if restarting, else = 0
+         restart           ! restart option (NO_RESTART, STANDARD_RESTART or HYBRID_RESTART)
 
     integer, intent(in) :: &
          ewn, nsn, upn,      & ! grid dimensions
@@ -118,9 +117,6 @@ module glissade_therm
 
     real(dp), intent(in) :: &
          pmp_offset        ! offset of initial Tbed from pressure melting point temperature (deg C)
-
-    real(dp), dimension(:,:), intent(out) ::   &
-         dups              ! vertical grid quantities
 
     real(dp), dimension(0:,:,:), intent(inout) ::  &
          temp              ! ice temperature
@@ -140,26 +136,6 @@ module glissade_therm
     integer :: up, ns, ew
 
     logical :: verbose_column    ! if true, then write diagnostic info for the column
-
-    ! Precompute some grid quantities used in the vertical temperature solve
- 
-!!    allocate(dups(upn+1,2))   ! now allocated in glissade_types
-    dups(:,:) = 0.0d0
-
-    up = 1
-    dups(up,1) = 1.d0/((sigma(up+1) - sigma(up)) * (stagsigma(up) - sigma(up)) )
-                            
-    do up = 2, upn-1
-       dups(up,1) = 1.d0/((sigma(up+1) - sigma(up)) * (stagsigma(up) - stagsigma(up-1)) )
-    enddo
-
-    do up = 1, upn-2
-       dups(up,2) = 1.d0/((sigma(up+1) - sigma(up)) * (stagsigma(up+1) - stagsigma(up)) )
-    end do
-
-    up = upn-1
-    dups(up,2) = 1.d0/((sigma(up+1) - sigma(up)) * (sigma(up+1) - stagsigma(up)) )
-                                    
 
     !==== Initialize ice temperature.============
     ! Following possibilities (temperature_init):
@@ -181,7 +157,7 @@ module glissade_therm
     ! advective_diffusive may be optimal for reducing spinup time in the interior of large ice sheets.
     ! file requires that temperature is present in the input file.
 
-    if (is_restart == STANDARD_RESTART .or. is_restart == HYBRID_RESTART) then
+    if (restart == STANDARD_RESTART .or. restart == HYBRID_RESTART) then
 
        ! Temperature has already been initialized from a restart file.
        ! (Temperature is always a restart variable.)
@@ -362,7 +338,7 @@ module glissade_therm
     integer :: upn                                    ! number of vertical levels (deduced from temp array)
     integer :: k
 
-    upn = size(temp) - 1     ! temperature array has dimension (0:model%general%upn)
+    upn = size(temp) - 1     ! temperature array has dimension (0:model%grid%upn)
 
     ! Set the temperature in the column
 
@@ -533,7 +509,7 @@ module glissade_therm
        parallel,                          &
        ewn,             nsn,       upn,   &
        itest,           jtest,     rtest, &
-       sigma,           stagsigma, dups,  &
+       sigma,           stagsigma,        &
        thklim_temp,                       &
        thck,            topg,             &
        lsrf,            eus,              &
@@ -586,9 +562,6 @@ module glissade_therm
     real(dp), dimension(:), intent(in) ::   &
          sigma,           &! vertical coordinate, located at layer interfaces
          stagsigma         ! staggered vertical coordinate, located at the center of each layer
-
-    real(dp), dimension(:,:), intent(in) ::   &
-         dups              ! vertical grid quantities
 
     real(dp), dimension(:,:), intent(in) ::  &
          thck,            &! ice thickness (m)
@@ -680,9 +653,14 @@ module glissade_therm
 
     logical :: verbose_column    ! if true, then write diagnostic info for the column
 
+    real(dp), dimension(upn+1,2) :: &
+         dups            ! vertical grid factors for the temperature and enthalpy matrices
+
     !------------------------------------------------------------------------------------
     ! Compute the new temperature profile in each column
     !------------------------------------------------------------------------------------
+
+    call glissade_vertical_grid_factors(upn, sigma, stagsigma, dups)
 
     ! Initialize some fluxes
     lcondflx(:,:) = 0.d0
@@ -1315,6 +1293,41 @@ module glissade_therm
     enddo
 
   end subroutine glissade_therm_driver
+
+!=======================================================================
+
+  subroutine glissade_vertical_grid_factors(upn, sigma, stagsigma, dups)
+
+    ! Compute grid factors for the vertical diffusion terms in the temperature and enthalpy matrices:
+    ! dups(up,1) and dups(up,2) are 1/(dsigma*dsigma) for the lower and upper neighbors of layer up.
+
+    integer, intent(in) :: upn                        ! number of vertical levels
+
+    real(dp), dimension(:), intent(in) ::   &
+         sigma,           &! vertical coordinate, located at layer interfaces
+         stagsigma         ! staggered vertical coordinate, located at the center of each layer
+
+    real(dp), dimension(:,:), intent(out) :: dups     ! vertical grid factors
+
+    integer :: up
+
+    dups(:,:) = 0.0d0
+
+    up = 1
+    dups(up,1) = 1.d0/((sigma(up+1) - sigma(up)) * (stagsigma(up) - sigma(up)) )
+
+    do up = 2, upn-1
+       dups(up,1) = 1.d0/((sigma(up+1) - sigma(up)) * (stagsigma(up) - stagsigma(up-1)) )
+    enddo
+
+    do up = 1, upn-2
+       dups(up,2) = 1.d0/((sigma(up+1) - sigma(up)) * (stagsigma(up+1) - stagsigma(up)) )
+    end do
+
+    up = upn-1
+    dups(up,2) = 1.d0/((sigma(up+1) - sigma(up)) * (sigma(up+1) - stagsigma(up)) )
+
+  end subroutine glissade_vertical_grid_factors
 
 !=======================================================================
 
@@ -2535,7 +2548,7 @@ module glissade_therm
 
     ! Multiply the default rate factor by the enhancement factor if applicable
     ! Note: Here, the input default_flwa is assumed to have units of Pa^{-n} s^{-1},
-    !       whereas model%paramets%default_flwa has units of Pa^{-n} yr^{-1}.
+    !       whereas model%flow_law%flwa_const has units of Pa^{-n} yr^{-1}.
 
     ! initialize
     !TODO - Move the next few lines inside the select case construct.

@@ -98,12 +98,12 @@ contains
     write(iulog,*) ' '
     write(iulog,*) 'In glissade_test_halo, this_rank =', this_rank
 
-    nx = model%general%ewn
-    ny = model%general%nsn
-    nz = model%general%upn
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
-    rtest = model%numerics%rdiag_local
+    nx = model%grid%ewn
+    ny = model%grid%nsn
+    nz = model%grid%upn
+    itest = model%diagnostics%idiag_local
+    jtest = model%diagnostics%jdiag_local
+    rtest = model%diagnostics%rdiag_local
     parallel = model%parallel
 
     allocate(logvar(nx,ny))
@@ -456,14 +456,14 @@ contains
 
     ! Initialize
 
-    dx = model%numerics%dew
-    dy = model%numerics%dns
-    nx = model%general%ewn
-    ny = model%general%nsn
-    nz = model%general%upn
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
-    rtest = model%numerics%rdiag_local
+    dx = model%grid%dew
+    dy = model%grid%dns
+    nx = model%grid%ewn
+    ny = model%grid%nsn
+    nz = model%grid%upn
+    itest = model%diagnostics%idiag_local
+    jtest = model%diagnostics%jdiag_local
+    rtest = model%diagnostics%rdiag_local
     parallel = model%parallel
 
     allocate(uvel(nz,nx-1,ny-1))
@@ -530,7 +530,7 @@ contains
 
     ! Determine which transport scheme
 
-    if (model%options%whichevol == ADVECTION_METHOD_UPWIND) then
+    if (model%advection%advection_method == ADVECTION_METHOD_UPWIND) then
        do_upwind_transport = .true.
     else
        do_upwind_transport = .false.
@@ -548,18 +548,18 @@ contains
        call glissade_transport_driver(dt*scyr,                                              &
                                       dx,                        dy,                        &
                                       nx,                        ny,                        &
-                                      nz-1,                      model%numerics%sigma,      &
+                                      nz-1,                      model%grid%sigma,          &
                                       parallel,                                             &
-                                      model%numerics%idiag_local,                           &
-                                      model%numerics%jdiag_local,                           &
-                                      model%numerics%rdiag_local,                           &
+                                      model%diagnostics%idiag_local,                        &
+                                      model%diagnostics%jdiag_local,                        &
+                                      model%diagnostics%rdiag_local,                        &
                                       uvel(:,:,:)/scyr,          vvel(:,:,:)/scyr,          &
                                       model%geometry%thck(:,:),                             &
                                       model%geometry%ntracers,                              &
                                       model%geometry%tracers(:,:,:,:),                      &
                                       model%geometry%tracers_usrf(:,:,:),                   &
                                       model%geometry%tracers_lsrf(:,:,:),                   &
-                                      model%options%which_ho_vertical_remap,                &
+                                      model%advection%vertical_remap_order,                 &
                                       upwind_transport_in = do_upwind_transport)
 
        call glissade_transport_finish_tracers(model)

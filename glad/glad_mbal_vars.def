@@ -58,7 +58,7 @@ units:         1
 long_name:     sigma layers
 standard_name: land_ice_sigma_coordinate
 formula_terms: sigma: level topo: topg thick: thk
-dimlen:        model%general%upn
+dimlen:        model%grid%upn
 
 [staglevel]
 dimensions:    staglevel
@@ -66,7 +66,7 @@ units:         1
 long_name:     stag sigma layers
 standard_name: land_ice_stag_sigma_coordinate
 positive:      down
-dimlen:        model%general%upn-1
+dimlen:        model%grid%upn-1
 
 [stagwbndlevel]
 dimensions:    stagwbndlevel
@@ -74,7 +74,7 @@ units:         1
 long_name:     stag sigma layers with boundaries
 standard_name: land_ice_stag_sigma_coordinate_with_bnd
 positive:      down
-dimlen:        model%general%upn+1
+dimlen:        model%grid%upn+1
 
 # ------------------------------------------------------------------
 

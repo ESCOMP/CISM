@@ -83,7 +83,7 @@ contains
        itest, jtest,  rtest)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
-  ! user input ("whichbabc" flag, from config file as "which_ho_babc").
+  ! user input ("whichbabc" flag, from config file as "sliding_law").
 
   ! NOTE: Previously, the input arguments were assumed to be dimensionless
   ! and were rescaled in this routine.  Now the input arguments are
@@ -198,14 +198,14 @@ contains
 
     case(SLIDING_LAW_BETA_CONSTANT)   ! spatially uniform beta value; useful for debugging and test cases
 
-          beta(:,:) = basal_physics%ho_beta_const  ! Pa yr/m
+          beta(:,:) = basal_physics%beta_const  ! Pa yr/m
 
     case(SLIDING_LAW_BETA_BPMP)  ! large value for frozen bed, lower value for bed at pressure melting point
 
           where(basal_physics%bpmp_mask == 1)      ! bed is at pressure melting point
-             beta(:,:) = basal_physics%ho_beta_small    ! Pa yr/m
+             beta(:,:) = basal_physics%beta_small    ! Pa yr/m
           elsewhere 
-             beta(:,:) = basal_physics%ho_beta_large    ! Pa yr/m
+             beta(:,:) = basal_physics%beta_large    ! Pa yr/m
           endwhere
 
     case(SLIDING_LAW_PSEUDO_PLASTIC)  ! pseudo-plastic sliding law using the new coulomb_c options
@@ -304,7 +304,7 @@ contains
        !Note: This option is redundant in that it could be implemented using HO_BETA_CONST
        !      But keeping it for historical reasons since many config files use it
 
-       beta(:,:) = basal_physics%ho_beta_large      ! Pa yr/m  (= 1.0d10 by default)
+       beta(:,:) = basal_physics%beta_large      ! Pa yr/m  (= 1.0d10 by default)
 
     case(SLIDING_LAW_ZOET_IVERSON)
 
@@ -895,7 +895,7 @@ contains
 
        ! Compute effective pressure by equating the opening rate to the closing rate
        ! Note: flwa_basal has units of Pa^{-3} s^{-1}
-       !       c_close is unitless with a default value of 0.074
+       !       cavity_closing_const is unitless with a default value of 0.074
 
        do j = 1, nsn
           do i = 1, ewn
@@ -906,7 +906,7 @@ contains
                      basal_hydro%bump_wavelength
                 opening_slide(i,j) = relative_bwat * sliding_speed(i,j)  ! m/s
 
-                denom = basal_hydro%c_close * basal_hydro%flwa_basal * basal_hydro%bwat_diag(i,j)
+                denom = basal_hydro%cavity_closing_const * basal_hydro%flwa_basal * basal_hydro%bwat_diag(i,j)
 
                 basal_physics%effecpress(i,j) = ((opening_slide(i,j) + opening_melt(i,j))/denom)**(1.d0/n_glen)
 

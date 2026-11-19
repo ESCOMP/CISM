@@ -28,7 +28,7 @@
 !
 ! It is roughly based on module glissade_velo_higher but is much simpler, 
 !  computing only the SIA velocities. 
-! It is called with whichdycore = DYCORE_GLISSADE, which_ho_approx = STOKES_APPROX_LOCAL_SIA. 
+! It is called with dycore = glissade, stokes_approx = local_sia. 
 !
 ! The calculation is similar to the one in Glide, except that it
 !  computes only the SIA velocity profile and does not evolve thickness.  
@@ -38,7 +38,7 @@
 !
 ! The function of the module is to allow a parallel SIA calculation using an 
 !  explicit transport scheme, instead of an implicit diffusion calculation as in Glide.
-! This can also be done using glissade_velo_higher, setting which_ho_approx = STOKES_APPROX_SIA.
+! This can also be done using glissade_velo_higher, setting stokes_approx = sia.
 !  That method uses the same numerical techniques as the higher-order solve but with only the
 !  SIA matrix elements.  However, STOKES_APPROX_SIA is much more expensive than STOKES_APPROX_LOCAL_SIA,
 !  and is somewhat less accurate for the Halfar test problem.
@@ -112,7 +112,7 @@
     integer, intent(in) ::   &
        nx, ny,               &  ! number of grid cells in each direction
        nz                       ! number of vertical levels where velocity is computed
-                                ! (same as model%general%upn)
+                                ! (same as model%grid%upn)
 
     !----------------------------------------------------------------
     ! Local variables and pointers set to components of model derived type 
@@ -185,31 +185,31 @@
     ! Assign local pointers and variables to derived type components
     !--------------------------------------------------------
 
-!    nx = model%general%ewn   ! passed in
-!    ny = model%general%nsn
-!    nz = model%general%upn
+!    nx = model%grid%ewn   ! passed in
+!    ny = model%grid%nsn
+!    nz = model%grid%upn
 
     parallel = model%parallel
 
-    dx = model%numerics%dew
-    dy = model%numerics%dns
+    dx = model%grid%dew
+    dy = model%grid%dns
 
-    thklim = model%numerics%thklim
+    thklim = model%numerics%thcklim
     eus    = model%climate%eus
-    btrc_const = model%paramets%btrc_const
-    whichbtrc = model%options%whichbtrc
-    whichgradient_margin = model%options%which_ho_gradient_margin
+    btrc_const = model%basal_physics%btrc_const
+    whichbtrc = model%basal_physics%btrc_method
+    whichgradient_margin = model%velocity%surface_gradient_margin_method
 
-    sigma    => model%numerics%sigma(:)
+    sigma    => model%grid%sigma(:)
     thck     => model%geometry%thck(:,:)
     usrf     => model%geometry%usrf(:,:)
     topg     => model%geometry%topg(:,:)
 
     bwat     => model%basal_hydro%bwat(:,:)
     btrc     => model%velocity%btrc(:,:)
-    bfricflx => model%temper%bfricflx(:,:)
-    temp     => model%temper%temp(:,:,:)
-    flwa     => model%temper%flwa(:,:,:)
+    bfricflx => model%temperature%bfricflx(:,:)
+    temp     => model%temperature%temp(:,:,:)
+    flwa     => model%temperature%flwa(:,:,:)
 
     uvel     => model%velocity%uvel(:,:,:)
     vvel     => model%velocity%vvel(:,:,:)
@@ -217,10 +217,10 @@
     rtest = -999
     itest = 1
     jtest = 1
-    if (this_rank == model%numerics%rdiag_local) then
-       rtest = model%numerics%rdiag_local
-       itest = model%numerics%idiag_local
-       jtest = model%numerics%jdiag_local
+    if (this_rank == model%diagnostics%rdiag_local) then
+       rtest = model%diagnostics%rdiag_local
+       itest = model%diagnostics%idiag_local
+       jtest = model%diagnostics%jdiag_local
     endif
 
     if (verbose_sia .and. this_rank==rtest) then

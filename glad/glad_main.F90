@@ -275,7 +275,7 @@ contains
     call glad_i_initialise_gcm(instance_config,     params%instances(instance_index), &
                                forcing_start_time,  params%time_step, &
                                params%gcm_restart,  gcm_restart_file, &
-                               params%gcm_fileunit, test_coupling )
+                               test_coupling )
 
   end subroutine glad_initialize_instance
 
@@ -596,7 +596,7 @@ contains
     ! Input fields are assumed to NOT have halo cells.
     !
     ! Glad accumulates and averages ocean thermal_forcing based on salinity and tocn,
-    ! but this thermal forcing is used by CISM only if model%options%ocean_data_domain = 2.
+    ! but this thermal forcing is used by CISM only if model%ocean_data%ocean_data_domain = 2.
     ! Otherwise, CISM will compute thermal_forcing internally (ocean_data_domain = 0)
     ! or read it from an external file (ocean_data_domain = 1).
 
@@ -674,9 +674,9 @@ contains
        write(message,*) 'In glad_gcm, time (hr), valid_inputs =', time, valid_inputs
        call write_log(trim(message))
 
-       rtest = params%instances(instance_index)%model%numerics%rdiag_local
-       itest = params%instances(instance_index)%model%numerics%idiag_local
-       jtest = params%instances(instance_index)%model%numerics%jdiag_local
+       rtest = params%instances(instance_index)%model%diagnostics%rdiag_local
+       itest = params%instances(instance_index)%model%diagnostics%idiag_local
+       jtest = params%instances(instance_index)%model%diagnostics%jdiag_local
 
        write(message,*) 'itest, jtest, rtest =', itest, jtest, rtest
        call write_log(trim(message))

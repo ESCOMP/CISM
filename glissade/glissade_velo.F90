@@ -61,18 +61,18 @@ contains
 
       logical :: verbose_velo = .false.
 
-      ewn = model%general%ewn
-      nsn = model%general%nsn
-      upn = model%general%upn
+      ewn = model%grid%ewn
+      nsn = model%grid%nsn
+      upn = model%grid%upn
 
       ! get coordinates of diagnostic point
       rtest = -999
       itest = 1
       jtest = 1
-      if (this_rank == model%numerics%rdiag_local) then
-         rtest = model%numerics%rdiag_local
-         itest = model%numerics%idiag_local
-         jtest = model%numerics%jdiag_local
+      if (this_rank == model%diagnostics%rdiag_local) then
+         rtest = model%diagnostics%rdiag_local
+         itest = model%diagnostics%idiag_local
+         jtest = model%diagnostics%jdiag_local
       endif
 
       !-------------------------------------------------------------------
@@ -81,24 +81,24 @@ contains
       ! There is also a local shallow-ice solver, glissade_velo_sia_solve.
       !-------------------------------------------------------------------
       
-      if (model%options%which_ho_approx == STOKES_APPROX_LOCAL_SIA) then
+      if (model%velocity%stokes_approx == STOKES_APPROX_LOCAL_SIA) then
  
          call glissade_velo_sia_solve(model, ewn, nsn, upn)
 
-      elseif (model%options%which_ho_approx == STOKES_APPROX_HYBRID) then
+      elseif (model%velocity%stokes_approx == STOKES_APPROX_HYBRID) then
 
          !-------------------------------------------------------------------
          ! compute the SIA part of the velocity, assuming no basal sliding
          !-------------------------------------------------------------------
 
          ! make sure basal sliding is turned off
-         whichbtrc_sav = model%options%whichbtrc
-         model%options%whichbtrc = BTRC_METHOD_NONE
+         whichbtrc_sav = model%basal_physics%btrc_method
+         model%basal_physics%btrc_method = BTRC_METHOD_NONE
 
          call glissade_velo_sia_solve(model, ewn, nsn, upn)
 
          ! restore the original value of whichbtrc, just in case
-         model%options%whichbtrc = whichbtrc_sav
+         model%basal_physics%btrc_method = whichbtrc_sav
 
          ! save the result
          allocate(uvel_sia(upn,ewn,nsn))
@@ -124,7 +124,7 @@ contains
          !-------------------------------------------------------------------
 
          ! temporarily set the approximation to SSA
-         model%options%which_ho_approx = STOKES_APPROX_SSA
+         model%velocity%stokes_approx = STOKES_APPROX_SSA
 
          call t_startf('glissade_velo_higher_solver')
          call glissade_velo_higher_solve(model, ewn, nsn, upn)
@@ -150,13 +150,13 @@ contains
          model%velocity%vvel = model%velocity%vvel + vvel_sia
 
          ! restore the approximation option and clean up
-         model%options%which_ho_approx = STOKES_APPROX_HYBRID
+         model%velocity%stokes_approx = STOKES_APPROX_HYBRID
 
          deallocate(uvel_sia)
          deallocate(vvel_sia)
 
       else   ! standard higher-order solve
-             ! can be BP, L1L2, SSA or SIA, depending on model%options%which_ho_approx
+             ! can be BP, L1L2, SSA or SIA, depending on model%velocity%stokes_approx
 
          ! Note: The geometry fields (thck, topg, and usrf) must be updated in halos
          !        before calling glissade_velo_higher_solve.
@@ -167,7 +167,7 @@ contains
          call glissade_velo_higher_solve(model, ewn, nsn, upn)
          call t_stopf('glissade_velo_higher_solver')
 
-      endif   ! which_ho_approx
+      endif   ! stokes_approx
 
       ! optional diagnostics
       if (verbose_velo .and. this_rank == rtest) then
@@ -187,7 +187,7 @@ contains
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     subroutine glissade_wvelintg(uvel,  vvel,      &
-                                 geomderv, numerics, &
+                                 geomderv, grid, numerics, &
                                  wgrd,  thck,  stagthck, &
                                  bmlt,  wvel)
 
@@ -201,7 +201,7 @@ contains
       ! Adapted from subroutine wvelintg in glide_velo.F90.
 
       use glimmer_global, only: dp
-      use glissade_types, only: glissade_geomderv_type, glissade_numerics_type
+      use glissade_types, only: glissade_geomderv_type, glissade_grid_type, glissade_numerics_type
 
       real(dp), dimension(:,:,:), intent(in) :: &
            uvel, vvel                ! horizontal velocity components on the staggered grid
@@ -209,8 +209,11 @@ contains
       type(glissade_geomderv_type), intent(in) :: &
            geomderv                  ! horizontal derivatives of thickness and upper surface
 
+      type(glissade_grid_type), intent(in) :: &
+           grid                      ! grid parameters, including sigma values
+
       type(glissade_numerics_type), intent(in) :: &
-           numerics                  ! numerical parameters, including sigma values
+           numerics                  ! numerical parameters
 
       real(dp), dimension(:,:), intent(in) :: &
            wgrd,                   & ! grid vertical velocity at the lowest model level
@@ -235,15 +238,15 @@ contains
 
       upn = size(uvel,1) ; ewn = size(uvel,2) ; nsn = size(uvel,3)
 
-      dupsw  = (/ (numerics%sigma(up+1) - numerics%sigma(up), up=1,upn-1), 0.0d0 /)
-      depthw = (/ ((numerics%sigma(up+1) + numerics%sigma(up)) / 2.0d0, up=1,upn-1), 0.0d0 /)
+      dupsw  = (/ (grid%sigma(up+1) - grid%sigma(up), up=1,upn-1), 0.0d0 /)
+      depthw = (/ ((grid%sigma(up+1) + grid%sigma(up)) / 2.0d0, up=1,upn-1), 0.0d0 /)
 
-      dew16 = 1.d0/(16.0d0 * numerics%dew)
-      dns16 = 1.d0/(16.0d0 * numerics%dns)
+      dew16 = 1.d0/(16.0d0 * grid%dew)
+      dns16 = 1.d0/(16.0d0 * grid%dns)
 
       do ns = 2, nsn
          do ew = 2, ewn
-            if (thck(ew,ns) > numerics%thklim) then
+            if (thck(ew,ns) > numerics%thcklim) then
 
                ! bottom boundary condition
                wvel(upn,ew,ns) = wgrd(ew,ns) - bmlt(ew,ns)

@@ -58,7 +58,7 @@ module glissade_basal_water
 
     type(glissade_global_type) :: model
 
-    select case (model%options%which_ho_bwat)
+    select case (model%basal_hydro%bwat_method)
 
     ! BWAT_METHOD_NONE:         basal water depth = 0
     ! BWAT_METHOD_CONSTANT:     basal water depth = prescribed constant
@@ -68,8 +68,8 @@ module glissade_basal_water
     case(BWAT_METHOD_CONSTANT)
 
        ! Set a constant water thickness where ice is present
-       where (model%geometry%thck > model%numerics%thklim)
-          model%basal_hydro%bwat(:,:) = model%basal_hydro%const_bwat
+       where (model%geometry%thck > model%numerics%thcklim)
+          model%basal_hydro%bwat(:,:) = model%basal_hydro%bwat_const
        elsewhere
           model%basal_hydro%bwat(:,:) = 0.0d0
        endwhere
@@ -138,7 +138,7 @@ module glissade_basal_water
        ! Use a constant water thickness where ice is present, to force Tbed = Tpmp
 
        where (thck > thklim)
-          bwat(:,:) = basal_hydro%const_bwat
+          bwat(:,:) = basal_hydro%bwat_const
        elsewhere
           bwat(:,:) = 0.0d0
        endwhere
@@ -155,7 +155,7 @@ module glissade_basal_water
            do i = 1, nx
 
               ! compute new bwat, given source (bmlt) and sink (drainage)
-              dbwat_dt = bmlt(i,j)*rhoi/rhow - basal_hydro%c_drainage/scyr  ! convert c_drainage from m/yr to m/s
+              dbwat_dt = bmlt(i,j)*rhoi/rhow - basal_hydro%till_drainage_rate/scyr  ! convert till_drainage_rate from m/yr to m/s
               bwat(i,j) = bwat(i,j) + dbwat_dt*dt
 
               ! limit to the range [0, bwat_till_max]
@@ -221,7 +221,7 @@ module glissade_basal_water
 
     real(dp), intent(in) ::  &
          thklim                     ! minimum ice thickness for basal melt and hydropotential calculations (m)
-                                    ! Note: This is typically model%geometry%thklim_temp
+                                    ! Note: This is typically model%numerics%thcklim_temp
 
     ! Note: These scales ensure a smooth transition in behavior between frozen and thawed beds.
     !       Both scales are computed in a similar way, but they apply to different parts of the algorithm.
