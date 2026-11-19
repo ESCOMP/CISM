@@ -1043,7 +1043,7 @@ contains
                   'Created subgrid calving mask:', itest, jtest, rtest, 7, 7, '(f10.6)')
           endif
 
-       endif   ! which_ho_calving_front
+       endif   ! subgrid_calving_front
 
     endif   ! calving mask
 
@@ -1727,7 +1727,7 @@ contains
              call point_diag(model%calving%beyond_cf_mask, 'beyond_cf_mask', itest, jtest, rtest, 7, 7)
           endif
 
-       endif  ! which_ho_calving_front
+       endif  ! subgrid_calving_front
 
        ! For the enthalpy option, derive enthalpy from temperature and waterfrac.
        ! Must transport enthalpy rather than temperature/waterfrac to conserve energy.
@@ -2145,7 +2145,7 @@ contains
     ! Note: This subroutine requires that thck and topg are up to date in halo cells.
     !
     ! See comments in subroutine glissade_grounded_fraction for details
-    ! on the whichground and whichflotation_function options.
+    ! on the grounding_line_param and flotation_function options.
     !
     ! Computing f_ground here ensures that it is always available as a diagnostic
     ! at the end of the time step, even if the velocity solver is not called
@@ -2169,7 +2169,7 @@ contains
                                     model%geometry%f_ground_cell)
 
     if (verbose_glp) then
-       if (this_rank == rtest) write(iulog,*) 'Called GLP subroutine, which_ho_ground =', model%grounding_line%grounding_line_param
+       if (this_rank == rtest) write(iulog,*) 'Called GLP subroutine, grounding_line_param =', model%grounding_line%grounding_line_param
        call point_diag(model%geometry%f_flotation, 'f_flotation', itest, jtest, rtest, 7, 7, '(f10.5)')
        call point_diag(model%geometry%f_ground, 'f_ground at vertex', itest, jtest, rtest, 7, 7, '(f10.5)')
        call point_diag(model%geometry%f_ground_cell, 'f_ground_cell', itest, jtest, rtest, 7, 7, '(f10.5)')

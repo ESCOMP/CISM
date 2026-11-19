@@ -301,7 +301,7 @@ contains
 
     case(SLIDING_LAW_NO_SLIP)      ! frozen (u=v=0) ice-bed interface
 
-       !Note: This option is redundant in that it could be implemented using HO_BETA_CONST
+       !Note: This option is redundant in that it could be implemented using sliding_law = beta_constant
        !      But keeping it for historical reasons since many config files use it
 
        beta(:,:) = basal_physics%beta_large      ! Pa yr/m  (= 1.0d10 by default)

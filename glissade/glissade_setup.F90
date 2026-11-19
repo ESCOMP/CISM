@@ -3065,7 +3065,7 @@ contains
              call glissade_add_to_restart_variable_list('acab', model_id)
           case (SMB_INPUT_UNITS_MM_WE_PER_YR)
              call glissade_add_to_restart_variable_list('smb', model_id)
-          end select  ! smb_input
+          end select  ! smb_input_units
 
        case(SMB_INPUT_FUNCTION_XY_GRADZ)
           call glissade_add_to_restart_variable_list('smb_ref', model_id)
