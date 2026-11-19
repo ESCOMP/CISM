@@ -275,7 +275,7 @@
 
   subroutine glissade_calving_front_mask(&
        nx,                     ny,                   &
-       which_ho_calving_front,                       &
+       subgrid_calving_front,                        &
        parallel,                                     &
        itest,     jtest,       rtest,                &
        thck,                   topg,                 &
@@ -290,7 +290,7 @@
        effective_areafrac)
 
     ! Compute a calving_front (CF) mask, effective calving_front thickness, and related fields.
-    ! Depending on the value of which_ho_calving_front, we assume either
+    ! Depending on the value of subgrid_calving_front, we assume either
     ! (1) Only floating cells can be CF cells. They derive their effective thickness from upstream floating cells.
     ! (2) Both floating and marine-grounded cells can be CF cells. They derive their effective thickness
     !     from upstream cells that are either floating or marine-grounded.
@@ -305,7 +305,7 @@
          nx,  ny                  ! number of grid cells in each direction
 
     logical, intent(in) ::   &
-         which_ho_calving_front   ! if true, use the subgrid calving front scheme
+         subgrid_calving_front   ! if true, use the subgrid calving front scheme
 
     type(parallel_type), intent(in) :: parallel    !> info for parallel communication
 
@@ -393,7 +393,7 @@
     call parallel_halo(calving_front_mask, parallel)
     call parallel_halo(interior_mask, parallel)
 
-    if (which_ho_calving_front) then   ! subgrid CF scheme
+    if (subgrid_calving_front) then   ! subgrid CF scheme
 
        ! Initialize thck_effective and masks
        where (ice_mask == 1)
@@ -497,7 +497,7 @@
           effective_areafrac = 0.0d0
        endwhere
 
-    endif  ! which_ho_calving_front
+    endif  ! subgrid_calving_front
 
   end subroutine glissade_calving_front_mask
 
@@ -1216,7 +1216,7 @@
     integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
 
     ! Note: The calling subroutine decides how to define floating_mask.
-    !       E.g., it could be defined based on f_ground_cell with which_ho_ground = 2.
+    !       E.g., it could be defined based on f_ground_cell with grounding_line_param = deluxe.
     ! Each input mask needs to be correct in halo cells
 
     integer, dimension(nx,ny), intent(in) ::  &

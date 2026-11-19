@@ -84,7 +84,7 @@ module glissade_basal_water
 
 !==============================================================
 
-  subroutine glissade_calcbwat(which_ho_bwat,    &
+  subroutine glissade_calcbwat(bwat_method,      &
                                basal_hydro,      &
                                dt,               &
                                thck,             &
@@ -99,7 +99,7 @@ module glissade_basal_water
     use glissade_types
 
     integer, intent(in) :: &
-         which_ho_bwat     !> basal water options
+         bwat_method     !> basal water options
 
     type(glissade_basal_hydro_type), intent(inout) :: basal_hydro ! basal hydro object
 
@@ -122,7 +122,7 @@ module glissade_basal_water
     real(dp) ::  &
          dbwat_dt        ! rate of change of bwat (m/s of water)
 
-    select case (which_ho_bwat)
+    select case (bwat_method)
 
     ! BWAT_METHOD_NONE:         basal water depth = 0
     ! BWAT_METHOD_CONSTANT:     basal water depth = prescribed constant
