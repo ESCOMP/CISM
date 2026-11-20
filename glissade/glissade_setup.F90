@@ -1716,6 +1716,18 @@ contains
        call log_param('friction_powerlaw_k', model%basal_physics%friction_powerlaw_k, 'roughness parameter for the power-law friction law')
     endif
 
+    ! With powerlaw_c_method = constant or an inversion method, powerlaw_c_const sets (or initializes) the powerlaw_c
+    ! field whatever the sliding law; log it here for the laws that do not use Cp (the others log it above)
+    if ( (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_CONSTANT .or.  &
+          model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION .or. &
+          model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN) .and. &
+          model%basal_physics%sliding_law /= SLIDING_LAW_POWERLAW .and. &
+          model%basal_physics%sliding_law /= SLIDING_LAW_SCHOOF .and.   &
+          model%basal_physics%sliding_law /= SLIDING_LAW_TSAI) then
+       call log_param('powerlaw_c_const', model%basal_physics%powerlaw_c_const, &
+            'sets the powerlaw_c field; not used by this sliding law')
+    endif
+
     ! Coulomb elevation parameters
     if (model%basal_physics%elevation_based_coulomb_c) then
        call log_param('coulomb_c_hi', model%basal_physics%coulomb_c_hi)
@@ -2516,7 +2528,7 @@ contains
        call log_param('snow_threshold_max', model%climate%snow_threshold_max, 'deg C')
     endif
     call log_option('artm_input_function', model%climate%artm_input_function, artm_input_function_choices)
-    if (model%climate%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+    if (model%climate%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE .or. model%glaciers%enable_glaciers) then
        call log_param('t_lapse', model%climate%t_lapse, 'deg C/m; artm lapse rate')
     endif
 
@@ -3005,6 +3017,7 @@ contains
 
     call log_section('glaciers')
     call log_flag('enable_glaciers', model%glaciers%enable_glaciers, 'glacier tracking and tuning')
+    if (.not. model%glaciers%enable_glaciers) return
     call log_option('mu_star_method', model%glaciers%mu_star_method, mu_star_method_choices)
     call log_option('alpha_snow_method', model%glaciers%alpha_snow_method, alpha_snow_method_choices)
     call log_option('glacier_powerlaw_c_method', model%glaciers%glacier_powerlaw_c_method, glacier_powerlaw_c_method_choices)
