@@ -87,7 +87,7 @@ contains
     use glimmer_ncio, only: openall_in, openall_out, glimmer_nc_get_var, glimmer_nc_get_dimlength
     use glissade_therm, only: glissade_init_therm
     use glissade_mass_balance, only: glissade_mass_balance_init
-    use glissade_basal_water, only: glissade_basal_water_init
+    use glissade_basal_hydro, only: glissade_basal_hydro_init
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_utils, only: check_fill_values
     use glimmer_physcon, only: scyr
@@ -673,7 +673,7 @@ contains
     call glissade_io_createall(model, model)
 
     ! Initialize basal hydrology, if needed
-    call glissade_basal_water_init(model)
+    call glissade_basal_hydro_init(model)
 
     ! Initialize some mass balance fields
     ! Note: This subroutine converts the input smb (mm/yr w.e.) to acab (m/s ice), if needed.
@@ -1291,7 +1291,7 @@ contains
 
     use glimmer_physcon, only: rhow, scyr
     use glissade_therm, only: glissade_therm_driver
-    use glissade_basal_water, only: glissade_calcbwat, glissade_bwat_flux_routing
+    use glissade_basal_hydro, only: glissade_calcbwat, glissade_bwat_flux_routing
     use glissade_masks, only: glissade_get_masks
 
     implicit none

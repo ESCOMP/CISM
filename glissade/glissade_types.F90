@@ -2290,7 +2290,7 @@ module glissade_types
                                                  !> Note: The ratio (e_0/C_c) is the key parameter
 
      ! parameters for steady-state flux-routing model
-     !TODO - Add visc_water and omega_hydro? Currently set in glissade_basal_water module
+     !TODO - Add visc_water and omega_hydro? Currently set in glissade_basal_hydro module
      real(dp) :: bwat_source_const = 0.0d0       !> constant melt source at the bed (m/yr)
                                                  !> could be used to represent an englacial or surface source
      real(dp) :: btemp_flow_scale = 0.0d0        !> temperature scale (degC) for transition between thawed and frozen bed;
