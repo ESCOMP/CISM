@@ -268,14 +268,14 @@ def main():
     # note in glimmer_physcon.F90 to also change it here when changed there. --JHK 
     try:
        rhoi = float(subprocess.check_output( 
-           'grep "real(dp),parameter :: rhoi =" ../../libglimmer/glimmer_physcon.F90 | cut -d " " -f 7 | cut -d "." -f 1', 
+           'grep "real(dp),parameter :: rhoi =" ../../cism_shared/glimmer_physcon.F90 | cut -d " " -f 7 | cut -d "." -f 1', 
            shell='/bin/bash' 
            ))
 
-       print('Parameter used: ../../libglimmer/glimmer_physcon.F90 has specified a rhoi value of '+str(rhoi))
+       print('Parameter used: ../../cism_shared/glimmer_physcon.F90 has specified a rhoi value of '+str(rhoi))
 
     except:
-       print('Warning: problem getting ice density value from ../../../libglimmer/glimmer_physcon.F90  Assuming 910.0 kg/m^3 as a default value.')
+       print('Warning: problem getting ice density value from ../../cism_shared/glimmer_physcon.F90  Assuming 910.0 kg/m^3 as a default value.')
        rhoi = 910.0
 
 

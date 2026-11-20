@@ -29,7 +29,7 @@ echo $CISM_SOURCE_DIR
 echo "  --creating glint_io.F90, glint_mbal_io.F90, glad_io.F90 and glad_mbal_io.F90 "
 
 # Save path to source files used in autogeneration
-export NCDF_TEMPL_PATH=$CISM_SOURCE_DIR/libglimmer/ncdf_template.F90.in
+export NCDF_TEMPL_PATH=$CISM_SOURCE_DIR/cism_shared/ncdf_template.F90.in
 export GLINT_VARS_PATH=$CISM_SOURCE_DIR/glint/glint_vars.def
 export GLINT_MBAL_PATH=$CISM_SOURCE_DIR/glint/glint_mbal_vars.def
 export GLAD_VARS_PATH=$CISM_SOURCE_DIR/glad/glad_vars.def

@@ -131,7 +131,7 @@ ENDIF()
 file(GLOB FORTRANSOURCES
      libglimmer-solve/SLAP/*.f
      libglimmer-solve/*.F90
-     libglimmer/*.F90
+     cism_shared/*.F90
      glide/*.F90
      cism_driver/eismint_forcing.F90
      cism_driver/testsfg.F90
@@ -163,7 +163,7 @@ ADD_CUSTOM_COMMAND(
 		${CISM_SOURCE_DIR} 
 		DEPENDS ${CISM_SOURCE_DIR}/glide/glide_vars.def 
 			${CISM_SOURCE_DIR}/glissade/glissade_vars.def
-		        ${CISM_SOURCE_DIR}/libglimmer/ncdf_template.F90.in
+		        ${CISM_SOURCE_DIR}/cism_shared/ncdf_template.F90.in
 			${CISM_SOURCE_DIR}/utils/build/generate_ncvars.py
 			${CISM_SOURCE_DIR}/utils/build/autogenerate-in-build-dir
 )
@@ -183,7 +183,7 @@ ADD_CUSTOM_COMMAND(
 			${CISM_SOURCE_DIR}/glint/glint_mbal_vars.def
 			${CISM_SOURCE_DIR}/glad/glad_vars.def
 			${CISM_SOURCE_DIR}/glad/glad_mbal_vars.def
-			${CISM_SOURCE_DIR}/libglimmer/ncdf_template.F90.in
+			${CISM_SOURCE_DIR}/cism_shared/ncdf_template.F90.in
 			${CISM_SOURCE_DIR}/utils/build/generate_ncvars.py
 			${CISM_SOURCE_DIR}/utils/build/autogen-for-glint-and-glad-in-build-dir
 )
@@ -205,7 +205,7 @@ ADD_CUSTOM_COMMAND(
      ${CISM_SOURCE_DIR}/glide/glide_lithot_io.F90
      ${CISM_SOURCE_DIR}/glint/glint_io.F90
      ${CISM_SOURCE_DIR}/glint/glint_mbal_io.F90
-     ${CISM_SOURCE_DIR}/libglimmer/glimmer_vers.F90 )
+     ${CISM_SOURCE_DIR}/cism_shared/glimmer_vers.F90 )
 #ENDIF()
 
 
