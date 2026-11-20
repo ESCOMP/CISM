@@ -69,6 +69,9 @@ contains
     ! read configuration file
     call glissade_readconfig (model,config)
 
+    ! check settings that involve more than one key, and set defaults that depend on other options
+    call glissade_check_config(model, config)
+
     ! read the ocean levels ([ocean_data]), if present, or compute them from dzocn
     call glissade_get_zocn(model,config)
 
@@ -100,6 +103,69 @@ contains
     call glimmer_nc_readparams(model%funits, model%options%restart, config)
 
   end subroutine glissade_config
+
+!-------------------------------------------------------------------------
+
+  subroutine glissade_check_config(model, config)
+
+    ! Check settings that involve keys in more than one section, and set the defaults
+    ! that depend on another option. Called after glissade_readconfig and before glissade_printconfig.
+    ! A dependent default applies only when its key is not in the config file;
+    ! an explicit setting that conflicts with the other option stops the run.
+
+    use glissade_types
+    use glimmer_config
+    use glimmer_log
+
+    implicit none
+
+    type(glissade_global_type) :: model        !> model instance
+    type(ConfigSection), pointer :: config     !> structure holding sections of configuration file
+
+    ! The local SIA solver cannot use first-order dissipation.
+    ! With stokes_approx = local_sia, the default dissipation_method is sia.
+    if (model%velocity%stokes_approx == STOKES_APPROX_LOCAL_SIA .and. &
+        model%temperature%dissipation_method == DISSIPATION_METHOD_FIRST_ORDER) then
+       if (key_given(config, 'temperature', 'dissipation_method')) then
+          call write_log('Error, dissipation_method = first_order cannot be used with stokes_approx = local_sia; ' // &
+               'use sia or none', GM_FATAL)
+       else
+          model%temperature%dissipation_method = DISSIPATION_METHOD_SIA
+       endif
+    endif
+
+    ! Computing on active blocks only requires no-ice boundary conditions.
+    ! With compute_blocks = active_only, the default global_bc is no_ice.
+    if (model%numerics%compute_blocks == COMPUTE_BLOCKS_ACTIVE_ONLY .and. &
+        model%grid%global_bc /= GLOBAL_BC_NO_ICE) then
+       if (key_given(config, 'grid', 'global_bc')) then
+          call write_log('Error, compute_blocks = active_only requires global_bc = no_ice', GM_FATAL)
+       else
+          model%grid%global_bc = GLOBAL_BC_NO_ICE
+       endif
+    endif
+
+  end subroutine glissade_check_config
+
+!-------------------------------------------------------------------------
+
+  logical function key_given(config, secname, key)
+
+    ! True if the config file sets this key in this section
+
+    use glimmer_config
+    implicit none
+    type(ConfigSection), pointer :: config
+    character(len=*), intent(in) :: secname, key
+
+    type(ConfigSection), pointer :: section
+    character(len=512) :: val
+
+    call GetSection(config, section, secname)
+    key_given = .false.
+    if (associated(section)) key_given = ConfigSectionHasValue(section, key, val)
+
+  end function key_given
 
 !-------------------------------------------------------------------------
 
@@ -405,8 +471,7 @@ contains
        if (associated(section)) then
           call handle_sigma(section, model)
        else
-          model%grid%sigma_method = SIGMA_METHOD_GLIDE  ! default to standard sigma levels
-          call write_log('No [sigma] section present; will compute standard Glide sigma levels')
+          call write_log('Error, sigma_method = config requires a [sigma] section with sigma_levels', GM_FATAL)
        end if
     endif
 
@@ -761,14 +826,20 @@ contains
     ! and the units and cells used for the global diagnostics.
 
     use glimmer_config
+    use glimmer_log
     use glissade_types
     implicit none
 
     type(ConfigSection), pointer :: section
     type(glissade_global_type)   :: model
 
-    !Note: Either dt_diag or ndiag can be specified in the config file.
-    !      If dt_diag is specified, it is used to compute ndiag. (Output is written every ndiag timesteps.)
+    character(len=512) :: val
+
+    !Note: Give either dt_diag (yr) or ndiag (time steps) in the config file, not both.
+    !      If dt_diag is given, it is used to compute ndiag. (Output is written every ndiag timesteps.)
+    if (ConfigSectionHasValue(section,'dt_diag',val) .and. ConfigSectionHasValue(section,'ndiag',val)) then
+       call write_log('Error, dt_diag and ndiag are both set in [diagnostics]; set only one of them', GM_FATAL)
+    endif
     call GetValue(section,'idiag',        model%diagnostics%idiag)
     call GetValue(section,'jdiag',        model%diagnostics%jdiag)
     call GetValue(section,'dt_diag',      model%diagnostics%dt_diag)
@@ -1147,13 +1218,12 @@ contains
     use glissade_types
     use glimmer_log
     use glissade_log_config
+    use glimmer_config, only: option_name
     use cism_parallel, only: tasks
 
     implicit none
 
     type(glissade_global_type)  :: model
-
-    character(len=100) :: note
 
     ! Forbidden options for running in parallel
     ! Note: The local SIA solver does not use a sparse linear solver, so linear_solver is ignored.
@@ -1165,7 +1235,6 @@ contains
     end if
 
     ! The SIA preconditioner cannot be used for 2D solves
-    note = ''
     if ( (model%velocity%stokes_approx == STOKES_APPROX_SSA  .or.  &
           model%velocity%stokes_approx == STOKES_APPROX_L1L2 .or.  &
           model%velocity%stokes_approx == STOKES_APPROX_DIVA .or.  &
@@ -1174,9 +1243,9 @@ contains
           (model%velocity_solver%linear_solver == LINEAR_SOLVER_PCG .or.    &
            model%velocity_solver%linear_solver == LINEAR_SOLVER_PCG_CHRONGEAR) ) then
        if (model%velocity_solver%preconditioner == PRECONDITIONER_SIA) then
-          !TODO - Change default to tridiagonal if it turns out to be faster than diagonal
-          model%velocity_solver%preconditioner = PRECONDITIONER_DIAGONAL
-          note = 'reset from sia, which cannot be used for 2D solves'
+          call write_log('Error, preconditioner = sia cannot be used for the 2D solves of stokes_approx = ' // &
+               trim(option_name(stokes_approx_choices, model%velocity%stokes_approx)) // &
+               '; use diagonal, tridiag_local or tridiag_global', GM_FATAL)
        endif
     endif
 
@@ -1198,11 +1267,7 @@ contains
     call log_option('linear_solver', model%velocity_solver%linear_solver, linear_solver_choices)
     if ((model%velocity_solver%linear_solver == LINEAR_SOLVER_PCG .or.  &
          model%velocity_solver%linear_solver == LINEAR_SOLVER_PCG_CHRONGEAR) ) then
-       if (len_trim(note) > 0) then
-          call log_option('preconditioner', model%velocity_solver%preconditioner, preconditioner_choices, trim(note))
-       else
-          call log_option('preconditioner', model%velocity_solver%preconditioner, preconditioner_choices)
-       endif
+       call log_option('preconditioner', model%velocity_solver%preconditioner, preconditioner_choices)
     end if
     call log_param('linear_solve_ncheck', model%velocity_solver%linear_solve_ncheck)
     call log_param('linear_maxiters', model%velocity_solver%linear_maxiters)
@@ -1309,28 +1374,13 @@ contains
 
     type(glissade_global_type)  :: model
 
-    character(len=100) :: note
-
-    ! The local SIA solver cannot use first-order dissipation
-    note = ''
-    if (model%velocity%stokes_approx == STOKES_APPROX_LOCAL_SIA) then
-       if (model%temperature%dissipation_method == DISSIPATION_METHOD_FIRST_ORDER ) then
-          model%temperature%dissipation_method = DISSIPATION_METHOD_SIA
-          note = 'reset from first_order, which cannot be used with the local SIA solver'
-       endif
-    endif  ! Glissade local SIA solver
-
     call log_section('temperature')
     call log_option('temperature_method', model%temperature%temperature_method, temperature_method_choices)
     ! Note: If temperature is read from an input or restart file, the temperature_init option is overridden.
     !       The method actually used is written to the log file by glissade_init_temp.
     call log_option('temperature_init', model%temperature%temperature_init, temperature_init_choices, &
          'not used if temperature is read from a file')
-    if (len_trim(note) > 0) then
-       call log_option('dissipation_method', model%temperature%dissipation_method, dissipation_method_choices, trim(note))
-    else
-       call log_option('dissipation_method', model%temperature%dissipation_method, dissipation_method_choices)
-    endif
+    call log_option('dissipation_method', model%temperature%dissipation_method, dissipation_method_choices)
     call log_param('pmp_threshold', model%temperature%pmp_threshold, 'K')
     call log_param('pmp_offset', model%temperature%pmp_offset, 'K')
 
@@ -1664,6 +1714,18 @@ contains
             &supported.  USE AT YOUR OWN RISK.', GM_WARNING)
        !TODO - Use powerlaw_c instead of friction_powerlaw_k?  Allow p and q to be set in config file instead of hard-wired?
        call log_param('friction_powerlaw_k', model%basal_physics%friction_powerlaw_k, 'roughness parameter for the power-law friction law')
+    endif
+
+    ! With powerlaw_c_method = constant or an inversion method, powerlaw_c_const sets (or initializes) the powerlaw_c
+    ! field whatever the sliding law; log it here for the laws that do not use Cp (the others log it above)
+    if ( (model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_CONSTANT .or.  &
+          model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION .or. &
+          model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN) .and. &
+          model%basal_physics%sliding_law /= SLIDING_LAW_POWERLAW .and. &
+          model%basal_physics%sliding_law /= SLIDING_LAW_SCHOOF .and.   &
+          model%basal_physics%sliding_law /= SLIDING_LAW_TSAI) then
+       call log_param('powerlaw_c_const', model%basal_physics%powerlaw_c_const, &
+            'sets the powerlaw_c field; not used by this sliding law')
     endif
 
     ! Coulomb elevation parameters
@@ -2055,7 +2117,7 @@ contains
   subroutine print_calving(model)
 
     ! Calving options and parameters.
-    ! Note: If remove_isthmuses = .true., remove_icebergs is set to .true. here (for stability).
+    ! Note: remove_isthmuses = .true. requires remove_icebergs = .true. (for stability).
 
     use glissade_types
     use glimmer_log
@@ -2066,13 +2128,10 @@ contains
 
     type(glissade_global_type)  :: model
     character(len=500) :: message
-    logical :: icebergs_reset   ! true if remove_icebergs is reset to .true.
 
-    ! for stability, remove icebergs when removing isthmuses
-    icebergs_reset = .false.
+    ! for stability, icebergs must be removed when isthmuses are removed
     if (model%calving%remove_isthmuses .and. .not.model%calving%remove_icebergs) then
-       model%calving%remove_icebergs = .true.
-       icebergs_reset = .true.
+       call write_log('Error, remove_isthmuses = .true. requires remove_icebergs = .true. (for stability)', GM_FATAL)
     endif
 
     if (model%calving%calving_law == CALVING_LAW_ADVANCE_RETREAT_RATE    .or.  &
@@ -2161,12 +2220,7 @@ contains
     end if
 
     call log_flag('apply_calving_mask', model%calving%apply_calving_mask)
-    if (icebergs_reset) then
-       call log_flag('remove_icebergs', model%calving%remove_icebergs, &
-            'reset from .false. for stability when remove_isthmuses = .true.')
-    else
-       call log_flag('remove_icebergs', model%calving%remove_icebergs)
-    endif
+    call log_flag('remove_icebergs', model%calving%remove_icebergs)
     call log_flag('remove_isthmuses', model%calving%remove_isthmuses)
     if (model%calving%remove_icebergs .or. model%calving%remove_isthmuses) then
        call log_param('f_ground_threshold', model%calving%f_ground_threshold)
@@ -2474,7 +2528,7 @@ contains
        call log_param('snow_threshold_max', model%climate%snow_threshold_max, 'deg C')
     endif
     call log_option('artm_input_function', model%climate%artm_input_function, artm_input_function_choices)
-    if (model%climate%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+    if (model%climate%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE .or. model%glaciers%enable_glaciers) then
        call log_param('t_lapse', model%climate%t_lapse, 'deg C/m; artm lapse rate')
     endif
 
@@ -2863,7 +2917,12 @@ contains
     call log_section('inversion')
     if (babc_inversion .or. deltaT_inversion) then
        call log_param('inversion_thck_flotation_buffer', model%inversion%inversion_thck_flotation_buffer, 'm')
-       call log_param('inversion_thck_threshold', model%inversion%inversion_thck_threshold, 'm')
+       if (model%inversion%inversion_thck_threshold < model%numerics%thcklim) then
+          call log_param('inversion_thck_threshold', model%inversion%inversion_thck_threshold, &
+               'm; thcklim (' // real_to_string(model%numerics%thcklim) // ' m) is used, since it is larger')
+       else
+          call log_param('inversion_thck_threshold', model%inversion%inversion_thck_threshold, 'm')
+       endif
        call log_param('inversion_damping_factor', model%inversion%inversion_damping_factor)
     endif
 
@@ -2936,7 +2995,7 @@ contains
   subroutine print_glaciers(model)
 
     ! Glacier options and parameters.
-    ! Note: If scale_area = .false., length_scale_factor is reset to 1 here.
+    ! Note: length_scale_factor is used only with scale_area = .true. (see glissade_glacier_init).
     ! The parameters of the glacier powerlaw_c inversion are written in [inversion].
 
     use glissade_types
@@ -2945,7 +3004,6 @@ contains
 
     implicit none
     type(glissade_global_type)  :: model
-    real(dp) :: length_scale_factor_in   ! length_scale_factor before a reset
 
     if (model%glaciers%mu_star_method /= MU_STAR_METHOD_INVERSION) then
        if (model%glaciers%alpha_snow_method == ALPHA_SNOW_METHOD_INVERSION) then
@@ -2955,14 +3013,11 @@ contains
        endif
     endif
 
-    ! length_scale_factor is used only with scale_area
-    length_scale_factor_in = model%glaciers%length_scale_factor
-    if (.not.model%glaciers%scale_area) model%glaciers%length_scale_factor = 1.0d0
-
     ! write the options and parameters
 
     call log_section('glaciers')
     call log_flag('enable_glaciers', model%glaciers%enable_glaciers, 'glacier tracking and tuning')
+    if (.not. model%glaciers%enable_glaciers) return
     call log_option('mu_star_method', model%glaciers%mu_star_method, mu_star_method_choices)
     call log_option('alpha_snow_method', model%glaciers%alpha_snow_method, alpha_snow_method_choices)
     call log_option('glacier_powerlaw_c_method', model%glaciers%glacier_powerlaw_c_method, glacier_powerlaw_c_method_choices)
@@ -2976,9 +3031,9 @@ contains
     call log_flag('scale_area', model%glaciers%scale_area, 'scale glacier area based on latitude')
     if (model%glaciers%scale_area) then
        call log_param('length_scale_factor', model%glaciers%length_scale_factor, 'scales dew and dns')
-    elseif (length_scale_factor_in /= 1.0d0) then
+    elseif (model%glaciers%length_scale_factor /= 1.0d0) then
        call log_param('length_scale_factor', model%glaciers%length_scale_factor, &
-            'reset from ' // real_to_string(length_scale_factor_in) // '; used only with scale_area = .true.')
+            'ignored; used only with scale_area = .true.')
     endif
 
     call log_param('glacier_diag_thck_min', model%glaciers%glacier_diag_thck_min, 'm')

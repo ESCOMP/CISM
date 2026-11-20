@@ -291,6 +291,7 @@ MOVES = {
     ('isostasy', 'asthenosphere'): ('isostasy', 'asthenosphere_method'),
     ('isostasy', 'which_relaxed'): ('isostasy', 'input_topg_method'),
     ('options', 'which_lateral_melt'): ('lateral_melt', 'lateral_melt_method'),
+    ('lateral_melt', 'subglacial_discharge_from_ablation'): ('lateral_melt', 'runoff_from_ablation'),
     ('ho_options', 'enable_glaciers'): ('glaciers', 'enable_glaciers'),
     ('glaciers', 'set_mu_star'): ('glaciers', 'mu_star_method'),
     ('glaciers', 'set_alpha_snow'): ('glaciers', 'alpha_snow_method'),
@@ -430,6 +431,7 @@ USER_NL_RENAMES = {
     'sigma': 'sigma_method',
     # [isostasy], [lateral_melt], [glaciers] (in CESM, tmlt and snow_threshold_* are the glacier keys)
     'which_lateral_melt': 'lateral_melt_method',
+    'subglacial_discharge_from_ablation': 'runoff_from_ablation',
     'which_relaxed': 'input_topg_method',
     'lithosphere': 'lithosphere_method',
     'asthenosphere': 'asthenosphere_method',
@@ -847,6 +849,14 @@ def convert_config(text, moves=None, removed=None):
 USER_NL_SECTION = {k: s for (s, k) in list(OPTION_VALUES) + list(LOGICAL_KEYS)}
 
 
+# Notes printed with a user_nl_cism rename whose old name is also a current key elsewhere
+USER_NL_NOTES = {
+    key: (f'{key} was the glacier key in old user_nl_cism files; it is now also a [climate] key '
+          f'(PDD scheme). Keep {key} if this file is already converted and means the [climate] key')
+    for key in ('tmlt', 'snow_threshold_min', 'snow_threshold_max')
+}
+
+
 def convert_user_nl(text, renames=None):
     """Return (new_text, list of changes) for a CESM user_nl_cism file."""
     renames = USER_NL_RENAMES if renames is None else renames
@@ -857,6 +867,8 @@ def convert_user_nl(text, renames=None):
             key, rest = m.group(2), m.group(3)
             if key in renames:
                 changes.append(f'{key} -> {renames[key]}')
+                if key in USER_NL_NOTES:
+                    changes.append('NOTE: ' + USER_NL_NOTES[key])
                 key = renames[key]
             # option values: CESM namelist strings are quoted
             sec = USER_NL_SECTION.get(key)
@@ -895,6 +907,9 @@ def self_test():
     nl, c = convert_user_nl("which_ho_babc = 9\n! comment\nice_limit = 1.\n", {'which_ho_babc': 'sliding_law'})
     assert nl == "sliding_law = 'powerlaw'\n! comment\nice_limit = 1.\n", nl
     assert c == ['which_ho_babc -> sliding_law', 'sliding_law: 9 -> powerlaw'], c
+    nl, c = convert_user_nl("tmlt = -2.\nsubglacial_discharge_from_ablation = .true.\n")
+    assert nl == "glacier_tmlt = -2.\nrunoff_from_ablation = .true.\n", nl
+    assert c[0] == 'tmlt -> glacier_tmlt' and c[1].startswith('NOTE: tmlt was the glacier key'), c
     assert convert_config(old, {})[0] == old.replace('dycore = 2', 'dycore = glissade')   # empty table: values only
     commented = old.replace('[ho_options]', '[ho_options]   # Higher order options').replace(
         'dycore = 2', 'dycore = 2\n marine_margin = 1')

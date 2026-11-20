@@ -1672,6 +1672,7 @@ module glissade_types
     !> if true, then identify and remove ice isthmuses after calving
     !> These are narrow bridges connecting two regions of floating ice.
     !> False by default, but may need to be true for the FORCE_RETREAT_FLOATING_ICE option.
+    !> Requires remove_icebergs = .true. (for stability).
 
     logical :: limit_marine_cliffs = .false.
     !> if true, then thin marine-based cliffs based on a thickness threshold
@@ -1809,7 +1810,7 @@ module glissade_types
 
      ! parameters for initializing inversion fields
      real(dp) :: &
-          inversion_thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
+          inversion_thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m), or than thcklim if larger, is removed at initialization
           inversion_thck_flotation_buffer = 1.0d0      !> if usrf_obs implies thck near the flotation thickness,
                                              !> set to thck_flotation +/- thck_flotation_buffer (m)
      ! general inversion parameters

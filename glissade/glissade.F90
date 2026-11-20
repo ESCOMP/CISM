@@ -194,12 +194,7 @@ contains
 
           ! Set up a distributed grid with computations on active blocks only.
           ! An active block contains one or more cells with ice_domain_mask = 1.
-          ! This option is supported only with no-ice BCs.
-
-          if (model%grid%global_bc /= GLOBAL_BC_NO_ICE) then
-             call write_log('Changing to no-ice boundary conditions to support the active_blocks option')
-             model%grid%global_bc = GLOBAL_BC_NO_ICE
-          endif
+          ! This option requires global_bc = no_ice (see glissade_check_config).
 
           call distributed_grid_active_blocks(&
                model%grid%ewn,         model%grid%nsn,         &
