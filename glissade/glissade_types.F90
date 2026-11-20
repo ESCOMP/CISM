@@ -191,7 +191,7 @@ module glissade_types
        option_choice(NONLINEAR_RESIDUAL_RELATIVE_L2NORM, 'relative_l2norm', 'relative L2 norm, |Ax-b|/|b|') ]
 
   ! [velocity_solver] linear_solver
-  ! The SLAP solvers (one task only) are in libglimmer-solve; glissade_velo_higher_slap maps the
+  ! The SLAP solvers (one task only) are in glimmer_solve; glissade_velo_higher_slap maps the
   ! LINEAR_SOLVER_SLAP_* choices to that library's methods (SLAP_*).
   integer, parameter :: LINEAR_SOLVER_SLAP_PCG = 0
   integer, parameter :: LINEAR_SOLVER_SLAP_BICG = 1
