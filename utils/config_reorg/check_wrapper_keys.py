@@ -20,8 +20,8 @@ GetSection(config, section, '<section>') call in other routines (the ocean and
 atmosphere levels); the value
 names from the option_choice arrays in glissade/glissade_types.F90.
 
-Keys that are left out of the wrapper on purpose are listed in
-ALLOWED_MISSING below, with the reason.
+Keys and option values that are left out of the wrapper on purpose are
+listed in ALLOWED_MISSING and ALLOWED_MISSING_VALUES below, with the reason.
 
 Usage:
   check_wrapper_keys.py <CISM-wrapper directory or namelist_definition_cism.xml>
@@ -40,6 +40,13 @@ import xml.etree.ElementTree as ET
 ALLOWED_MISSING = {
     'constants': {key: 'physical constants must stay consistent with the coupler'
                   for key in ('rhoi', 'rhoo', 'grav', 'shci', 'lhci', 'trpt')},
+    'grid': {'sigma_file': 'sigma_method = file is not allowed in CESM'},
+}
+
+# Option values that the wrapper leaves out on purpose: key -> {value: reason}
+ALLOWED_MISSING_VALUES = {
+    'sigma_method': {'file': 'not allowed in CESM (the levels come from the config)'},
+    'smb_input_units': {'mm_we_per_yr': 'GLAD sets acab (m/yr ice), not smb (CISM-wrapper issue #130)'},
 }
 
 # Options whose wrapper valid_values are not compared with Glissade's names
@@ -180,9 +187,9 @@ def main():
                     problems.append(f'values     {key}: no option_choice array {choices_name} found')
                 elif valid is None:
                     problems.append(f'values     {key}: wrapper has no valid_values; Glissade: {",".join(names)}')
-                elif set(valid) != set(names):
+                elif set(valid) != set(names) - set(ALLOWED_MISSING_VALUES.get(key, {})):
                     extra = sorted(set(valid) - set(names))
-                    lacking = sorted(set(names) - set(valid))
+                    lacking = sorted(set(names) - set(valid) - set(ALLOWED_MISSING_VALUES.get(key, {})))
                     msg = f'values     {key}:'
                     if lacking:
                         msg += f' not in wrapper: {",".join(lacking)};'
@@ -201,9 +208,14 @@ def main():
                 problems.append(f'unread     {key} (wrapper group {group}): not read by Glissade')
 
     nkeys = sum(len(k) for k in keys.values())
-    nallowed = sum(len(v) for v in ALLOWED_MISSING.values())
-    print(f'Glissade reads {nkeys} keys in {len(keys)} sections; '
-          f'{nallowed} are left out of the wrapper on purpose ({", ".join(ALLOWED_MISSING)}).')
+    print(f'Glissade reads {nkeys} keys in {len(keys)} sections.')
+    print('Left out of the wrapper on purpose:')
+    for sec, allowed in ALLOWED_MISSING.items():
+        reasons = sorted(set(allowed.values()))
+        print(f'  [{sec}] {", ".join(allowed)}: {"; ".join(reasons)}')
+    for key, allowed in ALLOWED_MISSING_VALUES.items():
+        for value, reason in allowed.items():
+            print(f'  {key} = {value}: {reason}')
     print(f'Wrapper: {len(entries)} config entries in {xml_path}')
     if problems:
         print(f'\n{len(problems)} problem(s):')
