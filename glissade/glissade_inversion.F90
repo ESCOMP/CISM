@@ -83,6 +83,7 @@ contains
 
     real(dp) :: h_obs, h_flotation, h_buff   ! thck_obs, flotation thickness, and thck_flotation_buffer scaled to m
     real(dp) :: dh                           ! h_obs - h_flotation
+    real(dp) :: thck_threshold               ! inversion_thck_threshold, but at least thcklim (m)
     real(dp) :: dh_decimal                   ! decimal part remaining after subtracting the truncation of dh
 
     integer :: ewn, nsn
@@ -173,15 +174,16 @@ contains
           do j = nhalo+1, nsn-nhalo
              do i = nhalo+1, ewn-nhalo
                 if (verbose_inversion .and. thck_obs(i,j) > 0.0d0 .and. &
-                     thck_obs(i,j) + eps08 < model%inversion%inversion_thck_threshold) then
+                     thck_obs(i,j) + eps08 < max(model%inversion%inversion_thck_threshold, model%numerics%thcklim)) then
                    !WHL - debug
                    ! write(iulog,*) 'thck_obs < threshold, rank, i, j, thck:', this_rank, i, j, thck_obs(i,j)
                 endif
              enddo
           enddo
 
-          model%inversion%inversion_thck_threshold = max(model%inversion%inversion_thck_threshold, model%numerics%thcklim)
-          where (thck_obs + eps08 <= model%inversion%inversion_thck_threshold)
+          ! The threshold is at least thcklim, the minimum thickness for dynamics.
+          thck_threshold = max(model%inversion%inversion_thck_threshold, model%numerics%thcklim)
+          where (thck_obs + eps08 <= thck_threshold)
              thck_obs = 0.0d0
           endwhere
 

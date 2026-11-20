@@ -2905,7 +2905,12 @@ contains
     call log_section('inversion')
     if (babc_inversion .or. deltaT_inversion) then
        call log_param('inversion_thck_flotation_buffer', model%inversion%inversion_thck_flotation_buffer, 'm')
-       call log_param('inversion_thck_threshold', model%inversion%inversion_thck_threshold, 'm')
+       if (model%inversion%inversion_thck_threshold < model%numerics%thcklim) then
+          call log_param('inversion_thck_threshold', model%inversion%inversion_thck_threshold, &
+               'm; thcklim (' // real_to_string(model%numerics%thcklim) // ' m) is used, since it is larger')
+       else
+          call log_param('inversion_thck_threshold', model%inversion%inversion_thck_threshold, 'm')
+       endif
        call log_param('inversion_damping_factor', model%inversion%inversion_damping_factor)
     endif
 
@@ -2978,7 +2983,7 @@ contains
   subroutine print_glaciers(model)
 
     ! Glacier options and parameters.
-    ! Note: If scale_area = .false., length_scale_factor is reset to 1 here.
+    ! Note: length_scale_factor is used only with scale_area = .true. (see glissade_glacier_init).
     ! The parameters of the glacier powerlaw_c inversion are written in [inversion].
 
     use glissade_types
@@ -2987,7 +2992,6 @@ contains
 
     implicit none
     type(glissade_global_type)  :: model
-    real(dp) :: length_scale_factor_in   ! length_scale_factor before a reset
 
     if (model%glaciers%mu_star_method /= MU_STAR_METHOD_INVERSION) then
        if (model%glaciers%alpha_snow_method == ALPHA_SNOW_METHOD_INVERSION) then
@@ -2996,10 +3000,6 @@ contains
           call write_log('Error, must invert for mu_star if inverting for powerlaw_c', GM_FATAL)
        endif
     endif
-
-    ! length_scale_factor is used only with scale_area
-    length_scale_factor_in = model%glaciers%length_scale_factor
-    if (.not.model%glaciers%scale_area) model%glaciers%length_scale_factor = 1.0d0
 
     ! write the options and parameters
 
@@ -3018,9 +3018,9 @@ contains
     call log_flag('scale_area', model%glaciers%scale_area, 'scale glacier area based on latitude')
     if (model%glaciers%scale_area) then
        call log_param('length_scale_factor', model%glaciers%length_scale_factor, 'scales dew and dns')
-    elseif (length_scale_factor_in /= 1.0d0) then
+    elseif (model%glaciers%length_scale_factor /= 1.0d0) then
        call log_param('length_scale_factor', model%glaciers%length_scale_factor, &
-            'reset from ' // real_to_string(length_scale_factor_in) // '; used only with scale_area = .true.')
+            'ignored; used only with scale_area = .true.')
     endif
 
     call log_param('glacier_diag_thck_min', model%glaciers%glacier_diag_thck_min, 'm')
