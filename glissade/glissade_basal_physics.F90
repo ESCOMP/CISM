@@ -1,6 +1,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
-!   glissade_basal_traction.F90 - part of the Community Ice Sheet Model (CISM)  
+!   glissade_basal_physics.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
@@ -26,7 +26,7 @@
 
 #include "config.inc"
 
-  module glissade_basal_traction
+  module glissade_basal_physics
 
   !-----------------------------------------------------------------------------
   ! Compute or prescribe the basal traction coefficient 'beta' as required by
@@ -1175,6 +1175,6 @@ contains
 
 !=======================================================================
 
-end module glissade_basal_traction
+end module glissade_basal_physics
 
 !=======================================================================

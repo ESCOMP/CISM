@@ -2338,7 +2338,7 @@ module glissade_types
   type glissade_basal_physics_type
 
      !> Holds variables related to basal physics associated with friction laws.
-     !> See glissade_basal_traction.F90 for usage details
+     !> See glissade_basal_physics.F90 for usage details
 
      !Note: By default, beta_grounded_min is set to a small nonzero value.
      !      Larger values (~10 to 100 Pa yr/m) might be needed for stability in realistic simulations.

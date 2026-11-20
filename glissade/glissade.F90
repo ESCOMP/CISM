@@ -100,7 +100,7 @@ contains
     use glissade_calving, only: glissade_calving_mask_init, glissade_subgrid_calving_mask_init, &
          glissade_calving_solve, verbose_calving, verbose_retreat
     use glissade_inversion, only: glissade_inversion_init, verbose_inversion
-    use glissade_basal_traction, only: glissade_elevation_based_coulomb_c
+    use glissade_basal_physics, only: glissade_elevation_based_coulomb_c
     use glissade_bmlt_float, only: glissade_bmlt_float_init, verbose_bmlt_float
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_glacier, only: glissade_glacier_init
@@ -1988,7 +1988,7 @@ contains
     use glissade_diagnostics, only: glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues, &
          glissade_mass_balance_diagnostics, glissade_grounding_line_flux
     use glissade_inversion, only: verbose_inversion, glissade_inversion_solve
-    use glissade_basal_traction, only: glissade_calc_effecpress, glissade_elevation_based_coulomb_c
+    use glissade_basal_physics, only: glissade_calc_effecpress, glissade_elevation_based_coulomb_c
     use glissade_glacier, only: glissade_glacier_update
 
     implicit none
