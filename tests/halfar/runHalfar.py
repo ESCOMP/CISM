@@ -150,6 +150,19 @@ def halfarDome(t,x,y,flwa,rhoi):
   return H.astype(numpy.float32)
 
 
+# Get the ice density used by the model: rhoi in [constants] (Glissade) or [parameters] (Glide),
+# else CISM's default (rhoi in glimmer_physcon.F90)
+def get_rhoi(config_parser, config_name):
+    for section in ('constants', 'parameters'):
+        if config_parser.has_option(section, 'rhoi'):
+            rhoi = float(config_parser.get(section, 'rhoi').split('#')[0].split(';')[0])
+            print('Parameter used: ' + config_name + ' has specified a rhoi value of ' + str(rhoi))
+            return rhoi
+    rhoi = 910.0
+    print('Parameter used: ' + config_name + ' does not set rhoi; using the CISM default of ' + str(rhoi))
+    return rhoi
+
+
 # the main script function
 # ------------------------
 def main():
@@ -263,20 +276,8 @@ def main():
     topg = numpy.zeros([1,ny,nx],dtype='float32')
 
 
-    # Try to get ice density used by the model
-    # NOTE: might be better to just hard-code the same value here, and put a
-    # note in glimmer_physcon.F90 to also change it here when changed there. --JHK 
-    try:
-       rhoi = float(subprocess.check_output( 
-           'grep "real(dp),parameter :: rhoi =" ../../cism_shared/glimmer_physcon.F90 | cut -d " " -f 7 | cut -d "." -f 1', 
-           shell='/bin/bash' 
-           ))
-
-       print('Parameter used: ../../cism_shared/glimmer_physcon.F90 has specified a rhoi value of '+str(rhoi))
-
-    except:
-       print('Warning: problem getting ice density value from ../../cism_shared/glimmer_physcon.F90  Assuming 910.0 kg/m^3 as a default value.')
-       rhoi = 910.0
+    # Get the ice density used by the model
+    rhoi = get_rhoi(config_parser, args.config)
 
 
     # Calculate the thickness of the halfar dome of ice
