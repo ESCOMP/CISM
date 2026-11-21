@@ -62,7 +62,7 @@ contains
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_stagger
     use glissade_utils, only: glissade_usrf_to_thck, glissade_thck_to_usrf
-    use glissade_basal_traction, only: glissade_elevation_based_coulomb_c
+    use glissade_basal_physics, only: glissade_elevation_based_coulomb_c
 
     type(glissade_global_type), intent(inout) :: model   ! model instance
 

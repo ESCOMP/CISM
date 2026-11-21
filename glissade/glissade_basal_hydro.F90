@@ -1,6 +1,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
-!   glissade_basal_water.F90 - part of the Community Ice Sheet Model (CISM)  
+!   glissade_basal_hydro.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
@@ -24,7 +24,7 @@
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-module glissade_basal_water
+module glissade_basal_hydro
 
    use glimmer_global, only: dp, i8
    use glimmer_paramets, only: iulog, eps11, eps08
@@ -38,7 +38,7 @@ module glissade_basal_water
    implicit none
 
    private
-   public :: glissade_basal_water_init, glissade_calcbwat, glissade_bwat_flux_routing
+   public :: glissade_basal_hydro_init, glissade_calcbwat, glissade_bwat_flux_routing
 
    logical :: verbose_bwat = .false.
 
@@ -54,7 +54,7 @@ module glissade_basal_water
 
 !==============================================================
 
-  subroutine glissade_basal_water_init(model)
+  subroutine glissade_basal_hydro_init(model)
 
     type(glissade_global_type) :: model
 
@@ -80,7 +80,7 @@ module glissade_basal_water
 
     end select
 
-  end subroutine glissade_basal_water_init
+  end subroutine glissade_basal_hydro_init
 
 !==============================================================
 
@@ -2078,6 +2078,6 @@ module glissade_basal_water
 
 !==============================================================
 
-end module glissade_basal_water
+end module glissade_basal_hydro
 
 !==============================================================

@@ -36,8 +36,9 @@ module glissade_isostasy
   ! Changes from glide_isostasy.F90:
   ! * There are just two public subroutines: glissade_isostasy_init and glissade_isostasy_solve.
   !   The rest are private.
-  ! * Calculations specific to the elastic lithosphere and relaxing asthenosphere
-  !   have been move to glissade_isostasy_elra.
+  ! * The elastic lithosphere calculation and the Kelvin functions it uses are private
+  !   procedures at the end of this module (formerly the modules glissade_isostasy_elastic
+  !   and glissade_isostasy_kelvin).
 
   !-------------------------------------------------------------------------
   ! Some notes on the isostasy calculation (WHL, May 2017; updated July 2026):
@@ -84,10 +85,11 @@ module glissade_isostasy
 
   use glimmer_global, only : dp
   use glimmer_paramets, only: iulog
-  use glimmer_physcon, only: scyr
+  use glimmer_physcon, only: scyr, pi
   use glimmer_utils, only: point_diag
   use glimmer_log
   use cism_parallel, only: this_rank, main_task
+  use glissade_types, only: glissade_isos_elastic_type
 
   implicit none
 
@@ -95,6 +97,12 @@ module glissade_isostasy
   public :: glissade_isostasy_init, glissade_isostasy_solve, verbose_isostasy
 
   logical :: verbose_isostasy = .false.
+  logical :: verbose_elastic = .false.  ! if true, print diagnostic messages
+
+  ! Kelvin functions (used for the elastic lithosphere)
+  real(kind=dp), parameter :: euler_gamma=0.577215664901532860606512d0 !< Euler's constant
+  integer :: j_max = 40 !< maximum number of iterations
+  real(kind=dp) :: tolerance = 1.d-10 !< the tolerance
 
 !-------------------------------------------------------------------------
 
@@ -106,7 +114,6 @@ contains
 
     !> initialise isostasy calculations
     use glissade_types
-    use glissade_isostasy_elastic, only: glissade_init_elastic
     use cism_parallel, only: parallel_is_zero
 
     implicit none
@@ -117,7 +124,7 @@ contains
 
        if (model%isostasy%lithosphere_method == LITHOSPHERE_METHOD_ELASTIC) then
           ! initialize the elastic lithosphere
-          call glissade_init_elastic(model%isostasy%rbel, model%grid%dew, model%isostasy%flexural_rigidity)
+          call elastic_init(model%isostasy%rbel, model%grid%dew, model%isostasy%flexural_rigidity)
        end if
 
        !-----------------------------------------------------------------
@@ -418,7 +425,6 @@ contains
     ! Update the lithosphere
 
     use glissade_types
-    use glissade_isostasy_elastic, only: glissade_calc_elastic
     implicit none
 
     ! input/output arguments
@@ -449,7 +455,7 @@ contains
           endif
        endif
        
-       call glissade_calc_elastic(&
+       call elastic_calc(&
             model%isostasy%rbel,  &
             load_factors,         &
             load,                 &
@@ -537,6 +543,540 @@ contains
     endif
 
   end subroutine relaxing_mantle
+
+!-------------------------------------------------------------------------
+! Elastic lithosphere
+!-------------------------------------------------------------------------
+
+  ! Code for an elastic lithosphere; typically combined with a relaxing asthenosphere
+  !  Notes:
+  !  * This code is based on the isostasy_elastic module from the old Glide code.
+  !    It was copied to glissade, renamed and restructured in July 2026.
+  !  * The elastic lithosphere calculation is done on a single task.
+  !    When running in parallel runs, data are gathered onto the main task for the computation,
+  !    then scattered back to local processors.
+  !    This procedure does not scale well, although is is manageable on a 4 km mesh as long as
+  !    the update is done at a frequency of once every few decades or less.
+
+  subroutine elastic_init(rbel, deltax, flexural_rigidity)
+
+    !> initialize elastic lithosphere calculations
+
+    use glimmer_physcon, only : pi
+    implicit none
+
+    type(glissade_isos_elastic_type) :: rbel          !> structure holding elastic lithosphere data
+    real(dp), intent(in) :: deltax      !> grid spacing
+    real(dp), intent(in) :: flexural_rigidity   !> flexural rigidity of the lithosphere (N m)
+
+    ! local variables
+    real(dp) :: a     ! radius of disk
+    real(dp) :: r     ! distance from centre
+    integer :: i,j
+
+    real(dp), parameter :: r_lr = 6.0d0   ! influence of disk load at (0,0) is felt within a radius of r_lr*rbel_r
+
+    ! calculate a so that a circle of radius a is equivalent to a square with size deltax
+    a = deltax/sqrt(pi)
+
+    rbel%d = flexural_rigidity
+
+    ! initialise w
+    call init_rbel(rbel, a)
+
+    ! calculate size of operator
+    rbel%wsize = int(r_lr*rbel%lr/deltax)
+
+    ! allocate memory for operator
+    allocate(rbel%w(0:rbel%wsize,0:rbel%wsize))
+
+    ! calculating points within disk
+    rbel%w(0,0) = rbel_iw(rbel,0.d0)
+    r = deltax/rbel%lr
+    rbel%w(0,1) = rbel_iw(rbel,r)
+    rbel%w(1,0) = rbel%w(0,1)
+
+    ! calculating points outside disk
+    do j=0,rbel%wsize
+       do i=2,rbel%wsize
+          r = deltax * sqrt(real(i)**2 + real(j)**2)/rbel%lr
+          rbel%w(i,j) = rbel_ow(rbel,r)
+       end do
+    end do
+
+    do j=2,rbel%wsize
+       do i=0,1
+          r = deltax * sqrt(real(i)**2 + real(j)**2)/rbel%lr
+          rbel%w(i,j) = rbel_ow(rbel,r)
+       end do
+    end do
+
+    i=1
+    j=1
+    r = deltax * sqrt(real(i)**2 + real(j)**2)/rbel%lr
+    rbel%w(i,j) = rbel_ow(rbel,r)
+
+#ifdef DEB_REBOUND
+    open(1,file='w.dat',status='UNKNOWN')
+    do j=0,rbel%wsize
+       do i=0,rbel%wsize
+          write(1,*) i,j,rbel%w(i,j)
+       end do
+    end do
+    close(1)
+#endif
+
+  end subroutine elastic_init
+
+!-------------------------------------------------------------------------
+
+  subroutine elastic_calc(&
+       rbel,                 &
+       load_factors,         &
+       load,                 &
+       parallel)
+
+    !> Calculate surface loading using an elastic lithosphere approximation.
+    !> The results match those of subroutine calc_elastic in the older Glide isostasy model.
+    !> The main difference is that this subroutine uses a global gather and broadcast
+    !  to enable each task to compute the load for locally owned cells only.
+
+    use cism_parallel, only: this_rank, main_task, nhalo, parallel_type, &
+         gather_var, broadcast, parallel_halo, parallel_globalindex
+
+    implicit none
+
+    ! input-output arguments
+    type(glissade_isos_elastic_type) :: rbel                             !> structure holding elastic litho data
+    real(dp), dimension(:,:), intent(in)  :: load_factors  !> load mass divided by mantle density
+    real(dp), dimension(:,:), intent(out) :: load          !> loading effect due to load_factors
+
+    type(parallel_type), intent(in) :: parallel            !> info for parallel communication
+
+    ! local variables
+
+    integer :: ewn, nsn                   ! grid dimensions on the local task; includes halo cells
+    integer :: global_ewn, global_nsn     ! global grid dimensions
+
+    integer :: i, j, n, m
+    integer :: ig, jg                     ! global indices
+
+    real(dp), dimension(:,:), allocatable :: &
+         load_global,             & !> global version of the output 'load' array
+         load_factors_global        !> global version of the input 'load_factors' array
+
+    character(len=100) :: message
+
+    ! initialize
+
+    ewn = size(load,1)
+    nsn = size(load,2)
+    global_ewn = parallel%global_ewn
+    global_nsn = parallel%global_nsn
+
+    load = 0.0d0
+
+    if (verbose_elastic .and. main_task) then
+       write(iulog,*) 'In elastic_calc'
+       write(iulog,*) 'local ewn/nsn =', ewn, nsn
+       write(iulog,*) 'global_ewn/nsn =', global_ewn, global_nsn
+    endif
+
+    ! Gather the local load_factors arrays onto the main task
+    ! Note: global arrays are allocated in the subroutine
+    call gather_var(load_factors, load_factors_global, parallel)
+
+    if (verbose_elastic .and. main_task) then
+       if (sum(load_factors_global) > 0.0d0) then
+          write(iulog,*) 'my_task, sum(load_factors_global) =', this_rank, sum(load_factors_global)
+       endif
+       write(iulog,*) 'Allocate load_factors_global'
+    endif
+
+    ! allocate load_factors_global on tasks other than main
+    if (.not.main_task) then
+       if (allocated(load_factors_global)) deallocate(load_factors_global)
+       allocate(load_factors_global(global_ewn,global_nsn))
+    endif
+
+    if (verbose_elastic .and. main_task) then
+       write(iulog,*) 'Broadcast load_factors_global to each task'
+    endif
+
+    ! broadcast load_factors_global from main_task to all processors
+    call broadcast(load_factors_global)
+
+    if (sum(load_factors_global) == 0.0d0) then
+       write(message,*) 'Error, calc_elastic, sum(load_factors_global) = 0, my_task =', this_rank
+       call write_log(message, GM_FATAL)
+    endif
+
+    if (verbose_elastic .and. main_task) then
+       write(iulog,*) 'Compute load locally on each task'
+    endif
+
+    ! loop over locally owned cells
+    do j = nhalo+1, nsn-nhalo
+       do i = nhalo+1, ewn-nhalo
+          call parallel_globalindex(i, j, ig, jg, parallel)
+
+          ! Compute load terms by summing over cells in the radius of influence
+          do n = max(1,jg-rbel%wsize), min(global_nsn,jg+rbel%wsize)
+             do m = max(1,ig-rbel%wsize), min(global_ewn,ig+rbel%wsize)
+                load(i,j) = load(i,j) + load_factors_global(m,n) * rbel%w(abs(m-ig),abs(n-jg))
+             end do   ! m
+          end do   ! n
+
+       enddo   ! i
+    enddo   ! j
+
+    ! update halo cells
+    call parallel_halo(load, parallel)
+
+    ! deallocate global arrays
+    deallocate(load_factors_global)
+
+  end subroutine elastic_calc
+
+!-------------------------------------------------------------------------
+
+  subroutine init_rbel(rbel, a)
+
+    !> initialize elastic lithosphere calculations
+
+    use glimmer_physcon, only: rhom, grav
+    implicit none
+
+    type(glissade_isos_elastic_type) :: rbel        !> structure holding elastic litho data
+    real(dp), intent(in) :: a         !> radius of disk
+
+    real(dp) :: dummy_a
+
+    call set_kelvin(1.d-10,40)
+
+    rbel%lr = (rbel%d/(rhom*grav))**0.25d0
+    rbel%a  = a
+
+    dummy_a = rbel%a/rbel%lr
+    
+    rbel%c1  =  dummy_a * dker(dummy_a)
+    rbel%c2  = -dummy_a * dkei(dummy_a)
+    rbel%cd3 =  dummy_a * dber(dummy_a)
+    rbel%cd4 = -dummy_a * dbei(dummy_a)
+    
+  end subroutine init_rbel
+
+!-------------------------------------------------------------------------
+
+  function rbel_ow(rbel,r)
+
+    !> calculate deflection outside disk
+
+    implicit none
+    real(dp) :: rbel_ow
+    real(dp), intent(in) :: r          !> radius, r should be scaled with lr
+    type(glissade_isos_elastic_type) :: rbel     !> structure holding elastic litho data
+    
+    rbel_ow = rbel%cd3*ker(r) + rbel%cd4*kei(r)
+
+  end function rbel_ow
+
+!-------------------------------------------------------------------------
+
+  function rbel_iw(rbel,r)
+
+    !> calculate deflection inside disk
+    implicit none
+    real(dp) :: rbel_iw
+    real(dp), intent(in) :: r          !> radius, r should be scaled with lr
+    type(glissade_isos_elastic_type) :: rbel         !> structure holding elastic litho data
+    
+    rbel_iw = 1.d0 + rbel%c1*ber(r) + rbel%c2*bei(r)
+
+  end function rbel_iw
+
+!-------------------------------------------------------------------------
+! Kelvin functions
+!-------------------------------------------------------------------------
+
+  !> Code for calculating zeroth order Kelvin functions and their derivatives.
+  !!
+  !! \author Magnus Hagdorn
+  !! \date June 2000
+  !! Added to the Glissade dycore by William Lipscomb, July 2026
+
+  !> set tolerance and maximum number of iterations
+  subroutine set_kelvin(tol, jmax)
+    implicit none
+    real(kind=dp), intent(in) :: tol
+    integer, intent(in) :: jmax
+    j_max = jmax
+    tolerance = tol
+  end subroutine set_kelvin
+
+  function ber(x)
+    implicit none
+    real(kind=dp) :: ber
+    real(kind=dp), intent(in) :: x
+    
+    real(kind=dp) :: arg, arg_d
+    real(kind=dp) :: p_ber
+    real(kind=dp) :: factorial
+    real(kind=dp) :: sign
+    integer :: j
+
+    p_ber = 0.d0
+    factorial = 1.d0
+
+    ber = 1.d0
+    arg = (x/2.d0)**4
+    arg_d = arg
+    sign = -1.d0
+
+    j=1
+    do while (j < j_max)
+       p_ber = ber
+       factorial = factorial*2*j*(2*j-1.d0)
+       ber = ber + sign*arg_d/(factorial*factorial)
+       if (abs(ber-p_ber) < tolerance) exit
+       arg_d = arg_d*arg
+       sign = -sign 
+       j = j+1
+    end do
+  end function ber
+
+  function bei(x)
+    implicit none
+    real(kind=dp) :: bei
+    real(kind=dp), intent(in) :: x
+    
+    real(kind=dp) :: arg, arg_d
+    real(kind=dp) :: p_bei
+    real(kind=dp) :: factorial
+    real(kind=dp) :: sign
+    integer :: j
+
+    p_bei = 1.d12
+    factorial = 1.d0
+
+    arg = (x/2.d0)**2
+    bei = arg
+    arg_d = arg*arg*arg
+    arg = arg*arg
+    sign = -1.d0
+
+    j=1
+    do while (j < j_max)
+       p_bei = bei
+       factorial = factorial*2*j*(2*j+1.d0)
+       bei = bei + sign*arg_d/(factorial*factorial)
+       if (abs(bei-p_bei) < tolerance) exit
+       arg_d = arg_d*arg
+       sign = -sign 
+       j = j+1
+    end do
+  end function bei
+
+  function ker(x)
+    implicit none
+    real(kind=dp) :: ker
+    real(kind=dp), intent(in) :: x
+    
+    real(kind=dp) :: arg, arg_d
+    real(kind=dp) :: p_ker
+    real(kind=dp) :: factorial
+    real(kind=dp) :: phi
+    real(kind=dp) :: sign
+    integer :: j
+
+    p_ker = 0.d0
+    factorial = 1.d0
+
+    arg = (x/2.d0)**4
+    arg_d = arg
+    sign = -1.d0
+    phi = 0.d0
+    ker = -(log(x/2.d0)+euler_gamma)*ber(x)+(pi/4.d0)*bei(x)
+
+    j=1
+    do while (j < j_max)
+       p_ker = ker
+       factorial = factorial*2*j*(2*j-1.d0)
+       phi = phi + 1.d0/(2.d0*j-1.d0) + 1.d0/(2.d0*j)
+       ker = ker + sign*phi*arg_d/(factorial*factorial)
+       if (abs(ker-p_ker) < tolerance) exit
+       arg_d = arg_d*arg
+       sign = -sign 
+       j = j+1
+    end do
+  end function ker
+
+  function kei(x)
+    implicit none
+    real(kind=dp) :: kei
+    real(kind=dp), intent(in) :: x
+    
+    real(kind=dp) :: arg, arg_d
+    real(kind=dp) :: p_kei
+    real(kind=dp) :: factorial
+    real(kind=dp) :: phi
+    real(kind=dp) :: sign
+    integer :: j
+
+    p_kei = 0.d0
+    factorial = 1.d0
+
+    arg = (x/2.d0)**2
+    sign = -1.d0
+    phi = 1.d0
+    kei = -(log(x/2.d0)+euler_gamma)*bei(x)-(pi/4.d0)*ber(x)+arg
+    arg_d = arg
+    arg = arg*arg
+    arg_d = arg_d*arg
+
+    j=1
+    do while (j < j_max)
+       p_kei = kei
+       factorial = factorial*2*j*(2*j+1.d0)
+       phi = phi + 1.d0/(2.d0*j+1.d0) + 1.d0/(2.d0*j)
+       kei = kei + sign*phi*arg_d/(factorial*factorial)
+       if (abs(kei-p_kei) < tolerance) exit
+       arg_d = arg_d*arg
+       sign = -sign 
+       j = j+1
+    end do
+  end function kei
+
+  function dber(x)
+    implicit none
+    real(kind=dp) :: dber
+    real(kind=dp), intent(in) :: x
+    
+    real(kind=dp) :: arg, arg_d
+    real(kind=dp) :: p_dber
+    real(kind=dp) :: factorial
+    real(kind=dp) :: sign
+    integer :: j
+
+    p_dber = 0.d0
+    factorial = 1.d0
+
+    dber = 0.d0
+    arg = (x/2.d0)**4
+    arg_d = (x/2.d0)**3
+    sign = -1.d0
+
+    j=1
+    do while (j < j_max)
+       p_dber = dber
+       factorial = factorial*2*j*(2*j-1.d0)
+       dber = dber + sign*2.d0*j*arg_d/(factorial*factorial)
+       if (abs(dber-p_dber) < tolerance) exit
+       arg_d = arg_d*arg
+       sign = -sign 
+       j = j+1
+    end do
+  end function dber
+
+  function dbei(x)
+    implicit none
+    real(kind=dp) :: dbei
+    real(kind=dp), intent(in) :: x
+    
+    real(kind=dp) :: arg, arg_d
+    real(kind=dp) :: p_dbei
+    real(kind=dp) :: factorial
+    real(kind=dp) :: sign
+    integer :: j
+
+    p_dbei = 1.d12
+    factorial = 1.d0
+
+    arg = (x/2.d0)**4
+    arg_d = arg*(x/2.d0)
+    dbei = (x/2.d0)
+    sign = -1.d0
+
+    j=1
+    do while (j < j_max)
+       p_dbei = dbei
+       factorial = factorial*2*j*(2*j+1.d0)
+       dbei = dbei + sign*(2.d0*j+1.d0)*arg_d/(factorial*factorial)
+       if (abs(dbei-p_dbei) < tolerance) exit
+       arg_d = arg_d*arg
+       sign = -sign 
+       j = j+1
+    end do
+  end function dbei
+
+  function dker(x)
+    implicit none
+    real(kind=dp) :: dker
+    real(kind=dp), intent(in) :: x
+    
+    real(kind=dp) :: arg, arg_d
+    real(kind=dp) :: p_dker
+    real(kind=dp) :: factorial
+    real(kind=dp) :: phi
+    real(kind=dp) :: sign
+    integer :: j
+
+    p_dker = 0.d0
+    factorial = 1.d0
+
+    arg = (x/2.d0)**4
+    arg_d = (x/2.d0)**3
+    sign = -1.d0
+    phi = 0.d0
+    dker = -(log(x/2.d0)+euler_gamma)*dber(x)-ber(x)/x+(pi/4.d0)*dbei(x)
+
+    j=1
+    do while (j < j_max)
+       p_dker = dker
+       factorial = factorial*2*j*(2*j-1.d0)
+       phi = phi + 1.d0/(2.d0*j-1.d0) + 1.d0/(2.d0*j)
+       dker = dker + sign*phi*2.d0*j*arg_d/(factorial*factorial)
+       if (abs(dker-p_dker) < tolerance) exit
+       arg_d = arg_d*arg
+       sign = -sign 
+       j = j+1
+    end do
+  end function dker
+
+  function dkei(x)
+    implicit none
+    real(kind=dp) :: dkei
+    real(kind=dp), intent(in) :: x
+    
+    real(kind=dp) :: arg, arg_d
+    real(kind=dp) :: p_dkei
+    real(kind=dp) :: factorial
+    real(kind=dp) :: phi
+    real(kind=dp) :: sign
+    integer :: j
+
+    p_dkei = 0.d0
+    factorial = 1.d0
+
+    arg = (x/2.d0)
+    sign = -1.d0
+    phi = 1.d0
+    dkei = -(log(x/2.d0)+euler_gamma)*dbei(x)-bei(x)/x-(pi/4.d0)*dber(x)+arg
+    arg_d = arg**5
+    arg = arg**4
+
+    j=1
+    do while (j < j_max)
+       p_dkei = dkei
+       factorial = factorial*2*j*(2*j+1.d0)
+       phi = phi + 1.d0/(2.d0*j+1.d0) + 1.d0/(2.d0*j)
+       dkei = dkei + sign*phi*(2.d0*j+1.d0)*arg_d/(factorial*factorial)
+       if (abs(dkei-p_dkei) < tolerance) exit
+       arg_d = arg_d*arg
+       sign = -sign 
+       j = j+1
+    end do
+  end function dkei
 
 !-------------------------------------------------------------------------
 

@@ -15,7 +15,7 @@ Licensing:
 CISM is issued under the Lesser GNU General Public Licence (see LICENSE in the main directory).
 
 Note that this licence DOES NOT APPLY to the SLAP linear algebra library, used by some
-single-processor solvers, which is included here in its own directory (./libglimmer-solve/SLAP), and is in the public 
+single-processor solvers, which is included here in its own directory (./glimmer_solve/SLAP), and is in the public 
 domain.
 
 

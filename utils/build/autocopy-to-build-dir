@@ -23,9 +23,9 @@ echo "Auto-copy script is using CISM source directory: "
 echo $CISM_SOURCE_DIR
 
 # Just a copy of a file without version info
-# pushd ../libglimmer
+# pushd ../cism_shared
 echo "  --making copy of glimmer_vers.F90"
-cp -p $CISM_SOURCE_DIR/libglimmer/glimmer_vers.F90.cmake.in glimmer_vers.F90
+cp -p $CISM_SOURCE_DIR/cism_shared/glimmer_vers.F90.cmake.in glimmer_vers.F90
 
 # Just a copy of a file with minimal info
 popd

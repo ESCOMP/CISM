@@ -169,7 +169,7 @@ contains
     ! Glide is a serial code, but it uses the parallel infrastructure in cism_parallel
     !  in a trivial form, with one task and no halo cells (nhalo = 0).
     ! The main reason is that Glide shares the netCDF I/O layer with Glissade:
-    !  the libglimmer I/O routines and the generated glide_io module are written
+    !  the cism_shared I/O routines and the generated glide_io module are written
     !  in terms of model%parallel (parallel_type) and the parallel_* netCDF wrappers.
     !  This call to distributed_grid sets up model%parallel for a single block.
     ! Glide also calls some parallel routines that are trivial on one task, mainly

@@ -191,7 +191,7 @@ module glissade_types
        option_choice(NONLINEAR_RESIDUAL_RELATIVE_L2NORM, 'relative_l2norm', 'relative L2 norm, |Ax-b|/|b|') ]
 
   ! [velocity_solver] linear_solver
-  ! The SLAP solvers (one task only) are in libglimmer-solve; glissade_velo_higher_slap maps the
+  ! The SLAP solvers (one task only) are in glimmer_solve; glissade_velo_higher_slap maps the
   ! LINEAR_SOLVER_SLAP_* choices to that library's methods (SLAP_*).
   integer, parameter :: LINEAR_SOLVER_SLAP_PCG = 0
   integer, parameter :: LINEAR_SOLVER_SLAP_BICG = 1
@@ -2290,7 +2290,7 @@ module glissade_types
                                                  !> Note: The ratio (e_0/C_c) is the key parameter
 
      ! parameters for steady-state flux-routing model
-     !TODO - Add visc_water and omega_hydro? Currently set in glissade_basal_water module
+     !TODO - Add visc_water and omega_hydro? Currently set in glissade_basal_hydro module
      real(dp) :: bwat_source_const = 0.0d0       !> constant melt source at the bed (m/yr)
                                                  !> could be used to represent an englacial or surface source
      real(dp) :: btemp_flow_scale = 0.0d0        !> temperature scale (degC) for transition between thawed and frozen bed;
@@ -2338,7 +2338,7 @@ module glissade_types
   type glissade_basal_physics_type
 
      !> Holds variables related to basal physics associated with friction laws.
-     !> See glissade_basal_traction.F90 for usage details
+     !> See glissade_basal_physics.F90 for usage details
 
      !Note: By default, beta_grounded_min is set to a small nonzero value.
      !      Larger values (~10 to 100 Pa yr/m) might be needed for stability in realistic simulations.

@@ -9,7 +9,6 @@
 import os
 import sys
 import glob
-import subprocess
 
 import numpy as np
 import numpy.ma as ma
@@ -19,7 +18,7 @@ from math import tan, pi, sin, cos
 from netCDF import *
 import configparser 
 
-from runHalfar import halfarDome   # located in current directory
+from runHalfar import halfarDome, get_rhoi   # located in current directory
 
 import argparse
 parser = argparse.ArgumentParser(description=__doc__,
@@ -123,13 +122,8 @@ def main():
         raise
         sys.exit('Error: problem getting the flwa parameter value from the config file')
 
-    # Try to get ice density used by the model
-    try:
-        rhoi = float( subprocess.check_output( 'grep "real(dp),parameter :: rhoi =" ../../libglimmer/glimmer_physcon.F90 | cut -d " " -f 7 | cut -d "." -f 1', shell='/bin/bash' ) )
-        print('Parameter used: ../../libglimmer/glimmer_physcon.F90 has specified a rhoi value of ' + str(rhoi))
-    except:
-        print('Warning: problem getting ice density value from ../../../libglimmer/glimmer_physcon.F90  Assuming 910.0 kg/m^3 as a default value.')
-        rhoi = 910.0
+    # Get the ice density used by the model
+    rhoi = get_rhoi(config_parser, config_file)
 
 
 

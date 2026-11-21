@@ -87,7 +87,7 @@ contains
     use glimmer_ncio, only: openall_in, openall_out, glimmer_nc_get_var, glimmer_nc_get_dimlength
     use glissade_therm, only: glissade_init_therm
     use glissade_mass_balance, only: glissade_mass_balance_init
-    use glissade_basal_water, only: glissade_basal_water_init
+    use glissade_basal_hydro, only: glissade_basal_hydro_init
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_utils, only: check_fill_values
     use glimmer_physcon, only: scyr
@@ -100,7 +100,7 @@ contains
     use glissade_calving, only: glissade_calving_mask_init, glissade_subgrid_calving_mask_init, &
          glissade_calving_solve, verbose_calving, verbose_retreat
     use glissade_inversion, only: glissade_inversion_init, verbose_inversion
-    use glissade_basal_traction, only: glissade_elevation_based_coulomb_c
+    use glissade_basal_physics, only: glissade_elevation_based_coulomb_c
     use glissade_bmlt_float, only: glissade_bmlt_float_init, verbose_bmlt_float
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_glacier, only: glissade_glacier_init
@@ -673,7 +673,7 @@ contains
     call glissade_io_createall(model, model)
 
     ! Initialize basal hydrology, if needed
-    call glissade_basal_water_init(model)
+    call glissade_basal_hydro_init(model)
 
     ! Initialize some mass balance fields
     ! Note: This subroutine converts the input smb (mm/yr w.e.) to acab (m/s ice), if needed.
@@ -1291,7 +1291,7 @@ contains
 
     use glimmer_physcon, only: rhow, scyr
     use glissade_therm, only: glissade_therm_driver
-    use glissade_basal_water, only: glissade_calcbwat, glissade_bwat_flux_routing
+    use glissade_basal_hydro, only: glissade_calcbwat, glissade_bwat_flux_routing
     use glissade_masks, only: glissade_get_masks
 
     implicit none
@@ -1988,7 +1988,7 @@ contains
     use glissade_diagnostics, only: glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues, &
          glissade_mass_balance_diagnostics, glissade_grounding_line_flux
     use glissade_inversion, only: verbose_inversion, glissade_inversion_solve
-    use glissade_basal_traction, only: glissade_calc_effecpress, glissade_elevation_based_coulomb_c
+    use glissade_basal_physics, only: glissade_calc_effecpress, glissade_elevation_based_coulomb_c
     use glissade_glacier, only: glissade_glacier_update
 
     implicit none
