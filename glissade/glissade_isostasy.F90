@@ -83,7 +83,7 @@ module glissade_isostasy
   ! Note: This module currently supports an ELRA scheme (elastic lithosphere, relaxing asthenosphere).
   !       At some point, it could wrap more complex schemes such as those in the FastIsostasy model.
 
-  use glimmer_global, only : dp, sp
+  use glimmer_global, only : dp
   use glimmer_paramets, only: iulog
   use glimmer_physcon, only: scyr, pi
   use glimmer_utils, only: point_diag
@@ -103,32 +103,6 @@ module glissade_isostasy
   real(kind=dp), parameter :: euler_gamma=0.577215664901532860606512d0 !< Euler's constant
   integer :: j_max = 40 !< maximum number of iterations
   real(kind=dp) :: tolerance = 1.d-10 !< the tolerance
-
-  interface ber
-     module procedure d_ber, s_ber
-  end interface
-  interface bei
-     module procedure d_bei, s_bei
-  end interface
-  interface ker
-     module procedure d_ker, s_ker
-  end interface
-  interface kei
-     module procedure d_kei, s_kei
-  end interface
-
-  interface dber
-     module procedure d_dber, s_dber
-  end interface
-  interface dbei
-     module procedure d_dbei, s_dbei
-  end interface
-  interface dker
-     module procedure d_dker, s_dker
-  end interface
-  interface dkei
-     module procedure d_dkei, s_dkei
-  end interface
 
 !-------------------------------------------------------------------------
 
@@ -826,7 +800,6 @@ contains
 !-------------------------------------------------------------------------
 
   !> Code for calculating zeroth order Kelvin functions and their derivatives.
-  !! Both single and double precision versions are provided
   !!
   !! \author Magnus Hagdorn
   !! \date June 2000
@@ -841,333 +814,269 @@ contains
     tolerance = tol
   end subroutine set_kelvin
 
-  function d_ber(x)
+  function ber(x)
     implicit none
-    real(kind=dp) :: d_ber
+    real(kind=dp) :: ber
     real(kind=dp), intent(in) :: x
     
     real(kind=dp) :: arg, arg_d
-    real(kind=dp) :: p_d_ber
+    real(kind=dp) :: p_ber
     real(kind=dp) :: factorial
     real(kind=dp) :: sign
     integer :: j
 
-    p_d_ber = 0.d0
+    p_ber = 0.d0
     factorial = 1.d0
 
-    d_ber = 1.d0
+    ber = 1.d0
     arg = (x/2.d0)**4
     arg_d = arg
     sign = -1.d0
 
     j=1
     do while (j < j_max)
-       p_d_ber = d_ber
+       p_ber = ber
        factorial = factorial*2*j*(2*j-1.d0)
-       d_ber = d_ber + sign*arg_d/(factorial*factorial)
-       if (abs(d_ber-p_d_ber) < tolerance) exit
+       ber = ber + sign*arg_d/(factorial*factorial)
+       if (abs(ber-p_ber) < tolerance) exit
        arg_d = arg_d*arg
        sign = -sign 
        j = j+1
     end do
-  end function d_ber
+  end function ber
 
-  function d_bei(x)
+  function bei(x)
     implicit none
-    real(kind=dp) :: d_bei
+    real(kind=dp) :: bei
     real(kind=dp), intent(in) :: x
     
     real(kind=dp) :: arg, arg_d
-    real(kind=dp) :: p_d_bei
+    real(kind=dp) :: p_bei
     real(kind=dp) :: factorial
     real(kind=dp) :: sign
     integer :: j
 
-    p_d_bei = 1.d12
+    p_bei = 1.d12
     factorial = 1.d0
 
     arg = (x/2.d0)**2
-    d_bei = arg
+    bei = arg
     arg_d = arg*arg*arg
     arg = arg*arg
     sign = -1.d0
 
     j=1
     do while (j < j_max)
-       p_d_bei = d_bei
+       p_bei = bei
        factorial = factorial*2*j*(2*j+1.d0)
-       d_bei = d_bei + sign*arg_d/(factorial*factorial)
-       if (abs(d_bei-p_d_bei) < tolerance) exit
+       bei = bei + sign*arg_d/(factorial*factorial)
+       if (abs(bei-p_bei) < tolerance) exit
        arg_d = arg_d*arg
        sign = -sign 
        j = j+1
     end do
-  end function d_bei
+  end function bei
 
-  function d_ker(x)
+  function ker(x)
     implicit none
-    real(kind=dp) :: d_ker
+    real(kind=dp) :: ker
     real(kind=dp), intent(in) :: x
     
     real(kind=dp) :: arg, arg_d
-    real(kind=dp) :: p_d_ker
+    real(kind=dp) :: p_ker
     real(kind=dp) :: factorial
     real(kind=dp) :: phi
     real(kind=dp) :: sign
     integer :: j
 
-    p_d_ker = 0.d0
+    p_ker = 0.d0
     factorial = 1.d0
 
     arg = (x/2.d0)**4
     arg_d = arg
     sign = -1.d0
     phi = 0.d0
-    d_ker = -(log(x/2.d0)+euler_gamma)*d_ber(x)+(pi/4.d0)*d_bei(x)
+    ker = -(log(x/2.d0)+euler_gamma)*ber(x)+(pi/4.d0)*bei(x)
 
     j=1
     do while (j < j_max)
-       p_d_ker = d_ker
+       p_ker = ker
        factorial = factorial*2*j*(2*j-1.d0)
        phi = phi + 1.d0/(2.d0*j-1.d0) + 1.d0/(2.d0*j)
-       d_ker = d_ker + sign*phi*arg_d/(factorial*factorial)
-       if (abs(d_ker-p_d_ker) < tolerance) exit
+       ker = ker + sign*phi*arg_d/(factorial*factorial)
+       if (abs(ker-p_ker) < tolerance) exit
        arg_d = arg_d*arg
        sign = -sign 
        j = j+1
     end do
-  end function d_ker
+  end function ker
 
-  function d_kei(x)
+  function kei(x)
     implicit none
-    real(kind=dp) :: d_kei
+    real(kind=dp) :: kei
     real(kind=dp), intent(in) :: x
     
     real(kind=dp) :: arg, arg_d
-    real(kind=dp) :: p_d_kei
+    real(kind=dp) :: p_kei
     real(kind=dp) :: factorial
     real(kind=dp) :: phi
     real(kind=dp) :: sign
     integer :: j
 
-    p_d_kei = 0.d0
+    p_kei = 0.d0
     factorial = 1.d0
 
     arg = (x/2.d0)**2
     sign = -1.d0
     phi = 1.d0
-    d_kei = -(log(x/2.d0)+euler_gamma)*d_bei(x)-(pi/4.d0)*d_ber(x)+arg
+    kei = -(log(x/2.d0)+euler_gamma)*bei(x)-(pi/4.d0)*ber(x)+arg
     arg_d = arg
     arg = arg*arg
     arg_d = arg_d*arg
 
     j=1
     do while (j < j_max)
-       p_d_kei = d_kei
+       p_kei = kei
        factorial = factorial*2*j*(2*j+1.d0)
        phi = phi + 1.d0/(2.d0*j+1.d0) + 1.d0/(2.d0*j)
-       d_kei = d_kei + sign*phi*arg_d/(factorial*factorial)
-       if (abs(d_kei-p_d_kei) < tolerance) exit
+       kei = kei + sign*phi*arg_d/(factorial*factorial)
+       if (abs(kei-p_kei) < tolerance) exit
        arg_d = arg_d*arg
        sign = -sign 
        j = j+1
     end do
-  end function d_kei
+  end function kei
 
-  function s_ber(x)
+  function dber(x)
     implicit none
-    real(kind=sp) :: s_ber
-    real(kind=sp), intent(in) :: x
-
-    s_ber = real(d_ber(real(x,kind=dp)),kind=sp)
-  end function s_ber
-
-  function s_bei(x)
-    implicit none
-    real(kind=sp) :: s_bei
-    real(kind=sp), intent(in) :: x
-
-    s_bei = real(d_bei(real(x,kind=dp)),kind=sp)
-  end function s_bei
-
-  function s_ker(x)
-    implicit none
-    real(kind=sp) :: s_ker
-    real(kind=sp), intent(in) :: x
-
-    s_ker = real(d_ker(real(x,kind=dp)),kind=sp)
-  end function s_ker
-
-  function s_kei(x)
-    implicit none
-    real(kind=sp) :: s_kei
-    real(kind=sp), intent(in) :: x
-
-    s_kei = real(d_kei(real(x,kind=dp)),kind=sp)
-  end function s_kei
-
-  function d_dber(x)
-    implicit none
-    real(kind=dp) :: d_dber
+    real(kind=dp) :: dber
     real(kind=dp), intent(in) :: x
     
     real(kind=dp) :: arg, arg_d
-    real(kind=dp) :: p_d_dber
+    real(kind=dp) :: p_dber
     real(kind=dp) :: factorial
     real(kind=dp) :: sign
     integer :: j
 
-    p_d_dber = 0.d0
+    p_dber = 0.d0
     factorial = 1.d0
 
-    d_dber = 0.d0
+    dber = 0.d0
     arg = (x/2.d0)**4
     arg_d = (x/2.d0)**3
     sign = -1.d0
 
     j=1
     do while (j < j_max)
-       p_d_dber = d_dber
+       p_dber = dber
        factorial = factorial*2*j*(2*j-1.d0)
-       d_dber = d_dber + sign*2.d0*j*arg_d/(factorial*factorial)
-       if (abs(d_dber-p_d_dber) < tolerance) exit
+       dber = dber + sign*2.d0*j*arg_d/(factorial*factorial)
+       if (abs(dber-p_dber) < tolerance) exit
        arg_d = arg_d*arg
        sign = -sign 
        j = j+1
     end do
-  end function d_dber
+  end function dber
 
-  function d_dbei(x)
+  function dbei(x)
     implicit none
-    real(kind=dp) :: d_dbei
+    real(kind=dp) :: dbei
     real(kind=dp), intent(in) :: x
     
     real(kind=dp) :: arg, arg_d
-    real(kind=dp) :: p_d_dbei
+    real(kind=dp) :: p_dbei
     real(kind=dp) :: factorial
     real(kind=dp) :: sign
     integer :: j
 
-    p_d_dbei = 1.d12
+    p_dbei = 1.d12
     factorial = 1.d0
 
     arg = (x/2.d0)**4
     arg_d = arg*(x/2.d0)
-    d_dbei = (x/2.d0)
+    dbei = (x/2.d0)
     sign = -1.d0
 
     j=1
     do while (j < j_max)
-       p_d_dbei = d_dbei
+       p_dbei = dbei
        factorial = factorial*2*j*(2*j+1.d0)
-       d_dbei = d_dbei + sign*(2.d0*j+1.d0)*arg_d/(factorial*factorial)
-       if (abs(d_dbei-p_d_dbei) < tolerance) exit
+       dbei = dbei + sign*(2.d0*j+1.d0)*arg_d/(factorial*factorial)
+       if (abs(dbei-p_dbei) < tolerance) exit
        arg_d = arg_d*arg
        sign = -sign 
        j = j+1
     end do
-  end function d_dbei
+  end function dbei
 
-  function d_dker(x)
+  function dker(x)
     implicit none
-    real(kind=dp) :: d_dker
+    real(kind=dp) :: dker
     real(kind=dp), intent(in) :: x
     
     real(kind=dp) :: arg, arg_d
-    real(kind=dp) :: p_d_dker
+    real(kind=dp) :: p_dker
     real(kind=dp) :: factorial
     real(kind=dp) :: phi
     real(kind=dp) :: sign
     integer :: j
 
-    p_d_dker = 0.d0
+    p_dker = 0.d0
     factorial = 1.d0
 
     arg = (x/2.d0)**4
     arg_d = (x/2.d0)**3
     sign = -1.d0
     phi = 0.d0
-    d_dker = -(log(x/2.d0)+euler_gamma)*d_dber(x)-d_ber(x)/x+(pi/4.d0)*d_dbei(x)
+    dker = -(log(x/2.d0)+euler_gamma)*dber(x)-ber(x)/x+(pi/4.d0)*dbei(x)
 
     j=1
     do while (j < j_max)
-       p_d_dker = d_dker
+       p_dker = dker
        factorial = factorial*2*j*(2*j-1.d0)
        phi = phi + 1.d0/(2.d0*j-1.d0) + 1.d0/(2.d0*j)
-       d_dker = d_dker + sign*phi*2.d0*j*arg_d/(factorial*factorial)
-       if (abs(d_dker-p_d_dker) < tolerance) exit
+       dker = dker + sign*phi*2.d0*j*arg_d/(factorial*factorial)
+       if (abs(dker-p_dker) < tolerance) exit
        arg_d = arg_d*arg
        sign = -sign 
        j = j+1
     end do
-  end function d_dker
+  end function dker
 
-  function d_dkei(x)
+  function dkei(x)
     implicit none
-    real(kind=dp) :: d_dkei
+    real(kind=dp) :: dkei
     real(kind=dp), intent(in) :: x
     
     real(kind=dp) :: arg, arg_d
-    real(kind=dp) :: p_d_dkei
+    real(kind=dp) :: p_dkei
     real(kind=dp) :: factorial
     real(kind=dp) :: phi
     real(kind=dp) :: sign
     integer :: j
 
-    p_d_dkei = 0.d0
+    p_dkei = 0.d0
     factorial = 1.d0
 
     arg = (x/2.d0)
     sign = -1.d0
     phi = 1.d0
-    d_dkei = -(log(x/2.d0)+euler_gamma)*d_dbei(x)-d_bei(x)/x-(pi/4.d0)*d_dber(x)+arg
+    dkei = -(log(x/2.d0)+euler_gamma)*dbei(x)-bei(x)/x-(pi/4.d0)*dber(x)+arg
     arg_d = arg**5
     arg = arg**4
 
     j=1
     do while (j < j_max)
-       p_d_dkei = d_dkei
+       p_dkei = dkei
        factorial = factorial*2*j*(2*j+1.d0)
        phi = phi + 1.d0/(2.d0*j+1.d0) + 1.d0/(2.d0*j)
-       d_dkei = d_dkei + sign*phi*(2.d0*j+1.d0)*arg_d/(factorial*factorial)
-       if (abs(d_dkei-p_d_dkei) < tolerance) exit
+       dkei = dkei + sign*phi*(2.d0*j+1.d0)*arg_d/(factorial*factorial)
+       if (abs(dkei-p_dkei) < tolerance) exit
        arg_d = arg_d*arg
        sign = -sign 
        j = j+1
     end do
-  end function d_dkei
-
-  function s_dber(x)
-    implicit none
-    real(kind=sp) :: s_dber
-    real(kind=sp), intent(in) :: x
-
-    s_dber = real(d_dber(real(x,kind=dp)),kind=sp)
-  end function s_dber
-
-  function s_dbei(x)
-    implicit none
-    real(kind=sp) :: s_dbei
-    real(kind=sp), intent(in) :: x
-
-    s_dbei = real(d_dbei(real(x,kind=dp)),kind=sp)
-  end function s_dbei
-
-  function s_dker(x)
-    implicit none
-    real(kind=sp) :: s_dker
-    real(kind=sp), intent(in) :: x
-
-    s_dker = real(d_dker(real(x,kind=dp)),kind=sp)
-  end function s_dker
-
-  function s_dkei(x)
-    implicit none
-    real(kind=sp) :: s_dkei
-    real(kind=sp), intent(in) :: x
-
-    s_dkei = real(d_dkei(real(x,kind=dp)),kind=sp)
-  end function s_dkei
+  end function dkei
 
 !-------------------------------------------------------------------------
 
