@@ -74,9 +74,11 @@
          slap_compute_residual_vector, slap_solve_test_matrix, &
          is_slap_solver, slap_method
 
-    use glissade_velo_higher_pcg, only:   &
-         pcg_solver_standard_3d,   pcg_solver_standard_2d,  &
-         pcg_solver_chrongear_3d,  pcg_solver_chrongear_2d, &
+    use glissade_velo_higher_pcg_2d, only:   &
+         pcg_solver_standard_2d,   pcg_solver_chrongear_2d
+
+    use glissade_velo_higher_pcg_3d, only:   &
+         pcg_solver_standard_3d,   pcg_solver_chrongear_3d, &
          matvec_multiply_structured_3d
 
     use cism_parallel, only: this_rank, main_task, nhalo, tasks, &
