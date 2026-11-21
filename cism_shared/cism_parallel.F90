@@ -1999,6 +1999,13 @@ contains
          global_maxval_nsub => parallel%global_maxval_nsub  &
          )
 
+    ! Initialize the ids to an invalid value; nf90_inq_varid does not set them
+    ! when a variable is missing from the file (x0 and y0 often are)
+    x0id = -1
+    y0id = -1
+    x1id = -1
+    y1id = -1
+
     if (main_task) then
        allocate(bounds(2,tasks))
        status = nf90_inq_varid(ncid,"x0",x0id)
@@ -2199,6 +2206,13 @@ contains
          global_minval_nslb => parallel%global_minval_nslb, &
          global_maxval_nsub => parallel%global_maxval_nsub  &
          )
+
+    ! Initialize the ids to an invalid value; nf90_inq_varid does not set them
+    ! when a variable is missing from the file (x0 and y0 often are)
+    x0id = -1
+    y0id = -1
+    x1id = -1
+    y1id = -1
 
     if (main_task) then
        allocate(bounds(2,tasks))
@@ -3913,6 +3927,13 @@ contains
          global_maxval_nsub => parallel%global_maxval_nsub  &
          )
 
+    ! Initialize the ids to an invalid value; nf90_inq_varid does not set them
+    ! when a variable is missing from the file (x0 and y0 often are)
+    x0id = -1
+    y0id = -1
+    x1id = -1
+    y1id = -1
+
     if (main_task) then
        allocate(bounds(2,tasks))
        status = nf90_inq_varid(ncid,"x0",x0id)
@@ -4108,6 +4129,13 @@ contains
          global_minval_nslb => parallel%global_minval_nslb, &
          global_maxval_nsub => parallel%global_maxval_nsub  &
          )
+
+    ! Initialize the ids to an invalid value; nf90_inq_varid does not set them
+    ! when a variable is missing from the file (x0 and y0 often are)
+    x0id = -1
+    y0id = -1
+    x1id = -1
+    y1id = -1
 
     if (main_task) then
        allocate(bounds(2,tasks))
