@@ -621,20 +621,28 @@ contains
 
     real(dp), dimension(0:nzocn) :: zbnd   ! depths of layer boundaries
 
+    real(dp), dimension(nx,ny) :: &
+         weight_2d                 ! sum of the weights (dlayer*layer_frac) of the layers with valid thermal forcing
+
     if (ztop >= 0.0d0 .or. zbot >= 0.0d0) then
-       call write_log('Error, average_thermal_forcing, ztop and zbot must be < 0', GM_FATAL)
+       call write_log('Error, thermal_forcing_avg_3d_to_2d, ztop and zbot must be < 0', GM_FATAL)
+    endif
+    if (zbot >= ztop) then
+       call write_log('Error, thermal_forcing_avg_3d_to_2d, zbot must be deeper than ztop', GM_FATAL)
     endif
 
     ! Estimate the boundaries between ocean layers
     ! Note: k = 1 is the top level, and zocn becomes more negative with increasing k.
-    ! zocn(k) is the depth and the middle of layer k, and zbnd(k) is the depth at the bottom of layer k.
+    ! zocn(k) is the depth at the middle of layer k, and zbnd(k) is the depth at the bottom of layer k.
     ! For uniform layers, the spacing between boundaries is the same as the spacing between layers.
+
+    ! The bottom boundary is as far below zocn(nzocn) as the boundary above it is above zocn(nzocn).
 
     zbnd(0) = 0.0d0
     do k = 1, nzocn-1
        zbnd(k) = 0.5d0 * (zocn(k) + zocn(k+1))
     enddo
-    zbnd(nzocn) = zocn(k) - 0.5d0*(zocn(nzocn-1) - zocn(nzocn))
+    zbnd(nzocn) = 2.0d0*zocn(nzocn) - zbnd(nzocn-1)
 
     if (verbose_latmelt .and. main_task) then
        write(iulog,*) 'ocean layers, k, zocn, zbnd:'
@@ -645,18 +653,18 @@ contains
 
     ! Average the thermal forcing over the specified depth range
 
+    ! Each layer is weighted by its thickness within the range (dlayer*layer_frac).
+    ! The average is over the layers with valid thermal forcing, so that missing values
+    !  (e.g., below the bathymetry) do not reduce it.
+
     thermal_forcing_2d = 0.0d0
+    weight_2d = 0.0d0
 
     do k = 1, nzocn
        if (zbnd(k) < ztop .and. zbnd(k-1) > zbot) then   ! include this layer in the average
-          if (zbnd(k-1) > ztop) then  ! part of the layer is above the range
-             layer_frac = (ztop - zbnd(k)) / (zbnd(k-1) - zbnd(k))
-          elseif (zbnd(k) < zbot) then  ! part of the layer is below the range
-             layer_frac = (zbnd(k-1) - zbot) / (zbnd(k-1) - zbnd(k))
-          else
-             layer_frac = 1.0d0  ! the entire layer is within the range
-          endif
           dlayer = zbnd(k-1) - zbnd(k)
+          ! fraction of the layer within the range; the layer may extend above ztop, below zbot, or both
+          layer_frac = (min(zbnd(k-1), ztop) - max(zbnd(k), zbot)) / dlayer
           if (main_task .and. verbose_latmelt) write(iulog,*) 'k, dlayer, layer_frac:', k, dlayer, layer_frac
 
           do j = 1, ny
@@ -666,15 +674,17 @@ contains
                 if (thermal_forcing(k,i,j) > -99998.d0) then
                    thermal_forcing_layer = max(thermal_forcing(k,i,j), 0.0d0)
                    thermal_forcing_2d(i,j) = thermal_forcing_2d(i,j) + thermal_forcing_layer*dlayer*layer_frac
+                   weight_2d(i,j) = weight_2d(i,j) + dlayer*layer_frac
                 endif
              enddo
           enddo
        endif
     enddo
 
-    ! Divide by the depth range
-    where (thermal_forcing_2d > 0.0d0)
-       thermal_forcing_2d = thermal_forcing_2d / (ztop - zbot)
+    ! Divide by the total weight of the valid layers.
+    ! Cells with no valid thermal forcing in the range keep thermal_forcing_2d = 0.
+    where (weight_2d > 0.0d0)
+       thermal_forcing_2d = thermal_forcing_2d / weight_2d
     endwhere
 
   end subroutine thermal_forcing_avg_3d_to_2d
