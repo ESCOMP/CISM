@@ -425,7 +425,7 @@ contains
     real(dp) :: &
          q_sr,                   & ! runoff in Rignot calculation in m/d
          tf_sr,                  & ! thermal forcing in deg C
-         m_sr                      ! melting rate in m/yr calculated from Slater ISMIP6 melt approach
+         m_sr                      ! melting rate in m/s calculated from Slater ISMIP6 melt approach
 
     ! Initialize
 
@@ -443,7 +443,8 @@ contains
              ! Parameterize melt as a function of subglacial discharge, thermal forcing and effective thickness
              ! See Rignot et al. 2016 or ISMIP6 melt forcing approach.
 
-             tf_sr = thermal_forcing_2d(i,j)  ! 2d thermal forcing [degC]
+             ! 2d thermal forcing [degC], limited to be non-negative (a negative value would give NaN in tf_sr**1.18)
+             tf_sr = max(thermal_forcing_2d(i,j), 0.0d0)
              q_sr = (subglacial_discharge(i,j)/rhow) * scday  ! subglacial_discharge converted from kg/m^2/s to m/day
 
              !TODO - Turn hardwired constants to parameters
@@ -461,7 +462,7 @@ contains
                 if (this_rank == rtest .and. i == itest .and. j == jtest) then
                    write(iulog,*) 'ISMIP6 lateral melting, rank, i, j:', this_rank, i, j
                    write(iulog,*) 'Hsub, m_sr (m/yr), mf_length, melt_thck:', &
-                        thck_submerged(i,j), m_sr*365.d0, mf_length(i,j), melt_thck(i,j)
+                        thck_submerged(i,j), m_sr*scyr, mf_length(i,j), melt_thck(i,j)
                 endif
              endif
 
