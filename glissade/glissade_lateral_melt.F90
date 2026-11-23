@@ -661,8 +661,12 @@ contains
 
           do j = 1, ny
              do i = 1, nx
-                ! Accumulate the forcing for this layer
-                thermal_forcing_2d(i,j) = thermal_forcing_2d(i,j) + thermal_forcing_layer*dlayer*layer_frac
+                ! Accumulate the forcing for this layer.
+                ! Skip missing values (e.g., below the bathymetry in ISMIP6 files), and limit TF to be non-negative.
+                if (thermal_forcing(k,i,j) > -99998.d0) then
+                   thermal_forcing_layer = max(thermal_forcing(k,i,j), 0.0d0)
+                   thermal_forcing_2d(i,j) = thermal_forcing_2d(i,j) + thermal_forcing_layer*dlayer*layer_frac
+                endif
              enddo
           enddo
        endif
