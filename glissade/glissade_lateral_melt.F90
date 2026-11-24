@@ -357,7 +357,11 @@ contains
 !!             latmelt_dthck(i,j) = min((m_sr*dt * thck_effective(i,j) * mf_length(i,j)) / (dx*dy), thck(i,j))
 
              !WHL - commented out m_sr; just using the prescribed melt rate with thck_submerged
-             !TODO - Question: What happens to the ice above sea level? Should it collapse?
+             !Note: The thickness loss includes only submerged ice, not ice above sea level.
+             !      This means that the effective lateral melt rate is ~10% less than it would be
+             !       if latmelt_thck were proportional to the full column thickness.
+             !      Given the other uncertainties in the parameterization, we assume that the cliff face
+             !       remains vertical, rather than add a parameterization of undercutting.
              latmelt_thck(i,j) = melt_rate_const * dt * thck_submerged(i,j) * mf_length(i,j) / (dx*dy)
 
              ! limit latmelt_thck and adjust thck
