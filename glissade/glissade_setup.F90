@@ -2600,6 +2600,15 @@ contains
        call GetValue(section,'dzocn',model%ocean_data%dzocn)     ! m
        call GetValue(section,'nbasin',model%ocean_data%nbasin)
 
+       ! The ocean arrays (e.g., thermal_forcing, deltaT_ocn_basin) are allocated with nzocn levels and nbasin basins
+       !  in every run, so both must be at least 1 (the default).
+       if (model%ocean_data%nzocn < 1) then
+          call write_log('nzocn must be >= 1', GM_FATAL)
+       endif
+       if (model%ocean_data%nbasin < 1) then
+          call write_log('nbasin must be >= 1', GM_FATAL)
+       endif
+
        if (.not.associated(model%ocean_data%zocn)) &
             allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
 
