@@ -49,13 +49,16 @@ contains
 
     ! Compute lateral melting at the melt front, assuming either a constant melt rate
     !  or the parameterization of Rignot et al. (2016, GRL, doi:10.1002/2016GL068784).
-    ! In principle, the melt front could include both grounded and floating ice,
-    !  but runs to date (as of Oct. 2026) assume grounded ice only, with floating ice
-    !  removed by the no-float calving scheme.
+    ! The melt front consists of grounded marine ice adjacent to ice-free ocean
+    !  (glissade_marine_cliff_mask); floating ice does not melt laterally.
+    !  The Rignot et al. (2016) parameterization is based on observations of glaciers
+    !  with grounded, near-vertical faces.
+    ! Note: The scheme has been tested only with calving_law = float_zero, which removes
+    !  all floating ice.
 
     use glimmer_physcon, only: rhoi, rhoo, scyr, scday
     use cism_parallel, only: parallel_type, parallel_halo, parallel_is_zero
-    use glissade_masks, only: glissade_get_masks, glissade_melt_front_mask
+    use glissade_masks, only: glissade_get_masks, glissade_marine_cliff_mask
     use glissade_calving, only: compute_calving_front_length, calve_ice_basic
 
     implicit none
@@ -121,9 +124,11 @@ contains
          ocean_mask = ocean_mask,          &
          land_mask = land_mask)
 
-    call glissade_melt_front_mask(&
+    ! Identify the melt front: grounded marine ice cells adjacent to ice-free ocean
+
+    call glissade_marine_cliff_mask(&
          nx,                ny,            &
-         ice_mask,                         &
+         ice_mask,          floating_mask, &
          land_mask,         ocean_mask,    &
          lateral_melt%melt_front_mask)
 
@@ -141,9 +146,8 @@ contains
          ocean_mask,                       &
          mf_length)
 
-    ! Compute the submerged ice thickness.
-    ! It is set to the negative of the topography for marine-grounded ice,
-    !  and zero for land-grounded ice.
+    ! Compute the submerged ice thickness: the depth of the bed below sea level (eus - topg),
+    !  limited by the effective thickness times rhoi/rhoo; zero where the bed is above sea level.
 
     thck_submerged = model%calving%thck_effective*(rhoi/rhoo)
     thck_submerged = min(thck_submerged, max(model%climate%eus - model%geometry%topg, 0.0d0))
@@ -313,7 +317,7 @@ contains
          dt                        ! time step (s)
 
     integer, dimension(nx,ny), intent(in)  ::  &
-         melt_front_mask           ! = 1 where ice is marine-grounded or floating
+         melt_front_mask           ! = 1 where ice is grounded, marine-based
                                    ! and borders at least one ocean cell, else = 0
 
     real(dp), intent(in) :: &
@@ -357,6 +361,9 @@ contains
              latmelt_thck(i,j) = melt_rate_const * dt * thck_submerged(i,j) * mf_length(i,j) / (dx*dy)
 
              ! limit latmelt_thck and adjust thck
+             ! Note: Any melt in excess of thck is discarded (not carried to upstream neighbors).
+             !       This is fine in standalone runs, but if the scheme were used in CESM, we should
+             !       make sure that discarding potential melt does not violate mass conservation.
              latmelt_thck (i,j) = min(latmelt_thck(i,j), thck(i,j))
              thck(i,j) = thck(i,j) - latmelt_thck(i,j)
 
@@ -407,7 +414,7 @@ contains
 
     !TODO - Sufficient to pass mf_length?
     integer, dimension(nx,ny), intent(in)  ::  &
-         melt_front_mask           ! = 1 where floating or marine-grounded ice borders the ocean
+         melt_front_mask           ! = 1 where grounded marine-based ice borders the ocean
 
     real(dp), intent(in) :: &
          melt_factor               ! multiplier for Rignot melt parameterisation (unitless)
@@ -462,6 +469,9 @@ contains
              melt_thck(i,j) = m_sr * dt * thck_submerged(i,j) * mf_length(i,j) / (dx*dy)
 
              ! limit melt_thck and adjust thck
+             ! Note: Any melt in excess of thck is discarded (not carried to upstream neighbors).
+             !       This is fine in standalone runs, but if the scheme were used in CESM, we should
+             !       make sure that discarding potential melt does not violate mass conservation.
              melt_thck (i,j) = min(melt_thck(i,j), thck(i,j))
              thck(i,j) = thck(i,j) - melt_thck(i,j)
 
@@ -494,6 +504,8 @@ contains
 
     ! Given the surface runoff, compute basin-scale subglacial discharge ('runoff_applied').
     ! This as an input to the lateral melt parameterization.
+    ! Note: This discharge is used only to compute melt rates at the melt front.
+    !       It is not sent to the ocean, so it does not affect water conservation in CESM.
 
     use glissade_utils, only: glissade_basin_sum
 
