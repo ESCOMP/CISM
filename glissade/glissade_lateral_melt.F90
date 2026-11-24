@@ -53,7 +53,7 @@ contains
     !  but runs to date (as of Oct. 2026) assume grounded ice only, with floating ice
     !  removed by the no-float calving scheme.
 
-    use glimmer_physcon, only: scyr, scday
+    use glimmer_physcon, only: rhoi, rhoo, scyr, scday
     use cism_parallel, only: parallel_type, parallel_halo, parallel_is_zero
     use glissade_masks, only: glissade_get_masks, glissade_melt_front_mask
     use glissade_calving, only: compute_calving_front_length, calve_ice_basic
@@ -194,6 +194,12 @@ contains
                mf_length,                           &  ! m
                lateral_melt%runoff_applied)            ! kg/m^2/s
 
+       else   ! should have received runoff_applied directly (from input file)
+
+          if (parallel_is_zero(lateral_melt%runoff_applied)) then
+             call write_log('Missing runoff_applied for lateral melt', GM_FATAL)
+          endif
+
        endif
 
        if (lateral_melt%thermal_forcing_avg_3d_to_2d) then
@@ -294,7 +300,7 @@ contains
 
     ! Apply lateral melt horizontally based on a prescribed constant melt rate
 
-    use glimmer_physcon, only: rhoi, rhoo, scyr
+    use glimmer_physcon, only: scyr
 
     ! input/output arguments
     
@@ -445,7 +451,8 @@ contains
 
              ! 2d thermal forcing [degC], limited to be non-negative (a negative value would give NaN in tf_sr**1.18)
              tf_sr = max(thermal_forcing_2d(i,j), 0.0d0)
-             q_sr = (subglacial_discharge(i,j)/rhow) * scday  ! subglacial_discharge converted from kg/m^2/s to m/day
+             ! subglacial discharge converted from kg/m^2/s to m/day, limited to be non-negative
+             q_sr = max(subglacial_discharge(i,j), 0.0d0) / rhow * scday
 
              !TODO - Turn hardwired constants to parameters
              ! Rignot et al. 2016; formulated in m/day, convert to m/s and multiply by a prescribed melt_factor
@@ -488,7 +495,6 @@ contains
     ! Given the surface runoff, compute basin-scale subglacial discharge ('runoff_applied').
     ! This as an input to the lateral melt parameterization.
 
-    use glimmer_physcon, only: rhoi, rhow, rhoo
     use glissade_utils, only: glissade_basin_sum
 
     ! input/output arguments
