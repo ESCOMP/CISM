@@ -701,10 +701,23 @@ contains
     enddo
 
     ! Divide by the total weight of the valid layers.
-    ! Cells with no valid thermal forcing in the range keep thermal_forcing_2d = 0.
-    where (weight_2d > 0.0d0)
-       thermal_forcing_2d = thermal_forcing_2d / weight_2d
-    endwhere
+    ! In cells with no valid thermal forcing in the range (e.g., where the bed is shallower than ztop),
+    !  use the thermal forcing of the deepest valid layer, limited to be non-negative.
+    ! Cells with no valid thermal forcing at any level keep thermal_forcing_2d = 0.
+    do j = 1, ny
+       do i = 1, nx
+          if (weight_2d(i,j) > 0.0d0) then
+             thermal_forcing_2d(i,j) = thermal_forcing_2d(i,j) / weight_2d(i,j)
+          else
+             do k = nzocn, 1, -1
+                if (thermal_forcing(k,i,j) > -99998.d0) then
+                   thermal_forcing_2d(i,j) = max(thermal_forcing(k,i,j), 0.0d0)
+                   exit
+                endif
+             enddo
+          endif
+       enddo
+    enddo
 
   end subroutine thermal_forcing_avg_3d_to_2d
 
