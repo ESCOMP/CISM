@@ -545,6 +545,9 @@ contains
     ! Internal variables
     !------------------------------------------------------------------------------------
 
+    integer :: i1, i2     ! first and last characters of a variable name in vars_to_add
+    integer :: n          ! length of the name
+
     !------------------------------------------------------------------------------------
 
     ! The first time this subroutine is called, allocate and initialize the restart_variable_list
@@ -556,13 +559,27 @@ contains
        call write_log('model_id too large in call to NAME_add_to_restart_variable_list', GM_FATAL)
     end if
 
-    ! Add the variables to the list so long as they don't make the list too long.
-    if ( (len_trim(restart_variable_list(model_id)) + 1 + len_trim(vars_to_add)) > len(restart_variable_list(model_id))) then
-       call write_log('Adding restart variables has made the restart variable list too long.',GM_FATAL)
-    else
-       restart_variable_list(model_id) = trim(adjustl(restart_variable_list(model_id))) // ' ' // trim(vars_to_add)
-       !call write_log('Adding to NAME restart variable list: ' // trim(vars_to_add) )
-    endif
+    ! Add each variable name in vars_to_add to the list, unless it is there already.
+    ! (Two options can add the same name, e.g. thermal_forcing; a name listed twice is written
+    !  only once, and the second copy gives the warning 'variables in the list but not created'.)
+    i2 = 0
+    do
+       i1 = verify(vars_to_add(i2+1:), ' ')    ! start of the next name, relative to i2
+       if (i1 == 0) exit                       ! no more names
+       i1 = i2 + i1
+       n = scan(vars_to_add(i1:), ' ') - 1     ! length of the name (-1 if it ends the string)
+       if (n < 0) n = len(vars_to_add) - i1 + 1
+       i2 = i1 + n - 1
+       if (index(' '//trim(restart_variable_list(model_id))//' ', ' '//vars_to_add(i1:i2)//' ') == 0) then
+          ! Add the name so long as it does not make the list too long.
+          if (len_trim(restart_variable_list(model_id)) + 1 + n > len(restart_variable_list(model_id))) then
+             call write_log('Adding restart variables has made the restart variable list too long.',GM_FATAL)
+          else
+             restart_variable_list(model_id) = trim(adjustl(restart_variable_list(model_id))) // ' ' // vars_to_add(i1:i2)
+          endif
+       endif
+       if (i2 >= len(vars_to_add)) exit
+    enddo
 
   end subroutine NAME_add_to_restart_variable_list
 
