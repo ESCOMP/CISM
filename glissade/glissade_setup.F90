@@ -3216,15 +3216,20 @@ contains
 
     end select  ! bmlt_float_method
 
-    ! If using an ISMIP6 basin-based melt parameterization, and/or inverting for
-    !  basin-scale quantities, we need a 2D field of basin numbers.
+    ! If using an ISMIP6 basin-based melt parameterization, inverting for basin-scale quantities
+    !  (deltaT_ocn, coulomb_c or powerlaw_c), or computing the lateral melt discharge from basin sums
+    !  of surface runoff, we need a 2D field of basin numbers.
     ! Not strictly needed for the ISMIP6_LOCAL option, but included for diagnostics.
     ! The thermal-forcing parameterization matters only when bmlt_float_method uses thermal forcing.
     if ( (model%basal_melt%bmlt_float_method == BMLT_FLOAT_METHOD_THERMAL_FORCING .and.  &
           (model%basal_melt%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_LOCAL .or.  &
            model%basal_melt%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL .or. &
            model%basal_melt%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_PARAM_ISMIP6_NONLOCAL_SLOPE) ) .or. &
-         model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_INVERSION_BASIN) then
+         model%basal_melt%deltaT_ocn_method == DELTAT_OCN_METHOD_INVERSION_BASIN .or. &
+         model%basal_physics%coulomb_c_method == COULOMB_C_METHOD_INVERSION_BASIN .or. &
+         model%basal_physics%powerlaw_c_method == POWERLAW_C_METHOD_INVERSION_BASIN .or. &
+         (model%lateral_melt%lateral_melt_method == LATERAL_MELT_METHOD_ISMIP .and. &
+          model%lateral_melt%runoff_from_ablation) ) then
        call glissade_add_to_restart_variable_list('basin_number', model_id)
     endif
 

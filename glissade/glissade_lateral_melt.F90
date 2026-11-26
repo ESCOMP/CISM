@@ -183,6 +183,12 @@ contains
     elseif (model%lateral_melt%lateral_melt_method == LATERAL_MELT_METHOD_ISMIP) then
 
        if (lateral_melt%runoff_from_ablation) then
+          ! The discharge is the basin sum of surface runoff, so basin numbers are required.
+          ! Without them (e.g., basin_number missing from the input or restart file), the discharge would be zero.
+          if (parallel_is_zero(model%ocean_data%basin_number)) then
+             call write_log('Missing basin_number, required for lateral melt with runoff_from_ablation = .true.', &
+                  GM_FATAL)
+          endif
           ! compute from the negative portion of acab
           surface_runoff = max(-1.0d0*rhoi*model%climate%acab_applied, 0.0d0)   ! convert m/s ice to kg/m^2/s w.e.
 
