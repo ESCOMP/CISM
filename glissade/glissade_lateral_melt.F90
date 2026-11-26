@@ -163,6 +163,7 @@ contains
 
     if (model%lateral_melt%lateral_melt_method == LATERAL_MELT_METHOD_CONSTANT) then
 
+       ! melt_rate_const is given (and logged) in m/yr; constant_lateral_melt expects m/s.
        call constant_lateral_melt(&
             nx,                   ny,              &
             dx,                   dy,              &
