@@ -2960,6 +2960,9 @@ contains
     call coordsystem_allocate(model%grid%ice_grid, model%basal_melt%bmlt_float_external)
     call coordsystem_allocate(model%grid%ice_grid, model%basal_melt%thermal_forcing_mask)
     ! Note: nzocn and nbasin should be set in the [ocean_data] section of the config file
+    ! The ocean arrays are allocated in every run, since they are used by several options (basal melt from
+    !  thermal forcing, deltaT_ocn inversion, lateral melt, GLAD coupling). With the defaults (nzocn = 1,
+    !  nbasin = 1), this costs only a few 2D fields in runs that do not use them.
     call coordsystem_allocate(model%grid%ice_grid, model%ocean_data%nzocn, &
                               model%ocean_data%thermal_forcing)
     call coordsystem_allocate(model%grid%ice_grid, model%ocean_data%thermal_forcing_lsrf)
